@@ -55,7 +55,7 @@ class _PatientClinicalTimelinePageState extends State<PatientClinicalTimelinePag
     final diagnoses = _list(data['diagnoses']);
     final starts = DateTime.tryParse(appointment['startsAt']?.toString() ?? '')?.toLocal();
     return Card(child: ExpansionTile(
-      leading: const CircleAvatar(child: Icon(Icons.clinical_notes_outlined)),
+      leading: const CircleAvatar(child: Icon(Icons.medical_services_outlined)),
       title: Text(service['name']?.toString() ?? clinicalText(widget.locale, 'healthRecord'), style: const TextStyle(fontWeight: FontWeight.w800)),
       subtitle: Text('${provider['displayName'] ?? ''} · ${_date(starts)}'),
       childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
