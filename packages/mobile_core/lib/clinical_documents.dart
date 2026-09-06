@@ -120,7 +120,7 @@ class _PatientClinicalDocumentsPageState extends State<PatientClinicalDocumentsP
   Widget _reportCard(Map<String, dynamic> report) {
     final data = _map(report['data']);
     return Card(child: ExpansionTile(
-      leading: const CircleAvatar(child: Icon(Icons.radiology_outlined)),
+      leading: const CircleAvatar(child: Icon(Icons.image_outlined)),
       title: Text('${report['type'] ?? documentText(widget.locale, 'reports')} · ${report['status'] ?? ''}', style: const TextStyle(fontWeight: FontWeight.w800)),
       subtitle: Text(data['impression']?.toString() ?? data['findings']?.toString() ?? ''),
       childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -202,7 +202,7 @@ class _ProviderClinicalDocumentsPageState extends State<ProviderClinicalDocument
           onSelected: (value) => value == 'reference' ? _newReference() : _newReport(),
           itemBuilder: (_) => [
             PopupMenuItem(value: 'reference', child: ListTile(leading: const Icon(Icons.link_outlined), title: Text(documentText(locale, 'newReference')))),
-            PopupMenuItem(value: 'report', child: ListTile(leading: const Icon(Icons.radiology_outlined), title: Text(documentText(locale, 'newReport')))),
+            PopupMenuItem(value: 'report', child: ListTile(leading: const Icon(Icons.image_outlined), title: Text(documentText(locale, 'newReport')))),
           ],
           child: FloatingActionButton(onPressed: null, child: const Icon(Icons.add)),
         ),
