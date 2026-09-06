@@ -63,7 +63,10 @@ class ProviderAppointmentsController {
   @RequirePermissions("PROVIDER_MANAGE_AVAILABILITY")
   @Get()
   list(@CurrentPrincipal() principal: AuthPrincipal, @Query("from") from?: string, @Query("to") to?: string) {
-    return this.scheduling.listProviderAppointments(principal, { from, to });
+    return this.scheduling.listProviderAppointments(principal, {
+      ...(from ? { from } : {}),
+      ...(to ? { to } : {}),
+    });
   }
 }
 
@@ -74,7 +77,10 @@ class ServiceSearchController {
   @Public()
   @Get("search")
   search(@Query("q") q?: string, @Query("modality") modality?: string) {
-    return this.scheduling.searchServices({ q, modality });
+    return this.scheduling.searchServices({
+      ...(q ? { q } : {}),
+      ...(modality ? { modality } : {}),
+    });
   }
 }
 
@@ -90,7 +96,12 @@ class AvailabilitySearchController {
     @Query("from") from?: string,
     @Query("to") to?: string,
   ) {
-    return this.scheduling.searchAvailability({ serviceId, modality, from, to });
+    return this.scheduling.searchAvailability({
+      serviceId,
+      modality,
+      ...(from ? { from } : {}),
+      ...(to ? { to } : {}),
+    });
   }
 }
 
