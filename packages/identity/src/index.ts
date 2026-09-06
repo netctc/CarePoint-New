@@ -1,5 +1,6 @@
 export * from "./types.js";
 export * from "./crypto.js";
+export * from "./authorization.js";
 export { AuditTrail } from "./audit.js";
 export { AuthCore } from "./auth-core.js";
 export { GovernanceCore } from "./governance-core.js";

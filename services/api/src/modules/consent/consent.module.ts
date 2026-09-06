@@ -1,22 +1,33 @@
 import { Body, Controller, Get, Module, Param, Post } from "@nestjs/common";
-import { IdentityCoreService } from "../../core/identity-core.module";
+import type { AuthPrincipal } from "@carepoint/identity";
+import { CurrentPrincipal, RequirePermissions } from "../../security/api-security.module";
+import { PersistentConsentService } from "./persistent-consent.service";
 
-interface GrantConsentBody { patientId: string; providerId?: string; scope: string; version: string; expiresAt?: string; }
-interface RevokeConsentBody { actorId: string; }
+interface GrantConsentBody { providerId?: string; scope: string; version: string; expiresAt?: string; }
 
+@RequirePermissions("PATIENT_MANAGE_CONSENT")
 @Controller("consents")
 class ConsentController {
-  constructor(private readonly identity: IdentityCoreService) {}
+  constructor(private readonly consents: PersistentConsentService) {}
 
   @Post()
-  grant(@Body() body: GrantConsentBody) { return this.identity.governance.grantConsent(body); }
+  grant(@CurrentPrincipal() principal: AuthPrincipal, @Body() body: GrantConsentBody) {
+    return this.consents.grant(principal, body);
+  }
 
-  @Get("patient/:patientId")
-  list(@Param("patientId") patientId: string) { return { items: this.identity.governance.listConsents(patientId) }; }
+  @Get("me")
+  listMine(@CurrentPrincipal() principal: AuthPrincipal) {
+    return this.consents.listMine(principal);
+  }
 
   @Post(":consentId/revoke")
-  revoke(@Param("consentId") consentId: string, @Body() body: RevokeConsentBody) { return this.identity.governance.revokeConsent(consentId, body.actorId); }
+  revoke(@CurrentPrincipal() principal: AuthPrincipal, @Param("consentId") consentId: string) {
+    return this.consents.revoke(principal, consentId);
+  }
 }
 
-@Module({ controllers: [ConsentController] })
+@Module({
+  controllers: [ConsentController],
+  providers: [PersistentConsentService],
+})
 export class ConsentModule {}

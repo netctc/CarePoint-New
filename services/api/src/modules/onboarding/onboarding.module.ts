@@ -1,44 +1,79 @@
 import { Body, Controller, Get, Module, Param, Post } from "@nestjs/common";
-import type { CredentialState } from "@carepoint/identity";
-import { IdentityCoreService } from "../../core/identity-core.module";
+import type { AuthPrincipal } from "@carepoint/identity";
+import { CurrentPrincipal, RequirePermissions } from "../../security/api-security.module";
+import { PersistentOnboardingService } from "./persistent-onboarding.service";
 
-interface DoctorOnboardingBody { accountId: string; specialtyId: string; }
-interface OtherProviderOnboardingBody { accountId: string; providerCategoryId: string; }
-interface CredentialBody { type: string; number?: string; issuer?: string; validUntil?: string; }
-interface ReviewCredentialBody { actorId: string; state: CredentialState; note?: string; }
-interface ApproveBody { actorId: string; }
+interface DoctorOnboardingBody { specialtyId: string; }
+interface OtherProviderOnboardingBody { providerCategoryId: string; }
+interface CredentialBody { type: string; number?: string; issuer?: string; validUntil?: string; documentId?: string; }
+interface ReviewCredentialBody { state: "VERIFIED" | "REJECTED"; note?: string; }
 
 @Controller("onboarding")
 class OnboardingController {
-  constructor(private readonly identity: IdentityCoreService) {}
+  constructor(private readonly onboarding: PersistentOnboardingService) {}
 
+  @RequirePermissions("PROVIDER_REVIEW")
   @Get()
-  list() { return { items: this.identity.governance.listOnboardings() }; }
+  list(@CurrentPrincipal() principal: AuthPrincipal) {
+    return this.onboarding.list(principal);
+  }
 
+  @RequirePermissions("PROVIDER_SELF_ONBOARD")
   @Post("doctors")
-  startDoctor(@Body() body: DoctorOnboardingBody) { return this.identity.governance.startDoctor(body); }
+  startDoctor(@CurrentPrincipal() principal: AuthPrincipal, @Body() body: DoctorOnboardingBody) {
+    return this.onboarding.startDoctor(principal, body.specialtyId);
+  }
 
+  @RequirePermissions("PROVIDER_SELF_ONBOARD")
   @Post("other-providers")
-  startOtherProvider(@Body() body: OtherProviderOnboardingBody) { return this.identity.governance.startOtherProvider(body); }
+  startOtherProvider(@CurrentPrincipal() principal: AuthPrincipal, @Body() body: OtherProviderOnboardingBody) {
+    return this.onboarding.startOtherProvider(principal, body.providerCategoryId);
+  }
 
+  @RequirePermissions("PROVIDER_SELF_ONBOARD")
   @Post(":onboardingId/credentials")
-  addCredential(@Param("onboardingId") onboardingId: string, @Body() body: CredentialBody) { return this.identity.governance.addCredential(onboardingId, body); }
+  addCredential(@CurrentPrincipal() principal: AuthPrincipal, @Param("onboardingId") onboardingId: string, @Body() body: CredentialBody) {
+    return this.onboarding.addCredential(principal, onboardingId, body);
+  }
 
+  @RequirePermissions("PROVIDER_SELF_ONBOARD")
   @Post(":onboardingId/submit")
-  submit(@Param("onboardingId") onboardingId: string) { return this.identity.governance.submit(onboardingId); }
+  submit(@CurrentPrincipal() principal: AuthPrincipal, @Param("onboardingId") onboardingId: string) {
+    return this.onboarding.submit(principal, onboardingId);
+  }
 
+  @RequirePermissions("PROVIDER_REVIEW")
   @Post(":onboardingId/credentials/:credentialId/review")
-  reviewCredential(@Param("onboardingId") onboardingId: string, @Param("credentialId") credentialId: string, @Body() body: ReviewCredentialBody) { return this.identity.governance.reviewCredential(body.actorId, onboardingId, credentialId, body.state, body.note); }
+  reviewCredential(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Param("onboardingId") onboardingId: string,
+    @Param("credentialId") credentialId: string,
+    @Body() body: ReviewCredentialBody,
+  ) {
+    return this.onboarding.reviewCredential(principal, onboardingId, credentialId, body.state, body.note);
+  }
 
+  @RequirePermissions("PROVIDER_REVIEW")
   @Post(":onboardingId/approve")
-  approve(@Param("onboardingId") onboardingId: string, @Body() body: ApproveBody) { return this.identity.governance.approve(body.actorId, onboardingId); }
+  approve(@CurrentPrincipal() principal: AuthPrincipal, @Param("onboardingId") onboardingId: string) {
+    return this.onboarding.approve(principal, onboardingId);
+  }
 
-  @Get("provider-access/:accountId")
-  providerAccess(@Param("accountId") accountId: string) { return { state: this.identity.governance.providerState(accountId) }; }
+  @RequirePermissions("PROVIDER_SELF_ONBOARD")
+  @Get("provider-access/me")
+  providerAccess(@CurrentPrincipal() principal: AuthPrincipal) {
+    return this.onboarding.providerState(principal);
+  }
 
+  @RequirePermissions("PROVIDER_REVIEW")
   @Post("provider-access/:accountId/suspend")
-  suspendProvider(@Param("accountId") accountId: string, @Body() body: ApproveBody) { return { state: this.identity.governance.suspendProvider(body.actorId, accountId) }; }
+  suspendProvider(@CurrentPrincipal() principal: AuthPrincipal, @Param("accountId") accountId: string) {
+    return this.onboarding.suspendProvider(principal, accountId);
+  }
 }
 
-@Module({ controllers: [OnboardingController] })
+@Module({
+  controllers: [OnboardingController],
+  providers: [PersistentOnboardingService],
+})
 export class OnboardingModule {}

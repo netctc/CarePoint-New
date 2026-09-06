@@ -1,45 +1,105 @@
-import { Body, Controller, Get, Module, Post } from "@nestjs/common";
-import { AppointmentModalities, OtherProviderFamilies, type AppointmentModality, type LocalizedText, type MedicalSpecialty, type OtherProviderCategory, type OtherProviderFamily } from "@carepoint/contracts";
-import { randomUUID } from "node:crypto";
+import { BadRequestException, Body, Controller, Get, Injectable, Module, Post } from "@nestjs/common";
+import { AppointmentModalities, OtherProviderFamilies, type AppointmentModality, type LocalizedText, type OtherProviderFamily } from "@carepoint/contracts";
+import { Prisma } from "@prisma/client";
+import { PrismaService } from "../../infrastructure/prisma/prisma.module";
+import { Public, RequirePermissions } from "../../security/api-security.module";
 
 interface CreateSpecialtyInput { code: string; labels: LocalizedText; parentId?: string | null; }
 interface CreateOtherProviderCategoryInput { slug: string; labels: LocalizedText; family: OtherProviderFamily; requiredCredentialTypes?: string[]; enabledModalities?: AppointmentModality[]; }
 
+@Injectable()
 class ProviderCatalogService {
-  private readonly specialties: MedicalSpecialty[] = [
-    { id: "spec-cardiology", code: "CARD", labels: { en: "Cardiology", ar: "أمراض القلب", fr: "Cardiologie", es: "Cardiología" }, parentId: null, active: true },
-    { id: "spec-neurology", code: "NEUR", labels: { en: "Neurology", ar: "طب الأعصاب", fr: "Neurologie", es: "Neurología" }, parentId: null, active: true },
-    { id: "spec-pediatrics", code: "PED", labels: { en: "Pediatrics", ar: "طب الأطفال", fr: "Pédiatrie", es: "Pediatría" }, parentId: null, active: true },
-    { id: "spec-dermatology", code: "DERM", labels: { en: "Dermatology", ar: "الأمراض الجلدية", fr: "Dermatologie", es: "Dermatología" }, parentId: null, active: true },
-  ];
+  constructor(private readonly prisma: PrismaService) {}
 
-  private readonly otherCategories: OtherProviderCategory[] = [
-    { id: "cat-nursing", slug: "nursing", labels: { en: "Nursing / ATS", ar: "التمريض / ATS", fr: "Soins infirmiers / ATS", es: "Enfermería / ATS" }, family: "NON_DOCTOR_HEALTHCARE", active: true, requiredCredentialTypes: ["professional-license"], enabledModalities: ["CLINIC", "HOME_VISIT"] },
-    { id: "cat-physiotherapy", slug: "physiotherapy", labels: { en: "Physiotherapy", ar: "العلاج الطبيعي", fr: "Physiothérapie", es: "Fisioterapia" }, family: "NON_DOCTOR_HEALTHCARE", active: true, requiredCredentialTypes: ["professional-license"], enabledModalities: ["CLINIC", "TELEMEDICINE", "HOME_VISIT"] },
-    { id: "cat-emergency-ambulance", slug: "emergency-ambulance", labels: { en: "Emergency Ambulance", ar: "إسعاف طارئ", fr: "Ambulance d’urgence", es: "Ambulancia de urgencias" }, family: "EMERGENCY_AMBULANCE", active: true, requiredCredentialTypes: ["transport-license", "emergency-medical-license"], enabledModalities: [] },
-    { id: "cat-air-medical-transport", slug: "air-medical-transport", labels: { en: "Air Medical Transport", ar: "نقل طبي جوي", fr: "Transport médical aérien", es: "Transporte médico aéreo" }, family: "MEDICAL_TRANSPORT_AIR", active: true, requiredCredentialTypes: ["transport-license", "aviation-medical-approval"], enabledModalities: [] },
-  ];
-
-  listSpecialties(): MedicalSpecialty[] { return this.specialties; }
-  addSpecialty(input: CreateSpecialtyInput): MedicalSpecialty {
-    if (!input.code?.trim() || !input.labels?.en?.trim() || !input.labels?.ar?.trim() || !input.labels?.fr?.trim() || !input.labels?.es?.trim()) throw new Error("code and EN/AR/FR/ES labels are required");
-    const specialty: MedicalSpecialty = { id: randomUUID(), code: input.code.trim().toUpperCase(), labels: input.labels, parentId: input.parentId ?? null, active: true };
-    this.specialties.push(specialty); return specialty;
+  async listSpecialties() {
+    return this.prisma.medicalSpecialty.findMany({ where: { active: true }, orderBy: { code: "asc" } });
   }
-  listOtherCategories(): OtherProviderCategory[] { return this.otherCategories; }
-  addOtherCategory(input: CreateOtherProviderCategoryInput): OtherProviderCategory {
-    if (!input.slug?.trim() || !input.labels?.en?.trim() || !input.labels?.ar?.trim() || !input.labels?.fr?.trim() || !input.labels?.es?.trim()) throw new Error("slug and EN/AR/FR/ES labels are required");
-    if (!(OtherProviderFamilies as readonly string[]).includes(input.family)) throw new Error("Doctors cannot be added to the Other Provider taxonomy.");
+
+  async addSpecialty(input: CreateSpecialtyInput) {
+    this.assertLabels(input.labels);
+    if (!input.code?.trim()) throw new BadRequestException("code is required");
+    if (input.parentId) {
+      const parent = await this.prisma.medicalSpecialty.findUnique({ where: { id: input.parentId } });
+      if (!parent) throw new BadRequestException("Parent specialty not found.");
+    }
+    return this.prisma.medicalSpecialty.create({
+      data: {
+        code: input.code.trim().toUpperCase(),
+        labels: input.labels as unknown as Prisma.InputJsonValue,
+        parentId: input.parentId ?? null,
+      },
+    });
+  }
+
+  async listOtherCategories() {
+    const items = await this.prisma.providerCategory.findMany({ where: { active: true }, orderBy: { slug: "asc" } });
+    return items.map((item) => ({
+      ...item,
+      enabledModalities: this.enabledModalities(item.capabilities),
+    }));
+  }
+
+  async addOtherCategory(input: CreateOtherProviderCategoryInput) {
+    this.assertLabels(input.labels);
+    if (!input.slug?.trim()) throw new BadRequestException("slug is required");
+    if (!(OtherProviderFamilies as readonly string[]).includes(input.family)) throw new BadRequestException("Doctors cannot be added to the Other Provider taxonomy.");
     const modalities = input.enabledModalities ?? [];
-    for (const modality of modalities) if (!(AppointmentModalities as readonly string[]).includes(modality)) throw new Error(`Invalid modality: ${modality}`);
-    const category: OtherProviderCategory = { id: randomUUID(), slug: input.slug.trim().toLowerCase(), labels: input.labels, family: input.family, active: true, requiredCredentialTypes: input.requiredCredentialTypes ?? [], enabledModalities: modalities };
-    this.otherCategories.push(category); return category;
+    for (const modality of modalities) if (!(AppointmentModalities as readonly string[]).includes(modality)) throw new BadRequestException(`Invalid modality: ${modality}`);
+    return this.prisma.providerCategory.create({
+      data: {
+        slug: input.slug.trim().toLowerCase(),
+        labels: input.labels as unknown as Prisma.InputJsonValue,
+        family: input.family,
+        requiredCredentialTypes: (input.requiredCredentialTypes ?? []) as unknown as Prisma.InputJsonValue,
+        capabilities: { enabledModalities: modalities },
+      },
+    });
+  }
+
+  private assertLabels(labels: LocalizedText): void {
+    if (!labels?.en?.trim() || !labels?.ar?.trim() || !labels?.fr?.trim() || !labels?.es?.trim()) throw new BadRequestException("EN/AR/FR/ES labels are required.");
+  }
+
+  private enabledModalities(capabilities: unknown): string[] {
+    if (!capabilities || typeof capabilities !== "object" || Array.isArray(capabilities)) return [];
+    const value = (capabilities as { enabledModalities?: unknown }).enabledModalities;
+    return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
   }
 }
 
 @Controller("doctors/specialties")
-class DoctorSpecialtiesController { constructor(private readonly catalog: ProviderCatalogService) {} @Get() list() { return { domain: "DOCTORS_ALL_SPECIALTIES", items: this.catalog.listSpecialties() }; } @Post() create(@Body() input: CreateSpecialtyInput) { return this.catalog.addSpecialty(input); } }
+class DoctorSpecialtiesController {
+  constructor(private readonly catalog: ProviderCatalogService) {}
+
+  @Public()
+  @Get()
+  async list() {
+    return { domain: "DOCTORS_ALL_SPECIALTIES", items: await this.catalog.listSpecialties() };
+  }
+
+  @RequirePermissions("CATALOG_MANAGE")
+  @Post()
+  create(@Body() input: CreateSpecialtyInput) {
+    return this.catalog.addSpecialty(input);
+  }
+}
+
 @Controller("other-provider-categories")
-class OtherProviderCategoriesController { constructor(private readonly catalog: ProviderCatalogService) {} @Get() list() { return { excludesDoctors: true, items: this.catalog.listOtherCategories() }; } @Post() create(@Body() input: CreateOtherProviderCategoryInput) { return this.catalog.addOtherCategory(input); } }
+class OtherProviderCategoriesController {
+  constructor(private readonly catalog: ProviderCatalogService) {}
+
+  @Public()
+  @Get()
+  async list() {
+    return { excludesDoctors: true, items: await this.catalog.listOtherCategories() };
+  }
+
+  @RequirePermissions("CATALOG_MANAGE")
+  @Post()
+  create(@Body() input: CreateOtherProviderCategoryInput) {
+    return this.catalog.addOtherCategory(input);
+  }
+}
+
 @Module({ controllers: [DoctorSpecialtiesController, OtherProviderCategoriesController], providers: [ProviderCatalogService] })
 export class ProvidersModule {}

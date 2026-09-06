@@ -1,8 +1,10 @@
 import { Body, Controller, Delete, Get, Module, Param, Post } from "@nestjs/common";
-import type { IdentityRole } from "@carepoint/identity";
-import { IdentityCoreService } from "../../core/identity-core.module";
+import type { AuthPrincipal, IdentityRole } from "@carepoint/identity";
+import { CurrentPrincipal, Public, RequirePermissions } from "../../security/api-security.module";
+import { PersistentAuthService } from "../../security/persistent-auth.service";
 
-interface CreateAccountBody { email: string; password: string; role: IdentityRole; }
+interface PatientRegistrationBody { email: string; password: string; firstName: string; lastName: string; phone?: string; }
+interface ManagedAccountBody { email: string; password: string; role: IdentityRole; }
 interface LoginBody { email: string; password: string; }
 interface ConfirmMfaBody { code: string; }
 interface CompleteMfaBody { challengeId: string; code: string; }
@@ -10,34 +12,86 @@ interface RefreshBody { refreshToken: string; }
 
 @Controller("iam")
 class IamController {
-  constructor(private readonly identity: IdentityCoreService) {}
+  constructor(private readonly auth: PersistentAuthService) {}
 
-  @Post("accounts")
-  createAccount(@Body() body: CreateAccountBody) { return this.identity.auth.createAccount(body); }
+  @Public()
+  @Post("register/patient")
+  registerPatient(@Body() body: PatientRegistrationBody) {
+    return this.auth.registerPatient(body);
+  }
 
-  @Get("accounts/:accountId")
-  account(@Param("accountId") accountId: string) { return this.identity.auth.getAccount(accountId); }
-
+  @Public()
   @Post("login")
-  login(@Body() body: LoginBody) { return this.identity.auth.login(body.email, body.password); }
+  login(@Body() body: LoginBody) {
+    return this.auth.login(body.email, body.password);
+  }
 
-  @Post("mfa/:accountId/enroll")
-  enrollMfa(@Param("accountId") accountId: string) { return this.identity.auth.beginMfa(accountId); }
-
-  @Post("mfa/:accountId/confirm")
-  confirmMfa(@Param("accountId") accountId: string, @Body() body: ConfirmMfaBody) { this.identity.auth.confirmMfa(accountId, body.code); return { enabled: true }; }
-
+  @Public()
   @Post("mfa/verify")
-  completeMfa(@Body() body: CompleteMfaBody) { return this.identity.auth.completeMfa(body.challengeId, body.code); }
+  completeMfa(@Body() body: CompleteMfaBody) {
+    return this.auth.completeMfa(body.challengeId, body.code);
+  }
 
+  @Public()
   @Post("sessions/refresh")
-  refresh(@Body() body: RefreshBody) { return this.identity.auth.refresh(body.refreshToken); }
+  refresh(@Body() body: RefreshBody) {
+    return this.auth.refresh(body.refreshToken);
+  }
 
+  @RequirePermissions("IAM_MANAGE_ACCOUNTS")
+  @Post("accounts")
+  createManagedAccount(@CurrentPrincipal() principal: AuthPrincipal, @Body() body: ManagedAccountBody) {
+    return this.auth.createManagedAccount(principal.accountId, body);
+  }
+
+  @Get("accounts/me")
+  me(@CurrentPrincipal() principal: AuthPrincipal) {
+    return this.auth.getAccount(principal, principal.accountId);
+  }
+
+  @RequirePermissions("IAM_MANAGE_ACCOUNTS")
+  @Get("accounts/:accountId")
+  account(@CurrentPrincipal() principal: AuthPrincipal, @Param("accountId") accountId: string) {
+    return this.auth.getAccount(principal, accountId);
+  }
+
+  @Post("mfa/enroll")
+  enrollMfa(@CurrentPrincipal() principal: AuthPrincipal) {
+    return this.auth.beginMfa(principal);
+  }
+
+  @Post("mfa/confirm")
+  async confirmMfa(@CurrentPrincipal() principal: AuthPrincipal, @Body() body: ConfirmMfaBody) {
+    await this.auth.confirmMfa(principal, body.code);
+    return { enabled: true };
+  }
+
+  @RequirePermissions("SELF_SESSION_MANAGE")
   @Delete("sessions/:sessionId")
-  revoke(@Param("sessionId") sessionId: string) { this.identity.auth.revoke(sessionId); return { revoked: true }; }
+  async revoke(@CurrentPrincipal() principal: AuthPrincipal, @Param("sessionId") sessionId: string) {
+    await this.auth.revokeSession(principal, sessionId);
+    return { revoked: true };
+  }
 
+  @RequirePermissions("SELF_SESSION_MANAGE")
+  @Post("sessions/revoke-all")
+  async revokeAllMine(@CurrentPrincipal() principal: AuthPrincipal) {
+    await this.auth.revokeAll(principal);
+    return { revoked: true };
+  }
+
+  @RequirePermissions("IAM_MANAGE_ACCOUNTS")
   @Post("accounts/:accountId/revoke-all-sessions")
-  revokeAll(@Param("accountId") accountId: string) { this.identity.auth.revokeAll(accountId); return { revoked: true }; }
+  async revokeAllForAccount(@CurrentPrincipal() principal: AuthPrincipal, @Param("accountId") accountId: string) {
+    await this.auth.revokeAll(principal, accountId);
+    return { revoked: true };
+  }
+
+  @RequirePermissions("IAM_MANAGE_ACCOUNTS")
+  @Post("accounts/:accountId/suspend")
+  suspendAccount(@CurrentPrincipal() principal: AuthPrincipal, @Param("accountId") accountId: string) {
+    return this.auth.suspendAccount(principal.accountId, accountId);
+  }
 }
 
 @Module({ controllers: [IamController] })

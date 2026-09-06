@@ -14,6 +14,7 @@ enum ProviderStatus { DRAFT PENDING_REVIEW ACTIVE SUSPENDED REJECTED }
 enum ProviderOnboardingState { DRAFT PENDING_REVIEW REQUEST_CHANGES APPROVED REJECTED }
 enum CredentialReviewState { PENDING VERIFIED REJECTED }
 enum ConsentState { GRANTED REVOKED }
+enum AuthChallengeType { MFA_LOGIN }
 enum AppointmentModality { CLINIC TELEMEDICINE HOME_VISIT }
 enum AppointmentStatus { REQUESTED CONFIRMED CANCELLED COMPLETED NO_SHOW }
 enum EmergencyAmbulanceStatus { REQUESTED DISPATCHING ASSIGNED EN_ROUTE ARRIVED TRANSPORTING COMPLETED CANCELLED }
@@ -31,12 +32,13 @@ model User {
   patientProfile PatientProfile?
   provider Provider?
   authSessions AuthSession[]
+  authChallenges AuthChallenge[]
   mfaEnrollment MfaEnrollment?
   providerOnboardings ProviderOnboarding[]
 }
 
 model AuthSession {
-  id String @id @default(uuid())
+  id String @id
   userId String
   accessTokenHash String @unique
   refreshTokenHash String @unique
@@ -53,10 +55,23 @@ model AuthSession {
   @@index([refreshExpiresAt])
 }
 
+model AuthChallenge {
+  id String @id
+  userId String
+  type AuthChallengeType
+  expiresAt DateTime
+  consumedAt DateTime?
+  createdAt DateTime @default(now())
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId, type, expiresAt])
+  @@index([expiresAt, consumedAt])
+}
+
 model MfaEnrollment {
   id String @id @default(uuid())
   userId String @unique
-  algorithm String @default("TOTP-SHA1-6-30")
+  version Int @default(1)
+  algorithm String @default("AES-256-GCM")
   keyId String
   wrappedKey String
   iv String

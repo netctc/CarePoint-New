@@ -4,9 +4,14 @@
   "private": true,
   "scripts": {
     "dev": "nest start --watch",
+    "prebuild": "prisma generate --schema prisma/schema.prisma",
     "build": "nest build",
     "start": "node dist/main.js",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "prisma generate --schema prisma/schema.prisma && tsc -p tsconfig.json --noEmit",
+    "db:generate": "prisma generate --schema prisma/schema.prisma",
+    "db:migrate": "prisma migrate dev --schema prisma/schema.prisma",
+    "db:deploy": "prisma migrate deploy --schema prisma/schema.prisma",
+    "db:bootstrap": "node dist/scripts/bootstrap-platform.js"
   },
   "dependencies": {
     "@carepoint/contracts": "0.1.0",
@@ -16,11 +21,13 @@
     "@nestjs/core": ">=11 <12",
     "@nestjs/platform-express": ">=11 <12",
     "@prisma/client": ">=6 <8",
+    "dotenv": ">=16 <17",
     "reflect-metadata": ">=0.2 <1",
     "rxjs": ">=7 <8"
   },
   "devDependencies": {
     "@nestjs/cli": ">=11 <12",
+    "@types/node": ">=22 <25",
     "prisma": ">=6 <8",
     "typescript": ">=5.8 <6"
   }

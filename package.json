@@ -13,7 +13,9 @@
     "build": "npm run build --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
-    "security:check": "npm --workspace @carepoint/security run test"
+    "security:check": "npm --workspace @carepoint/security run test",
+    "db:deploy": "npm --workspace @carepoint/api run db:deploy",
+    "db:bootstrap": "npm --workspace @carepoint/api run db:bootstrap"
   },
   "engines": {
     "node": ">=22.11.0 <25",

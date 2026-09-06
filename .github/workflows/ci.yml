@@ -8,6 +8,29 @@ on:
 jobs:
   node:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: carepoint
+          POSTGRES_PASSWORD: carepoint
+          POSTGRES_DB: carepoint
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U carepoint -d carepoint"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://carepoint:carepoint@127.0.0.1:5432/carepoint?schema=public
+      ALLOWED_ORIGINS: http://localhost:3000
+      MFA_KEY_PROVIDER: local
+      MFA_ENVELOPE_KEY_ID: ci-mfa-kek-v1
+      MFA_ENVELOPE_KEY_BASE64: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+      BOOTSTRAP_ADMIN_EMAIL: admin-ci@carepoint.test
+      BOOTSTRAP_ADMIN_PASSWORD: CarePoint-CI-Admin#2026
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -16,6 +39,38 @@ jobs:
       - run: npm install
       - run: npm run build
       - run: npm run test
+      - run: npm run db:deploy
+      - run: npm run db:bootstrap
+      - name: Start API
+        run: |
+          npm --workspace @carepoint/api run start > /tmp/carepoint-api.log 2>&1 &
+          echo $! > /tmp/carepoint-api.pid
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:4000/api/v1/health > /dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/carepoint-api.log
+          exit 1
+      - name: IAM persistence smoke test
+        run: |
+          node <<'NODE'
+          const base = 'http://127.0.0.1:4000/api/v1';
+          async function json(path, init = {}) {
+            const response = await fetch(base + path, { ...init, headers: { 'content-type': 'application/json', ...(init.headers || {}) } });
+            const body = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(`${init.method || 'GET'} ${path} -> ${response.status} ${JSON.stringify(body)}`);
+            return body;
+          }
+          const health = await json('/health');
+          if (health.status !== 'ok') throw new Error('health probe failed');
+          await json('/iam/register/patient', { method: 'POST', body: JSON.stringify({ email: 'patient-ci@carepoint.test', password: 'CarePoint-Patient#2026', firstName: 'CI', lastName: 'Patient' }) });
+          const login = await json('/iam/login', { method: 'POST', body: JSON.stringify({ email: 'patient-ci@carepoint.test', password: 'CarePoint-Patient#2026' }) });
+          if (!login.accessToken) throw new Error('login did not return an access token');
+          const me = await json('/iam/accounts/me', { headers: { authorization: `Bearer ${login.accessToken}` } });
+          if (me.email !== 'patient-ci@carepoint.test') throw new Error('authenticated account mismatch');
+          const denied = await fetch(base + '/iam/accounts/me');
+          if (denied.status !== 401) throw new Error(`expected 401 without bearer token, got ${denied.status}`);
+          NODE
 
   flutter:
     runs-on: ubuntu-latest

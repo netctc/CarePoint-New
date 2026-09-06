@@ -1,7 +1,9 @@
 import { Controller, Get, Module } from "@nestjs/common";
+import { Public } from "../../security/api-security.module";
 
 @Controller("health")
 class HealthController {
+  @Public()
   @Get()
   getHealth() {
     return {
