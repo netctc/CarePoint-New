@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  node:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - run: npm run build
+      - run: npm run test
+
+  flutter:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - name: Analyze patient app
+        working-directory: apps/patient-mobile
+        run: flutter pub get && flutter analyze
+      - name: Analyze doctor app
+        working-directory: apps/doctor-mobile
+        run: flutter pub get && flutter analyze
+      - name: Analyze provider app
+        working-directory: apps/provider-mobile
+        run: flutter pub get && flutter analyze
