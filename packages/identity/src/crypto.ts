@@ -1,14 +1,34 @@
-import { createHash, createHmac, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, randomBytes, scrypt, scryptSync, timingSafeEqual } from "node:crypto";
 
 const BASE32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 export const randomId = (prefix: string): string => `${prefix}_${randomBytes(12).toString("hex")}`;
 export const randomToken = (bytes = 32): string => randomBytes(bytes).toString("base64url");
 export const tokenHash = (value: string): string => createHash("sha256").update(value).digest("hex");
 
-export function hashPassword(password: string): string {
+function validatePasswordLength(password: string): void {
   if (password.length < 12) throw new Error("Password must contain at least 12 characters.");
+}
+
+function scryptAsync(password: string, salt: Buffer, keyLength: number): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    scrypt(password, salt, keyLength, (error, derivedKey) => {
+      if (error) reject(error);
+      else resolve(derivedKey);
+    });
+  });
+}
+
+export function hashPassword(password: string): string {
+  validatePasswordLength(password);
   const salt = randomBytes(16);
   const derived = scryptSync(password, salt, 32);
+  return `scrypt$${salt.toString("base64url")}$${derived.toString("base64url")}`;
+}
+
+export async function hashPasswordAsync(password: string): Promise<string> {
+  validatePasswordLength(password);
+  const salt = randomBytes(16);
+  const derived = await scryptAsync(password, salt, 32);
   return `scrypt$${salt.toString("base64url")}$${derived.toString("base64url")}`;
 }
 
@@ -17,6 +37,14 @@ export function verifyPassword(password: string, stored: string): boolean {
   if (algorithm !== "scrypt" || !saltValue || !hashValue) return false;
   const expected = Buffer.from(hashValue, "base64url");
   const actual = scryptSync(password, Buffer.from(saltValue, "base64url"), expected.length);
+  return actual.length === expected.length && timingSafeEqual(actual, expected);
+}
+
+export async function verifyPasswordAsync(password: string, stored: string): Promise<boolean> {
+  const [algorithm, saltValue, hashValue] = stored.split("$");
+  if (algorithm !== "scrypt" || !saltValue || !hashValue) return false;
+  const expected = Buffer.from(hashValue, "base64url");
+  const actual = await scryptAsync(password, Buffer.from(saltValue, "base64url"), expected.length);
   return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
 
