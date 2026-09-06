@@ -11,13 +11,7 @@ void main() {
     final client = MockClient((request) async {
       requests.add(request);
       if (request.url.path.endsWith('/iam/login')) {
-        return http.Response(jsonEncode({
-          'sessionId': 's1',
-          'accessToken': 'access-1',
-          'refreshToken': 'refresh-1',
-          'expiresAt': '2026-09-06T20:00:00.000Z',
-          'refreshExpiresAt': '2026-10-06T20:00:00.000Z',
-        }), 200, headers: {'content-type': 'application/json'});
+        return http.Response(jsonEncode({'sessionId': 's1', 'accessToken': 'access-1', 'refreshToken': 'refresh-1', 'expiresAt': '2026-09-06T20:00:00.000Z', 'refreshExpiresAt': '2026-10-06T20:00:00.000Z'}), 200, headers: {'content-type': 'application/json'});
       }
       if (request.url.path.endsWith('/iam/accounts/me')) {
         expect(request.headers['authorization'], 'Bearer access-1');
@@ -25,10 +19,8 @@ void main() {
       }
       return http.Response('{}', 404);
     });
-
     final api = CarePointApi(baseUrl: 'https://carepoint.test/api/v1', client: client);
     final session = await api.login('patient@example.test', 'Secret#123');
-
     expect(session.role, 'PATIENT');
     expect(api.accessToken, 'access-1');
     expect(api.refreshToken, 'refresh-1');
@@ -52,21 +44,11 @@ void main() {
         refreshCalls += 1;
         final body = jsonDecode(request.body) as Map<String, dynamic>;
         expect(body['refreshToken'], 'refresh-old');
-        return http.Response(jsonEncode({
-          'sessionId': 's2',
-          'accessToken': 'fresh-access',
-          'refreshToken': 'refresh-new',
-          'expiresAt': '2026-09-06T20:00:00.000Z',
-          'refreshExpiresAt': '2026-10-06T20:00:00.000Z',
-        }), 200, headers: {'content-type': 'application/json'});
+        return http.Response(jsonEncode({'sessionId': 's2', 'accessToken': 'fresh-access', 'refreshToken': 'refresh-new', 'expiresAt': '2026-09-06T20:00:00.000Z', 'refreshExpiresAt': '2026-10-06T20:00:00.000Z'}), 200, headers: {'content-type': 'application/json'});
       }
       return http.Response('{}', 404);
     });
-
-    final api = CarePointApi(baseUrl: 'https://carepoint.test/api/v1', client: client)
-      ..accessToken = 'expired-access'
-      ..refreshToken = 'refresh-old';
-
+    final api = CarePointApi(baseUrl: 'https://carepoint.test/api/v1', client: client)..accessToken = 'expired-access'..refreshToken = 'refresh-old';
     final appointments = await api.myAppointments();
     expect(appointments, isEmpty);
     expect(appointmentCalls, 2);
@@ -75,14 +57,27 @@ void main() {
   });
 
   test('MFA challenge is surfaced without storing incomplete session tokens', () async {
-    final client = MockClient((request) async => http.Response(jsonEncode({
-          'requiresMfa': true,
-          'challengeId': 'mfa-1',
-          'expiresAt': '2026-09-06T20:00:00.000Z',
-        }), 200, headers: {'content-type': 'application/json'}));
+    final client = MockClient((request) async => http.Response(jsonEncode({'requiresMfa': true, 'challengeId': 'mfa-1', 'expiresAt': '2026-09-06T20:00:00.000Z'}), 200, headers: {'content-type': 'application/json'}));
     final api = CarePointApi(baseUrl: 'https://carepoint.test/api/v1', client: client);
-
     expect(() => api.login('doctor@example.test', 'Secret#123'), throwsA(isA<CarePointMfaRequired>()));
     expect(api.isAuthenticated, isFalse);
+  });
+
+  test('telehealth client sends consent, readiness and join calls with bearer token', () async {
+    final paths = <String>[];
+    final client = MockClient((request) async {
+      paths.add(request.url.path);
+      expect(request.headers['authorization'], 'Bearer tele-access');
+      if (request.url.path.endsWith('/consent')) return http.Response(jsonEncode({'consentGranted': true}), 200);
+      if (request.url.path.endsWith('/readiness')) return http.Response(jsonEncode({'participantReady': true}), 200);
+      if (request.url.path.endsWith('/join')) return http.Response(jsonEncode({'sessionId': 'th1', 'serverUrl': 'wss://livekit.test', 'participantToken': 'jwt', 'e2eeKey': 'key', 'expiresAt': '2026-09-06T20:00:00.000Z', 'recordingEnabled': false}), 200);
+      return http.Response('{}', 404);
+    });
+    final api = CarePointApi(baseUrl: 'https://carepoint.test/api/v1', client: client)..accessToken = 'tele-access'..refreshToken = 'tele-refresh';
+    expect((await api.confirmTelehealthConsent('appt1'))['consentGranted'], true);
+    expect((await api.updateTelehealthReadiness('appt1', camera: true, microphone: true, network: true))['participantReady'], true);
+    final join = await api.telehealthJoin('appt1');
+    expect(join['recordingEnabled'], false);
+    expect(paths, containsAll(['/api/v1/telehealth/appointments/appt1/consent', '/api/v1/telehealth/appointments/appt1/readiness', '/api/v1/telehealth/appointments/appt1/join']));
   });
 }

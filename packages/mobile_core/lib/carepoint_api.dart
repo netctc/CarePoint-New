@@ -39,9 +39,7 @@ class CarePointApi {
   Future<CarePointSession> login(String email, String password) async {
     final result = await _send('POST', '/iam/login', body: {'email': email.trim(), 'password': password}, authenticated: false, retryAuth: false);
     final map = _asMap(result);
-    if (map['requiresMfa'] == true) {
-      throw CarePointMfaRequired(map['challengeId'].toString(), map['expiresAt'].toString());
-    }
+    if (map['requiresMfa'] == true) throw CarePointMfaRequired(map['challengeId'].toString(), map['expiresAt'].toString());
     _captureTokens(map);
     return CarePointSession(account: await me(), api: this);
   }
@@ -82,13 +80,7 @@ class CarePointApi {
 
   Future<List<Map<String, dynamic>>> providerServices() async => _asList(await _send('GET', '/provider/services'));
 
-  Future<Map<String, dynamic>> createProviderService({
-    required String name,
-    required String modality,
-    required int durationMinutes,
-    required int priceMinor,
-    String currency = 'USD',
-  }) async {
+  Future<Map<String, dynamic>> createProviderService({required String name, required String modality, required int durationMinutes, required int priceMinor, String currency = 'USD'}) async {
     final labels = {'en': name, 'ar': name, 'fr': name, 'es': name};
     return _asMap(await _send('POST', '/provider/services', body: {
       'labels': labels,
@@ -138,19 +130,27 @@ class CarePointApi {
         if (ruleId != null) 'ruleId': ruleId,
       }));
 
+  Future<Map<String, dynamic>> telehealthStatus(String appointmentId) async =>
+      _asMap(await _send('GET', '/telehealth/appointments/$appointmentId'));
+
+  Future<Map<String, dynamic>> confirmTelehealthConsent(String appointmentId, {String version = 'telemedicine-v1'}) async =>
+      _asMap(await _send('POST', '/telehealth/appointments/$appointmentId/consent', body: {'version': version}));
+
+  Future<Map<String, dynamic>> updateTelehealthReadiness(String appointmentId, {required bool camera, required bool microphone, required bool network}) async =>
+      _asMap(await _send('POST', '/telehealth/appointments/$appointmentId/readiness', body: {'camera': camera, 'microphone': microphone, 'network': network}));
+
+  Future<Map<String, dynamic>> telehealthJoin(String appointmentId) async =>
+      _asMap(await _send('POST', '/telehealth/appointments/$appointmentId/join', body: const {}));
+
+  Future<Map<String, dynamic>> endTelehealth(String appointmentId) async =>
+      _asMap(await _send('POST', '/telehealth/appointments/$appointmentId/end', body: const {}));
+
   Future<void> logout() async {
     accessToken = null;
     refreshToken = null;
   }
 
-  Future<dynamic> _send(
-    String method,
-    String path, {
-    Map<String, String>? query,
-    Map<String, dynamic>? body,
-    bool authenticated = true,
-    bool retryAuth = true,
-  }) async {
+  Future<dynamic> _send(String method, String path, {Map<String, String>? query, Map<String, dynamic>? body, bool authenticated = true, bool retryAuth = true}) async {
     final response = await _raw(method, path, query: query, body: body, authenticated: authenticated);
     if (response.statusCode == 401 && authenticated && retryAuth && refreshToken != null) {
       final refreshed = await _refresh();
@@ -176,11 +176,7 @@ class CarePointApi {
   dynamic _decode(http.Response response) {
     dynamic payload;
     if (response.body.isNotEmpty) {
-      try {
-        payload = jsonDecode(response.body);
-      } catch (_) {
-        payload = response.body;
-      }
+      try { payload = jsonDecode(response.body); } catch (_) { payload = response.body; }
     }
     if (response.statusCode < 200 || response.statusCode >= 300) {
       final message = payload is Map && payload['message'] != null ? payload['message'].toString() : 'Request failed (${response.statusCode}).';

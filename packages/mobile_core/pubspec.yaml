@@ -1,6 +1,6 @@
 name: carepoint_mobile_core
 publish_to: "none"
-version: 0.2.0
+version: 0.3.0
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
@@ -9,6 +9,7 @@ dependencies:
   flutter:
     sdk: flutter
   http: ^1.2.2
+  livekit_client: ^2.11.0
 
 dev_dependencies:
   flutter_test:
