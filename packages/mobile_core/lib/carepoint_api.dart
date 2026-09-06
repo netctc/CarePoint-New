@@ -160,6 +160,33 @@ class CarePointApi {
   Future<Map<String, dynamic>> finalizeClinicalEncounter(String appointmentId) async =>
       _asMap(await _send('POST', '/clinical/appointments/$appointmentId/finalize', body: const {}));
 
+  Future<Map<String, dynamic>> patientClinicalOrders() async =>
+      _asMap(await _send('GET', '/clinical-orders/me'));
+
+  Future<Map<String, dynamic>> providerClinicalOrders(String patientId) async =>
+      _asMap(await _send('GET', '/clinical-orders/patients/$patientId'));
+
+  Future<Map<String, dynamic>> clinicalOrder(String orderId) async =>
+      _asMap(await _send('GET', '/clinical-orders/$orderId'));
+
+  Future<Map<String, dynamic>> createPrescription(String appointmentId, Map<String, dynamic> body) async =>
+      _asMap(await _send('POST', '/clinical-orders/appointments/$appointmentId/prescriptions', body: body));
+
+  Future<Map<String, dynamic>> createLaboratoryOrder(String appointmentId, Map<String, dynamic> body) async =>
+      _asMap(await _send('POST', '/clinical-orders/appointments/$appointmentId/laboratory', body: body));
+
+  Future<Map<String, dynamic>> cancelClinicalOrder(String orderId) async =>
+      _asMap(await _send('POST', '/clinical-orders/$orderId/cancel', body: const {}));
+
+  Future<Map<String, dynamic>> enterLaboratoryResult(String orderId, Map<String, dynamic> body) async =>
+      _asMap(await _send('POST', '/clinical-orders/$orderId/lab-result', body: body));
+
+  Future<Map<String, dynamic>> validateLaboratoryResult(String orderId) async =>
+      _asMap(await _send('POST', '/clinical-orders/$orderId/lab-result/validate', body: const {}));
+
+  Future<Map<String, dynamic>> releaseLaboratoryResult(String orderId) async =>
+      _asMap(await _send('POST', '/clinical-orders/$orderId/lab-result/release', body: const {}));
+
   Future<void> logout() async {
     accessToken = null;
     refreshToken = null;
