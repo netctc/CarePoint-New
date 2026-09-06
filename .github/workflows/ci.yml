@@ -84,6 +84,9 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+      - name: Test shared mobile client
+        working-directory: packages/mobile_core
+        run: flutter pub get && flutter analyze && flutter test
       - name: Analyze patient app
         working-directory: apps/patient-mobile
         run: flutter pub get && flutter analyze
