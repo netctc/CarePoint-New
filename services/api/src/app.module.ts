@@ -3,6 +3,7 @@ import { ApiSecurityModule } from "./security/api-security.module";
 import { AuditModule } from "./modules/audit/audit.module";
 import { ClinicalModule } from "./modules/clinical/clinical.module";
 import { ConsentModule } from "./modules/consent/consent.module";
+import { DocumentsModule } from "./modules/documents/documents.module";
 import { EmergencyModule } from "./modules/emergency/emergency.module";
 import { HealthModule } from "./modules/health/health.module";
 import { IamModule } from "./modules/iam/iam.module";
@@ -26,6 +27,7 @@ import { TelehealthModule } from "./modules/telehealth/telehealth.module";
     TelehealthModule,
     ClinicalModule,
     OrdersModule,
+    DocumentsModule,
   ],
 })
 export class AppModule {}
