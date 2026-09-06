@@ -3,6 +3,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  InternalServerErrorException,
   NotFoundException,
 } from "@nestjs/common";
 import { Prisma, type TelehealthSession } from "@prisma/client";
@@ -58,11 +59,10 @@ export class TelehealthService {
           grantedAt: new Date(),
         },
       });
-      const current = await tx.telehealthSession.update({
+      return tx.telehealthSession.update({
         where: { id: session.id },
         data: { consentId: consent.id, consentVersion: version },
       });
-      return current;
     });
     await this.audit.write({ actorId: principal.accountId, action: "TELEHEALTH_CONSENT_GRANTED", objectType: "TELEHEALTH_SESSION", objectId: session.id, result: "SUCCESS", metadata: { appointmentId, version } });
     return this.view(appointment, updated, principal);
@@ -237,9 +237,12 @@ export class TelehealthService {
   }
 
   private toEnvelope(session: TelehealthSession): EncryptedEnvelope {
+    if (session.e2eeVersion !== 1 || session.e2eeAlgorithm !== "AES-256-GCM") {
+      throw new InternalServerErrorException("Stored telehealth encryption envelope uses an unsupported format.");
+    }
     return {
-      version: session.e2eeVersion,
-      algorithm: session.e2eeAlgorithm,
+      version: 1,
+      algorithm: "AES-256-GCM",
       keyId: session.e2eeKeyId,
       wrappedKey: session.e2eeWrappedKey,
       iv: session.e2eeIv,
