@@ -66,7 +66,7 @@ class _TelehealthRoomPageState extends State<TelehealthRoomPage> {
   @override
   void dispose() {
     final current = room;
-    if (current != null) unawaited(Future<void>(() async { await current.dispose(); }));
+    if (current != null) unawaited(current.dispose());
     super.dispose();
   }
 
@@ -124,12 +124,17 @@ class _TelehealthRoomPageState extends State<TelehealthRoomPage> {
 
       await LiveKitClient.initialize();
       final encryption = await E2EEOptions.sharedKey(key);
-      final nextRoom = Room();
+      final nextRoom = Room(roomOptions: RoomOptions(adaptiveStream: true, dynacast: true, encryption: encryption));
       nextRoom.addListener(_roomChanged);
       await nextRoom.prepareConnection(serverUrl, participantToken);
-      await nextRoom.connect(serverUrl, participantToken, roomOptions: RoomOptions(adaptiveStream: true, dynacast: true, encryption: encryption));
-      await nextRoom.localParticipant.setMicrophoneEnabled(true);
-      try { await nextRoom.localParticipant.setCameraEnabled(true); } catch (value) { _show(value); }
+      await nextRoom.connect(serverUrl, participantToken);
+      final localParticipant = nextRoom.localParticipant;
+      if (localParticipant == null) {
+        await nextRoom.dispose();
+        throw const CarePointApiException('LiveKit did not create a local participant.');
+      }
+      await localParticipant.setMicrophoneEnabled(true);
+      try { await localParticipant.setCameraEnabled(true); } catch (value) { _show(value); }
       if (!mounted) {
         await nextRoom.dispose();
         return;
@@ -148,16 +153,16 @@ class _TelehealthRoomPageState extends State<TelehealthRoomPage> {
   }
 
   Future<void> toggleCamera() async {
-    final current = room;
-    if (current == null) return;
-    await current.localParticipant.setCameraEnabled(!current.localParticipant.isCameraEnabled());
+    final localParticipant = room?.localParticipant;
+    if (localParticipant == null) return;
+    await localParticipant.setCameraEnabled(!localParticipant.isCameraEnabled());
     if (mounted) setState(() {});
   }
 
   Future<void> toggleMicrophone() async {
-    final current = room;
-    if (current == null) return;
-    await current.localParticipant.setMicrophoneEnabled(!current.localParticipant.isMicrophoneEnabled());
+    final localParticipant = room?.localParticipant;
+    if (localParticipant == null) return;
+    await localParticipant.setMicrophoneEnabled(!localParticipant.isMicrophoneEnabled());
     if (mounted) setState(() {});
   }
 
@@ -241,13 +246,16 @@ class _TelehealthRoomPageState extends State<TelehealthRoomPage> {
     for (final participant in current.remoteParticipants.values) {
       for (final publication in participant.videoTrackPublications) {
         final track = publication.track;
-        if (track is VideoTrack && !publication.muted) remoteTracks.add(track);
+        if (track != null && !publication.muted) remoteTracks.add(track);
       }
     }
+    final localParticipant = current.localParticipant;
     VideoTrack? localTrack;
-    for (final publication in current.localParticipant.videoTrackPublications) {
-      final track = publication.track;
-      if (track is VideoTrack && !publication.muted) { localTrack = track; break; }
+    if (localParticipant != null) {
+      for (final publication in localParticipant.videoTrackPublications) {
+        final track = publication.track;
+        if (track != null && !publication.muted) { localTrack = track; break; }
+      }
     }
 
     return SafeArea(
@@ -263,8 +271,8 @@ class _TelehealthRoomPageState extends State<TelehealthRoomPage> {
           color: const Color(0xFF0B1628),
           padding: const EdgeInsets.fromLTRB(18, 14, 18, 22),
           child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
-            _control(current.localParticipant.isMicrophoneEnabled() ? Icons.mic : Icons.mic_off, toggleMicrophone),
-            _control(current.localParticipant.isCameraEnabled() ? Icons.videocam : Icons.videocam_off, toggleCamera),
+            _control(localParticipant?.isMicrophoneEnabled() == true ? Icons.mic : Icons.mic_off, toggleMicrophone),
+            _control(localParticipant?.isCameraEnabled() == true ? Icons.videocam : Icons.videocam_off, toggleCamera),
             _control(Icons.call_end, () => leave(endForEveryone: widget.providerMode), destructive: true),
           ]),
         ),
@@ -282,7 +290,7 @@ class _TelehealthRoomPageState extends State<TelehealthRoomPage> {
 
   Widget _control(IconData icon, Future<void> Function() action, {bool destructive = false}) => IconButton.filled(
         style: IconButton.styleFrom(backgroundColor: destructive ? const Color(0xFFDC2626) : const Color(0xFF24344E), foregroundColor: Colors.white, minimumSize: const Size(56, 56)),
-        onPressed: action,
+        onPressed: () { unawaited(action()); },
         icon: Icon(icon),
       );
 
