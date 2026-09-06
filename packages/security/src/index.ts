@@ -33,6 +33,12 @@ function fromBase64(value: string): Uint8Array {
   return bytes;
 }
 
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const copy = new Uint8Array(bytes.byteLength);
+  copy.set(bytes);
+  return copy.buffer;
+}
+
 export class PhiEnvelopeEncryption {
   constructor(private readonly keyProvider: KeyEncryptionKeyProvider) {}
 
@@ -41,13 +47,17 @@ export class PhiEnvelopeEncryption {
     const iv = crypto.getRandomValues(new Uint8Array(12));
     const dataKey = await crypto.subtle.importKey(
       "raw",
-      rawDataKey,
+      toArrayBuffer(rawDataKey),
       { name: "AES-GCM" },
       false,
       ["encrypt"],
     );
     const plaintext = encoder.encode(JSON.stringify(value));
-    const ciphertextBuffer = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, dataKey, plaintext);
+    const ciphertextBuffer = await crypto.subtle.encrypt(
+      { name: "AES-GCM", iv: toArrayBuffer(iv) },
+      dataKey,
+      toArrayBuffer(plaintext),
+    );
     const wrapped = await this.keyProvider.wrapDataKey(rawDataKey);
     rawDataKey.fill(0);
 
@@ -72,15 +82,15 @@ export class PhiEnvelopeEncryption {
     try {
       const dataKey = await crypto.subtle.importKey(
         "raw",
-        rawDataKey,
+        toArrayBuffer(rawDataKey),
         { name: "AES-GCM" },
         false,
         ["decrypt"],
       );
       const plaintextBuffer = await crypto.subtle.decrypt(
-        { name: "AES-GCM", iv: fromBase64(envelope.iv) },
+        { name: "AES-GCM", iv: toArrayBuffer(fromBase64(envelope.iv)) },
         dataKey,
-        fromBase64(envelope.ciphertext),
+        toArrayBuffer(fromBase64(envelope.ciphertext)),
       );
       return JSON.parse(decoder.decode(plaintextBuffer)) as T;
     } finally {
@@ -104,7 +114,7 @@ export class StaticAesKwKeyProvider implements KeyEncryptionKeyProvider {
   private async importKey(usages: KeyUsage[]): Promise<CryptoKey> {
     return crypto.subtle.importKey(
       "raw",
-      this.keyBytes,
+      toArrayBuffer(this.keyBytes),
       { name: "AES-KW" },
       false,
       usages,
@@ -115,7 +125,7 @@ export class StaticAesKwKeyProvider implements KeyEncryptionKeyProvider {
     const kek = await this.importKey(["wrapKey"]);
     const dek = await crypto.subtle.importKey(
       "raw",
-      rawDataKey,
+      toArrayBuffer(rawDataKey),
       { name: "AES-GCM" },
       true,
       ["encrypt", "decrypt"],
@@ -129,7 +139,7 @@ export class StaticAesKwKeyProvider implements KeyEncryptionKeyProvider {
     const kek = await this.importKey(["unwrapKey"]);
     const dek = await crypto.subtle.unwrapKey(
       "raw",
-      fromBase64(input.wrappedKey),
+      toArrayBuffer(fromBase64(input.wrappedKey)),
       kek,
       "AES-KW",
       { name: "AES-GCM" },

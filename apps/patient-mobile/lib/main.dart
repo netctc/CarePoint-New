@@ -62,7 +62,7 @@ class PatientHome extends StatelessWidget {
       GridView.count(shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), crossAxisCount: 2, mainAxisSpacing: 12, crossAxisSpacing: 12, children: [
         _Action(icon: Icons.calendar_month_outlined, text: cpText(locale, 'patient.book')),
         _Action(icon: Icons.video_call_outlined, text: cpText(locale, 'patient.telemedicine')),
-        _Action(icon: Icons.home_health_outlined, text: cpText(locale, 'patient.homeCare')),
+        _Action(icon: Icons.home_outlined, text: cpText(locale, 'patient.homeCare')),
         _Action(icon: Icons.search_rounded, text: cpText(locale, 'patient.findCare')),
       ]),
     ])),
