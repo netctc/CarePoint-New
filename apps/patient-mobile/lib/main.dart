@@ -171,7 +171,7 @@ class _PatientSearchPageState extends State<PatientSearchPage> {
             ),
             const SizedBox(height: 10),
             DropdownButtonFormField<String?>(
-              value: modality,
+              initialValue: modality,
               decoration: const InputDecoration(border: OutlineInputBorder()),
               items: [
                 DropdownMenuItem<String?>(value: null, child: Text(cpText(widget.locale, 'patient.allModalities'))),
