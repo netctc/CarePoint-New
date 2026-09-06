@@ -5,7 +5,16 @@ import { PrismaService } from "../../infrastructure/prisma/prisma.module";
 import { Public, RequirePermissions } from "../../security/api-security.module";
 
 interface CreateSpecialtyInput { code: string; labels: LocalizedText; parentId?: string | null; }
-interface CreateOtherProviderCategoryInput { slug: string; labels: LocalizedText; family: OtherProviderFamily; requiredCredentialTypes?: string[]; enabledModalities?: AppointmentModality[]; }
+interface CreateOtherProviderCategoryInput {
+  slug: string;
+  labels: LocalizedText;
+  family: OtherProviderFamily;
+  requiredCredentialTypes?: string[];
+  enabledModalities?: AppointmentModality[];
+  clinicalOrderCapabilities?: string[];
+}
+
+const ClinicalOrderCapabilities = ["PRESCRIPTION", "LABORATORY", "LAB_RESULT_ENTRY", "LAB_RESULT_VALIDATE"] as const;
 
 @Injectable()
 class ProviderCatalogService {
@@ -36,6 +45,7 @@ class ProviderCatalogService {
     return items.map((item) => ({
       ...item,
       enabledModalities: this.enabledModalities(item.capabilities),
+      clinicalOrderCapabilities: this.clinicalOrderCapabilities(item.capabilities),
     }));
   }
 
@@ -45,13 +55,15 @@ class ProviderCatalogService {
     if (!(OtherProviderFamilies as readonly string[]).includes(input.family)) throw new BadRequestException("Doctors cannot be added to the Other Provider taxonomy.");
     const modalities = input.enabledModalities ?? [];
     for (const modality of modalities) if (!(AppointmentModalities as readonly string[]).includes(modality)) throw new BadRequestException(`Invalid modality: ${modality}`);
+    const clinicalOrderCapabilities = input.clinicalOrderCapabilities ?? [];
+    for (const capability of clinicalOrderCapabilities) if (!(ClinicalOrderCapabilities as readonly string[]).includes(capability)) throw new BadRequestException(`Invalid clinical order capability: ${capability}`);
     return this.prisma.providerCategory.create({
       data: {
         slug: input.slug.trim().toLowerCase(),
         labels: input.labels as unknown as Prisma.InputJsonValue,
         family: input.family,
         requiredCredentialTypes: (input.requiredCredentialTypes ?? []) as unknown as Prisma.InputJsonValue,
-        capabilities: { enabledModalities: modalities },
+        capabilities: { enabledModalities: modalities, clinicalOrderCapabilities },
       },
     });
   }
@@ -63,6 +75,12 @@ class ProviderCatalogService {
   private enabledModalities(capabilities: unknown): string[] {
     if (!capabilities || typeof capabilities !== "object" || Array.isArray(capabilities)) return [];
     const value = (capabilities as { enabledModalities?: unknown }).enabledModalities;
+    return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+  }
+
+  private clinicalOrderCapabilities(capabilities: unknown): string[] {
+    if (!capabilities || typeof capabilities !== "object" || Array.isArray(capabilities)) return [];
+    const value = (capabilities as { clinicalOrderCapabilities?: unknown }).clinicalOrderCapabilities;
     return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
   }
 }
