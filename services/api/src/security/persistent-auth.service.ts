@@ -8,11 +8,11 @@ import {
 } from "@nestjs/common";
 import {
   canActOnAccount,
-  hashPassword,
+  hashPasswordAsync,
   randomId,
   randomToken,
   tokenHash,
-  verifyPassword,
+  verifyPasswordAsync,
   verifyTotp,
   generateTotpSecret,
   type AuthPrincipal,
@@ -52,7 +52,7 @@ export class PersistentAuthService {
     const user = await this.prisma.user.create({
       data: {
         email,
-        passwordHash: hashPassword(input.password),
+        passwordHash: await hashPasswordAsync(input.password),
         role: "PATIENT",
         patientProfile: {
           create: {
@@ -70,7 +70,7 @@ export class PersistentAuthService {
   async createManagedAccount(actorId: string, input: { email: string; password: string; role: IdentityRole }) {
     const email = this.normalizeEmail(input.email);
     await this.ensureEmailAvailable(email);
-    const user = await this.prisma.user.create({ data: { email, passwordHash: hashPassword(input.password), role: input.role } });
+    const user = await this.prisma.user.create({ data: { email, passwordHash: await hashPasswordAsync(input.password), role: input.role } });
     await this.audit.write({ actorId, action: "ACCOUNT_CREATED", objectType: "ACCOUNT", objectId: user.id, result: "SUCCESS", metadata: { role: user.role } });
     return this.safeAccount(user);
   }
@@ -92,7 +92,7 @@ export class PersistentAuthService {
     if (user.status !== "ACTIVE") throw new UnauthorizedException("Account is not active.");
     if (user.lockedUntil && user.lockedUntil.getTime() > Date.now()) throw new UnauthorizedException("Account temporarily locked.");
 
-    if (!verifyPassword(password, user.passwordHash)) {
+    if (!(await verifyPasswordAsync(password, user.passwordHash))) {
       const nextFailures = user.failedLoginCount + 1;
       const shouldLock = nextFailures >= MAX_FAILED_LOGINS;
       await this.prisma.user.update({
