@@ -80,4 +80,32 @@ void main() {
     expect(join['recordingEnabled'], false);
     expect(paths, containsAll(['/api/v1/telehealth/appointments/appt1/consent', '/api/v1/telehealth/appointments/appt1/readiness', '/api/v1/telehealth/appointments/appt1/join']));
   });
+
+  test('clinical client reads timeline and writes/finalizes an encounter with bearer token', () async {
+    final paths = <String>[];
+    final client = MockClient((request) async {
+      paths.add(request.url.path);
+      expect(request.headers['authorization'], 'Bearer clinical-access');
+      if (request.url.path.endsWith('/clinical/timeline')) {
+        return http.Response(jsonEncode({'patientId': 'p1', 'accessBasis': 'PATIENT_SELF', 'items': []}), 200, headers: {'content-type': 'application/json'});
+      }
+      if (request.url.path.endsWith('/clinical/appointments/appt1/records')) {
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(body['assessment'], 'Stable');
+        return http.Response(jsonEncode({'id': 'cr1', 'appointmentId': 'appt1', 'revision': 1}), 200, headers: {'content-type': 'application/json'});
+      }
+      if (request.url.path.endsWith('/clinical/appointments/appt1/finalize')) {
+        return http.Response(jsonEncode({'appointment': {'id': 'appt1', 'status': 'COMPLETED'}, 'finalized': true}), 200, headers: {'content-type': 'application/json'});
+      }
+      return http.Response('{}', 404);
+    });
+    final api = CarePointApi(baseUrl: 'https://carepoint.test/api/v1', client: client)..accessToken = 'clinical-access'..refreshToken = 'clinical-refresh';
+    final timeline = await api.patientClinicalTimeline();
+    expect(timeline['accessBasis'], 'PATIENT_SELF');
+    final record = await api.writeClinicalRecord('appt1', {'assessment': 'Stable'});
+    expect(record['revision'], 1);
+    final finalized = await api.finalizeClinicalEncounter('appt1');
+    expect(finalized['finalized'], true);
+    expect(paths, containsAll(['/api/v1/clinical/timeline', '/api/v1/clinical/appointments/appt1/records', '/api/v1/clinical/appointments/appt1/finalize']));
+  });
 }
