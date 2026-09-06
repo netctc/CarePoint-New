@@ -13,7 +13,8 @@ Slice 3.1 turns a confirmed CarePoint appointment into the anchor for a clinical
 5. The patient can read their own timeline.
 6. The authoring provider can always read records they authored for the patient.
 7. Cross-provider access requires either a valid treatment relationship or a currently granted `CLINICAL_RECORD_READ` consent (`clinical-record-v1`).
-8. Finalizing the encounter changes the appointment to `COMPLETED` and makes further clinical revisions immutable. Any active telehealth session for the same appointment is ended.
+8. Finalizing the encounter changes the appointment to `COMPLETED` and makes further clinical revisions immutable.
+9. A telemedicine encounter cannot be finalized while its media session is `ACTIVE`; the provider must end the LiveKit session through the telehealth flow first. A waiting/ready room that never became active may be closed during finalization.
 
 ## Structured encrypted payload
 
@@ -51,6 +52,23 @@ Patient/provider read:
 - Providers can author/finalize only appointments assigned to their own active provider profile.
 - A provider reading another provider's record needs a treatment relationship, patient consent, or (future slice) explicitly audited legal/emergency break-glass basis.
 - Admin and Support roles do not receive PHI-read permission by default.
+- The access basis returned by the API is preserved on timeline items (`PATIENT_SELF`, `OWN_AUTHORSHIP`, `TREATMENT_RELATIONSHIP`, or `PATIENT_CONSENT`) so clients do not misrepresent why a record is visible.
+
+## Mobile surfaces
+
+Patient App:
+
+- adds a `Health record` tab
+- lists decrypted encounter summaries returned by the authorized API
+- supports EN/AR/FR/ES and Arabic RTL
+
+Doctor / Other Provider Apps:
+
+- add a `Clinical chart` action to confirmed/completed appointments
+- allow structured charting while the encounter is open
+- save a new encrypted revision rather than overwriting history
+- show prior patient history only when the backend confirms a valid access basis
+- become read-only after finalization
 
 ## Encryption configuration
 
