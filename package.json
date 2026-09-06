@@ -1,0 +1,23 @@
+{
+  "name": "carepoint-next",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/admin",
+    "packages/*",
+    "services/*"
+  ],
+  "scripts": {
+    "dev:admin": "npm --workspace @carepoint/admin run dev",
+    "dev:api": "npm --workspace @carepoint/api run dev",
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "security:check": "npm --workspace @carepoint/security run test"
+  },
+  "engines": {
+    "node": ">=22.11.0 <25",
+    "npm": ">=10"
+  },
+  "packageManager": "npm@10.9.2"
+}
