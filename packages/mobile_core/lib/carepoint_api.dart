@@ -70,127 +70,59 @@ class CarePointApi {
     return _asList(result);
   }
 
-  Future<Map<String, dynamic>> book({required String slotId, required String idempotencyKey}) async =>
-      _asMap(await _send('POST', '/bookings', body: {'slotId': slotId, 'idempotencyKey': idempotencyKey}));
-
+  Future<Map<String, dynamic>> book({required String slotId, required String idempotencyKey}) async => _asMap(await _send('POST', '/bookings', body: {'slotId': slotId, 'idempotencyKey': idempotencyKey}));
   Future<List<Map<String, dynamic>>> myAppointments() async => _asList(await _send('GET', '/bookings/me'));
-
-  Future<Map<String, dynamic>> cancelAppointment(String appointmentId, {String? reason}) async =>
-      _asMap(await _send('POST', '/bookings/$appointmentId/cancel', body: {if (reason?.trim().isNotEmpty == true) 'reason': reason!.trim()}));
+  Future<Map<String, dynamic>> cancelAppointment(String appointmentId, {String? reason}) async => _asMap(await _send('POST', '/bookings/$appointmentId/cancel', body: {if (reason?.trim().isNotEmpty == true) 'reason': reason!.trim()}));
 
   Future<List<Map<String, dynamic>>> providerServices() async => _asList(await _send('GET', '/provider/services'));
-
   Future<Map<String, dynamic>> createProviderService({required String name, required String modality, required int durationMinutes, required int priceMinor, String currency = 'USD'}) async {
     final labels = {'en': name, 'ar': name, 'fr': name, 'es': name};
-    return _asMap(await _send('POST', '/provider/services', body: {
-      'labels': labels,
-      'currency': currency,
-      'modalities': [
-        {'modality': modality, 'durationMinutes': durationMinutes, 'priceMinor': priceMinor}
-      ],
-    }));
+    return _asMap(await _send('POST', '/provider/services', body: {'labels': labels, 'currency': currency, 'modalities': [{'modality': modality, 'durationMinutes': durationMinutes, 'priceMinor': priceMinor}]}));
   }
-
-  Future<List<Map<String, dynamic>>> providerAppointments({DateTime? from, DateTime? to}) async => _asList(await _send('GET', '/provider/appointments', query: {
-        if (from != null) 'from': from.toUtc().toIso8601String(),
-        if (to != null) 'to': to.toUtc().toIso8601String(),
-      }));
-
+  Future<List<Map<String, dynamic>>> providerAppointments({DateTime? from, DateTime? to}) async => _asList(await _send('GET', '/provider/appointments', query: {if (from != null) 'from': from.toUtc().toIso8601String(), if (to != null) 'to': to.toUtc().toIso8601String()}));
   Future<List<Map<String, dynamic>>> availabilityRules() async => _asList(await _send('GET', '/provider/availability/rules'));
+  Future<Map<String, dynamic>> createAvailabilityRule({required String serviceId, required String modality, required String timezone, required int weekday, required int startMinute, required int endMinute, required int intervalMinutes, int slotCapacity = 1, required String effectiveFrom, String? effectiveUntil}) async => _asMap(await _send('POST', '/provider/availability/rules', body: {'serviceId': serviceId, 'modality': modality, 'timezone': timezone, 'weekday': weekday, 'startMinute': startMinute, 'endMinute': endMinute, 'intervalMinutes': intervalMinutes, 'slotCapacity': slotCapacity, 'effectiveFrom': effectiveFrom, if (effectiveUntil != null && effectiveUntil.isNotEmpty) 'effectiveUntil': effectiveUntil}));
+  Future<Map<String, dynamic>> generateAvailability({required String fromDate, required String toDate, String? ruleId}) async => _asMap(await _send('POST', '/provider/availability/generate', body: {'fromDate': fromDate, 'toDate': toDate, if (ruleId != null) 'ruleId': ruleId}));
 
-  Future<Map<String, dynamic>> createAvailabilityRule({
-    required String serviceId,
-    required String modality,
-    required String timezone,
-    required int weekday,
-    required int startMinute,
-    required int endMinute,
-    required int intervalMinutes,
-    int slotCapacity = 1,
-    required String effectiveFrom,
-    String? effectiveUntil,
-  }) async =>
-      _asMap(await _send('POST', '/provider/availability/rules', body: {
-        'serviceId': serviceId,
-        'modality': modality,
-        'timezone': timezone,
-        'weekday': weekday,
-        'startMinute': startMinute,
-        'endMinute': endMinute,
-        'intervalMinutes': intervalMinutes,
-        'slotCapacity': slotCapacity,
-        'effectiveFrom': effectiveFrom,
-        if (effectiveUntil != null && effectiveUntil.isNotEmpty) 'effectiveUntil': effectiveUntil,
-      }));
+  Future<Map<String, dynamic>> telehealthStatus(String appointmentId) async => _asMap(await _send('GET', '/telehealth/appointments/$appointmentId'));
+  Future<Map<String, dynamic>> confirmTelehealthConsent(String appointmentId, {String version = 'telemedicine-v1'}) async => _asMap(await _send('POST', '/telehealth/appointments/$appointmentId/consent', body: {'version': version}));
+  Future<Map<String, dynamic>> updateTelehealthReadiness(String appointmentId, {required bool camera, required bool microphone, required bool network}) async => _asMap(await _send('POST', '/telehealth/appointments/$appointmentId/readiness', body: {'camera': camera, 'microphone': microphone, 'network': network}));
+  Future<Map<String, dynamic>> telehealthJoin(String appointmentId) async => _asMap(await _send('POST', '/telehealth/appointments/$appointmentId/join', body: const {}));
+  Future<Map<String, dynamic>> endTelehealth(String appointmentId) async => _asMap(await _send('POST', '/telehealth/appointments/$appointmentId/end', body: const {}));
 
-  Future<Map<String, dynamic>> generateAvailability({required String fromDate, required String toDate, String? ruleId}) async =>
-      _asMap(await _send('POST', '/provider/availability/generate', body: {
-        'fromDate': fromDate,
-        'toDate': toDate,
-        if (ruleId != null) 'ruleId': ruleId,
-      }));
+  Future<Map<String, dynamic>> patientClinicalTimeline() async => _asMap(await _send('GET', '/clinical/timeline'));
+  Future<Map<String, dynamic>> providerClinicalTimeline(String patientId) async => _asMap(await _send('GET', '/clinical/patients/$patientId/timeline'));
+  Future<Map<String, dynamic>> clinicalEncounter(String appointmentId) async => _asMap(await _send('GET', '/clinical/appointments/$appointmentId'));
+  Future<Map<String, dynamic>> writeClinicalRecord(String appointmentId, Map<String, dynamic> record) async => _asMap(await _send('POST', '/clinical/appointments/$appointmentId/records', body: record));
+  Future<Map<String, dynamic>> finalizeClinicalEncounter(String appointmentId) async => _asMap(await _send('POST', '/clinical/appointments/$appointmentId/finalize', body: const {}));
 
-  Future<Map<String, dynamic>> telehealthStatus(String appointmentId) async =>
-      _asMap(await _send('GET', '/telehealth/appointments/$appointmentId'));
+  Future<Map<String, dynamic>> patientClinicalOrders() async => _asMap(await _send('GET', '/clinical-orders/me'));
+  Future<Map<String, dynamic>> providerClinicalOrders(String patientId) async => _asMap(await _send('GET', '/clinical-orders/patients/$patientId'));
+  Future<Map<String, dynamic>> clinicalOrder(String orderId) async => _asMap(await _send('GET', '/clinical-orders/$orderId'));
+  Future<Map<String, dynamic>> createPrescription(String appointmentId, Map<String, dynamic> body) async => _asMap(await _send('POST', '/clinical-orders/appointments/$appointmentId/prescriptions', body: body));
+  Future<Map<String, dynamic>> createLaboratoryOrder(String appointmentId, Map<String, dynamic> body) async => _asMap(await _send('POST', '/clinical-orders/appointments/$appointmentId/laboratory', body: body));
+  Future<Map<String, dynamic>> cancelClinicalOrder(String orderId) async => _asMap(await _send('POST', '/clinical-orders/$orderId/cancel', body: const {}));
+  Future<Map<String, dynamic>> enterLaboratoryResult(String orderId, Map<String, dynamic> body) async => _asMap(await _send('POST', '/clinical-orders/$orderId/lab-result', body: body));
+  Future<Map<String, dynamic>> validateLaboratoryResult(String orderId) async => _asMap(await _send('POST', '/clinical-orders/$orderId/lab-result/validate', body: const {}));
+  Future<Map<String, dynamic>> releaseLaboratoryResult(String orderId) async => _asMap(await _send('POST', '/clinical-orders/$orderId/lab-result/release', body: const {}));
 
-  Future<Map<String, dynamic>> confirmTelehealthConsent(String appointmentId, {String version = 'telemedicine-v1'}) async =>
-      _asMap(await _send('POST', '/telehealth/appointments/$appointmentId/consent', body: {'version': version}));
+  Future<Map<String, dynamic>> patientClinicalDocuments() async => _asMap(await _send('GET', '/clinical-documents/me'));
+  Future<Map<String, dynamic>> providerClinicalDocuments(String patientId) async => _asMap(await _send('GET', '/clinical-documents/patients/$patientId'));
+  Future<Map<String, dynamic>> clinicalDocumentContent(String documentId) async => _asMap(await _send('GET', '/clinical-documents/$documentId/content'));
+  Future<Map<String, dynamic>> uploadEncounterDocument(String appointmentId, Map<String, dynamic> body) async => _asMap(await _send('POST', '/clinical-documents/appointments/$appointmentId/upload', body: body));
+  Future<Map<String, dynamic>> createEncounterDocumentReference(String appointmentId, Map<String, dynamic> body) async => _asMap(await _send('POST', '/clinical-documents/appointments/$appointmentId/reference', body: body));
+  Future<Map<String, dynamic>> uploadPatientDocument(Map<String, dynamic> body) async => _asMap(await _send('POST', '/clinical-documents/me/upload', body: body));
+  Future<Map<String, dynamic>> releaseClinicalDocument(String documentId) async => _asMap(await _send('POST', '/clinical-documents/$documentId/release', body: const {}));
+  Future<Map<String, dynamic>> removeClinicalDocument(String documentId) async => _asMap(await _send('POST', '/clinical-documents/$documentId/remove', body: const {}));
 
-  Future<Map<String, dynamic>> updateTelehealthReadiness(String appointmentId, {required bool camera, required bool microphone, required bool network}) async =>
-      _asMap(await _send('POST', '/telehealth/appointments/$appointmentId/readiness', body: {'camera': camera, 'microphone': microphone, 'network': network}));
+  Future<Map<String, dynamic>> patientDiagnosticReports() async => _asMap(await _send('GET', '/diagnostic-reports/me'));
+  Future<Map<String, dynamic>> providerDiagnosticReports(String patientId) async => _asMap(await _send('GET', '/diagnostic-reports/patients/$patientId'));
+  Future<Map<String, dynamic>> diagnosticReport(String reportId) async => _asMap(await _send('GET', '/diagnostic-reports/$reportId'));
+  Future<Map<String, dynamic>> createDiagnosticReport(String appointmentId, Map<String, dynamic> body) async => _asMap(await _send('POST', '/diagnostic-reports/appointments/$appointmentId', body: body));
+  Future<Map<String, dynamic>> finalizeDiagnosticReport(String reportId) async => _asMap(await _send('POST', '/diagnostic-reports/$reportId/finalize', body: const {}));
+  Future<Map<String, dynamic>> releaseDiagnosticReport(String reportId) async => _asMap(await _send('POST', '/diagnostic-reports/$reportId/release', body: const {}));
 
-  Future<Map<String, dynamic>> telehealthJoin(String appointmentId) async =>
-      _asMap(await _send('POST', '/telehealth/appointments/$appointmentId/join', body: const {}));
-
-  Future<Map<String, dynamic>> endTelehealth(String appointmentId) async =>
-      _asMap(await _send('POST', '/telehealth/appointments/$appointmentId/end', body: const {}));
-
-  Future<Map<String, dynamic>> patientClinicalTimeline() async =>
-      _asMap(await _send('GET', '/clinical/timeline'));
-
-  Future<Map<String, dynamic>> providerClinicalTimeline(String patientId) async =>
-      _asMap(await _send('GET', '/clinical/patients/$patientId/timeline'));
-
-  Future<Map<String, dynamic>> clinicalEncounter(String appointmentId) async =>
-      _asMap(await _send('GET', '/clinical/appointments/$appointmentId'));
-
-  Future<Map<String, dynamic>> writeClinicalRecord(String appointmentId, Map<String, dynamic> record) async =>
-      _asMap(await _send('POST', '/clinical/appointments/$appointmentId/records', body: record));
-
-  Future<Map<String, dynamic>> finalizeClinicalEncounter(String appointmentId) async =>
-      _asMap(await _send('POST', '/clinical/appointments/$appointmentId/finalize', body: const {}));
-
-  Future<Map<String, dynamic>> patientClinicalOrders() async =>
-      _asMap(await _send('GET', '/clinical-orders/me'));
-
-  Future<Map<String, dynamic>> providerClinicalOrders(String patientId) async =>
-      _asMap(await _send('GET', '/clinical-orders/patients/$patientId'));
-
-  Future<Map<String, dynamic>> clinicalOrder(String orderId) async =>
-      _asMap(await _send('GET', '/clinical-orders/$orderId'));
-
-  Future<Map<String, dynamic>> createPrescription(String appointmentId, Map<String, dynamic> body) async =>
-      _asMap(await _send('POST', '/clinical-orders/appointments/$appointmentId/prescriptions', body: body));
-
-  Future<Map<String, dynamic>> createLaboratoryOrder(String appointmentId, Map<String, dynamic> body) async =>
-      _asMap(await _send('POST', '/clinical-orders/appointments/$appointmentId/laboratory', body: body));
-
-  Future<Map<String, dynamic>> cancelClinicalOrder(String orderId) async =>
-      _asMap(await _send('POST', '/clinical-orders/$orderId/cancel', body: const {}));
-
-  Future<Map<String, dynamic>> enterLaboratoryResult(String orderId, Map<String, dynamic> body) async =>
-      _asMap(await _send('POST', '/clinical-orders/$orderId/lab-result', body: body));
-
-  Future<Map<String, dynamic>> validateLaboratoryResult(String orderId) async =>
-      _asMap(await _send('POST', '/clinical-orders/$orderId/lab-result/validate', body: const {}));
-
-  Future<Map<String, dynamic>> releaseLaboratoryResult(String orderId) async =>
-      _asMap(await _send('POST', '/clinical-orders/$orderId/lab-result/release', body: const {}));
-
-  Future<void> logout() async {
-    accessToken = null;
-    refreshToken = null;
-  }
+  Future<void> logout() async { accessToken = null; refreshToken = null; }
 
   Future<dynamic> _send(String method, String path, {Map<String, String>? query, Map<String, dynamic>? body, bool authenticated = true, bool retryAuth = true}) async {
     final response = await _raw(method, path, query: query, body: body, authenticated: authenticated);
