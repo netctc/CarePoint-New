@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'carepoint_api.dart';
 import 'carepoint_localization.dart';
 import 'clinical_localization.dart';
+import 'clinical_orders.dart';
 
 class ClinicalActionButton extends StatelessWidget {
   const ClinicalActionButton({super.key, required this.session, required this.locale, required this.appointment});
@@ -111,6 +112,8 @@ class _ClinicalRecordPageState extends State<ClinicalRecordPage> {
                     if (!finalized) OutlinedButton.icon(onPressed: saving ? null : finalize, icon: const Icon(Icons.task_alt), label: Text(clinicalText(locale, 'finalize'))),
                     const SizedBox(height: 10),
                     OutlinedButton.icon(onPressed: showPatientHistory, icon: const Icon(Icons.history), label: Text(clinicalText(locale, 'patientHistory'))),
+                    const SizedBox(height: 10),
+                    ClinicalOrdersActionButton(session: widget.session, locale: locale, appointment: widget.appointment),
                   ]),
       );
 
