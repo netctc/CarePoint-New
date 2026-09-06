@@ -38,7 +38,6 @@ CREATE INDEX "AvailabilityRule_providerId_active_weekday_idx" ON "AvailabilityRu
 CREATE INDEX "AvailabilityRule_serviceId_modality_active_idx" ON "AvailabilityRule"("serviceId", "modality", "active");
 
 ALTER TABLE "AvailabilitySlot"
-  ALTER COLUMN "serviceId" SET NOT NULL,
   ADD COLUMN "modality" "AppointmentModality",
   ADD COLUMN "bookedCount" INTEGER NOT NULL DEFAULT 0,
   ADD COLUMN "status" "AvailabilitySlotStatus" NOT NULL DEFAULT 'OPEN',
@@ -46,12 +45,14 @@ ALTER TABLE "AvailabilitySlot"
   ADD COLUMN "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   ADD COLUMN "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
 
--- The baseline contained no generated slots. This guard keeps migration behavior explicit if a non-empty development DB is upgraded.
+-- Legacy development slots without a service cannot participate in the new inventory model.
+DELETE FROM "AvailabilitySlot" WHERE "serviceId" IS NULL;
 UPDATE "AvailabilitySlot" s
 SET "modality" = sm."modality"
 FROM "ServiceModality" sm
 WHERE s."serviceId" = sm."serviceId" AND s."modality" IS NULL;
 DELETE FROM "AvailabilitySlot" WHERE "modality" IS NULL;
+ALTER TABLE "AvailabilitySlot" ALTER COLUMN "serviceId" SET NOT NULL;
 ALTER TABLE "AvailabilitySlot" ALTER COLUMN "modality" SET NOT NULL;
 ALTER TABLE "AvailabilitySlot"
   ADD CONSTRAINT "AvailabilitySlot_capacity_check" CHECK ("capacity" > 0),
