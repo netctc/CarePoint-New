@@ -152,7 +152,7 @@ export class OrdersService {
     if (order.labResult) throw new ConflictException("A laboratory result already exists for this order.");
     if (order.providerId !== provider.id && !provider.capabilities.has("LAB_RESULT_ENTRY")) throw new ForbiddenException("Provider is not authorized to enter laboratory results.");
 
-    const payload = this.validateLabResult(input);
+    const payload = this.validateLabResultPayload(input);
     const encrypted = await this.envelope.encrypt({ schemaVersion: 1, ...payload });
     const payloadDigest = this.attestation.digest(this.resultAttestationMaterial(order.id, encrypted));
     const result = await this.prisma.laboratoryResult.create({
@@ -362,7 +362,7 @@ export class OrdersService {
     return result;
   }
 
-  private validateLabResult(input: JsonObject): JsonObject {
+  private validateLabResultPayload(input: JsonObject): JsonObject {
     if (!Array.isArray(input.observations) || input.observations.length < 1 || input.observations.length > 200) throw new BadRequestException("observations must contain between 1 and 200 items.");
     const observations = input.observations.map((item, index) => {
       const raw = this.object(item, `observations[${index}]`);
