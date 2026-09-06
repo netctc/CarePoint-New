@@ -1,6 +1,7 @@
 import 'package:carepoint_mobile_core/carepoint_api.dart';
 import 'package:carepoint_mobile_core/carepoint_localization.dart';
 import 'package:carepoint_mobile_core/clinical_localization.dart';
+import 'package:carepoint_mobile_core/clinical_orders.dart';
 import 'package:flutter/material.dart';
 
 class PatientClinicalTimelinePage extends StatefulWidget {
@@ -16,6 +17,7 @@ class _PatientClinicalTimelinePageState extends State<PatientClinicalTimelinePag
   bool busy = true;
   String? error;
   List<Map<String, dynamic>> items = const [];
+  List<Map<String, dynamic>> orders = const [];
 
   @override
   void initState() { super.initState(); load(); }
@@ -23,8 +25,14 @@ class _PatientClinicalTimelinePageState extends State<PatientClinicalTimelinePag
   Future<void> load() async {
     setState(() { busy = true; error = null; });
     try {
-      final result = await widget.session.api.patientClinicalTimeline();
-      if (mounted) setState(() => items = _list(result['items']));
+      final values = await Future.wait([
+        widget.session.api.patientClinicalTimeline(),
+        widget.session.api.patientClinicalOrders(),
+      ]);
+      if (mounted) setState(() {
+        items = _list(values[0]['items']);
+        orders = _list(values[1]['items']);
+      });
     } catch (value) { if (mounted) setState(() => error = value.toString()); }
     finally { if (mounted) setState(() => busy = false); }
   }
@@ -33,20 +41,27 @@ class _PatientClinicalTimelinePageState extends State<PatientClinicalTimelinePag
   Widget build(BuildContext context) {
     if (busy) return const Center(child: CircularProgressIndicator());
     if (error != null) return Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [Text(error!, textAlign: TextAlign.center), const SizedBox(height: 12), FilledButton(onPressed: load, child: Text(cpText(widget.locale, 'common.retry')))])));
-    if (items.isEmpty) return Center(child: Padding(padding: const EdgeInsets.all(24), child: Text(clinicalText(widget.locale, 'noRecords'), textAlign: TextAlign.center)));
+    if (items.isEmpty && orders.isEmpty) return Center(child: Padding(padding: const EdgeInsets.all(24), child: Text(clinicalText(widget.locale, 'noRecords'), textAlign: TextAlign.center)));
     return RefreshIndicator(
       onRefresh: load,
       child: ListView(padding: const EdgeInsets.all(16), children: [
         Text(clinicalText(widget.locale, 'healthRecord'), style: const TextStyle(fontSize: 27, fontWeight: FontWeight.w900)),
         const SizedBox(height: 4),
         Row(children: [const Icon(Icons.lock_outline, size: 17, color: Color(0xFF10B981)), const SizedBox(width: 6), Text(clinicalText(widget.locale, 'encrypted'), style: const TextStyle(color: Color(0xFF475569)))]),
-        const SizedBox(height: 14),
-        ...items.map(_card),
+        if (items.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          ...items.map(_clinicalCard),
+        ],
+        const SizedBox(height: 22),
+        Row(children: [const Icon(Icons.receipt_long_outlined), const SizedBox(width: 8), Expanded(child: Text(orderText(widget.locale, 'title'), style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w900)))]),
+        const SizedBox(height: 10),
+        if (orders.isEmpty) Padding(padding: const EdgeInsets.symmetric(vertical: 22), child: Center(child: Text(orderText(widget.locale, 'noOrders'))))
+        else ...orders.map(_orderCard),
       ]),
     );
   }
 
-  Widget _card(Map<String, dynamic> item) {
+  Widget _clinicalCard(Map<String, dynamic> item) {
     final appointment = _map(item['appointment']);
     final provider = _map(appointment['provider']);
     final service = _map(appointment['service']);
@@ -67,6 +82,43 @@ class _PatientClinicalTimelinePageState extends State<PatientClinicalTimelinePag
         Align(alignment: AlignmentDirectional.centerStart, child: Text('${clinicalText(widget.locale, 'revision')}: ${record['revision'] ?? '—'}', style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)))),
       ],
     ));
+  }
+
+  Widget _orderCard(Map<String, dynamic> order) {
+    final data = _map(order['data']);
+    final labResult = _map(order['labResult']);
+    final prescription = order['type'] == 'PRESCRIPTION';
+    final medication = _map(data['medication']);
+    final tests = _list(data['tests']);
+    final title = prescription
+        ? (medication['name']?.toString() ?? orderText(widget.locale, 'prescription'))
+        : (tests.isEmpty ? orderText(widget.locale, 'laboratory') : tests.map((e) => e['display']).whereType<String>().join(', '));
+    return Card(child: ExpansionTile(
+      leading: CircleAvatar(child: Icon(prescription ? Icons.medication_outlined : Icons.science_outlined)),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+      subtitle: Text('${orderText(widget.locale, 'status')}: ${order['status'] ?? ''}'),
+      childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      children: [
+        if (data['reason'] != null) _section(orderText(widget.locale, 'reason'), data['reason']),
+        if (prescription && data['dosageInstruction'] != null) _section(orderText(widget.locale, 'instruction'), data['dosageInstruction']),
+        if (!prescription && labResult.isNotEmpty) ...[
+          _section(orderText(widget.locale, 'result'), labResult['status']),
+          if (labResult['released'] == true && labResult['data'] != null) _releasedResult(_map(labResult['data']))
+          else Padding(padding: const EdgeInsets.only(bottom: 8), child: Align(alignment: AlignmentDirectional.centerStart, child: Text(orderText(widget.locale, 'resultHidden'), style: const TextStyle(color: Color(0xFF64748B))))),
+        ],
+        Align(alignment: AlignmentDirectional.centerStart, child: Row(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.verified_user_outlined, size: 16, color: Color(0xFF10B981)), const SizedBox(width: 5), Text(orderText(widget.locale, 'attested'), style: const TextStyle(fontSize: 12, color: Color(0xFF475569)))])),
+      ],
+    ));
+  }
+
+  Widget _releasedResult(Map<String, dynamic> data) {
+    final observations = _list(data['observations']);
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      ...observations.map((item) => _section(item['display']?.toString() ?? orderText(widget.locale, 'observation'), '${item['value'] ?? ''}${item['unit'] == null ? '' : ' ${item['unit']}'}')),
+      if (data['conclusion'] != null) _section(orderText(widget.locale, 'conclusion'), data['conclusion']),
+      Align(alignment: AlignmentDirectional.centerStart, child: Row(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.check_circle_outline, size: 16, color: Color(0xFF10B981)), const SizedBox(width: 5), Text(orderText(widget.locale, 'released'))])),
+      const SizedBox(height: 8),
+    ]);
   }
 
   Widget _section(String label, dynamic value) {
