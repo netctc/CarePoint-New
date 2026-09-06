@@ -1,10 +1,12 @@
-import { Body, Controller, Get, Module, Param, Post } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Get, Header, Module, Param, Post, StreamableFile } from "@nestjs/common";
 import type { AuthPrincipal } from "@carepoint/identity";
 import { CurrentPrincipal, RequirePermissions } from "../../security/api-security.module";
 import { DocumentsService } from "./documents.service";
 import { DocumentStorageService } from "./document-storage.service";
 import { DocumentsEnvelopeService } from "./documents-envelope.service";
 import { DocumentsAttestationService } from "./documents-attestation.service";
+import { DocumentMalwareScannerService } from "./document-malware-scanner.service";
+import { DicomWebService } from "./dicomweb.service";
 
 @Controller("clinical-documents")
 class ClinicalDocumentsController {
@@ -46,6 +48,24 @@ class ClinicalDocumentsController {
     return this.documents.documentContent(principal, documentId);
   }
 
+  @RequirePermissions("PATIENT_READ_CLINICAL_DOCUMENTS", "CLINICAL_DOCUMENT_READ")
+  @Get(":documentId/download")
+  @Header("Cache-Control", "private, no-store, max-age=0")
+  @Header("Pragma", "no-cache")
+  @Header("X-Content-Type-Options", "nosniff")
+  async download(@CurrentPrincipal() principal: AuthPrincipal, @Param("documentId") documentId: string) {
+    const content = await this.documents.documentContent(principal, documentId) as Record<string, any>;
+    if (content.storageMode !== "ENCRYPTED_BLOB" || typeof content.contentBase64 !== "string") {
+      throw new BadRequestException("This clinical document does not contain downloadable binary content.");
+    }
+    const metadata = content.metadata && typeof content.metadata === "object" ? content.metadata as Record<string, unknown> : {};
+    const fileName = this.safeFileName(typeof metadata.fileName === "string" ? metadata.fileName : `carepoint-document-${documentId}`);
+    return new StreamableFile(Buffer.from(content.contentBase64, "base64"), {
+      type: typeof content.mediaType === "string" ? content.mediaType : "application/octet-stream",
+      disposition: `attachment; filename="${fileName}"`,
+    });
+  }
+
   @RequirePermissions("CLINICAL_DOCUMENT_WRITE")
   @Post(":documentId/release")
   release(@CurrentPrincipal() principal: AuthPrincipal, @Param("documentId") documentId: string) {
@@ -56,6 +76,11 @@ class ClinicalDocumentsController {
   @Post(":documentId/remove")
   remove(@CurrentPrincipal() principal: AuthPrincipal, @Param("documentId") documentId: string) {
     return this.documents.removeDocument(principal, documentId);
+  }
+
+  private safeFileName(value: string): string {
+    const cleaned = value.replace(/[\r\n"\\/<>:*?\u0000-\u001F]/g, "_").trim();
+    return (cleaned || "carepoint-document").slice(0, 180);
   }
 }
 
@@ -102,6 +127,13 @@ class DiagnosticReportsController {
 
 @Module({
   controllers: [ClinicalDocumentsController, DiagnosticReportsController],
-  providers: [DocumentsService, DocumentStorageService, DocumentsEnvelopeService, DocumentsAttestationService],
+  providers: [
+    DocumentsService,
+    DocumentStorageService,
+    DocumentsEnvelopeService,
+    DocumentsAttestationService,
+    DocumentMalwareScannerService,
+    DicomWebService,
+  ],
 })
 export class DocumentsModule {}
