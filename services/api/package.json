@@ -4,13 +4,13 @@
   "private": true,
   "scripts": {
     "dev": "nest start --watch",
-    "prebuild": "prisma generate --schema prisma/schema.prisma",
+    "prebuild": "prisma generate --schema prisma",
     "build": "nest build",
     "start": "node dist/main.js",
-    "typecheck": "prisma generate --schema prisma/schema.prisma && tsc -p tsconfig.json --noEmit",
-    "db:generate": "prisma generate --schema prisma/schema.prisma",
-    "db:migrate": "prisma migrate dev --schema prisma/schema.prisma",
-    "db:deploy": "prisma migrate deploy --schema prisma/schema.prisma",
+    "typecheck": "prisma generate --schema prisma && tsc -p tsconfig.json --noEmit",
+    "db:generate": "prisma generate --schema prisma",
+    "db:migrate": "prisma migrate dev --schema prisma",
+    "db:deploy": "prisma migrate deploy --schema prisma",
     "db:bootstrap": "node dist/scripts/bootstrap-platform.js"
   },
   "dependencies": {
