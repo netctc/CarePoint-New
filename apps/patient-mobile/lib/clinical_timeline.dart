@@ -32,7 +32,7 @@ class _PatientClinicalTimelinePageState extends State<PatientClinicalTimelinePag
   @override
   Widget build(BuildContext context) {
     if (busy) return const Center(child: CircularProgressIndicator());
-    if (error != null) return Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [Text(error!, textAlign: TextAlign.center), const SizedBox(height: 12), FilledButton(onPressed: load, child: const Text('Retry'))])));
+    if (error != null) return Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [Text(error!, textAlign: TextAlign.center), const SizedBox(height: 12), FilledButton(onPressed: load, child: Text(cpText(widget.locale, 'common.retry')))])));
     if (items.isEmpty) return Center(child: Padding(padding: const EdgeInsets.all(24), child: Text(clinicalText(widget.locale, 'noRecords'), textAlign: TextAlign.center)));
     return RefreshIndicator(
       onRefresh: load,
