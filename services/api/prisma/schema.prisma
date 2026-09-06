@@ -11,6 +11,9 @@ enum UserRole { PATIENT DOCTOR OTHER_PROVIDER ADMIN SUPPORT }
 enum AccountStatus { ACTIVE SUSPENDED ARCHIVED }
 enum ProviderClass { DOCTOR OTHER_PROVIDER }
 enum ProviderStatus { DRAFT PENDING_REVIEW ACTIVE SUSPENDED REJECTED }
+enum ProviderOnboardingState { DRAFT PENDING_REVIEW REQUEST_CHANGES APPROVED REJECTED }
+enum CredentialReviewState { PENDING VERIFIED REJECTED }
+enum ConsentState { GRANTED REVOKED }
 enum AppointmentModality { CLINIC TELEMEDICINE HOME_VISIT }
 enum AppointmentStatus { REQUESTED CONFIRMED CANCELLED COMPLETED NO_SHOW }
 enum EmergencyAmbulanceStatus { REQUESTED DISPATCHING ASSIGNED EN_ROUTE ARRIVED TRANSPORTING COMPLETED CANCELLED }
@@ -21,10 +24,47 @@ model User {
   passwordHash String
   role UserRole
   status AccountStatus @default(ACTIVE)
+  failedLoginCount Int @default(0)
+  lockedUntil DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   patientProfile PatientProfile?
   provider Provider?
+  authSessions AuthSession[]
+  mfaEnrollment MfaEnrollment?
+  providerOnboardings ProviderOnboarding[]
+}
+
+model AuthSession {
+  id String @id @default(uuid())
+  userId String
+  accessTokenHash String @unique
+  refreshTokenHash String @unique
+  expiresAt DateTime
+  refreshExpiresAt DateTime
+  revokedAt DateTime?
+  replacedBySessionId String?
+  userAgent String?
+  ipAddress String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId, revokedAt])
+  @@index([refreshExpiresAt])
+}
+
+model MfaEnrollment {
+  id String @id @default(uuid())
+  userId String @unique
+  algorithm String @default("TOTP-SHA1-6-30")
+  keyId String
+  wrappedKey String
+  iv String
+  secretCiphertext String
+  enabledAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model PatientProfile {
@@ -61,6 +101,45 @@ model Provider {
   assignedEmergencyRequests EmergencyAmbulanceRequest[] @relation("EmergencyAssignedProvider")
 }
 
+model ProviderOnboarding {
+  id String @id @default(uuid())
+  userId String
+  kind ProviderClass
+  specialtyId String?
+  providerCategoryId String?
+  state ProviderOnboardingState @default(DRAFT)
+  submittedAt DateTime?
+  reviewedAt DateTime?
+  reviewerActorId String?
+  reviewNote String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  specialty MedicalSpecialty? @relation(fields: [specialtyId], references: [id], onDelete: Restrict)
+  providerCategory ProviderCategory? @relation(fields: [providerCategoryId], references: [id], onDelete: Restrict)
+  credentials OnboardingCredential[]
+  @@index([state, submittedAt])
+  @@index([userId, kind])
+}
+
+model OnboardingCredential {
+  id String @id @default(uuid())
+  onboardingId String
+  type String
+  number String?
+  issuer String?
+  validUntil DateTime?
+  documentId String?
+  state CredentialReviewState @default(PENDING)
+  reviewNote String?
+  reviewedByActorId String?
+  reviewedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  onboarding ProviderOnboarding @relation(fields: [onboardingId], references: [id], onDelete: Cascade)
+  @@index([onboardingId, state])
+}
+
 model MedicalSpecialty {
   id String @id @default(uuid())
   code String @unique
@@ -70,6 +149,7 @@ model MedicalSpecialty {
   parent MedicalSpecialty? @relation("SpecialtyHierarchy", fields: [parentId], references: [id])
   children MedicalSpecialty[] @relation("SpecialtyHierarchy")
   doctors DoctorSpecialty[]
+  onboardings ProviderOnboarding[]
 }
 
 model DoctorProfile {
@@ -101,6 +181,7 @@ model ProviderCategory {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   providers OtherProviderProfile[]
+  onboardings ProviderOnboarding[]
 }
 
 model OtherProviderProfile {
@@ -224,11 +305,12 @@ model Consent {
   providerId String?
   scope String
   version String
-  granted Boolean
-  grantedAt DateTime
+  state ConsentState @default(GRANTED)
+  grantedAt DateTime @default(now())
+  revokedAt DateTime?
   expiresAt DateTime?
   patient PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  @@index([patientId, providerId, scope])
+  @@index([patientId, providerId, scope, state])
 }
 
 model AuditEvent {

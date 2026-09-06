@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@carepoint/contracts": "0.1.0",
+    "@carepoint/identity": "0.1.0",
     "@carepoint/security": "0.1.0",
     "@nestjs/common": ">=11 <12",
     "@nestjs/core": ">=11 <12",
