@@ -16,7 +16,7 @@ class ClinicalActionButton extends StatelessWidget {
           context,
           MaterialPageRoute(builder: (_) => Directionality(textDirection: locale.textDirection, child: ClinicalRecordPage(session: session, locale: locale, appointment: appointment))),
         ),
-        icon: const Icon(Icons.clinical_notes_outlined),
+        icon: const Icon(Icons.medical_services_outlined),
         label: Text(clinicalText(locale, 'clinicalChart')),
       );
 }
@@ -65,8 +65,7 @@ class _ClinicalRecordPageState extends State<ClinicalRecordPage> {
     setState(() { busy = true; error = null; });
     try {
       final next = await api.clinicalEncounter(appointmentId);
-      final latest = _map(next['latestRecord']);
-      final data = _map(latest['data']);
+      final data = _map(_map(next['latestRecord'])['data']);
       final vitals = _map(data['vitals']);
       chiefComplaint.text = data['chiefComplaint']?.toString() ?? '';
       subjective.text = data['subjective']?.toString() ?? '';
@@ -92,23 +91,19 @@ class _ClinicalRecordPageState extends State<ClinicalRecordPage> {
                 : ListView(padding: const EdgeInsets.all(16), children: [
                     _summary(),
                     const SizedBox(height: 12),
-                    TextField(enabled: !finalized, controller: chiefComplaint, decoration: InputDecoration(labelText: clinicalText(locale, 'chiefComplaint'), border: const OutlineInputBorder()), maxLines: 2),
-                    const SizedBox(height: 12),
-                    TextField(enabled: !finalized, controller: subjective, decoration: InputDecoration(labelText: clinicalText(locale, 'subjective'), border: const OutlineInputBorder()), maxLines: 4),
-                    const SizedBox(height: 12),
-                    TextField(enabled: !finalized, controller: objective, decoration: InputDecoration(labelText: clinicalText(locale, 'objective'), border: const OutlineInputBorder()), maxLines: 4),
-                    const SizedBox(height: 12),
-                    TextField(enabled: !finalized, controller: assessment, decoration: InputDecoration(labelText: clinicalText(locale, 'assessment'), border: const OutlineInputBorder()), maxLines: 4),
-                    const SizedBox(height: 12),
-                    TextField(enabled: !finalized, controller: plan, decoration: InputDecoration(labelText: clinicalText(locale, 'plan'), border: const OutlineInputBorder()), maxLines: 4),
-                    const SizedBox(height: 18),
+                    _textField(chiefComplaint, 'chiefComplaint', 2),
+                    _textField(subjective, 'subjective', 4),
+                    _textField(objective, 'objective', 4),
+                    _textField(assessment, 'assessment', 4),
+                    _textField(plan, 'plan', 4),
+                    const SizedBox(height: 6),
                     Text(clinicalText(locale, 'vitals'), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
                     const SizedBox(height: 8),
                     Wrap(spacing: 10, runSpacing: 10, children: [
-                      _numberField(heartRate, clinicalText(locale, 'heartRate')),
-                      _numberField(systolic, clinicalText(locale, 'systolic')),
-                      _numberField(diastolic, clinicalText(locale, 'diastolic')),
-                      _numberField(oxygen, clinicalText(locale, 'oxygen')),
+                      _numberField(heartRate, 'heartRate'),
+                      _numberField(systolic, 'systolic'),
+                      _numberField(diastolic, 'diastolic'),
+                      _numberField(oxygen, 'oxygen'),
                     ]),
                     const SizedBox(height: 18),
                     if (!finalized) FilledButton.icon(onPressed: saving ? null : save, icon: const Icon(Icons.lock_outline), label: Text(clinicalText(locale, 'saveRevision'))),
@@ -119,20 +114,24 @@ class _ClinicalRecordPageState extends State<ClinicalRecordPage> {
                   ]),
       );
 
+  Widget _textField(TextEditingController controller, String key, int maxLines) => Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: TextField(enabled: !finalized, controller: controller, decoration: InputDecoration(labelText: clinicalText(locale, key), border: const OutlineInputBorder()), maxLines: maxLines),
+      );
+
+  Widget _numberField(TextEditingController controller, String key) => SizedBox(
+        width: 170,
+        child: TextField(enabled: !finalized, controller: controller, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: clinicalText(locale, key), border: const OutlineInputBorder())),
+      );
+
   Widget _summary() {
     final latest = _map(encounter?['latestRecord']);
-    final revision = latest['revision'];
     return Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [const Icon(Icons.shield_outlined), const SizedBox(width: 8), Expanded(child: Text(clinicalText(locale, 'encrypted'), style: const TextStyle(fontWeight: FontWeight.w800))), if (finalized) Chip(label: Text(clinicalText(locale, 'finalized')))]),
-      if (revision != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text('${clinicalText(locale, 'revision')}: $revision')),
+      if (latest['revision'] != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text('${clinicalText(locale, 'revision')}: ${latest['revision']}')),
       if (encounter?['accessBasis'] != null) Text('${clinicalText(locale, 'accessBasis')}: ${encounter!['accessBasis']}'),
     ])));
   }
-
-  Widget _numberField(TextEditingController controller, String label) => SizedBox(
-        width: 170,
-        child: TextField(enabled: !finalized, controller: controller, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: label, border: const OutlineInputBorder())),
-      );
 
   Future<void> save() async {
     final body = <String, dynamic>{};
@@ -166,8 +165,7 @@ class _ClinicalRecordPageState extends State<ClinicalRecordPage> {
   }
 
   Future<void> showPatientHistory() async {
-    final patient = _map(widget.appointment['patient']);
-    final patientId = patient['id']?.toString();
+    final patientId = _map(widget.appointment['patient'])['id']?.toString();
     if (patientId == null || patientId.isEmpty) return;
     try {
       final result = await api.providerClinicalTimeline(patientId);
@@ -187,8 +185,7 @@ class _ClinicalRecordPageState extends State<ClinicalRecordPage> {
     final appointment = _map(item['appointment']);
     final provider = _map(appointment['provider']);
     final service = _map(appointment['service']);
-    final record = _map(item['latestRecord']);
-    final data = _map(record['data']);
+    final data = _map(_map(item['latestRecord'])['data']);
     final starts = DateTime.tryParse(appointment['startsAt']?.toString() ?? '')?.toLocal();
     return Card(margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 6), child: ListTile(
       title: Text(service['name']?.toString() ?? clinicalText(locale, 'clinicalChart'), style: const TextStyle(fontWeight: FontWeight.w700)),
@@ -198,10 +195,6 @@ class _ClinicalRecordPageState extends State<ClinicalRecordPage> {
   }
 }
 
-Map<String, dynamic> _map(dynamic value) {
-  if (value is Map<String, dynamic>) return value;
-  if (value is Map) return value.map((key, item) => MapEntry(key.toString(), item));
-  return <String, dynamic>{};
-}
+Map<String, dynamic> _map(dynamic value) { if (value is Map<String, dynamic>) return value; if (value is Map) return value.map((key, item) => MapEntry(key.toString(), item)); return <String, dynamic>{}; }
 List<Map<String, dynamic>> _list(dynamic value) { if (value is! List) return const []; return value.map(_map).toList(growable: false); }
 String _dateTime(DateTime? value) => value == null ? '—' : '${value.year.toString().padLeft(4, '0')}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')} ${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
