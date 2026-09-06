@@ -32,13 +32,7 @@ The Other Provider domain includes all non-doctor healthcare professionals and s
 
 PostgreSQL is the system of record. The initial schema is designed around independent providers, explicit consent, appointment concurrency and auditable clinical access.
 
-Redis is reserved for:
-
-- rate limiting;
-- ephemeral sessions and short-lived challenges;
-- distributed locks when needed;
-- cache;
-- worker coordination.
+Redis is reserved for rate limiting, ephemeral sessions and short-lived challenges, distributed locks when needed, cache, and worker coordination.
 
 ## 4. PHI encryption
 
@@ -72,3 +66,7 @@ Business logic depends on a `TelehealthProvider` interface rather than a vendor 
 - Support users have no blanket clinical read permission.
 - Logs and traces must be PHI-redacted by allowlist.
 - Payment card data is tokenized by the payment provider and never persisted by CarePoint.
+
+## 8. Internationalization
+
+English is the canonical engineering language for code, API contracts, enum values, audit events and technical documentation. Presentation clients support EN/AR/FR/ES from the first slice. Arabic is a first-class RTL locale rather than a translated LTR screen. Dynamic catalog records such as medical specialties and Other Provider categories store stable identifiers plus localized labels for the four supported locales.

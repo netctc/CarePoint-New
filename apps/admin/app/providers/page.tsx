@@ -1,32 +1,5 @@
+"use client";
 import { AppShell } from "@/components/AppShell";
-
-const providers = [
-  ["RapidCare EMS", "Emergency Ambulance", "Verified", "24/7", "Beirut"],
-  ["Noura Khoury", "Nursing / ATS", "Verified", "Home visit", "Mount Lebanon"],
-  ["MoveWell Rehab", "Physiotherapy", "Review", "Clinic · Home", "Beirut"],
-  ["Cedars AirMed", "Air Medical Transport", "Verified", "On request", "National"],
-  ["Nutrition Forward", "Nutrition", "Verified", "Clinic · Online", "Beirut"],
-];
-
-export default function ProvidersPage() {
-  return (
-    <AppShell active="02" eyebrow="FLEXIBLE TAXONOMY · DOCTORS EXCLUDED" title="Independent Other Providers">
-      <section className="notice-card"><div><span>DOMAIN RULE</span><h3>Every non-doctor provider is independent.</h3><p>Healthcare branches, emergency ambulance, ground transport and air medical transport are managed here. Doctors are always managed in the dedicated Doctor domain.</p></div><button className="primary-button">+ New category</button></section>
-      <section className="panel">
-        <div className="toolbar"><div className="search">⌕ Search providers, categories or coverage...</div><div><button>All status</button><button>All families</button></div></div>
-        <div className="data-table">
-          <div className="table-row table-head"><span>Provider</span><span>Category</span><span>Status</span><span>Mode / availability</span><span>Coverage</span></div>
-          {providers.map((p) => <div className="table-row" key={p[0]}><span><b>{p[0]}</b><small>Independent entity</small></span><span>{p[1]}</span><span><em className={p[2] === "Verified" ? "ok" : "warn"}>{p[2]}</em></span><span>{p[3]}</span><span>{p[4]}</span></div>)}
-        </div>
-      </section>
-      <section className="category-grid">
-        {[
-          ["NON-DOCTOR HEALTHCARE", "Nursing, ATS, physiotherapy, nutrition and future allied health categories."],
-          ["GROUND MEDICAL TRANSPORT", "Scheduled or specialized patient transport by ground."],
-          ["AIR MEDICAL TRANSPORT", "Medical aviation services with additional credential requirements."],
-          ["EMERGENCY AMBULANCE", "Urgent providers eligible for priority dispatch from Patient Home."],
-        ].map(([title,desc]) => <article className="category-card" key={title}><span>{title}</span><p>{desc}</p><button>Configure schema →</button></article>)}
-      </section>
-    </AppShell>
-  );
-}
+import { useI18n } from "@/lib/i18n";
+const providers=[["RapidCare EMS","Emergency Ambulance","Verified","24/7","Beirut"],["Noura Khoury","Nursing / ATS","Verified","Home visit","Mount Lebanon"],["MoveWell Rehab","Physiotherapy","Review","Clinic · Home","Beirut"],["Cedars AirMed","Air Medical Transport","Verified","On request","National"],["Nutrition Forward","Nutrition","Verified","Clinic · Online","Beirut"]];
+export default function ProvidersPage(){const{t}=useI18n();const categories=[[t("providers.nonDoctorHealthcare"),t("providers.nonDoctorHealthcareText")],[t("providers.groundTransport"),t("providers.groundTransportText")],[t("providers.airTransport"),t("providers.airTransportText")],[t("providers.emergencyAmbulance"),t("providers.emergencyAmbulanceText")]];return <AppShell active="02" eyebrowKey="providers.eyebrow" titleKey="providers.title"><section className="notice-card"><div><span>{t("providers.domainRule")}</span><h3>{t("providers.ruleTitle")}</h3><p>{t("providers.ruleText")}</p></div><button className="primary-button">{t("providers.newCategory")}</button></section><section className="panel"><div className="toolbar"><div className="search">⌕ {t("providers.search")}</div><div><button>{t("providers.allStatus")}</button><button>{t("providers.allFamilies")}</button></div></div><div className="data-table"><div className="table-row table-head"><span>{t("providers.provider")}</span><span>{t("providers.category")}</span><span>{t("providers.status")}</span><span>{t("providers.mode")}</span><span>{t("providers.coverage")}</span></div>{providers.map(p=><div className="table-row" key={p[0]}><span><b>{p[0]}</b><small>{t("common.independentEntity")}</small></span><span>{p[1]}</span><span><em className={p[2]==="Verified"?"ok":"warn"}>{p[2]==="Verified"?t("common.verified"):t("common.review")}</em></span><span>{p[3]}</span><span>{p[4]}</span></div>)}</div></section><section className="category-grid">{categories.map(([title,desc])=><article className="category-card" key={title}><span>{title}</span><p>{desc}</p><button>{t("providers.configureSchema")}</button></article>)}</section></AppShell>}

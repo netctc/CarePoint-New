@@ -1,56 +1,6 @@
+"use client";
 import Link from "next/link";
-
-const nav = [
-  ["01", "Command Center", "/"],
-  ["02", "Other Providers", "/providers"],
-  ["03", "Doctors & Specialties", "/doctors"],
-  ["04", "Appointments", "/appointments"],
-  ["05", "Patient Workspaces", "#"],
-  ["06", "Telehealth Hub", "#"],
-  ["07", "Analytics & SLA", "#"],
-  ["08", "Security & E2EE", "#"],
-] as const;
-
-export function AppShell({
-  active,
-  title,
-  eyebrow,
-  children,
-}: Readonly<{
-  active: string;
-  title: string;
-  eyebrow: string;
-  children: React.ReactNode;
-}>) {
-  return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <div className="brand">
-          <div className="brand-mark">C+</div>
-          <div><strong>CarePoint</strong><span>Clinical Operations</span></div>
-          <i className="live-dot" />
-        </div>
-        <div className="command">⌘ <span>Global command...</span><kbd>⌘K</kbd></div>
-        <div className="nav-label">SYSTEM MODULES</div>
-        <nav>
-          {nav.map(([id, label, href]) => (
-            <Link key={id} className={`nav-item ${active === id ? "active" : ""}`} href={href}>
-              <small>{id}</small><span>{label}</span><b>›</b>
-            </Link>
-          ))}
-        </nav>
-        <div className="security-pill"><div><small>E2EE STATUS</small><strong>Shield policy active</strong></div><i /></div>
-      </aside>
-      <section className="workspace">
-        <header className="topbar">
-          <div className="network-pill"><span>◎</span> Global Care Network</div>
-          <div className="operator"><span className="notification">●</span><div><strong>Platform Administrator</strong><small>SECURE SESSION</small></div><div className="avatar">PA</div></div>
-        </header>
-        <main className="content">
-          <div className="page-title"><div><span>{eyebrow}</span><h1>{title}</h1></div><button className="secondary-button">Export snapshot</button></div>
-          {children}
-        </main>
-      </section>
-    </div>
-  );
-}
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import { useI18n, type MessageKey } from "@/lib/i18n";
+const nav = [["01","nav.commandCenter","/"],["02","nav.otherProviders","/providers"],["03","nav.doctors","/doctors"],["04","nav.appointments","/appointments"],["05","nav.patientWorkspaces","#"],["06","nav.telehealth","#"],["07","nav.analytics","#"],["08","nav.security","#"]] as const;
+export function AppShell({active,titleKey,eyebrowKey,children}:Readonly<{active:string;titleKey:MessageKey;eyebrowKey:MessageKey;children:React.ReactNode;}>) { const {t,direction}=useI18n(); return <div className="app-shell" data-direction={direction}><aside className="sidebar"><div className="brand"><div className="brand-mark">C+</div><div><strong>CarePoint</strong><span>{t("shell.clinicalOperations")}</span></div><i className="live-dot" /></div><div className="command">⌘ <span>{t("shell.globalCommand")}</span><kbd>⌘K</kbd></div><div className="nav-label">{t("shell.systemModules")}</div><nav>{nav.map(([id,key,href])=><Link key={id} className={`nav-item ${active===id?"active":""}`} href={href}><small>{id}</small><span>{t(key)}</span><b>{direction==="rtl"?"‹":"›"}</b></Link>)}</nav><div className="security-pill"><div><small>{t("shell.e2eeStatus")}</small><strong>{t("shell.shieldPolicy")}</strong></div><i /></div></aside><section className="workspace"><header className="topbar"><div className="network-pill"><span>◎</span> {t("shell.globalCareNetwork")}</div><div className="topbar-actions"><LanguageSwitcher/><div className="operator"><span className="notification">●</span><div><strong>{t("shell.platformAdministrator")}</strong><small>{t("common.secureSession")}</small></div><div className="avatar">PA</div></div></div></header><main className="content"><div className="page-title"><div><span>{t(eyebrowKey)}</span><h1>{t(titleKey)}</h1></div><button className="secondary-button">{t("common.exportSnapshot")}</button></div>{children}</main></section></div>; }

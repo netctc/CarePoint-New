@@ -16,6 +16,7 @@ Greenfield implementation of the CarePoint Next healthcare platform, based on th
 - PostgreSQL as the system of record; Redis for cache/rate limit/ephemeral coordination.
 - Next.js + React + TypeScript for the administration and operations portal.
 - Flutter + Dart for Patient, Doctor, and Other Provider mobile apps.
+- English is the engineering/source language; all user interfaces support EN/AR/FR/ES with full RTL behavior for Arabic.
 - Envelope encryption for selected PHI fields, with a production KMS/HSM adapter.
 - Telemedicine behind a `TelehealthProvider` abstraction, targeting LiveKit first and keeping Twilio Video as an adapter option.
 - Event outbox and asynchronous workers added as workflows mature; microservices extracted only for measured hot spots.
@@ -31,12 +32,14 @@ apps/
 packages/
   contracts/             Shared domain/API contracts
   security/              PHI envelope-encryption primitives
+  mobile_core/           Shared Flutter localization and mobile foundations
 services/
   api/                   NestJS modular monolith + Prisma schema
 docs/
   architecture.md
   implementation-plan.md
   design-source.md
+  internationalization.md
 ```
 
 ## Current implementation slice
@@ -47,6 +50,7 @@ docs/
 4. PostgreSQL/Prisma domain model including encrypted clinical payload storage.
 5. Clinical Aurora admin shell with command-center, Doctors, Other Providers and appointments views.
 6. Flutter patient home with a prominent emergency ambulance action; Doctor and Other Provider mobile shells.
+7. EN/AR/FR/ES localization baseline, including RTL layout for Arabic and localized provider taxonomy labels.
 
 ## Local development
 

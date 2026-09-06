@@ -9,8 +9,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@carepoint/contracts": "workspace:*",
-    "@carepoint/security": "workspace:*",
+    "@carepoint/contracts": "0.1.0",
+    "@carepoint/security": "0.1.0",
     "@nestjs/common": ">=11 <12",
     "@nestjs/core": ">=11 <12",
     "@nestjs/platform-express": ">=11 <12",

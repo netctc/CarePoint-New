@@ -1,45 +1,11 @@
+"use client";
+
 import { AppShell } from "@/components/AppShell";
 import { KpiCard } from "@/components/KpiCard";
-
-const flow = [
-  ["Clinic visits", "182", "74% confirmed", "blue"],
-  ["Telemedicine", "96", "12 joining now", "violet"],
-  ["Home visits", "41", "9 en route", "green"],
-  ["Emergency ambulance", "7", "2 dispatching", "rose"],
-] as const;
+import { useI18n } from "@/lib/i18n";
 
 export default function CommandCenterPage() {
-  return (
-    <AppShell active="01" eyebrow="REAL-TIME PLATFORM" title="Operations Command Center">
-      <section className="aurora-hero">
-        <div className="hero-copy"><span className="overline">CAREPOINT NEXT</span><h2>Clinical network in command.</h2><p>One operational view across independent doctors, non-doctor providers, medical transport and patient demand.</p></div>
-        <div className="hero-status"><small>PLATFORM HEALTH</small><strong><i /> Nominal</strong><span>API 99.99% · DB healthy · Queue normal</span></div>
-      </section>
-      <section className="kpi-grid">
-        <KpiCard label="Visits today" value="326" detail="+8.2% vs last Saturday" />
-        <KpiCard label="Active doctors" value="248" detail="All specialties" tone="violet" />
-        <KpiCard label="Other providers" value="189" detail="Doctors explicitly excluded" tone="green" />
-        <KpiCard label="Urgent requests" value="07" detail="Ambulance priority queue" tone="rose" />
-      </section>
-      <section className="two-column">
-        <article className="panel">
-          <div className="panel-heading"><div><span>LIVE DEMAND</span><h3>Visits by modality</h3></div><button>Today</button></div>
-          <div className="flow-list">{flow.map(([name,count,detail,tone]) => <div className="flow-row" key={name}><i className={tone}/><div><strong>{name}</strong><span>{detail}</span></div><b>{count}</b></div>)}</div>
-        </article>
-        <article className="panel midnight">
-          <div className="panel-heading"><div><span>EMERGENCY AMBULANCE</span><h3>Priority dispatch</h3></div><span className="live-label">LIVE</span></div>
-          <div className="dispatch-card"><small>REQUEST CP-ER-2407</small><strong>Patient request received</strong><span>Beirut · GPS verified · dispatching eligible ambulance</span><div><b>00:38</b><small> elapsed</small></div></div>
-          <div className="dispatch-actions"><button>Open dispatch</button><button>Call patient</button></div>
-        </article>
-      </section>
-      <section className="panel">
-        <div className="panel-heading"><div><span>BOUNDARY HEALTH</span><h3>Provider domains</h3></div></div>
-        <div className="domain-grid">
-          <div><span>DOCTOR DOMAIN</span><strong>All doctors · all specialties</strong><p>Dedicated application, credentialing and specialty hierarchy.</p></div>
-          <div><span>OTHER PROVIDER DOMAIN</span><strong>Healthcare + ground/air transport</strong><p>Flexible taxonomy. Doctors can never be classified here.</p></div>
-          <div><span>PATIENT DOMAIN</span><strong>One global patient identity</strong><p>Consent controls provider access to sensitive clinical context.</p></div>
-        </div>
-      </section>
-    </AppShell>
-  );
+  const { t } = useI18n();
+  const flow = [[t("command.clinicVisits"),"182",t("command.confirmed74"),"blue"],[t("command.telemedicine"),"96",t("command.joining12"),"violet"],[t("command.homeVisits"),"41",t("command.enRoute9"),"green"],[t("command.emergencyAmbulance"),"7",t("command.dispatching2"),"rose"]] as const;
+  return <AppShell active="01" eyebrowKey="command.eyebrow" titleKey="command.title"><section className="aurora-hero"><div className="hero-copy"><span className="overline">{t("command.heroOverline")}</span><h2>{t("command.heroTitle")}</h2><p>{t("command.heroText")}</p></div><div className="hero-status"><small>{t("command.platformHealth")}</small><strong><i /> {t("command.nominal")}</strong><span>{t("command.platformDetail")}</span></div></section><section className="kpi-grid"><KpiCard label={t("command.visitsToday")} value="326" detail="+8.2%"/><KpiCard label={t("command.activeDoctors")} value="248" detail={t("command.allSpecialties")} tone="violet"/><KpiCard label={t("command.otherProviders")} value="189" detail={t("command.doctorsExcluded")} tone="green"/><KpiCard label={t("command.urgentRequests")} value="07" detail={t("command.ambulanceQueue")} tone="rose"/></section><section className="two-column"><article className="panel"><div className="panel-heading"><div><span>{t("command.liveDemand")}</span><h3>{t("command.visitsByModality")}</h3></div><button>{t("common.today")}</button></div><div className="flow-list">{flow.map(([name,count,detail,tone])=><div className="flow-row" key={name}><i className={tone}/><div><strong>{name}</strong><span>{detail}</span></div><b>{count}</b></div>)}</div></article><article className="panel midnight"><div className="panel-heading"><div><span>{t("command.emergencyAmbulance")}</span><h3>{t("command.priorityDispatch")}</h3></div><span className="live-label">{t("common.live")}</span></div><div className="dispatch-card"><small>REQUEST CP-ER-2407</small><strong>{t("command.requestReceived")}</strong><span>{t("command.requestDetail")}</span><div><b>00:38</b><small> {t("command.elapsed")}</small></div></div><div className="dispatch-actions"><button>{t("command.openDispatch")}</button><button>{t("command.callPatient")}</button></div></article></section><section className="panel"><div className="panel-heading"><div><span>{t("command.boundaryHealth")}</span><h3>{t("command.providerDomains")}</h3></div></div><div className="domain-grid"><div><span>{t("command.doctorDomain")}</span><strong>{t("command.doctorBoundary")}</strong><p>{t("command.doctorBoundaryText")}</p></div><div><span>{t("command.otherDomain")}</span><strong>{t("command.otherBoundary")}</strong><p>{t("command.otherBoundaryText")}</p></div><div><span>{t("command.patientDomain")}</span><strong>{t("command.patientBoundary")}</strong><p>{t("command.patientBoundaryText")}</p></div></div></section></AppShell>;
 }

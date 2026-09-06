@@ -20,6 +20,7 @@ P0 scope from the specification:
 ### Slice 0 - Foundation (this branch)
 
 - Monorepo and design tokens.
+- English engineering baseline plus EN/AR/FR/ES UI localization and Arabic RTL.
 - Shared domain contracts.
 - PostgreSQL schema baseline.
 - API health, specialty taxonomy, other-provider taxonomy and emergency ambulance endpoints.
