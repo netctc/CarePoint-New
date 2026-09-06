@@ -71,6 +71,11 @@ jobs:
           const denied = await fetch(base + '/iam/accounts/me');
           if (denied.status !== 401) throw new Error(`expected 401 without bearer token, got ${denied.status}`);
           NODE
+      - name: Slice 2 scheduling and concurrency smoke test
+        run: node services/api/scripts/slice2-smoke.mjs
+      - name: Print API log on failure
+        if: failure()
+        run: cat /tmp/carepoint-api.log || true
 
   flutter:
     runs-on: ubuntu-latest
