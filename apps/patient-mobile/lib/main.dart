@@ -1,8 +1,11 @@
 import 'package:carepoint_mobile_core/carepoint_api.dart';
 import 'package:carepoint_mobile_core/carepoint_auth.dart';
 import 'package:carepoint_mobile_core/carepoint_localization.dart';
+import 'package:carepoint_mobile_core/clinical_localization.dart';
 import 'package:carepoint_mobile_core/telehealth_room.dart';
 import 'package:flutter/material.dart';
+
+import 'clinical_timeline.dart';
 
 void main() => runApp(const CarePointPatientApp());
 
@@ -76,6 +79,7 @@ class _PatientShellState extends State<PatientShell> {
           children: [
             PatientSearchPage(session: widget.session, locale: widget.locale, onBooked: () => setState(() => visitsVersion += 1)),
             PatientAppointmentsPage(key: ValueKey(visitsVersion), session: widget.session, locale: widget.locale),
+            PatientClinicalTimelinePage(session: widget.session, locale: widget.locale),
           ],
         ),
         bottomNavigationBar: NavigationBar(
@@ -84,6 +88,7 @@ class _PatientShellState extends State<PatientShell> {
           destinations: [
             NavigationDestination(icon: const Icon(Icons.search_outlined), selectedIcon: const Icon(Icons.search), label: cpText(widget.locale, 'patient.search')),
             NavigationDestination(icon: const Icon(Icons.event_note_outlined), selectedIcon: const Icon(Icons.event_note), label: cpText(widget.locale, 'patient.myVisits')),
+            NavigationDestination(icon: const Icon(Icons.health_and_safety_outlined), selectedIcon: const Icon(Icons.health_and_safety), label: clinicalText(widget.locale, 'healthRecord')),
           ],
         ),
       );

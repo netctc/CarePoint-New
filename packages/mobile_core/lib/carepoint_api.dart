@@ -145,6 +145,21 @@ class CarePointApi {
   Future<Map<String, dynamic>> endTelehealth(String appointmentId) async =>
       _asMap(await _send('POST', '/telehealth/appointments/$appointmentId/end', body: const {}));
 
+  Future<Map<String, dynamic>> patientClinicalTimeline() async =>
+      _asMap(await _send('GET', '/clinical/timeline'));
+
+  Future<Map<String, dynamic>> providerClinicalTimeline(String patientId) async =>
+      _asMap(await _send('GET', '/clinical/patients/$patientId/timeline'));
+
+  Future<Map<String, dynamic>> clinicalEncounter(String appointmentId) async =>
+      _asMap(await _send('GET', '/clinical/appointments/$appointmentId'));
+
+  Future<Map<String, dynamic>> writeClinicalRecord(String appointmentId, Map<String, dynamic> record) async =>
+      _asMap(await _send('POST', '/clinical/appointments/$appointmentId/records', body: record));
+
+  Future<Map<String, dynamic>> finalizeClinicalEncounter(String appointmentId) async =>
+      _asMap(await _send('POST', '/clinical/appointments/$appointmentId/finalize', body: const {}));
+
   Future<void> logout() async {
     accessToken = null;
     refreshToken = null;

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'carepoint_api.dart';
 import 'carepoint_localization.dart';
+import 'clinical_record.dart';
 import 'telehealth_room.dart';
 
 class ProviderWorkspace extends StatefulWidget {
@@ -69,6 +70,7 @@ class _ProviderWorkspaceState extends State<ProviderWorkspace> {
       final starts = DateTime.tryParse(item['startsAt']?.toString() ?? '')?.toLocal();
       final patientName = [patient['firstName'], patient['lastName']].whereType<String>().where((v) => v.isNotEmpty).join(' ');
       final isTelemedicine = item['modality'] == 'TELEMEDICINE' && item['status'] == 'CONFIRMED';
+      final clinical = item['status'] == 'CONFIRMED' || item['status'] == 'COMPLETED';
       return Card(child: Padding(padding: const EdgeInsets.only(bottom: 10), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         ListTile(
           leading: CircleAvatar(backgroundColor: widget.accent.withValues(alpha: .14), child: Icon(_modalityIcon(item['modality']?.toString()), color: widget.accent)),
@@ -78,6 +80,10 @@ class _ProviderWorkspaceState extends State<ProviderWorkspace> {
         if (isTelemedicine) Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14),
           child: TelehealthActionButton(session: widget.session, locale: locale, appointment: item, providerMode: true),
+        ),
+        if (clinical) Padding(
+          padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
+          child: ClinicalActionButton(session: widget.session, locale: locale, appointment: item),
         ),
       ])));
     }));
