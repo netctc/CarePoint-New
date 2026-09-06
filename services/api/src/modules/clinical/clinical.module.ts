@@ -31,7 +31,7 @@ class ClinicalController {
   write(
     @CurrentPrincipal() principal: AuthPrincipal,
     @Param("appointmentId") appointmentId: string,
-    @Body() body: Record<string, unknown>,
+    @Body() body: any,
   ) {
     return this.clinical.writeRecord(principal, appointmentId, body);
   }

@@ -34,6 +34,9 @@ jobs:
       TELEHEALTH_ENVELOPE_KEY_ID: ci-telehealth-kek-v1
       TELEHEALTH_ENVELOPE_KEY_BASE64: AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=
       TELEHEALTH_MOCK_SIGNING_SECRET: carepoint-ci-mock-signing-secret
+      CLINICAL_KEY_PROVIDER: local
+      CLINICAL_ENVELOPE_KEY_ID: ci-clinical-kek-v1
+      CLINICAL_ENVELOPE_KEY_BASE64: AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=
       BOOTSTRAP_ADMIN_EMAIL: admin-ci@carepoint.test
       BOOTSTRAP_ADMIN_PASSWORD: CarePoint-CI-Admin#2026
     steps:
@@ -80,6 +83,8 @@ jobs:
         run: node services/api/scripts/slice2-smoke.mjs
       - name: Slice 3 secure telemedicine smoke test
         run: node services/api/scripts/slice3-smoke.mjs
+      - name: Slice 3.1 encrypted clinical record smoke test
+        run: node services/api/scripts/slice31-smoke.mjs
       - name: Print API log on failure
         if: failure()
         run: cat /tmp/carepoint-api.log || true
