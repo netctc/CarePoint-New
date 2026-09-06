@@ -1,0 +1,96 @@
+enum ClinicalDocumentKind {
+  CLINICAL_ATTACHMENT
+  LAB_REPORT
+  IMAGING_REPORT
+  IMAGING_REFERENCE
+  PATHOLOGY_REPORT
+  PATIENT_UPLOAD
+  OTHER
+}
+
+enum ClinicalDocumentStatus {
+  AVAILABLE
+  SUPERSEDED
+  REMOVED
+}
+
+enum DocumentStorageMode {
+  ENCRYPTED_BLOB
+  EXTERNAL_REFERENCE
+}
+
+enum DiagnosticReportType {
+  IMAGING
+  PATHOLOGY
+  OTHER
+}
+
+enum DiagnosticReportStatus {
+  DRAFT
+  FINAL
+  RELEASED
+}
+
+model ClinicalDocument {
+  id                   String                 @id @default(uuid())
+  patientId            String
+  providerId           String?
+  encounterRef         String?
+  orderId              String?
+  kind                 ClinicalDocumentKind
+  status               ClinicalDocumentStatus @default(AVAILABLE)
+  storageMode          DocumentStorageMode
+  storageProvider      String
+  objectKey            String?                @unique
+  mediaType            String?
+  byteLength           Int?
+  contentDigest        String?
+  blobAlgorithm        String?
+  blobKeyId            String?
+  blobWrappedKey       String?
+  blobIv               String?
+  metadataAlgorithm    String
+  metadataKeyId        String
+  metadataWrappedKey   String
+  metadataIv           String
+  metadataCiphertext   String
+  releasedToPatient    Boolean                @default(false)
+  createdByAccountId   String
+  releasedAt           DateTime?
+  removedAt            DateTime?
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+
+  @@index([patientId, status, createdAt])
+  @@index([providerId, createdAt])
+  @@index([encounterRef, kind, status])
+  @@index([orderId, kind, status])
+}
+
+model DiagnosticReport {
+  id                   String                 @id @default(uuid())
+  patientId            String
+  providerId           String
+  encounterRef         String
+  documentId           String?
+  type                 DiagnosticReportType
+  status               DiagnosticReportStatus @default(DRAFT)
+  algorithm            String
+  keyId                String
+  wrappedKey           String
+  iv                   String
+  ciphertext           String
+  payloadDigest        String
+  signatureAlgorithm   String?
+  signatureKeyId       String?
+  signature            String?
+  finalizedAt          DateTime?
+  releasedAt           DateTime?
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+
+  @@index([patientId, status, createdAt])
+  @@index([providerId, createdAt])
+  @@index([encounterRef, type, status])
+  @@index([documentId])
+}
