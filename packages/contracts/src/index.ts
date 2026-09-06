@@ -27,11 +27,45 @@ export type AppointmentModality = (typeof AppointmentModalities)[number];
 export const AppointmentStatuses = ["REQUESTED", "CONFIRMED", "CANCELLED", "COMPLETED", "NO_SHOW"] as const;
 export type AppointmentStatus = (typeof AppointmentStatuses)[number];
 
+export const AvailabilitySlotStatuses = ["OPEN", "BLOCKED"] as const;
+export type AvailabilitySlotStatus = (typeof AvailabilitySlotStatuses)[number];
+
 export const EmergencyAmbulanceStatuses = ["REQUESTED", "DISPATCHING", "ASSIGNED", "EN_ROUTE", "ARRIVED", "TRANSPORTING", "COMPLETED", "CANCELLED"] as const;
 export type EmergencyAmbulanceStatus = (typeof EmergencyAmbulanceStatuses)[number];
 
 export interface MedicalSpecialty { id: string; code: string; labels: LocalizedText; parentId: string | null; active: boolean; }
 export interface OtherProviderCategory { id: string; slug: string; labels: LocalizedText; family: OtherProviderFamily; active: boolean; requiredCredentialTypes: readonly string[]; enabledModalities: readonly AppointmentModality[]; }
+
+export interface ServiceModalityInput {
+  modality: AppointmentModality;
+  durationMinutes: number;
+  priceMinor: number;
+}
+
+export interface CreateProviderServiceInput {
+  labels: LocalizedText;
+  descriptionLabels?: LocalizedText;
+  currency: string;
+  modalities: readonly ServiceModalityInput[];
+}
+
+export interface CreateAvailabilityRuleInput {
+  serviceId: string;
+  modality: AppointmentModality;
+  timezone: string;
+  weekday: number;
+  startMinute: number;
+  endMinute: number;
+  intervalMinutes: number;
+  slotCapacity?: number;
+  effectiveFrom: string;
+  effectiveUntil?: string;
+}
+
+export interface CreateBookingInput {
+  slotId: string;
+  idempotencyKey: string;
+}
 
 export interface CreateEmergencyAmbulanceRequestInput { patientId: string; latitude: number; longitude: number; pickupAddress?: string; callbackPhone?: string; note?: string; }
 export interface EmergencyAmbulanceRequest { id: string; patientId: string; status: EmergencyAmbulanceStatus; latitude: number; longitude: number; pickupAddress: string | null; callbackPhone: string | null; note: string | null; assignedProviderId: string | null; etaMinutes: number | null; requestedAt: string; updatedAt: string; }

@@ -71,6 +71,11 @@ enum AppointmentStatus {
   NO_SHOW
 }
 
+enum AvailabilitySlotStatus {
+  OPEN
+  BLOCKED
+}
+
 enum EmergencyAmbulanceStatus {
   REQUESTED
   DISPATCHING
@@ -176,6 +181,7 @@ model Provider {
   otherProviderProfile      OtherProviderProfile?
   credentials               ProviderCredential[]
   services                  Service[]
+  availabilityRules         AvailabilityRule[]
   slots                     AvailabilitySlot[]
   appointments              Appointment[]
   assignedEmergencyRequests EmergencyAmbulanceRequest[] @relation("EmergencyAssignedProvider")
@@ -292,18 +298,23 @@ model ProviderCredential {
 }
 
 model Service {
-  id          String            @id @default(uuid())
-  providerId  String
-  name        String
-  description String?
-  currency    String            @default("USD")
-  active      Boolean           @default(true)
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
-  provider    Provider          @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  modalities  ServiceModality[]
-  slots       AvailabilitySlot[]
-  appointments Appointment[]
+  id                String             @id @default(uuid())
+  providerId        String
+  name              String
+  labels            Json?
+  description       String?
+  descriptionLabels Json?
+  currency          String             @default("USD")
+  active            Boolean            @default(true)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  provider          Provider           @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  modalities        ServiceModality[]
+  availabilityRules AvailabilityRule[]
+  slots             AvailabilitySlot[]
+  appointments      Appointment[]
+
+  @@index([providerId, active])
 }
 
 model ServiceModality {
@@ -312,43 +323,85 @@ model ServiceModality {
   modality        AppointmentModality
   durationMinutes Int
   priceMinor      Int
+  active          Boolean             @default(true)
   coverage        Json?
   service         Service             @relation(fields: [serviceId], references: [id], onDelete: Cascade)
 
   @@unique([serviceId, modality])
+  @@index([modality, active])
+}
+
+model AvailabilityRule {
+  id              String              @id @default(uuid())
+  providerId      String
+  serviceId       String
+  modality        AppointmentModality
+  timezone        String
+  weekday         Int
+  startMinute     Int
+  endMinute       Int
+  intervalMinutes Int
+  slotCapacity    Int                 @default(1)
+  effectiveFrom   DateTime            @db.Date
+  effectiveUntil  DateTime?           @db.Date
+  active          Boolean             @default(true)
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  provider        Provider            @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  service         Service             @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  slots           AvailabilitySlot[]
+
+  @@index([providerId, active, weekday])
+  @@index([serviceId, modality, active])
 }
 
 model AvailabilitySlot {
-  id         String    @id @default(uuid())
-  providerId String
-  serviceId  String?
-  startsAt   DateTime
-  endsAt     DateTime
-  capacity   Int       @default(1)
-  version    Int       @default(1)
-  provider   Provider  @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  service    Service?  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  id           String                 @id @default(uuid())
+  providerId   String
+  serviceId    String
+  modality     AppointmentModality
+  startsAt     DateTime
+  endsAt       DateTime
+  capacity     Int                    @default(1)
+  bookedCount  Int                    @default(0)
+  status       AvailabilitySlotStatus @default(OPEN)
+  version      Int                    @default(1)
+  sourceRuleId String?
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+  provider     Provider               @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  service      Service                @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  sourceRule   AvailabilityRule?      @relation(fields: [sourceRuleId], references: [id], onDelete: SetNull)
+  appointments Appointment[]
 
+  @@unique([providerId, serviceId, modality, startsAt])
+  @@index([serviceId, modality, status, startsAt])
   @@index([providerId, startsAt, endsAt])
 }
 
 model Appointment {
-  id         String              @id @default(uuid())
-  patientId  String
-  providerId String
-  serviceId  String
-  modality   AppointmentModality
-  status     AppointmentStatus   @default(REQUESTED)
-  startsAt   DateTime
-  endsAt     DateTime
-  createdAt  DateTime            @default(now())
-  updatedAt  DateTime            @updatedAt
-  patient    PatientProfile      @relation(fields: [patientId], references: [id], onDelete: Restrict)
-  provider   Provider            @relation(fields: [providerId], references: [id], onDelete: Restrict)
-  service    Service             @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  id                 String              @id @default(uuid())
+  patientId          String
+  providerId         String
+  serviceId          String
+  slotId             String?
+  idempotencyKey     String?             @unique
+  modality           AppointmentModality
+  status             AppointmentStatus   @default(REQUESTED)
+  startsAt           DateTime
+  endsAt             DateTime
+  cancelledAt        DateTime?
+  cancellationReason String?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  patient            PatientProfile      @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  provider           Provider            @relation(fields: [providerId], references: [id], onDelete: Restrict)
+  service            Service             @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  slot               AvailabilitySlot?   @relation(fields: [slotId], references: [id], onDelete: SetNull)
 
   @@index([providerId, startsAt, status])
-  @@index([patientId, startsAt])
+  @@index([patientId, startsAt, status])
+  @@index([slotId, status])
 }
 
 model EmergencyAmbulanceRequest {

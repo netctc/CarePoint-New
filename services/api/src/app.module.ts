@@ -7,8 +7,19 @@ import { HealthModule } from "./modules/health/health.module";
 import { IamModule } from "./modules/iam/iam.module";
 import { OnboardingModule } from "./modules/onboarding/onboarding.module";
 import { ProvidersModule } from "./modules/providers/providers.module";
+import { SchedulingModule } from "./modules/scheduling/scheduling.module";
 
 @Module({
-  imports: [ApiSecurityModule, HealthModule, ProvidersModule, EmergencyModule, IamModule, OnboardingModule, ConsentModule, AuditModule],
+  imports: [
+    ApiSecurityModule,
+    HealthModule,
+    ProvidersModule,
+    EmergencyModule,
+    IamModule,
+    OnboardingModule,
+    ConsentModule,
+    AuditModule,
+    SchedulingModule,
+  ],
 })
 export class AppModule {}
