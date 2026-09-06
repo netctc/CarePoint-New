@@ -5,7 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import type { ClinicalRecord, Prisma } from "@prisma/client";
+import type { ClinicalRecord } from "@prisma/client";
 import type { EncryptedEnvelope } from "@carepoint/security";
 import type { AuthPrincipal } from "@carepoint/identity";
 import { PrismaService } from "../../infrastructure/prisma/prisma.module";
@@ -19,25 +19,8 @@ const TREATMENT_LOOKBACK_DAYS = 365;
 const TREATMENT_LOOKAHEAD_DAYS = 30;
 
 type AccessBasis = "PATIENT_SELF" | "OWN_AUTHORSHIP" | "TREATMENT_RELATIONSHIP" | "PATIENT_CONSENT";
-
-interface ClinicalRecordInput {
-  chiefComplaint?: string;
-  subjective?: string;
-  objective?: string;
-  assessment?: string;
-  plan?: string;
-  vitals?: Record<string, number | string | null>;
-  diagnoses?: Array<{ codeSystem?: string; code?: string; display: string; status?: string }>;
-  treatments?: string[];
-  medications?: Array<{ name: string; dose?: string; route?: string; frequency?: string; duration?: string }>;
-  attachments?: Array<{ documentId: string; name: string; mimeType?: string; kind?: string }>;
-}
-
-interface StoredClinicalPayload extends ClinicalRecordInput {
-  schemaVersion: 1;
-  revision: number;
-  authoredAt: string;
-}
+type ClinicalInput = Record<string, unknown>;
+type StoredClinicalPayload = ClinicalInput & { schemaVersion: 1; revision: number; authoredAt: string };
 
 @Injectable()
 export class ClinicalService {
@@ -47,7 +30,7 @@ export class ClinicalService {
     private readonly envelope: ClinicalEnvelopeService,
   ) {}
 
-  async writeRecord(principal: AuthPrincipal, appointmentId: string, input: ClinicalRecordInput) {
+  async writeRecord(principal: AuthPrincipal, appointmentId: string, input: ClinicalInput) {
     const provider = await this.requireActiveProvider(principal);
     const appointment = await this.requireAppointment(appointmentId);
     if (appointment.providerId !== provider.id) throw new ForbiddenException("Only the appointment provider can author this encounter.");
@@ -56,12 +39,7 @@ export class ClinicalService {
 
     const cleaned = this.validateInput(input);
     const revision = (await this.prisma.clinicalRecord.count({ where: { encounterRef: appointment.id } })) + 1;
-    const payload: StoredClinicalPayload = {
-      ...cleaned,
-      schemaVersion: 1,
-      revision,
-      authoredAt: new Date().toISOString(),
-    };
+    const payload: StoredClinicalPayload = { ...cleaned, schemaVersion: 1, revision, authoredAt: new Date().toISOString() };
     const encrypted = await this.envelope.encryptRecord(payload);
     const record = await this.prisma.clinicalRecord.create({
       data: {
@@ -103,9 +81,9 @@ export class ClinicalService {
   async patientTimeline(principal: AuthPrincipal) {
     if (principal.role !== "PATIENT") throw new ForbiddenException("Patient clinical timeline access requires a patient account.");
     const patient = await this.requirePatient(principal);
-    const result = await this.timelineForPatient(patient.id, undefined);
-    await this.audit.write({ actorId: principal.accountId, action: "CLINICAL_TIMELINE_READ", objectType: "PATIENT", objectId: patient.id, purpose: "PATIENT_ACCESS", result: "SUCCESS", metadata: { basis: "PATIENT_SELF", itemCount: result.length } });
-    return { patientId: patient.id, accessBasis: "PATIENT_SELF" as const, items: result };
+    const items = await this.timelineForPatient(patient.id);
+    await this.audit.write({ actorId: principal.accountId, action: "CLINICAL_TIMELINE_READ", objectType: "PATIENT", objectId: patient.id, purpose: "PATIENT_ACCESS", result: "SUCCESS", metadata: { basis: "PATIENT_SELF", itemCount: items.length } });
+    return { patientId: patient.id, accessBasis: "PATIENT_SELF" as const, items };
   }
 
   async providerPatientTimeline(principal: AuthPrincipal, patientId: string) {
@@ -117,8 +95,7 @@ export class ClinicalService {
       await this.audit.write({ actorId: principal.accountId, action: "CLINICAL_TIMELINE_READ_DENIED", objectType: "PATIENT", objectId: patient.id, purpose: "TREATMENT", result: "DENIED" });
       throw new ForbiddenException("No clinical record access basis exists for this patient.");
     }
-    const providerFilter = basis === "OWN_AUTHORSHIP" ? provider.id : undefined;
-    const items = await this.timelineForPatient(patient.id, providerFilter);
+    const items = await this.timelineForPatient(patient.id, basis === "OWN_AUTHORSHIP" ? provider.id : undefined);
     await this.audit.write({ actorId: principal.accountId, action: "CLINICAL_TIMELINE_READ", objectType: "PATIENT", objectId: patient.id, purpose: "TREATMENT", result: "SUCCESS", metadata: { basis, itemCount: items.length } });
     return { patientId: patient.id, accessBasis: basis, items };
   }
@@ -144,15 +121,9 @@ export class ClinicalService {
   }
 
   private async timelineForPatient(patientId: string, providerId?: string) {
-    const records = await this.prisma.clinicalRecord.findMany({
-      where: { patientId, ...(providerId ? { providerId } : {}) },
-      orderBy: { createdAt: "desc" },
-      take: 500,
-    });
+    const records = await this.prisma.clinicalRecord.findMany({ where: { patientId, ...(providerId ? { providerId } : {}) }, orderBy: { createdAt: "desc" }, take: 500 });
     const latest = new Map<string, ClinicalRecord>();
-    for (const record of records) {
-      if (record.encounterRef && !latest.has(record.encounterRef)) latest.set(record.encounterRef, record);
-    }
+    for (const record of records) if (record.encounterRef && !latest.has(record.encounterRef)) latest.set(record.encounterRef, record);
     const appointmentIds = [...latest.keys()];
     if (appointmentIds.length === 0) return [];
     const appointments = await this.prisma.appointment.findMany({
@@ -166,13 +137,12 @@ export class ClinicalService {
     const result = [];
     for (const appointment of appointments) {
       const record = latest.get(appointment.id);
-      if (!record) continue;
-      result.push(this.presentEncounter(appointment, await this.presentRecord(record), providerId ? "OWN_AUTHORSHIP" : "PATIENT_SELF"));
+      if (record) result.push(this.presentEncounter(appointment, await this.presentRecord(record), providerId ? "OWN_AUTHORSHIP" : "PATIENT_SELF"));
     }
     return result;
   }
 
-  private async accessBasisForAppointment(principal: AuthPrincipal, appointment: Awaited<ReturnType<ClinicalService["requireAppointment"]>>): Promise<AccessBasis | null> {
+  private async accessBasisForAppointment(principal: AuthPrincipal, appointment: any): Promise<AccessBasis | null> {
     if (principal.role === "PATIENT") {
       const patient = await this.requirePatient(principal);
       return patient.id === appointment.patientId ? "PATIENT_SELF" : null;
@@ -189,25 +159,19 @@ export class ClinicalService {
     const now = new Date();
     const from = new Date(now.getTime() - TREATMENT_LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
     const to = new Date(now.getTime() + TREATMENT_LOOKAHEAD_DAYS * 24 * 60 * 60 * 1000);
-    const relationship = await this.prisma.appointment.findFirst({
-      where: { providerId, patientId, status: { in: ["CONFIRMED", "COMPLETED"] }, startsAt: { gte: from, lte: to } },
-      select: { id: true },
-    });
+    const relationship = await this.prisma.appointment.findFirst({ where: { providerId, patientId, status: { in: ["CONFIRMED", "COMPLETED"] }, startsAt: { gte: from, lte: to } }, select: { id: true } });
     if (relationship) return "TREATMENT_RELATIONSHIP";
     const consent = await this.prisma.consent.findFirst({
       where: {
         patientId,
         scope: CLINICAL_SCOPE,
         state: "GRANTED",
-        AND: [
-          { OR: [{ providerId }, { providerId: null }] },
-          { OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] },
-        ],
+        AND: [{ OR: [{ providerId }, { providerId: null }] }, { OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] }],
       },
       select: { id: true, version: true },
       orderBy: { grantedAt: "desc" },
     });
-    if (consent && consent.version === CLINICAL_CONSENT_VERSION) return "PATIENT_CONSENT";
+    if (consent?.version === CLINICAL_CONSENT_VERSION) return "PATIENT_CONSENT";
     const own = await this.prisma.clinicalRecord.findFirst({ where: { providerId, patientId }, select: { id: true } });
     return own ? "OWN_AUTHORSHIP" : null;
   }
@@ -240,22 +204,13 @@ export class ClinicalService {
   }
 
   private async presentRecord(record: ClinicalRecord) {
-    const envelope = this.asEnvelope(record);
-    const data = await this.envelope.decryptRecord<StoredClinicalPayload>(envelope);
+    const data = await this.envelope.decryptRecord<StoredClinicalPayload>(this.asEnvelope(record));
     return { id: record.id, createdAt: record.createdAt, revision: data.revision, data };
   }
 
   private presentEncounter(appointment: any, latestRecord: any, basis: AccessBasis) {
     return {
-      appointment: {
-        id: appointment.id,
-        modality: appointment.modality,
-        status: appointment.status,
-        startsAt: appointment.startsAt,
-        endsAt: appointment.endsAt,
-        provider: appointment.provider,
-        service: appointment.service,
-      },
+      appointment: { id: appointment.id, modality: appointment.modality, status: appointment.status, startsAt: appointment.startsAt, endsAt: appointment.endsAt, provider: appointment.provider, service: appointment.service },
       accessBasis: basis,
       latestRecord,
       finalized: appointment.status === "COMPLETED",
@@ -267,92 +222,58 @@ export class ClinicalService {
     return { version: 1, algorithm: "AES-256-GCM", keyId: record.keyId, wrappedKey: record.wrappedKey, iv: record.iv, ciphertext: record.ciphertext };
   }
 
-  private validateInput(input: ClinicalRecordInput): ClinicalRecordInput {
+  private validateInput(input: ClinicalInput): ClinicalInput {
     if (!input || typeof input !== "object" || Array.isArray(input)) throw new BadRequestException("Clinical record body must be an object.");
-    const cleaned: ClinicalRecordInput = {
-      chiefComplaint: this.optionalText(input.chiefComplaint, 2000),
-      subjective: this.optionalText(input.subjective, 20000),
-      objective: this.optionalText(input.objective, 20000),
-      assessment: this.optionalText(input.assessment, 20000),
-      plan: this.optionalText(input.plan, 20000),
-      vitals: input.vitals ? this.validateVitals(input.vitals) : undefined,
-      diagnoses: input.diagnoses ? this.validateDiagnoses(input.diagnoses) : undefined,
-      treatments: input.treatments ? this.validateStringList(input.treatments, 50, 2000) : undefined,
-      medications: input.medications ? this.validateMedications(input.medications) : undefined,
-      attachments: input.attachments ? this.validateAttachments(input.attachments) : undefined,
-    };
-    const meaningful = Object.entries(cleaned).some(([, value]) => value !== undefined && (!(Array.isArray(value)) || value.length > 0));
-    if (!meaningful) throw new BadRequestException("At least one clinical field is required.");
-    const size = Buffer.byteLength(JSON.stringify(cleaned), "utf8");
-    if (size > MAX_RECORD_BYTES) throw new BadRequestException("Clinical record payload is too large.");
+    const cleaned: ClinicalInput = {};
+    for (const [key, max] of Object.entries({ chiefComplaint: 2000, subjective: 20000, objective: 20000, assessment: 20000, plan: 20000 })) {
+      const value = input[key];
+      if (value !== undefined && value !== null && value !== "") cleaned[key] = this.requiredText(value, max);
+    }
+    if (input.vitals !== undefined) cleaned.vitals = this.validateVitals(input.vitals);
+    if (input.diagnoses !== undefined) cleaned.diagnoses = this.validateObjectList(input.diagnoses, 50, "diagnosis", ["codeSystem", "code", "display", "status"], ["display"]);
+    if (input.treatments !== undefined) cleaned.treatments = this.validateStringList(input.treatments, 50, 2000);
+    if (input.medications !== undefined) cleaned.medications = this.validateObjectList(input.medications, 50, "medication", ["name", "dose", "route", "frequency", "duration"], ["name"]);
+    if (input.attachments !== undefined) cleaned.attachments = this.validateObjectList(input.attachments, 20, "attachment", ["documentId", "name", "mimeType", "kind"], ["documentId", "name"]);
+    if (Object.keys(cleaned).length === 0) throw new BadRequestException("At least one clinical field is required.");
+    if (Buffer.byteLength(JSON.stringify(cleaned), "utf8") > MAX_RECORD_BYTES) throw new BadRequestException("Clinical record payload is too large.");
     return cleaned;
   }
 
-  private optionalText(value: unknown, max: number): string | undefined {
-    if (value === undefined || value === null || value === "") return undefined;
-    if (typeof value !== "string") throw new BadRequestException("Clinical text fields must be strings.");
+  private requiredText(value: unknown, max: number): string {
+    if (typeof value !== "string") throw new BadRequestException("Clinical text values must be strings.");
     const text = value.trim();
-    if (!text || text.length > max) throw new BadRequestException(`Clinical text fields must contain between 1 and ${max} characters.`);
+    if (!text || text.length > max) throw new BadRequestException(`Clinical text must contain between 1 and ${max} characters.`);
     return text;
   }
 
-  private validateVitals(value: Record<string, number | string | null>) {
+  private validateVitals(value: unknown): Record<string, number | string | null> {
     if (!value || typeof value !== "object" || Array.isArray(value)) throw new BadRequestException("vitals must be an object.");
     const allowed = new Set(["temperatureC", "heartRateBpm", "systolicMmHg", "diastolicMmHg", "respiratoryRate", "oxygenSaturationPct", "weightKg", "heightCm"]);
     const result: Record<string, number | string | null> = {};
-    for (const [key, item] of Object.entries(value)) {
+    for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
       if (!allowed.has(key)) throw new BadRequestException(`Unsupported vital sign: ${key}`);
       if (item !== null && typeof item !== "number" && typeof item !== "string") throw new BadRequestException(`Invalid vital sign value: ${key}`);
-      result[key] = item;
+      result[key] = item as number | string | null;
     }
     return result;
   }
 
-  private validateDiagnoses(value: ClinicalRecordInput["diagnoses"]) {
-    if (!Array.isArray(value) || value.length > 50) throw new BadRequestException("diagnoses must contain at most 50 items.");
-    return value.map((item) => {
-      if (!item || typeof item.display !== "string" || !item.display.trim()) throw new BadRequestException("Each diagnosis requires display text.");
-      return {
-        ...(item.codeSystem ? { codeSystem: this.optionalText(item.codeSystem, 80) } : {}),
-        ...(item.code ? { code: this.optionalText(item.code, 80) } : {}),
-        display: this.optionalText(item.display, 300)!,
-        ...(item.status ? { status: this.optionalText(item.status, 40) } : {}),
-      };
-    });
-  }
-
   private validateStringList(value: unknown, maxItems: number, maxLength: number): string[] {
     if (!Array.isArray(value) || value.length > maxItems) throw new BadRequestException(`List must contain at most ${maxItems} items.`);
-    return value.map((item) => {
-      if (typeof item !== "string") throw new BadRequestException("List values must be strings.");
-      return this.optionalText(item, maxLength)!;
-    });
+    return value.map((item) => this.requiredText(item, maxLength));
   }
 
-  private validateMedications(value: ClinicalRecordInput["medications"]) {
-    if (!Array.isArray(value) || value.length > 50) throw new BadRequestException("medications must contain at most 50 items.");
+  private validateObjectList(value: unknown, maxItems: number, label: string, allowed: string[], required: string[]): Array<Record<string, string>> {
+    if (!Array.isArray(value) || value.length > maxItems) throw new BadRequestException(`${label} list must contain at most ${maxItems} items.`);
     return value.map((item) => {
-      if (!item || typeof item.name !== "string" || !item.name.trim()) throw new BadRequestException("Each medication requires a name.");
-      return {
-        name: this.optionalText(item.name, 300)!,
-        ...(item.dose ? { dose: this.optionalText(item.dose, 100) } : {}),
-        ...(item.route ? { route: this.optionalText(item.route, 80) } : {}),
-        ...(item.frequency ? { frequency: this.optionalText(item.frequency, 120) } : {}),
-        ...(item.duration ? { duration: this.optionalText(item.duration, 120) } : {}),
-      };
-    });
-  }
-
-  private validateAttachments(value: ClinicalRecordInput["attachments"]) {
-    if (!Array.isArray(value) || value.length > 20) throw new BadRequestException("attachments must contain at most 20 references.");
-    return value.map((item) => {
-      if (!item || typeof item.documentId !== "string" || typeof item.name !== "string") throw new BadRequestException("Each attachment requires documentId and name.");
-      return {
-        documentId: this.optionalText(item.documentId, 200)!,
-        name: this.optionalText(item.name, 300)!,
-        ...(item.mimeType ? { mimeType: this.optionalText(item.mimeType, 120) } : {}),
-        ...(item.kind ? { kind: this.optionalText(item.kind, 80) } : {}),
-      };
+      if (!item || typeof item !== "object" || Array.isArray(item)) throw new BadRequestException(`Each ${label} must be an object.`);
+      const source = item as Record<string, unknown>;
+      const result: Record<string, string> = {};
+      for (const key of allowed) {
+        if (source[key] !== undefined && source[key] !== null && source[key] !== "") result[key] = this.requiredText(source[key], key === "display" || key === "name" ? 300 : 200);
+      }
+      for (const key of required) if (!result[key]) throw new BadRequestException(`Each ${label} requires ${key}.`);
+      return result;
     });
   }
 }
