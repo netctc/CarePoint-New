@@ -14,6 +14,8 @@ import { DatabaseAuditService } from "../../infrastructure/audit/audit.service";
 import { DocumentStorageService } from "./document-storage.service";
 import { DocumentsEnvelopeService } from "./documents-envelope.service";
 import { DocumentsAttestationService } from "./documents-attestation.service";
+import { DocumentMalwareScannerService } from "./document-malware-scanner.service";
+import { DicomWebService } from "./dicomweb.service";
 
 const DOCUMENT_CONSENT_SCOPE = "CLINICAL_DOCUMENT_READ";
 const DOCUMENT_CONSENT_VERSION = "clinical-documents-v1";
@@ -36,6 +38,8 @@ export class DocumentsService {
     private readonly storage: DocumentStorageService,
     private readonly envelope: DocumentsEnvelopeService,
     private readonly attestation: DocumentsAttestationService,
+    private readonly scanner: DocumentMalwareScannerService,
+    private readonly dicomweb: DicomWebService,
   ) {}
 
   async uploadForEncounter(principal: AuthPrincipal, appointmentId: string, input: JsonObject) {
@@ -65,7 +69,7 @@ export class DocumentsService {
     if (appointment.providerId !== provider.id) throw new ForbiddenException("Only the appointment provider can attach references to this encounter.");
     if (!["CONFIRMED", "COMPLETED"].includes(appointment.status)) throw new ConflictException("References require a confirmed or completed encounter.");
     const title = this.requiredText(input.title, 500, "title");
-    const externalReference = this.requiredText(input.externalReference, 4000, "externalReference");
+    const externalReference = this.dicomweb.normalizeReference(input);
     const metadata = await this.envelope.encryptMetadata({ schemaVersion: 1, title, externalReference, description: this.optionalText(input.description, 4000) });
     const document = await this.prisma.clinicalDocument.create({
       data: {
@@ -75,7 +79,7 @@ export class DocumentsService {
         orderId: this.optionalText(input.orderId, 100),
         kind: "IMAGING_REFERENCE",
         storageMode: "EXTERNAL_REFERENCE",
-        storageProvider: "REFERENCE",
+        storageProvider: "DICOMWEB_REFERENCE",
         metadataAlgorithm: metadata.algorithm,
         metadataKeyId: metadata.keyId,
         metadataWrappedKey: metadata.wrappedKey,
@@ -84,7 +88,7 @@ export class DocumentsService {
         createdByAccountId: principal.accountId,
       },
     });
-    await this.audit.write({ actorId: principal.accountId, action: "CLINICAL_DOCUMENT_REFERENCE_CREATED", objectType: "CLINICAL_DOCUMENT", objectId: document.id, purpose: "TREATMENT", result: "SUCCESS", metadata: { appointmentId } });
+    await this.audit.write({ actorId: principal.accountId, action: "CLINICAL_DOCUMENT_REFERENCE_CREATED", objectType: "CLINICAL_DOCUMENT", objectId: document.id, purpose: "TREATMENT", result: "SUCCESS", metadata: { appointmentId, provider: "DICOMWEB" } });
     return this.presentDocument(document, "OWN_AUTHORSHIP");
   }
 
@@ -222,7 +226,7 @@ export class DocumentsService {
     if (report.status !== "DRAFT") throw new ConflictException("Only a draft diagnostic report can be finalized.");
     const envelope = this.reportEnvelope(report);
     const material = this.reportMaterial(report.type as DiagnosticType, report.patientId, report.providerId, report.encounterRef, report.documentId, envelope);
-    const signature = this.attestation.attest(material);
+    const signature = await this.attestation.attest(material);
     if (signature.payloadDigest !== report.payloadDigest) throw new ConflictException("Diagnostic report integrity check failed before finalization.");
     const updated = await this.prisma.diagnosticReport.update({ where: { id: report.id }, data: { status: "FINAL", signatureAlgorithm: signature.algorithm, signatureKeyId: signature.keyId, signature: signature.signature, finalizedAt: signature.signedAt } });
     await this.audit.write({ actorId: principal.accountId, action: "DIAGNOSTIC_REPORT_FINALIZED", objectType: "DIAGNOSTIC_REPORT", objectId: report.id, purpose: "TREATMENT", result: "SUCCESS" });
@@ -258,7 +262,13 @@ export class DocumentsService {
     await this.requirePatientById(patientId);
     const basis = await this.providerPatientAccessBasis(provider.id, patientId);
     if (!basis) throw new ForbiddenException("No diagnostic report access basis exists for this patient.");
-    const reports = await this.prisma.diagnosticReport.findMany({ where: { patientId, ...(basis === "OWN_AUTHORSHIP" ? { providerId: provider.id } : {}) }, orderBy: { createdAt: "desc" }, take: 500 });
+    const reports = await this.prisma.diagnosticReport.findMany({
+      where: basis === "OWN_AUTHORSHIP"
+        ? { patientId, providerId: provider.id }
+        : { patientId, status: { in: ["FINAL", "RELEASED"] } },
+      orderBy: { createdAt: "desc" },
+      take: 500,
+    });
     const items = await Promise.all(reports.map((report) => this.presentReport(report, basis, false)));
     return { patientId, accessBasis: basis, items };
   }
@@ -272,7 +282,9 @@ export class DocumentsService {
     }
     if (principal.role === "DOCTOR" || principal.role === "OTHER_PROVIDER") {
       const provider = await this.requireActiveProvider(principal);
-      const basis = provider.id === report.providerId ? "OWN_AUTHORSHIP" : await this.providerPatientAccessBasis(provider.id, report.patientId);
+      const own = provider.id === report.providerId;
+      if (!own && report.status === "DRAFT") throw new ForbiddenException("Draft diagnostic reports are visible only to the authoring provider.");
+      const basis = own ? "OWN_AUTHORSHIP" : await this.providerPatientAccessBasis(provider.id, report.patientId);
       if (!basis) throw new ForbiddenException("Diagnostic report access denied.");
       return this.presentReport(report, basis, false);
     }
@@ -284,6 +296,7 @@ export class DocumentsService {
     if (!ALLOWED_MEDIA_TYPES.has(mediaType)) throw new BadRequestException("Unsupported clinical document mediaType.");
     const bytes = this.decodeBase64(args.input.contentBase64);
     if (bytes.byteLength < 1 || bytes.byteLength > MAX_FILE_BYTES) throw new BadRequestException(`Clinical document must contain between 1 and ${MAX_FILE_BYTES} bytes.`);
+    await this.scanner.assertClean(bytes);
     const metadata = await this.envelope.encryptMetadata({
       schemaVersion: 1,
       fileName: this.requiredText(args.input.fileName, 500, "fileName"),
@@ -328,7 +341,10 @@ export class DocumentsService {
   }
 
   private async presentDocument(document: ClinicalDocument, basis: AccessBasis) {
-    const metadata = await this.envelope.decryptMetadata<JsonObject>(this.metadataEnvelope(document));
+    const rawMetadata = await this.envelope.decryptMetadata<JsonObject>(this.metadataEnvelope(document));
+    const metadata = document.kind === "IMAGING_REFERENCE"
+      ? Object.fromEntries(Object.entries(rawMetadata).filter(([key]) => key !== "externalReference"))
+      : rawMetadata;
     return {
       id: document.id,
       patientId: document.patientId,
@@ -346,6 +362,7 @@ export class DocumentsService {
       createdAt: document.createdAt,
       accessBasis: basis,
       metadata,
+      ...(document.kind === "IMAGING_REFERENCE" ? { dicomweb: this.dicomweb.descriptor() } : {}),
     };
   }
 
@@ -374,7 +391,8 @@ export class DocumentsService {
     if (!report.signature || !report.signatureAlgorithm || !report.signatureKeyId) throw new ConflictException("Final diagnostic report attestation is incomplete.");
     const envelope = this.reportEnvelope(report);
     const material = this.reportMaterial(report.type as DiagnosticType, report.patientId, report.providerId, report.encounterRef, report.documentId, envelope);
-    if (this.attestation.digest(material) !== report.payloadDigest || !this.attestation.verify(material, report.signature)) throw new ConflictException("Diagnostic report attestation verification failed.");
+    const verified = await this.attestation.verify(material, report.signature, report.signatureKeyId, report.signatureAlgorithm);
+    if (this.attestation.digest(material) !== report.payloadDigest || !verified) throw new ConflictException("Diagnostic report attestation verification failed.");
   }
 
   private async documentAccessBasis(principal: AuthPrincipal, document: ClinicalDocument): Promise<AccessBasis | null> {
@@ -392,9 +410,6 @@ export class DocumentsService {
   }
 
   private async providerPatientAccessBasis(providerId: string, patientId: string): Promise<Exclude<AccessBasis, "PATIENT_SELF"> | null> {
-    const ownDocument = await this.prisma.clinicalDocument.findFirst({ where: { providerId, patientId, status: "AVAILABLE" }, select: { id: true } });
-    const ownReport = await this.prisma.diagnosticReport.findFirst({ where: { providerId, patientId }, select: { id: true } });
-    if (ownDocument || ownReport) return "OWN_AUTHORSHIP";
     const now = new Date();
     const from = new Date(now.getTime() - TREATMENT_LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
     const to = new Date(now.getTime() + TREATMENT_LOOKAHEAD_DAYS * 24 * 60 * 60 * 1000);
@@ -410,7 +425,10 @@ export class DocumentsService {
       select: { version: true },
       orderBy: { grantedAt: "desc" },
     });
-    return consent?.version === DOCUMENT_CONSENT_VERSION ? "PATIENT_CONSENT" : null;
+    if (consent?.version === DOCUMENT_CONSENT_VERSION) return "PATIENT_CONSENT";
+    const ownDocument = await this.prisma.clinicalDocument.findFirst({ where: { providerId, patientId, status: "AVAILABLE" }, select: { id: true } });
+    const ownReport = await this.prisma.diagnosticReport.findFirst({ where: { providerId, patientId }, select: { id: true } });
+    return ownDocument || ownReport ? "OWN_AUTHORSHIP" : null;
   }
 
   private async requireActiveProvider(principal: AuthPrincipal): Promise<ProviderContext> {
