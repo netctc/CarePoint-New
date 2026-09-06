@@ -43,6 +43,14 @@ jobs:
       ORDER_SIGNING_PROVIDER: local
       ORDER_SIGNING_KEY_ID: ci-orders-signing-v1
       ORDER_SIGNING_SECRET_BASE64: AwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwM=
+      DOCUMENT_STORAGE_PROVIDER: local
+      DOCUMENT_STORAGE_LOCAL_ROOT: /tmp/carepoint-documents
+      DOCUMENT_KEY_PROVIDER: local
+      DOCUMENT_ENVELOPE_KEY_ID: ci-documents-kek-v1
+      DOCUMENT_ENVELOPE_KEY_BASE64: BAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQ=
+      DOCUMENT_SIGNING_PROVIDER: local
+      DOCUMENT_SIGNING_KEY_ID: ci-documents-signing-v1
+      DOCUMENT_SIGNING_SECRET_BASE64: BQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQU=
       BOOTSTRAP_ADMIN_EMAIL: admin-ci@carepoint.test
       BOOTSTRAP_ADMIN_PASSWORD: CarePoint-CI-Admin#2026
     steps:
@@ -93,6 +101,8 @@ jobs:
         run: node services/api/scripts/slice31-smoke.mjs
       - name: Slice 4 clinical orders and laboratory smoke test
         run: node services/api/scripts/slice4-smoke.mjs
+      - name: Slice 5 encrypted clinical documents smoke test
+        run: node services/api/scripts/slice5-smoke.mjs
       - name: Print API log on failure
         if: failure()
         run: cat /tmp/carepoint-api.log || true
