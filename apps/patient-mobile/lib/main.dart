@@ -1,6 +1,7 @@
 import 'package:carepoint_mobile_core/carepoint_api.dart';
 import 'package:carepoint_mobile_core/carepoint_auth.dart';
 import 'package:carepoint_mobile_core/carepoint_localization.dart';
+import 'package:carepoint_mobile_core/telehealth_room.dart';
 import 'package:flutter/material.dart';
 
 void main() => runApp(const CarePointPatientApp());
@@ -51,7 +52,6 @@ class PatientShell extends StatefulWidget {
   final CarePointSession session;
   final CarePointLocale locale;
   final VoidCallback onSignOut;
-
   @override
   State<PatientShell> createState() => _PatientShellState();
 }
@@ -94,7 +94,6 @@ class PatientSearchPage extends StatefulWidget {
   final CarePointSession session;
   final CarePointLocale locale;
   final VoidCallback onBooked;
-
   @override
   State<PatientSearchPage> createState() => _PatientSearchPageState();
 }
@@ -107,27 +106,17 @@ class _PatientSearchPageState extends State<PatientSearchPage> {
   List<Map<String, dynamic>> items = const [];
 
   @override
-  void initState() {
-    super.initState();
-    search();
-  }
-
+  void initState() { super.initState(); search(); }
   @override
-  void dispose() {
-    query.dispose();
-    super.dispose();
-  }
+  void dispose() { query.dispose(); super.dispose(); }
 
   Future<void> search() async {
     setState(() { busy = true; error = null; });
     try {
       final next = await widget.session.api.searchServices(query: query.text, modality: modality);
       if (mounted) setState(() => items = next);
-    } catch (value) {
-      if (mounted) setState(() => error = value.toString());
-    } finally {
-      if (mounted) setState(() => busy = false);
-    }
+    } catch (value) { if (mounted) setState(() => error = value.toString()); }
+    finally { if (mounted) setState(() => busy = false); }
   }
 
   void emergency() => showModalBottomSheet<void>(
@@ -248,7 +237,6 @@ class PatientSlotsPage extends StatefulWidget {
   final CarePointLocale locale;
   final Map<String, dynamic> service;
   final String modality;
-
   @override
   State<PatientSlotsPage> createState() => _PatientSlotsPageState();
 }
@@ -259,10 +247,7 @@ class _PatientSlotsPageState extends State<PatientSlotsPage> {
   List<Map<String, dynamic>> slots = const [];
 
   @override
-  void initState() {
-    super.initState();
-    load();
-  }
+  void initState() { super.initState(); load(); }
 
   Future<void> load() async {
     setState(() { busy = true; error = null; });
@@ -270,11 +255,8 @@ class _PatientSlotsPageState extends State<PatientSlotsPage> {
       final now = DateTime.now();
       final value = await widget.session.api.availability(serviceId: widget.service['id'].toString(), modality: widget.modality, from: now, to: now.add(const Duration(days: 30)));
       if (mounted) setState(() => slots = value);
-    } catch (value) {
-      if (mounted) setState(() => error = value.toString());
-    } finally {
-      if (mounted) setState(() => busy = false);
-    }
+    } catch (value) { if (mounted) setState(() => error = value.toString()); }
+    finally { if (mounted) setState(() => busy = false); }
   }
 
   @override
@@ -326,7 +308,6 @@ class PatientAppointmentsPage extends StatefulWidget {
   const PatientAppointmentsPage({super.key, required this.session, required this.locale});
   final CarePointSession session;
   final CarePointLocale locale;
-
   @override
   State<PatientAppointmentsPage> createState() => _PatientAppointmentsPageState();
 }
@@ -337,21 +318,15 @@ class _PatientAppointmentsPageState extends State<PatientAppointmentsPage> {
   List<Map<String, dynamic>> items = const [];
 
   @override
-  void initState() {
-    super.initState();
-    load();
-  }
+  void initState() { super.initState(); load(); }
 
   Future<void> load() async {
     setState(() { busy = true; error = null; });
     try {
       final value = await widget.session.api.myAppointments();
       if (mounted) setState(() => items = value);
-    } catch (value) {
-      if (mounted) setState(() => error = value.toString());
-    } finally {
-      if (mounted) setState(() => busy = false);
-    }
+    } catch (value) { if (mounted) setState(() => error = value.toString()); }
+    finally { if (mounted) setState(() => busy = false); }
   }
 
   @override
@@ -370,12 +345,20 @@ class _PatientAppointmentsPageState extends State<PatientAppointmentsPage> {
           final provider = _map(item['provider']);
           final start = DateTime.tryParse(item['startsAt']?.toString() ?? '')?.toLocal();
           final active = item['status'] == 'CONFIRMED' || item['status'] == 'REQUESTED';
-          return Card(child: Padding(padding: const EdgeInsets.all(14), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          final telemedicine = item['modality'] == 'TELEMEDICINE' && item['status'] == 'CONFIRMED';
+          return Card(child: Padding(padding: const EdgeInsets.all(14), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             Row(children: [Expanded(child: Text(service['name']?.toString() ?? 'Appointment', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800))), Chip(label: Text(item['status']?.toString() ?? ''))]),
             Text(provider['displayName']?.toString() ?? ''),
             const SizedBox(height: 6),
             Text('${_dateTime(start)} · ${item['modality'] ?? ''}', style: const TextStyle(color: Color(0xFF475569))),
-            if (active) ...[const SizedBox(height: 10), OutlinedButton.icon(onPressed: () => cancel(item), icon: const Icon(Icons.cancel_outlined), label: Text(cpText(widget.locale, 'patient.cancelVisit')))],
+            if (telemedicine) ...[
+              const SizedBox(height: 10),
+              TelehealthActionButton(session: widget.session, locale: widget.locale, appointment: item),
+            ],
+            if (active) ...[
+              const SizedBox(height: 8),
+              OutlinedButton.icon(onPressed: () => cancel(item), icon: const Icon(Icons.cancel_outlined), label: Text(cpText(widget.locale, 'patient.cancelVisit'))),
+            ],
           ])));
         },
       ),

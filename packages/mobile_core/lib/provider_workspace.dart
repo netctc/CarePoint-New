@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'carepoint_api.dart';
 import 'carepoint_localization.dart';
+import 'telehealth_room.dart';
 
 class ProviderWorkspace extends StatefulWidget {
   const ProviderWorkspace({super.key, required this.session, required this.locale, required this.title, required this.accent, required this.onSignOut, this.dark = false});
@@ -67,11 +68,18 @@ class _ProviderWorkspaceState extends State<ProviderWorkspace> {
       final patient = _map(item['patient']);
       final starts = DateTime.tryParse(item['startsAt']?.toString() ?? '')?.toLocal();
       final patientName = [patient['firstName'], patient['lastName']].whereType<String>().where((v) => v.isNotEmpty).join(' ');
-      return Card(child: ListTile(
-        leading: CircleAvatar(backgroundColor: widget.accent.withValues(alpha: .14), child: Icon(_modalityIcon(item['modality']?.toString()), color: widget.accent)),
-        title: Text(patientName.isEmpty ? service['name']?.toString() ?? 'Appointment' : patientName, style: const TextStyle(fontWeight: FontWeight.w700)),
-        subtitle: Text('${_dateTime(starts)} · ${service['name'] ?? item['modality'] ?? ''}\n${item['status'] ?? ''}'), isThreeLine: true,
-      ));
+      final isTelemedicine = item['modality'] == 'TELEMEDICINE' && item['status'] == 'CONFIRMED';
+      return Card(child: Padding(padding: const EdgeInsets.only(bottom: 10), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        ListTile(
+          leading: CircleAvatar(backgroundColor: widget.accent.withValues(alpha: .14), child: Icon(_modalityIcon(item['modality']?.toString()), color: widget.accent)),
+          title: Text(patientName.isEmpty ? service['name']?.toString() ?? 'Appointment' : patientName, style: const TextStyle(fontWeight: FontWeight.w700)),
+          subtitle: Text('${_dateTime(starts)} · ${service['name'] ?? item['modality'] ?? ''}\n${item['status'] ?? ''}'), isThreeLine: true,
+        ),
+        if (isTelemedicine) Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          child: TelehealthActionButton(session: widget.session, locale: locale, appointment: item, providerMode: true),
+        ),
+      ])));
     }));
   }
 
