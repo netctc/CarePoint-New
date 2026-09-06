@@ -81,7 +81,7 @@ export class ClinicalService {
   async patientTimeline(principal: AuthPrincipal) {
     if (principal.role !== "PATIENT") throw new ForbiddenException("Patient clinical timeline access requires a patient account.");
     const patient = await this.requirePatient(principal);
-    const items = await this.timelineForPatient(patient.id);
+    const items = await this.timelineForPatient(patient.id, "PATIENT_SELF");
     await this.audit.write({ actorId: principal.accountId, action: "CLINICAL_TIMELINE_READ", objectType: "PATIENT", objectId: patient.id, purpose: "PATIENT_ACCESS", result: "SUCCESS", metadata: { basis: "PATIENT_SELF", itemCount: items.length } });
     return { patientId: patient.id, accessBasis: "PATIENT_SELF" as const, items };
   }
@@ -95,7 +95,7 @@ export class ClinicalService {
       await this.audit.write({ actorId: principal.accountId, action: "CLINICAL_TIMELINE_READ_DENIED", objectType: "PATIENT", objectId: patient.id, purpose: "TREATMENT", result: "DENIED" });
       throw new ForbiddenException("No clinical record access basis exists for this patient.");
     }
-    const items = await this.timelineForPatient(patient.id, basis === "OWN_AUTHORSHIP" ? provider.id : undefined);
+    const items = await this.timelineForPatient(patient.id, basis, basis === "OWN_AUTHORSHIP" ? provider.id : undefined);
     await this.audit.write({ actorId: principal.accountId, action: "CLINICAL_TIMELINE_READ", objectType: "PATIENT", objectId: patient.id, purpose: "TREATMENT", result: "SUCCESS", metadata: { basis, itemCount: items.length } });
     return { patientId: patient.id, accessBasis: basis, items };
   }
@@ -109,18 +109,22 @@ export class ClinicalService {
     const record = await this.prisma.clinicalRecord.findFirst({ where: { encounterRef: appointment.id }, select: { id: true } });
     if (!record) throw new ConflictException("At least one encrypted clinical record revision is required before finalization.");
 
+    const telehealth = await this.prisma.telehealthSession.findUnique({ where: { appointmentId: appointment.id }, select: { status: true } });
+    if (telehealth?.status === "ACTIVE") {
+      throw new ConflictException("End the active telemedicine session before finalizing the clinical encounter.");
+    }
+
     await this.prisma.$transaction(async (tx) => {
       await tx.appointment.update({ where: { id: appointment.id }, data: { status: "COMPLETED" } });
-      await tx.telehealthSession.updateMany({
-        where: { appointmentId: appointment.id, status: { in: ["WAITING", "READY", "ACTIVE"] } },
-        data: { status: "ENDED", endedAt: new Date() },
-      });
+      if (telehealth?.status === "WAITING" || telehealth?.status === "READY") {
+        await tx.telehealthSession.update({ where: { appointmentId: appointment.id }, data: { status: "ENDED", endedAt: new Date() } });
+      }
     });
     await this.audit.write({ actorId: principal.accountId, action: "CLINICAL_ENCOUNTER_FINALIZED", objectType: "APPOINTMENT", objectId: appointment.id, purpose: "TREATMENT", result: "SUCCESS" });
     return this.getEncounter(principal, appointmentId);
   }
 
-  private async timelineForPatient(patientId: string, providerId?: string) {
+  private async timelineForPatient(patientId: string, basis: AccessBasis, providerId?: string) {
     const records = await this.prisma.clinicalRecord.findMany({ where: { patientId, ...(providerId ? { providerId } : {}) }, orderBy: { createdAt: "desc" }, take: 500 });
     const latest = new Map<string, ClinicalRecord>();
     for (const record of records) if (record.encounterRef && !latest.has(record.encounterRef)) latest.set(record.encounterRef, record);
@@ -137,7 +141,7 @@ export class ClinicalService {
     const result = [];
     for (const appointment of appointments) {
       const record = latest.get(appointment.id);
-      if (record) result.push(this.presentEncounter(appointment, await this.presentRecord(record), providerId ? "OWN_AUTHORSHIP" : "PATIENT_SELF"));
+      if (record) result.push(this.presentEncounter(appointment, await this.presentRecord(record), basis));
     }
     return result;
   }
