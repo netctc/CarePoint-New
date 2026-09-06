@@ -156,7 +156,7 @@ class _ClinicalRecordPageState extends State<ClinicalRecordPage> {
     final ok = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
       title: Text(clinicalText(locale, 'finalize')),
       content: Text(clinicalText(locale, 'finalizePrompt')),
-      actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')), FilledButton(onPressed: () => Navigator.pop(context, true), child: Text(clinicalText(locale, 'finalize')))],
+      actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: Text(cpText(locale, 'common.cancel'))), FilledButton(onPressed: () => Navigator.pop(context, true), child: Text(clinicalText(locale, 'finalize')))],
     ));
     if (ok != true) return;
     setState(() => saving = true);
