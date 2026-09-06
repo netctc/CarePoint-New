@@ -30,6 +30,9 @@ export type AppointmentStatus = (typeof AppointmentStatuses)[number];
 export const AvailabilitySlotStatuses = ["OPEN", "BLOCKED"] as const;
 export type AvailabilitySlotStatus = (typeof AvailabilitySlotStatuses)[number];
 
+export const TelehealthSessionStatuses = ["WAITING", "READY", "ACTIVE", "ENDED", "CANCELLED"] as const;
+export type TelehealthSessionStatus = (typeof TelehealthSessionStatuses)[number];
+
 export const EmergencyAmbulanceStatuses = ["REQUESTED", "DISPATCHING", "ASSIGNED", "EN_ROUTE", "ARRIVED", "TRANSPORTING", "COMPLETED", "CANCELLED"] as const;
 export type EmergencyAmbulanceStatus = (typeof EmergencyAmbulanceStatuses)[number];
 
@@ -65,6 +68,21 @@ export interface CreateAvailabilityRuleInput {
 export interface CreateBookingInput {
   slotId: string;
   idempotencyKey: string;
+}
+
+export interface TelehealthReadinessInput {
+  camera: boolean;
+  microphone: boolean;
+  network: boolean;
+}
+
+export interface TelehealthJoinCredentials {
+  sessionId: string;
+  serverUrl: string;
+  participantToken: string;
+  e2eeKey: string;
+  expiresAt: string;
+  recordingEnabled: false;
 }
 
 export interface CreateEmergencyAmbulanceRequestInput { patientId: string; latitude: number; longitude: number; pickupAddress?: string; callbackPhone?: string; note?: string; }

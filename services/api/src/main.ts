@@ -4,7 +4,7 @@ import { NestFactory } from "@nestjs/core";
 import { AppModule } from "./app.module";
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule, { cors: false });
+  const app = await NestFactory.create(AppModule, { cors: false, rawBody: true });
   const origins = (process.env.ALLOWED_ORIGINS ?? "http://localhost:3000")
     .split(",")
     .map((value) => value.trim())

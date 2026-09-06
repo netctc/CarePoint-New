@@ -8,6 +8,7 @@ import { IamModule } from "./modules/iam/iam.module";
 import { OnboardingModule } from "./modules/onboarding/onboarding.module";
 import { ProvidersModule } from "./modules/providers/providers.module";
 import { SchedulingModule } from "./modules/scheduling/scheduling.module";
+import { TelehealthModule } from "./modules/telehealth/telehealth.module";
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { SchedulingModule } from "./modules/scheduling/scheduling.module";
     ConsentModule,
     AuditModule,
     SchedulingModule,
+    TelehealthModule,
   ],
 })
 export class AppModule {}
