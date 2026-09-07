@@ -1,5 +1,7 @@
 import 'package:carepoint_mobile_core/carepoint_auth.dart';
 import 'package:carepoint_mobile_core/carepoint_localization.dart';
+import 'package:carepoint_mobile_core/communications_localization.dart';
+import 'package:carepoint_mobile_core/communications_workspace.dart';
 import 'package:carepoint_mobile_core/financial_localization.dart';
 import 'package:carepoint_mobile_core/financial_workspace.dart';
 import 'package:carepoint_mobile_core/revenue_cycle_workspace.dart';
@@ -62,6 +64,23 @@ class _DoctorAppState extends State<DoctorApp> {
                           ),
                         )),
                         child: const Icon(Icons.account_balance_wallet_outlined),
+                      ),
+                    ),
+                  ),
+                  PositionedDirectional(
+                    start: 16,
+                    bottom: 150,
+                    child: SafeArea(
+                      child: FloatingActionButton.small(
+                        heroTag: 'doctor-communications',
+                        tooltip: communicationsText(locale, 'title'),
+                        onPressed: () => Navigator.of(gateContext).push(MaterialPageRoute(
+                          builder: (_) => Directionality(
+                            textDirection: locale.textDirection,
+                            child: CommunicationsWorkspace(session: session, locale: locale, accent: const Color(0xFF22D3EE), isProvider: true),
+                          ),
+                        )),
+                        child: const Icon(Icons.forum_outlined),
                       ),
                     ),
                   ),
