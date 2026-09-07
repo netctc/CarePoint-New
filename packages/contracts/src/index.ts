@@ -49,6 +49,13 @@ export type InsuranceClaimStatus = (typeof InsuranceClaimStatuses)[number];
 export const ClaimReconciliationStatuses = ["NOT_RECONCILED", "RECONCILED", "REVIEW_REQUIRED"] as const;
 export type ClaimReconciliationStatus = (typeof ClaimReconciliationStatuses)[number];
 
+export const CareConversationStatuses = ["OPEN", "CLOSED"] as const;
+export type CareConversationStatus = (typeof CareConversationStatuses)[number];
+export const NotificationChannels = ["IN_APP", "PUSH", "EMAIL", "SMS"] as const;
+export type NotificationChannel = (typeof NotificationChannels)[number];
+export const NotificationEventTypes = ["SECURE_MESSAGE", "APPOINTMENT_UPDATE", "CLINICAL_UPDATE", "INSURANCE_UPDATE", "CARE_COORDINATION"] as const;
+export type NotificationEventType = (typeof NotificationEventTypes)[number];
+
 export interface MedicalSpecialty { id: string; code: string; labels: LocalizedText; parentId: string | null; active: boolean; }
 export interface OtherProviderCategory { id: string; slug: string; labels: LocalizedText; family: OtherProviderFamily; active: boolean; requiredCredentialTypes: readonly string[]; enabledModalities: readonly AppointmentModality[]; }
 
@@ -132,6 +139,36 @@ export interface CreateProviderPayoutInput {
   idempotencyKey: string;
   periodStart?: string;
   periodEnd?: string;
+}
+
+export interface CreateCareConversationInput {
+  appointmentId: string;
+  subject: string;
+  initialMessage?: string;
+  clientConversationId: string;
+}
+
+export interface SendCareMessageInput {
+  body: string;
+  clientMessageId: string;
+  attachmentDocumentIds?: readonly string[];
+}
+
+export interface AddCareParticipantInput {
+  providerId: string;
+}
+
+export interface UpdateNotificationPreferencesInput {
+  locale?: SupportedLocale;
+  inAppEnabled?: boolean;
+  pushEnabled?: boolean;
+  emailEnabled?: boolean;
+  smsEnabled?: boolean;
+}
+
+export interface RegisterNotificationEndpointInput {
+  channel: "PUSH" | "SMS";
+  externalEndpointRef: string;
 }
 
 export interface TelehealthReadinessInput {
