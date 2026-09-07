@@ -23,7 +23,7 @@ export class FhirSmartCapabilityService {
       ],
     });
     security.extension = extensions;
-    security.description = "CarePoint bearer sessions plus standalone SMART browser authorization with PKCE, explicit patient consent, OIDC fhirUser identity and granular patient scopes are supported. SMART authorization never expands underlying CarePoint clinical access.";
+    security.description = "CarePoint bearer sessions plus standalone SMART browser authorization with PKCE, explicit patient consent, OIDC fhirUser identity, granular patient scopes and rotating offline refresh-token families are supported. SMART authorization never expands underlying CarePoint clinical access.";
     server.security = security;
     if (rest.length > 0) rest[0] = server;
     else rest.push(server);
@@ -32,10 +32,10 @@ export class FhirSmartCapabilityService {
     const implementation = this.isObject(statement.implementation) ? statement.implementation : {};
     return {
       ...statement,
-      software: { ...software, version: "slice-10.7" },
+      software: { ...software, version: "slice-10.8" },
       implementation: {
         ...implementation,
-        description: "CarePoint FHIR R4 read-only facade with strict patient-scoped search, deterministic pagination, SMART standalone browser launch, explicit consent, OIDC fhirUser identity, PKCE S256 and fail-closed clinical authorization.",
+        description: "CarePoint FHIR R4 read-only facade with strict patient-scoped search, deterministic pagination, SMART standalone browser launch, explicit consent, OIDC fhirUser identity, PKCE S256, rotating offline refresh-token families, replay-triggered family revocation and fail-closed clinical authorization.",
       },
       rest,
     };
