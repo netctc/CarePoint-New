@@ -129,6 +129,8 @@ jobs:
         run: node services/api/scripts/slice109-smoke.mjs
       - name: Slice 10.10 FHIR bulk data export smoke test
         run: node services/api/scripts/slice1010-smoke.mjs
+      - name: Slice 10.11 FHIR bulk data scale and filtering smoke test
+        run: node services/api/scripts/slice1011-smoke.mjs
       - name: Print API log on failure
         if: failure()
         run: cat /tmp/carepoint-api.log || true
