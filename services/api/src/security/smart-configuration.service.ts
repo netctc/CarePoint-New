@@ -86,7 +86,6 @@ export class SmartConfigurationService implements OnModuleInit {
         "context-standalone-patient",
         "sso-openid-connect",
         "permission-patient",
-        "permission-system",
         "permission-offline",
         "permission-v2",
       ],
