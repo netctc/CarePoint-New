@@ -95,15 +95,16 @@ SMART discovery continues at:
 
 `GET /api/v1/fhir/R4/.well-known/smart-configuration`
 
-Slice 10.9 additionally advertises:
+For backend services, Slice 10.9 advertises:
 
-- `client-confidential-asymmetric`;
-- `permission-system`;
-- `client_credentials`;
-- `private_key_jwt`;
-- `RS384` client assertion signing;
-- `system/Patient.rs`;
-- `system/Appointment.rs`.
+- the defined SMART capability `client-confidential-asymmetric`;
+- the existing SMART scope grammar capability `permission-v2`;
+- `client_credentials` in `grant_types_supported`;
+- `private_key_jwt` in `token_endpoint_auth_methods_supported`;
+- `RS384` in `token_endpoint_auth_signing_alg_values_supported`;
+- `system/Patient.rs` and `system/Appointment.rs` in `scopes_supported`.
+
+CarePoint does not invent a simple `permission-system` capability string. SMART reserves simple capability names for capabilities defined by the implementation guide; system authorization is expressed through the registered `system/...` scopes together with `permission-v2` and the asymmetric backend-client profile.
 
 The OpenID Provider metadata also advertises `client_credentials`, `private_key_jwt` and `RS384` for token endpoint client authentication.
 
