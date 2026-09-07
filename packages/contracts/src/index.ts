@@ -36,6 +36,13 @@ export type TelehealthSessionStatus = (typeof TelehealthSessionStatuses)[number]
 export const EmergencyAmbulanceStatuses = ["REQUESTED", "DISPATCHING", "ASSIGNED", "EN_ROUTE", "ARRIVED", "TRANSPORTING", "COMPLETED", "CANCELLED"] as const;
 export type EmergencyAmbulanceStatus = (typeof EmergencyAmbulanceStatuses)[number];
 
+export const MedicalTransportModes = ["GROUND", "AIR"] as const;
+export type MedicalTransportMode = (typeof MedicalTransportModes)[number];
+export const MedicalTransportStatuses = ["REQUESTED", "ASSIGNED", "EN_ROUTE", "ARRIVED", "TRANSPORTING", "COMPLETED", "CANCELLED"] as const;
+export type MedicalTransportStatus = (typeof MedicalTransportStatuses)[number];
+export const MedicalTransportAssistanceLevels = ["STANDARD", "WHEELCHAIR", "STRETCHER"] as const;
+export type MedicalTransportAssistance = (typeof MedicalTransportAssistanceLevels)[number];
+
 export const InvoiceStatuses = ["OPEN", "PARTIALLY_PAID", "PAID", "VOID", "REFUNDED"] as const;
 export type InvoiceStatus = (typeof InvoiceStatuses)[number];
 export const PaymentIntentStatuses = ["REQUIRES_ACTION", "PROCESSING", "SUCCEEDED", "FAILED", "CANCELLED"] as const;
@@ -53,7 +60,7 @@ export const CareConversationStatuses = ["OPEN", "CLOSED"] as const;
 export type CareConversationStatus = (typeof CareConversationStatuses)[number];
 export const NotificationChannels = ["IN_APP", "PUSH", "EMAIL", "SMS"] as const;
 export type NotificationChannel = (typeof NotificationChannels)[number];
-export const NotificationEventTypes = ["SECURE_MESSAGE", "APPOINTMENT_UPDATE", "CLINICAL_UPDATE", "INSURANCE_UPDATE", "CARE_COORDINATION"] as const;
+export const NotificationEventTypes = ["SECURE_MESSAGE", "APPOINTMENT_UPDATE", "CLINICAL_UPDATE", "INSURANCE_UPDATE", "CARE_COORDINATION", "EMERGENCY_UPDATE", "TRANSPORT_UPDATE"] as const;
 export type NotificationEventType = (typeof NotificationEventTypes)[number];
 
 export interface MedicalSpecialty { id: string; code: string; labels: LocalizedText; parentId: string | null; active: boolean; }
@@ -186,8 +193,91 @@ export interface TelehealthJoinCredentials {
   recordingEnabled: false;
 }
 
-export interface CreateEmergencyAmbulanceRequestInput { patientId: string; latitude: number; longitude: number; pickupAddress?: string; callbackPhone?: string; note?: string; }
-export interface EmergencyAmbulanceRequest { id: string; patientId: string; status: EmergencyAmbulanceStatus; latitude: number; longitude: number; pickupAddress: string | null; callbackPhone: string | null; note: string | null; assignedProviderId: string | null; etaMinutes: number | null; requestedAt: string; updatedAt: string; }
+export interface CreateEmergencyAmbulanceRequestInput {
+  clientRequestId: string;
+  latitude: number;
+  longitude: number;
+  pickupAddress?: string;
+  callbackPhone?: string;
+  note?: string;
+}
+
+export interface EmergencyDispatchAssignmentInput {
+  providerId: string;
+  etaMinutes?: number;
+}
+
+export interface EmergencyResponderUpdateInput {
+  status: "EN_ROUTE" | "ARRIVED" | "TRANSPORTING" | "COMPLETED";
+  etaMinutes?: number;
+}
+
+export interface EmergencyCancelInput {
+  reason?: string;
+}
+
+export interface EmergencyAmbulanceRequest {
+  id: string;
+  patientId: string;
+  status: EmergencyAmbulanceStatus;
+  latitude: number;
+  longitude: number;
+  pickupAddress: string | null;
+  callbackPhone: string | null;
+  note: string | null;
+  assignedProviderId: string | null;
+  etaMinutes: number | null;
+  requestedAt: string;
+  updatedAt: string;
+}
+
+export interface CreateMedicalTransportRequestInput {
+  clientRequestId: string;
+  mode: MedicalTransportMode;
+  scheduledFor: string;
+  pickupLatitude: number;
+  pickupLongitude: number;
+  pickupAddress?: string;
+  destinationLatitude: number;
+  destinationLongitude: number;
+  destinationAddress?: string;
+  assistance?: MedicalTransportAssistance;
+  callbackPhone?: string;
+}
+
+export interface MedicalTransportAssignmentInput {
+  providerId: string;
+  etaMinutes?: number;
+}
+
+export interface MedicalTransportResponderUpdateInput {
+  status: "EN_ROUTE" | "ARRIVED" | "TRANSPORTING" | "COMPLETED";
+  etaMinutes?: number;
+}
+
+export interface MedicalTransportCancelInput {
+  reason?: string;
+}
+
+export interface MedicalTransportRequest {
+  id: string;
+  patientId: string;
+  mode: MedicalTransportMode;
+  status: MedicalTransportStatus;
+  assistance: MedicalTransportAssistance;
+  scheduledFor: string;
+  pickupLatitude: number;
+  pickupLongitude: number;
+  pickupAddress: string | null;
+  destinationLatitude: number;
+  destinationLongitude: number;
+  destinationAddress: string | null;
+  callbackPhone: string | null;
+  assignedProviderId: string | null;
+  etaMinutes: number | null;
+  requestedAt: string;
+  updatedAt: string;
+}
 
 export function assertDoctorRole(role: UserRole): asserts role is "DOCTOR" { if (role !== "DOCTOR") throw new Error("Doctor application access is restricted to doctors."); }
 export function assertOtherProviderFamily(value: string): asserts value is OtherProviderFamily { if (!(OtherProviderFamilies as readonly string[]).includes(value)) throw new Error(`Unsupported other-provider family: ${value}`); }
