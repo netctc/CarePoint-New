@@ -17,13 +17,14 @@ import {
   type ExceptionFilter,
 } from "@nestjs/common";
 import type { AuthPrincipal } from "@carepoint/identity";
-import { CurrentPrincipal, Public } from "../../security/api-security.module";
+import { CurrentPrincipal, Public, RequireSmartFhirAccess } from "../../security/api-security.module";
 import { ClinicalModule } from "../clinical/clinical.module";
 import { DocumentsModule } from "../documents/documents.module";
 import { OrdersModule } from "../orders/orders.module";
 import { FhirDocumentsService } from "./fhir-documents.service";
 import { FhirSearchService } from "./fhir-search.service";
 import { FhirSearchSupportService, type FhirSearchQuery } from "./fhir-search-support.service";
+import { FhirSmartCapabilityService } from "./fhir-smart-capability.service";
 import { FhirService } from "./fhir.service";
 
 interface HttpResponseLike {
@@ -69,15 +70,17 @@ class FhirController {
     private readonly fhir: FhirService,
     private readonly fhirDocuments: FhirDocumentsService,
     private readonly fhirSearch: FhirSearchService,
+    private readonly fhirSmart: FhirSmartCapabilityService,
   ) {}
 
   @Public()
   @Get("metadata")
   @Header("Content-Type", "application/fhir+json; charset=utf-8")
   metadata() {
-    return this.fhirDocuments.augmentCapability(this.fhir.capabilityStatement());
+    return this.fhirSmart.augment(this.fhirDocuments.augmentCapability(this.fhir.capabilityStatement()));
   }
 
+  @RequireSmartFhirAccess("Patient", "r")
   @Get("Patient/:patientId")
   @Header("Content-Type", "application/fhir+json; charset=utf-8")
   patient(@CurrentPrincipal() principal: AuthPrincipal, @Param("patientId") patientId: string) {
@@ -91,24 +94,28 @@ class FhirController {
     return this.fhir.practitioner(providerId);
   }
 
+  @RequireSmartFhirAccess("Appointment", "s")
   @Get("Appointment")
   @Header("Content-Type", "application/fhir+json; charset=utf-8")
   appointments(@CurrentPrincipal() principal: AuthPrincipal, @Query() query: FhirSearchQuery) {
     return this.fhirSearch.appointments(principal, query);
   }
 
+  @RequireSmartFhirAccess("Appointment", "r")
   @Get("Appointment/:appointmentId")
   @Header("Content-Type", "application/fhir+json; charset=utf-8")
   appointment(@CurrentPrincipal() principal: AuthPrincipal, @Param("appointmentId") appointmentId: string) {
     return this.fhir.appointment(principal, appointmentId);
   }
 
+  @RequireSmartFhirAccess("Encounter", "r")
   @Get("Encounter/:appointmentId")
   @Header("Content-Type", "application/fhir+json; charset=utf-8")
   encounter(@CurrentPrincipal() principal: AuthPrincipal, @Param("appointmentId") appointmentId: string) {
     return this.fhir.encounter(principal, appointmentId);
   }
 
+  @RequireSmartFhirAccess("Observation", "s")
   @Get("Observation")
   @Header("Content-Type", "application/fhir+json; charset=utf-8")
   observations(
@@ -119,42 +126,49 @@ class FhirController {
     return this.fhir.observations(principal, encounter, basedOn);
   }
 
+  @RequireSmartFhirAccess("MedicationRequest", "r")
   @Get("MedicationRequest/:orderId")
   @Header("Content-Type", "application/fhir+json; charset=utf-8")
   medicationRequest(@CurrentPrincipal() principal: AuthPrincipal, @Param("orderId") orderId: string) {
     return this.fhir.medicationRequest(principal, orderId);
   }
 
+  @RequireSmartFhirAccess("ServiceRequest", "r")
   @Get("ServiceRequest/:orderId")
   @Header("Content-Type", "application/fhir+json; charset=utf-8")
   serviceRequest(@CurrentPrincipal() principal: AuthPrincipal, @Param("orderId") orderId: string) {
     return this.fhir.serviceRequest(principal, orderId);
   }
 
+  @RequireSmartFhirAccess("DiagnosticReport", "s")
   @Get("DiagnosticReport")
   @Header("Content-Type", "application/fhir+json; charset=utf-8")
   diagnosticReports(@CurrentPrincipal() principal: AuthPrincipal, @Query() query: FhirSearchQuery) {
     return this.fhirDocuments.diagnosticReports(principal, query);
   }
 
+  @RequireSmartFhirAccess("DiagnosticReport", "r")
   @Get("DiagnosticReport/:reportId")
   @Header("Content-Type", "application/fhir+json; charset=utf-8")
   diagnosticReport(@CurrentPrincipal() principal: AuthPrincipal, @Param("reportId") reportId: string) {
     return this.fhirDocuments.diagnosticReport(principal, reportId);
   }
 
+  @RequireSmartFhirAccess("DocumentReference", "s")
   @Get("DocumentReference")
   @Header("Content-Type", "application/fhir+json; charset=utf-8")
   documentReferences(@CurrentPrincipal() principal: AuthPrincipal, @Query() query: FhirSearchQuery) {
     return this.fhirDocuments.documentReferences(principal, query);
   }
 
+  @RequireSmartFhirAccess("DocumentReference", "r")
   @Get("DocumentReference/:documentId")
   @Header("Content-Type", "application/fhir+json; charset=utf-8")
   documentReference(@CurrentPrincipal() principal: AuthPrincipal, @Param("documentId") documentId: string) {
     return this.fhirDocuments.documentReference(principal, documentId);
   }
 
+  @RequireSmartFhirAccess("ImagingStudy", "r")
   @Get("ImagingStudy/:documentId")
   @Header("Content-Type", "application/fhir+json; charset=utf-8")
   imagingStudy(@CurrentPrincipal() principal: AuthPrincipal, @Param("documentId") documentId: string) {
@@ -165,7 +179,7 @@ class FhirController {
 @Module({
   imports: [ClinicalModule, OrdersModule, DocumentsModule],
   controllers: [FhirController],
-  providers: [FhirService, FhirDocumentsService, FhirSearchService, FhirSearchSupportService, FhirNoStoreInterceptor],
+  providers: [FhirService, FhirDocumentsService, FhirSearchService, FhirSearchSupportService, FhirSmartCapabilityService, FhirNoStoreInterceptor],
 })
 export class FhirModule {}
 
