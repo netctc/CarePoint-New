@@ -22,11 +22,13 @@ import { SmartTokenService, type SmartAccessContext, type SmartFhirInteraction, 
 const PUBLIC_ROUTE = "carepoint:public-route";
 const REQUIRED_PERMISSIONS = "carepoint:required-permissions";
 const SMART_FHIR_ACCESS = "carepoint:smart-fhir-access";
+const SMART_SYSTEM_FHIR_OPERATION = "carepoint:smart-system-fhir-operation";
 
 export const Public = () => SetMetadata(PUBLIC_ROUTE, true);
 export const RequirePermissions = (...permissions: Permission[]) => SetMetadata(REQUIRED_PERMISSIONS, permissions);
 export const RequireSmartFhirAccess = (resourceType: string, interaction: SmartFhirInteraction) =>
   SetMetadata(SMART_FHIR_ACCESS, { resourceType, interaction } satisfies SmartFhirRequirement);
+export const RequireSmartSystemFhirOperation = (operation: string) => SetMetadata(SMART_SYSTEM_FHIR_OPERATION, operation);
 
 export const CurrentPrincipal = createParamDecorator((_data: unknown, context: ExecutionContext): AuthPrincipal => {
   const request = context.switchToHttp().getRequest<{ principal?: AuthPrincipal }>();
@@ -77,10 +79,17 @@ class ApiAccessGuard implements CanActivate {
     }
     request.principal = principal;
 
+    const requirement = this.reflector.getAllAndOverride<SmartFhirRequirement>(SMART_FHIR_ACCESS, [context.getHandler(), context.getClass()]);
+    const systemOperation = this.reflector.getAllAndOverride<string>(SMART_SYSTEM_FHIR_OPERATION, [context.getHandler(), context.getClass()]);
+
+    if (systemOperation) {
+      if (!smartContext) throw new ForbiddenException(`FHIR operation '${systemOperation}' requires SMART backend-services authentication.`);
+      await this.smart.assertSystemFhirOperation(smartContext, systemOperation, request.url ?? null);
+    }
+
     if (smartContext) {
-      const requirement = this.reflector.getAllAndOverride<SmartFhirRequirement>(SMART_FHIR_ACCESS, [context.getHandler(), context.getClass()]);
-      if (!requirement) return this.smart.denyNonFhirRoute(smartContext, request.url ?? null);
-      await this.smart.assertFhirAccess(smartContext, requirement, request.url ?? null);
+      if (!requirement && !systemOperation) return this.smart.denyNonFhirRoute(smartContext, request.url ?? null);
+      if (requirement) await this.smart.assertFhirAccess(smartContext, requirement, request.url ?? null);
     }
 
     const permissions = this.reflector.getAllAndOverride<Permission[]>(REQUIRED_PERMISSIONS, [context.getHandler(), context.getClass()]) ?? [];
