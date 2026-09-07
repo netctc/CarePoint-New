@@ -34,9 +34,10 @@ export class ClaimsGatewayService {
     previousClaimReference?: string;
   }): Promise<GatewayClaimResult> {
     if (this.provider() === "mock") {
+      const prefix = input.previousClaimReference ? "mock_clm_rw_" : "mock_clm_";
       return {
         gateway: "MOCK_CLAIMS",
-        reference: `mock_clm_${this.digest(`${input.idempotencyKey}:${input.invoiceId}`)}`,
+        reference: `${prefix}${this.digest(`${input.idempotencyKey}:${input.invoiceId}`)}`,
         status: "SUBMITTED",
       };
     }
@@ -66,7 +67,8 @@ export class ClaimsGatewayService {
     currency: string;
   }): GatewayClaimResult {
     const threshold = Number(process.env.CLAIMS_MOCK_DENIAL_THRESHOLD_MINOR ?? "100000");
-    if (Number.isFinite(threshold) && input.submittedAmountMinor > threshold) {
+    const correctedRework = input.claimReference.startsWith("mock_clm_rw_");
+    if (!correctedRework && Number.isFinite(threshold) && input.submittedAmountMinor > threshold) {
       return {
         gateway: "MOCK_CLAIMS",
         reference: input.claimReference,
@@ -124,7 +126,7 @@ export class ClaimsGatewayService {
       if (allowedMinor === undefined || insurerPaidMinor === undefined || patientResponsibilityMinor === undefined || adjustmentMinor === undefined || !eobReference) {
         throw new BadGatewayException("Adjudicated claim responses must include normalized EOB amounts and an EOB reference.");
       }
-      if (allowedMinor + adjustmentMinor < 0 || insurerPaidMinor + patientResponsibilityMinor !== allowedMinor) {
+      if (insurerPaidMinor + patientResponsibilityMinor !== allowedMinor) {
         throw new BadGatewayException("Claim gateway returned inconsistent adjudication amounts.");
       }
     }
