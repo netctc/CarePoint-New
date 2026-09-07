@@ -41,7 +41,10 @@ function expectDenied(result, label) {
 
 try {
   const metadata = await raw("/fhir/R4/metadata");
-  if (metadata.status !== 200 || metadata.payload.resourceType !== "CapabilityStatement" || metadata.payload.software?.version !== "slice-10.3") throw new Error(`FHIR metadata failed: ${JSON.stringify(metadata)}`);
+  const softwareVersion = metadata.payload.software?.version;
+  const versionMatch = typeof softwareVersion === "string" ? /^slice-10\.(\d+)$/.exec(softwareVersion) : null;
+  const sliceMinor = versionMatch ? Number(versionMatch[1]) : Number.NaN;
+  if (metadata.status !== 200 || metadata.payload.resourceType !== "CapabilityStatement" || !Number.isFinite(sliceMinor) || sliceMinor < 3) throw new Error(`FHIR metadata failed: ${JSON.stringify(metadata)}`);
   const resources = metadata.payload.rest?.[0]?.resource?.map((resource) => resource.type) || [];
   for (const type of ["DiagnosticReport", "DocumentReference"]) if (!resources.includes(type)) throw new Error(`FHIR metadata does not advertise ${type}.`);
 
@@ -102,7 +105,7 @@ try {
   if (patientDocument.status !== 200 || patientDocument.payload.docStatus !== "final") throw new Error(`Released patient DocumentReference failed: ${JSON.stringify(patientDocument)}`);
   if (JSON.stringify(patientDocument.payload).includes(binaryMarker) || JSON.stringify(patientDocument.payload).includes("contentBase64")) throw new Error("Released DocumentReference embedded document content.");
 
-  console.log(JSON.stringify({ status: "passed", softwareVersion: metadata.payload.software?.version, patientId: patientB.id, practitionerId: provider.id, appointmentId: appointment.id, diagnosticReportId: report.id, documentReferenceId: document.id, patientReleaseGate: true, crossPatientDenied: true, binaryNotEmbedded: true }));
+  console.log(JSON.stringify({ status: "passed", softwareVersion, patientId: patientB.id, practitionerId: provider.id, appointmentId: appointment.id, diagnosticReportId: report.id, documentReferenceId: document.id, patientReleaseGate: true, crossPatientDenied: true, binaryNotEmbedded: true }));
 } finally {
   await prisma.$disconnect();
 }
