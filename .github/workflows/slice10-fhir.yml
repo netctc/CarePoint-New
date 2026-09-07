@@ -34,6 +34,10 @@ jobs:
       DATABASE_URL: postgresql://carepoint:carepoint@127.0.0.1:5432/carepoint?schema=public
       REDIS_URL: redis://127.0.0.1:6379
       ALLOWED_ORIGINS: http://localhost:3000
+      SMART_ISSUER_URL: http://127.0.0.1:4000/api/v1
+      SMART_FHIR_BASE_URL: http://127.0.0.1:4000/api/v1/fhir/R4
+      SMART_PUBLIC_CLIENTS_JSON: >-
+        [{"clientId":"slice106-public-client","name":"Slice 10.6 SMART Test App","redirectUris":["https://smart-app.carepoint.test/callback"],"allowedScopes":["launch/patient","patient/Patient.r","patient/Appointment.rs"]}]
       TELEHEALTH_PROVIDER: mock
       CLINICAL_KEY_PROVIDER: local
       CLINICAL_ENVELOPE_KEY_ID: ci-clinical-kek-v1
@@ -84,6 +88,8 @@ jobs:
         run: node services/api/scripts/slice104-smoke.mjs
       - name: Slice 10.5 FHIR search pagination and hardening smoke test
         run: node services/api/scripts/slice105-smoke.mjs
+      - name: Slice 10.6 SMART-on-FHIR OAuth and scope enforcement smoke test
+        run: node services/api/scripts/slice106-smoke.mjs
       - name: Print API log on failure
         if: failure()
         run: cat /tmp/carepoint-api.log || true
