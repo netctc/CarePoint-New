@@ -31,9 +31,19 @@ const MAX_TOTAL_BYTES = 512 * 1024 * 1024;
 const MAX_TYPE_FILTER_LENGTH = 2_048;
 const MAX_FILTER_IDS = 100;
 const OUTPUT_FORMAT = "application/fhir+ndjson";
-const SUPPORTED_TYPES: readonly FhirBulkResourceType[] = ["Patient", "Appointment"];
+const SUPPORTED_TYPES: readonly FhirBulkResourceType[] = [
+  "Patient",
+  "Appointment",
+  "Encounter",
+  "Observation",
+  "MedicationRequest",
+  "ServiceRequest",
+  "DiagnosticReport",
+];
+const FILTERABLE_TYPES = ["Patient", "Appointment"] as const;
 const FHIR_APPOINTMENT_STATUSES = new Set(["pending", "booked", "cancelled", "fulfilled", "noshow", "entered-in-error"]);
 
+type FilterableBulkResourceType = typeof FILTERABLE_TYPES[number];
 type FhirResource = Record<string, unknown>;
 type BulkExportStatus = "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED";
 
@@ -417,16 +427,18 @@ export class FhirBulkExportService {
 
   private typeFilters(resourceTypes: FhirBulkResourceType[], values: string[]): string[] {
     if (values.length === 0) return [];
-    if (values.length > SUPPORTED_TYPES.length) throw new BadRequestException("FHIR bulk export supports at most one _typeFilter per resource type.");
-    const seen = new Set<FhirBulkResourceType>();
+    if (values.length > FILTERABLE_TYPES.length) throw new BadRequestException("FHIR bulk export supports at most one _typeFilter for Patient and one for Appointment.");
+    const seen = new Set<FilterableBulkResourceType>();
     const result: string[] = [];
     for (const raw of values) {
       if (raw.length > MAX_TYPE_FILTER_LENGTH) throw new BadRequestException("FHIR bulk export _typeFilter is too long.");
       const separator = raw.indexOf("?");
       if (separator <= 0 || separator === raw.length - 1) throw new BadRequestException("FHIR bulk export _typeFilter must be a FHIR search query such as Patient?_id=123.");
       const rawType = raw.slice(0, separator);
-      if (!SUPPORTED_TYPES.includes(rawType as FhirBulkResourceType)) throw new BadRequestException(`FHIR bulk export does not support _typeFilter resource type '${rawType}'.`);
-      const resourceType = rawType as FhirBulkResourceType;
+      if (!FILTERABLE_TYPES.includes(rawType as FilterableBulkResourceType)) {
+        throw new BadRequestException(`FHIR bulk export does not support _typeFilter for resource type '${rawType}'.`);
+      }
+      const resourceType = rawType as FilterableBulkResourceType;
       if (!resourceTypes.includes(resourceType)) throw new BadRequestException(`FHIR bulk export _typeFilter for ${resourceType} requires ${resourceType} in the export resource set.`);
       if (seen.has(resourceType)) throw new BadRequestException(`FHIR bulk export supports only one _typeFilter for ${resourceType}.`);
       seen.add(resourceType);
@@ -474,7 +486,7 @@ export class FhirBulkExportService {
     return `Appointment?${canonical.toString()}`;
   }
 
-  private assertNestedFilterParams(params: URLSearchParams, allowed: readonly string[], resourceType: FhirBulkResourceType): void {
+  private assertNestedFilterParams(params: URLSearchParams, allowed: readonly string[], resourceType: FilterableBulkResourceType): void {
     const accepted = new Set(allowed);
     for (const key of params.keys()) {
       if (!accepted.has(key)) throw new BadRequestException(`Unsupported FHIR ${resourceType} _typeFilter search parameter '${key}'.`);
@@ -489,6 +501,7 @@ export class FhirBulkExportService {
   }
 
   private applyTypeFilter(resourceType: FhirBulkResourceType, resources: FhirResource[], typeFilters: string[]): FhirResource[] {
+    if (!FILTERABLE_TYPES.includes(resourceType as FilterableBulkResourceType)) return resources;
     const raw = typeFilters.find((value) => value.startsWith(`${resourceType}?`));
     if (!raw) return resources;
     const params = new URLSearchParams(raw.slice(raw.indexOf("?") + 1));
@@ -573,7 +586,7 @@ export class FhirBulkExportService {
   }
 
   private fileResourceType(fileName: string): FhirBulkResourceType {
-    const match = /^(Patient|Appointment)(?:-\d{5})?\.ndjson$/.exec(fileName);
+    const match = /^(Patient|Appointment|Encounter|Observation|MedicationRequest|ServiceRequest|DiagnosticReport)(?:-\d{5})?\.ndjson$/.exec(fileName);
     if (!match) throw new NotFoundException("FHIR bulk export file not found.");
     return match[1] as FhirBulkResourceType;
   }
