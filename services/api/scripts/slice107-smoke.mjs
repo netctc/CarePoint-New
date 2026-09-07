@@ -170,7 +170,8 @@ try {
   if (jwksResult.status !== 200 || !Array.isArray(jwksResult.payload.keys) || jwksResult.payload.keys.length < 1) throw new Error(`JWKS failed: ${JSON.stringify(jwksResult)}`);
 
   const metadata = await raw("/fhir/R4/metadata");
-  if (metadata.status !== 200 || metadata.payload.software?.version !== "slice-10.7") throw new Error(`FHIR Slice 10.7 metadata failed: ${JSON.stringify(metadata)}`);
+  const versionMatch = /^slice-10\.(\d+)$/.exec(String(metadata.payload.software?.version || ""));
+  if (metadata.status !== 200 || !versionMatch || Number(versionMatch[1]) < 7) throw new Error(`FHIR Slice 10.7+ metadata failed: ${JSON.stringify(metadata)}`);
   const oauthUris = metadata.payload.rest?.[0]?.security?.extension?.find((item) => item.url === "http://fhir-registry.smarthealthit.org/StructureDefinition/oauth-uris");
   if (!oauthUris?.extension?.some((item) => item.url === "authorize" && item.valueUri === `${base}/smart/browser/authorize`)) throw new Error("FHIR CapabilityStatement does not advertise browser SMART authorization.");
 
