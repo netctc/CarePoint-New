@@ -30,7 +30,7 @@ export class FhirSmartCapabilityService {
         display: "SMART-on-FHIR",
       }],
     }];
-    security.description = "CarePoint supports patient-mediated SMART authorization plus pre-registered asymmetric backend-services clients. Backend clients use private_key_jwt and narrowly registered system scopes; all SMART bearer tokens remain restricted to explicitly scoped FHIR routes and authorized bulk-export jobs.";
+    security.description = "CarePoint supports patient-mediated SMART authorization plus pre-registered asymmetric backend-services clients. Backend clients use private_key_jwt and narrowly registered system scopes; clinical system scopes introduced in Slice 10.12 authorize protected Bulk Data export only and do not enable interactive system reads of clinical resources.";
     server.security = security;
     server.resource = this.augmentResources(server.resource);
     server.operation = this.augmentOperations(server.operation);
@@ -41,10 +41,10 @@ export class FhirSmartCapabilityService {
     const implementation = this.isObject(statement.implementation) ? statement.implementation : {};
     return {
       ...statement,
-      software: { ...software, version: "slice-10.11" },
+      software: { ...software, version: "slice-10.12" },
       implementation: {
         ...implementation,
-        description: "CarePoint FHIR R4 read-only facade with patient-scoped SMART browser authorization, rotating offline refresh families, asymmetric private_key_jwt backend services, and hardened asynchronous system-level Bulk Data $export with strict Patient/Appointment _typeFilter support, deterministic NDJSON chunking, retention and payload safety controls.",
+        description: "CarePoint FHIR R4 read-only facade with patient-scoped SMART browser authorization, rotating offline refresh families, asymmetric private_key_jwt backend services, and hardened asynchronous Bulk Data $export. Slice 10.12 extends backend export through CarePoint's encrypted clinical, order and diagnostic domain boundaries for Encounter, Observation, MedicationRequest, ServiceRequest and released DiagnosticReport resources without exposing raw envelopes, binary documents or PACS references.",
       },
       rest,
     };
@@ -69,7 +69,7 @@ export class FhirSmartCapabilityService {
     const exportOperation = {
       name: "export",
       definition,
-      documentation: "Asynchronous FHIR Bulk Data system-level export. CarePoint exports Patient and Appointment NDJSON for SMART backend-services clients whose system scopes cover every requested type. Slice 10.11 additionally supports strict _typeFilter subsets: Patient?_id=... and Appointment?patient=...&status=..., plus deterministic multi-file NDJSON chunking and bounded total payload controls.",
+      documentation: "Asynchronous FHIR Bulk Data system-level export for Patient, Appointment, Encounter, Observation, MedicationRequest, ServiceRequest and DiagnosticReport when every requested type is covered by the backend token's registered system scope. Patient/Appointment retain strict _typeFilter support. Clinical resources are materialized only through CarePoint domain encryption and attestation services; laboratory Observations and DiagnosticReports are exported only after their existing RELEASED gates. Clinical system scopes remain bulk-export-only in Slice 10.12.",
     };
     if (this.isObject(existing)) Object.assign(existing, exportOperation);
     else operations.push(exportOperation);
