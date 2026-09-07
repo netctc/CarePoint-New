@@ -21,6 +21,8 @@ enum NotificationEventType {
   CLINICAL_UPDATE
   INSURANCE_UPDATE
   CARE_COORDINATION
+  EMERGENCY_UPDATE
+  TRANSPORT_UPDATE
 }
 
 enum NotificationDeliveryStatus {
