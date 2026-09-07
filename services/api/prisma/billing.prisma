@@ -1,0 +1,258 @@
+enum InvoiceStatus {
+  OPEN
+  PARTIALLY_PAID
+  PAID
+  VOID
+  REFUNDED
+}
+
+enum PaymentIntentStatus {
+  REQUIRES_ACTION
+  PROCESSING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+}
+
+enum RefundStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+}
+
+enum ProviderLedgerEntryType {
+  CHARGE
+  REFUND
+  PLATFORM_FEE
+  PAYOUT
+}
+
+enum ProviderPayoutStatus {
+  PENDING
+  PROCESSING
+  PAID
+  FAILED
+  CANCELLED
+}
+
+enum InsuranceCoverageStatus {
+  ACTIVE
+  INACTIVE
+  EXPIRED
+}
+
+enum InsuranceEligibilityStatus {
+  PENDING
+  ELIGIBLE
+  NOT_ELIGIBLE
+  UNKNOWN
+}
+
+enum PriorAuthorizationStatus {
+  NOT_REQUIRED
+  PENDING
+  APPROVED
+  DENIED
+  EXPIRED
+  CANCELLED
+}
+
+model PricingSnapshot {
+  id                            String   @id @default(uuid())
+  appointmentId                 String   @unique
+  patientId                     String
+  providerId                    String
+  serviceId                     String
+  modality                      AppointmentModality
+  serviceName                   String
+  currency                      String
+  unitPriceMinor                Int
+  discountMinor                 Int      @default(0)
+  taxMinor                      Int      @default(0)
+  totalMinor                    Int
+  createdAt                     DateTime @default(now())
+
+  @@index([patientId, createdAt])
+  @@index([providerId, createdAt])
+  @@index([serviceId, modality])
+}
+
+model Invoice {
+  id                            String        @id @default(uuid())
+  number                        String        @unique
+  appointmentId                 String        @unique
+  pricingSnapshotId             String        @unique
+  patientId                     String
+  providerId                    String
+  currency                      String
+  totalMinor                    Int
+  patientResponsibilityMinor    Int
+  insurerResponsibilityMinor    Int           @default(0)
+  amountPaidMinor               Int           @default(0)
+  amountRefundedMinor           Int           @default(0)
+  balanceDueMinor               Int
+  status                        InvoiceStatus @default(OPEN)
+  issuedAt                      DateTime      @default(now())
+  voidedAt                      DateTime?
+  updatedAt                     DateTime      @updatedAt
+
+  @@index([patientId, issuedAt])
+  @@index([providerId, issuedAt])
+  @@index([status, issuedAt])
+}
+
+model PaymentIntent {
+  id                            String              @id @default(uuid())
+  invoiceId                     String
+  patientId                     String
+  providerId                    String
+  amountMinor                   Int
+  currency                      String
+  gateway                       String
+  gatewayIntentRef              String?             @unique
+  idempotencyKey                String              @unique
+  status                        PaymentIntentStatus @default(PROCESSING)
+  failureCode                   String?
+  createdAt                     DateTime            @default(now())
+  updatedAt                     DateTime            @updatedAt
+  succeededAt                   DateTime?
+
+  @@index([invoiceId, createdAt])
+  @@index([patientId, createdAt])
+  @@index([providerId, createdAt])
+  @@index([status, createdAt])
+}
+
+model PaymentRefund {
+  id                            String       @id @default(uuid())
+  invoiceId                     String
+  paymentIntentId               String
+  providerId                    String
+  amountMinor                   Int
+  currency                      String
+  reason                        String?
+  gatewayRefundRef              String?      @unique
+  idempotencyKey                String       @unique
+  status                        RefundStatus @default(PENDING)
+  createdAt                     DateTime     @default(now())
+  updatedAt                     DateTime     @updatedAt
+  succeededAt                   DateTime?
+
+  @@index([invoiceId, createdAt])
+  @@index([paymentIntentId, createdAt])
+  @@index([providerId, createdAt])
+}
+
+model PaymentReceipt {
+  id                            String   @id @default(uuid())
+  number                        String   @unique
+  invoiceId                     String
+  paymentIntentId               String  @unique
+  patientId                     String
+  providerId                    String
+  amountMinor                   Int
+  currency                      String
+  issuedAt                      DateTime @default(now())
+
+  @@index([patientId, issuedAt])
+  @@index([providerId, issuedAt])
+}
+
+model ProviderLedgerEntry {
+  id                            String                  @id @default(uuid())
+  providerId                    String
+  invoiceId                     String?
+  paymentIntentId               String?
+  refundId                      String?
+  payoutId                      String?
+  type                          ProviderLedgerEntryType
+  amountMinor                   Int
+  currency                      String
+  reference                     String
+  createdAt                     DateTime                @default(now())
+  availableAt                   DateTime                @default(now())
+
+  @@index([providerId, createdAt])
+  @@index([invoiceId, createdAt])
+  @@index([payoutId, createdAt])
+}
+
+model ProviderPayout {
+  id                            String               @id @default(uuid())
+  providerId                    String
+  amountMinor                   Int
+  currency                      String
+  idempotencyKey                String               @unique
+  gateway                       String
+  gatewayPayoutRef              String?              @unique
+  status                        ProviderPayoutStatus @default(PENDING)
+  periodStart                   DateTime?
+  periodEnd                     DateTime?
+  createdAt                     DateTime             @default(now())
+  updatedAt                     DateTime             @updatedAt
+  paidAt                        DateTime?
+
+  @@index([providerId, createdAt])
+  @@index([status, createdAt])
+}
+
+model InsuranceCoverage {
+  id                            String                  @id @default(uuid())
+  patientId                     String
+  payerCode                     String
+  payerName                     String
+  externalPolicyRef             String
+  displayLabel                  String?
+  status                        InsuranceCoverageStatus @default(ACTIVE)
+  effectiveFrom                 DateTime?               @db.Date
+  effectiveUntil                DateTime?               @db.Date
+  createdAt                     DateTime                @default(now())
+  updatedAt                     DateTime                @updatedAt
+
+  @@unique([patientId, payerCode, externalPolicyRef])
+  @@index([patientId, status])
+}
+
+model InsuranceEligibilityCheck {
+  id                            String                     @id @default(uuid())
+  appointmentId                 String
+  coverageId                    String
+  patientId                     String
+  providerId                    String
+  idempotencyKey                String                     @unique
+  gateway                       String
+  gatewayReference              String?                    @unique
+  status                        InsuranceEligibilityStatus @default(PENDING)
+  estimatedPatientMinor         Int?
+  estimatedInsurerMinor         Int?
+  checkedAt                     DateTime                   @default(now())
+  expiresAt                     DateTime?
+  createdAt                     DateTime                   @default(now())
+
+  @@index([appointmentId, checkedAt])
+  @@index([coverageId, checkedAt])
+  @@index([patientId, checkedAt])
+  @@index([providerId, checkedAt])
+}
+
+model PriorAuthorization {
+  id                            String                   @id @default(uuid())
+  appointmentId                 String
+  coverageId                    String
+  patientId                     String
+  providerId                    String
+  eligibilityCheckId            String?
+  idempotencyKey                String                   @unique
+  gateway                       String
+  gatewayReference              String?                  @unique
+  status                        PriorAuthorizationStatus @default(PENDING)
+  approvedAmountMinor           Int?
+  validUntil                    DateTime?
+  createdAt                     DateTime                 @default(now())
+  updatedAt                     DateTime                 @updatedAt
+
+  @@index([appointmentId, createdAt])
+  @@index([coverageId, createdAt])
+  @@index([patientId, createdAt])
+  @@index([providerId, createdAt])
+}
