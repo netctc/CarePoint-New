@@ -6,11 +6,23 @@ import { PrismaService } from "../../infrastructure/prisma/prisma.module";
 import { RedisSecurityService } from "../../infrastructure/redis/redis-security.module";
 import { SmartConfigurationService } from "../../security/smart-configuration.service";
 import { SmartTokenService, type StoredSmartAccessToken } from "../../security/smart-token.service";
+import { SmartOidcService } from "./smart-oidc.service";
 
 const AUTHORIZATION_CODE_TTL_SECONDS = 180;
 const ACCESS_TOKEN_TTL_SECONDS = 15 * 60;
 
 type Input = Record<string, unknown>;
+export type SmartAuthorizationMode = "host" | "browser";
+
+export interface NormalizedSmartAuthorizationRequest {
+  clientId: string;
+  clientName: string;
+  redirectUri: string;
+  state: string;
+  scopes: string[];
+  codeChallenge: string;
+  nonce: string | null;
+}
 
 interface StoredAuthorizationCode {
   clientId: string;
@@ -19,6 +31,8 @@ interface StoredAuthorizationCode {
   redirectUri: string;
   scopes: string[];
   codeChallenge: string;
+  nonce: string | null;
+  authTime: number;
   expiresAt: string;
 }
 
@@ -30,13 +44,21 @@ export class SmartOAuthService {
     private readonly prisma: PrismaService,
     private readonly audit: DatabaseAuditService,
     private readonly smartTokens: SmartTokenService,
+    private readonly oidc: SmartOidcService,
   ) {}
 
   async authorize(principal: AuthPrincipal, input: Input): Promise<{ redirectTo: string }> {
-    if (principal.role !== "PATIENT") throw new ForbiddenException("Slice 10.6 SMART authorization currently supports patient-mediated launch only.");
+    if (principal.role !== "PATIENT") throw new ForbiddenException("SMART authorization currently supports patient launch context only.");
     const patient = await this.prisma.patientProfile.findUnique({ where: { userId: principal.accountId }, select: { id: true } });
     if (!patient) throw new ForbiddenException("Patient launch context is unavailable.");
+    const request = this.normalizeAuthorizationRequest(input, "host");
+    return this.issueAuthorizationCode(
+      { userId: principal.accountId, patientId: patient.id, authTime: Math.floor(Date.now() / 1000) },
+      request,
+    );
+  }
 
+  normalizeAuthorizationRequest(input: Input, mode: SmartAuthorizationMode): NormalizedSmartAuthorizationRequest {
     const responseType = this.required(input.response_type, "response_type", 20);
     if (responseType !== "code") throw new BadRequestException("SMART authorization supports response_type=code only.");
     const clientId = this.required(input.client_id, "client_id", 128);
@@ -56,37 +78,63 @@ export class SmartOAuthService {
       if (!client.allowedScopes.includes(scope)) throw new BadRequestException(`SMART scope '${scope}' is not registered for this client.`);
     }
 
+    const hasOpenId = scopes.includes("openid");
+    const hasFhirUser = scopes.includes("fhirUser");
+    if (hasOpenId !== hasFhirUser) throw new BadRequestException("SMART OIDC launch requires openid and fhirUser together.");
+    if ((hasOpenId || hasFhirUser) && mode !== "browser") {
+      throw new BadRequestException("SMART openid/fhirUser scopes require the browser authorization endpoint.");
+    }
+    const nonce = hasOpenId ? this.required(input.nonce, "nonce", 256) : null;
+    if (nonce && nonce.length < 8) throw new BadRequestException("SMART nonce must contain at least 8 characters.");
+
     const method = this.required(input.code_challenge_method, "code_challenge_method", 20);
     if (method !== "S256") throw new BadRequestException("SMART public clients must use PKCE code_challenge_method=S256.");
     const codeChallenge = this.required(input.code_challenge, "code_challenge", 128);
     if (!/^[A-Za-z0-9_-]{43}$/.test(codeChallenge)) throw new BadRequestException("SMART PKCE code_challenge is invalid.");
 
+    return { clientId, clientName: client.name, redirectUri, state, scopes, codeChallenge, nonce };
+  }
+
+  async issueAuthorizationCode(
+    identity: { userId: string; patientId: string; authTime: number },
+    request: NormalizedSmartAuthorizationRequest,
+  ): Promise<{ redirectTo: string }> {
     const code = randomToken(32);
     const expiresAt = new Date(Date.now() + AUTHORIZATION_CODE_TTL_SECONDS * 1000).toISOString();
     const stored: StoredAuthorizationCode = {
-      clientId,
-      userId: principal.accountId,
-      patientId: patient.id,
-      redirectUri,
-      scopes,
-      codeChallenge,
+      clientId: request.clientId,
+      userId: identity.userId,
+      patientId: identity.patientId,
+      redirectUri: request.redirectUri,
+      scopes: request.scopes,
+      codeChallenge: request.codeChallenge,
+      nonce: request.nonce,
+      authTime: identity.authTime,
       expiresAt,
     };
     await this.redis.setEphemeral(this.codeKey(code), JSON.stringify(stored), AUTHORIZATION_CODE_TTL_SECONDS);
     await this.audit.write({
-      actorId: principal.accountId,
+      actorId: identity.userId,
       action: "SMART_AUTHORIZATION_CODE_ISSUED",
       objectType: "SMART_CLIENT",
-      objectId: clientId,
+      objectId: request.clientId,
       purpose: "PATIENT_ACCESS",
       result: "SUCCESS",
-      metadata: { patientId: patient.id, scopes, expiresAt, pkce: "S256" },
+      metadata: { patientId: identity.patientId, scopes: request.scopes, expiresAt, pkce: "S256", oidc: Boolean(request.nonce) },
     });
 
-    const callback = new URL(redirectUri);
+    const callback = new URL(request.redirectUri);
     callback.searchParams.set("code", code);
-    callback.searchParams.set("state", state);
+    callback.searchParams.set("state", request.state);
     return { redirectTo: callback.toString() };
+  }
+
+  authorizationErrorRedirect(request: NormalizedSmartAuthorizationRequest, error: string, description?: string): string {
+    const callback = new URL(request.redirectUri);
+    callback.searchParams.set("error", error);
+    if (description) callback.searchParams.set("error_description", description.slice(0, 500));
+    callback.searchParams.set("state", request.state);
+    return callback.toString();
   }
 
   async exchange(input: Input): Promise<Record<string, unknown>> {
@@ -138,13 +186,25 @@ export class SmartOAuthService {
       metadata: { clientId, patientId: authorization.patientId, scopes: authorization.scopes, expiresAt },
     });
 
-    return {
+    const response: Record<string, unknown> = {
       access_token: accessToken,
       token_type: "Bearer",
       expires_in: ACCESS_TOKEN_TTL_SECONDS,
       scope: authorization.scopes.join(" "),
       patient: authorization.patientId,
     };
+    if (authorization.scopes.includes("openid") && authorization.scopes.includes("fhirUser")) {
+      if (!authorization.nonce) this.oauthError("invalid_grant", "OIDC authorization code is missing nonce context.");
+      response.id_token = this.oidc.signIdToken({
+        userId: authorization.userId,
+        patientId: authorization.patientId,
+        clientId,
+        nonce: authorization.nonce,
+        authTime: authorization.authTime,
+        expiresInSeconds: ACCESS_TOKEN_TTL_SECONDS,
+      });
+    }
+    return response;
   }
 
   async revoke(input: Input): Promise<void> {
@@ -190,6 +250,8 @@ export class SmartOAuthService {
       typeof parsed.patientId !== "string" ||
       typeof parsed.redirectUri !== "string" ||
       typeof parsed.codeChallenge !== "string" ||
+      (parsed.nonce !== null && typeof parsed.nonce !== "string") ||
+      typeof parsed.authTime !== "number" ||
       typeof parsed.expiresAt !== "string" ||
       !Array.isArray(parsed.scopes) ||
       !parsed.scopes.every((scope) => typeof scope === "string")
