@@ -10,6 +10,7 @@ import { CommunicationsModule } from "./modules/communications/communications.mo
 import { ConsentModule } from "./modules/consent/consent.module";
 import { DocumentsModule } from "./modules/documents/documents.module";
 import { EmergencyModule } from "./modules/emergency/emergency.module";
+import { FhirModule } from "./modules/fhir/fhir.module";
 import { HealthModule } from "./modules/health/health.module";
 import { IamModule } from "./modules/iam/iam.module";
 import { OnboardingModule } from "./modules/onboarding/onboarding.module";
@@ -40,6 +41,7 @@ import { TransportModule } from "./modules/transport/transport.module";
     BillingModule,
     ClaimsModule,
     CommunicationsModule,
+    FhirModule,
   ],
 })
 export class AppModule {}
