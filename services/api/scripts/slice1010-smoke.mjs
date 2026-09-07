@@ -48,7 +48,7 @@ async function json(path, { method = "GET", body } = {}) {
 }
 
 async function registerPatient(label) {
-  const email = `bulk-${label}-${suffix}@carepoint.test`;
+  const email = `bulk-${label.toLowerCase()}-${suffix}@carepoint.test`;
   await json("/iam/register/patient", { method: "POST", body: { email, password, firstName: label, lastName: "Bulk Export" } });
   const login = await json("/iam/login", { method: "POST", body: { email, password } });
   const patient = await prisma.patientProfile.findFirstOrThrow({ where: { user: { email } } });
