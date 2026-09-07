@@ -9,7 +9,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
-  testWidgets('patient financial hub renders invoice without CarePoint card fields', (tester) async {
+  testWidgets('patient financial hub renders invoice without CarePoint card-entry fields', (tester) async {
     final client = MockClient((request) async {
       if (request.url.path.endsWith('/billing/me')) {
         return http.Response(jsonEncode({
@@ -46,8 +46,8 @@ void main() {
 
     expect(find.text('INV-TEST'), findsOneWidget);
     expect(find.text('Pay securely'), findsOneWidget);
-    expect(find.textContaining('Card number'), findsNothing);
-    expect(find.textContaining('CVV'), findsNothing);
+    expect(find.byType(TextField), findsNothing);
+    expect(find.textContaining('CarePoint does not request or store card number or CVV'), findsOneWidget);
   });
 
   testWidgets('provider financial workspace renders currency balance and ledger boundary', (tester) async {
