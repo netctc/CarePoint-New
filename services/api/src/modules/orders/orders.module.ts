@@ -79,5 +79,6 @@ class OrdersController {
 @Module({
   controllers: [OrdersController],
   providers: [OrdersService, OrdersEnvelopeService, OrdersAttestationService],
+  exports: [OrdersService],
 })
 export class OrdersModule {}
