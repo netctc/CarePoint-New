@@ -35,6 +35,7 @@ import { DocumentsModule } from "../documents/documents.module";
 import { OrdersModule } from "../orders/orders.module";
 import { FhirBulkExportService } from "./fhir-bulk-export.service";
 import { FhirBulkExportStorageService } from "./fhir-bulk-export-storage.service";
+import { FhirClinicalBulkService } from "./fhir-clinical-bulk.service";
 import { FhirDocumentsService } from "./fhir-documents.service";
 import { FhirSearchService } from "./fhir-search.service";
 import { FhirSearchSupportService, type FhirSearchQuery } from "./fhir-search-support.service";
@@ -234,7 +235,12 @@ class FhirController {
   @RequireSmartFhirAccess("Encounter", "r")
   @Get("Encounter/:appointmentId")
   @Header("Content-Type", "application/fhir+json; charset=utf-8")
-  encounter(@CurrentPrincipal() principal: AuthPrincipal, @Param("appointmentId") appointmentId: string) {
+  encounter(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @CurrentSmartContext() smart: SmartAccessContext | null,
+    @Param("appointmentId") appointmentId: string,
+  ) {
+    this.assertClinicalSystemBulkOnly(smart, "Encounter");
     return this.fhir.encounter(principal, appointmentId);
   }
 
@@ -243,37 +249,59 @@ class FhirController {
   @Header("Content-Type", "application/fhir+json; charset=utf-8")
   observations(
     @CurrentPrincipal() principal: AuthPrincipal,
+    @CurrentSmartContext() smart: SmartAccessContext | null,
     @Query("encounter") encounter?: string,
     @Query("based-on") basedOn?: string,
   ) {
+    this.assertClinicalSystemBulkOnly(smart, "Observation");
     return this.fhir.observations(principal, encounter, basedOn);
   }
 
   @RequireSmartFhirAccess("MedicationRequest", "r")
   @Get("MedicationRequest/:orderId")
   @Header("Content-Type", "application/fhir+json; charset=utf-8")
-  medicationRequest(@CurrentPrincipal() principal: AuthPrincipal, @Param("orderId") orderId: string) {
+  medicationRequest(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @CurrentSmartContext() smart: SmartAccessContext | null,
+    @Param("orderId") orderId: string,
+  ) {
+    this.assertClinicalSystemBulkOnly(smart, "MedicationRequest");
     return this.fhir.medicationRequest(principal, orderId);
   }
 
   @RequireSmartFhirAccess("ServiceRequest", "r")
   @Get("ServiceRequest/:orderId")
   @Header("Content-Type", "application/fhir+json; charset=utf-8")
-  serviceRequest(@CurrentPrincipal() principal: AuthPrincipal, @Param("orderId") orderId: string) {
+  serviceRequest(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @CurrentSmartContext() smart: SmartAccessContext | null,
+    @Param("orderId") orderId: string,
+  ) {
+    this.assertClinicalSystemBulkOnly(smart, "ServiceRequest");
     return this.fhir.serviceRequest(principal, orderId);
   }
 
   @RequireSmartFhirAccess("DiagnosticReport", "s")
   @Get("DiagnosticReport")
   @Header("Content-Type", "application/fhir+json; charset=utf-8")
-  diagnosticReports(@CurrentPrincipal() principal: AuthPrincipal, @Query() query: FhirSearchQuery) {
+  diagnosticReports(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @CurrentSmartContext() smart: SmartAccessContext | null,
+    @Query() query: FhirSearchQuery,
+  ) {
+    this.assertClinicalSystemBulkOnly(smart, "DiagnosticReport");
     return this.fhirDocuments.diagnosticReports(principal, query);
   }
 
   @RequireSmartFhirAccess("DiagnosticReport", "r")
   @Get("DiagnosticReport/:reportId")
   @Header("Content-Type", "application/fhir+json; charset=utf-8")
-  diagnosticReport(@CurrentPrincipal() principal: AuthPrincipal, @Param("reportId") reportId: string) {
+  diagnosticReport(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @CurrentSmartContext() smart: SmartAccessContext | null,
+    @Param("reportId") reportId: string,
+  ) {
+    this.assertClinicalSystemBulkOnly(smart, "DiagnosticReport");
     return this.fhirDocuments.diagnosticReport(principal, reportId);
   }
 
@@ -297,6 +325,12 @@ class FhirController {
   imagingStudy(@CurrentPrincipal() principal: AuthPrincipal, @Param("documentId") documentId: string) {
     return this.fhirDocuments.imagingStudy(principal, documentId);
   }
+
+  private assertClinicalSystemBulkOnly(smart: SmartAccessContext | null, resourceType: string): void {
+    if (smart?.authorizationType === "system") {
+      throw new ForbiddenException(`SMART system ${resourceType} scope is authorized for Bulk Data $export only in Slice 10.12.`);
+    }
+  }
 }
 
 @Module({
@@ -308,6 +342,7 @@ class FhirController {
     FhirSearchService,
     FhirSearchSupportService,
     FhirSmartCapabilityService,
+    FhirClinicalBulkService,
     FhirSystemService,
     FhirBulkExportService,
     FhirBulkExportStorageService,
