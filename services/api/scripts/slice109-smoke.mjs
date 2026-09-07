@@ -129,7 +129,8 @@ try {
   }
 
   const metadata = await raw("/fhir/R4/metadata");
-  if (metadata.status !== 200 || metadata.payload.software?.version !== "slice-10.9") throw new Error(`FHIR Slice 10.9 metadata failed: ${JSON.stringify(metadata)}`);
+  const versionMatch = /^slice-10\.(\d+)$/.exec(String(metadata.payload.software?.version || ""));
+  if (metadata.status !== 200 || !versionMatch || Number(versionMatch[1]) < 9) throw new Error(`FHIR Slice 10.9+ metadata failed: ${JSON.stringify(metadata)}`);
   const patientCapability = metadata.payload.rest?.[0]?.resource?.find((item) => item.type === "Patient");
   if (!patientCapability?.interaction?.some((item) => item.code === "search-type")) throw new Error("CapabilityStatement does not advertise Patient search.");
   const smartSecurity = metadata.payload.rest?.[0]?.security?.service?.[0]?.coding?.[0];
