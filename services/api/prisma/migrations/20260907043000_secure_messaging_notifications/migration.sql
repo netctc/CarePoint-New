@@ -5,10 +5,10 @@ CREATE TYPE "NotificationEventType" AS ENUM ('SECURE_MESSAGE', 'APPOINTMENT_UPDA
 CREATE TYPE "NotificationDeliveryStatus" AS ENUM ('PENDING', 'SENT', 'FAILED', 'SKIPPED');
 
 CREATE TABLE "CareConversation" (
-  "id" UUID NOT NULL DEFAULT gen_random_uuid(),
-  "patientId" UUID NOT NULL,
-  "appointmentId" UUID,
-  "createdByAccountId" UUID NOT NULL,
+  "id" TEXT NOT NULL,
+  "patientId" TEXT NOT NULL,
+  "appointmentId" TEXT,
+  "createdByAccountId" TEXT NOT NULL,
   "clientConversationId" TEXT NOT NULL,
   "status" "CareConversationStatus" NOT NULL DEFAULT 'OPEN',
   "subjectAlgorithm" TEXT NOT NULL,
@@ -16,101 +16,101 @@ CREATE TABLE "CareConversation" (
   "subjectWrappedKey" TEXT NOT NULL,
   "subjectIv" TEXT NOT NULL,
   "subjectCiphertext" TEXT NOT NULL,
-  "lastMessageAt" TIMESTAMPTZ,
-  "closedAt" TIMESTAMPTZ,
-  "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "lastMessageAt" TIMESTAMP(3),
+  "closedAt" TIMESTAMP(3),
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL,
   CONSTRAINT "CareConversation_pkey" PRIMARY KEY ("id")
 );
 
 CREATE TABLE "CareConversationParticipant" (
-  "id" UUID NOT NULL DEFAULT gen_random_uuid(),
-  "conversationId" UUID NOT NULL,
-  "accountId" UUID NOT NULL,
-  "providerId" UUID,
+  "id" TEXT NOT NULL,
+  "conversationId" TEXT NOT NULL,
+  "accountId" TEXT NOT NULL,
+  "providerId" TEXT,
   "kind" "CareParticipantKind" NOT NULL,
-  "joinedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  "leftAt" TIMESTAMPTZ,
+  "joinedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "leftAt" TIMESTAMP(3),
   CONSTRAINT "CareConversationParticipant_pkey" PRIMARY KEY ("id")
 );
 
 CREATE TABLE "CareMessage" (
-  "id" UUID NOT NULL DEFAULT gen_random_uuid(),
-  "conversationId" UUID NOT NULL,
-  "senderAccountId" UUID NOT NULL,
+  "id" TEXT NOT NULL,
+  "conversationId" TEXT NOT NULL,
+  "senderAccountId" TEXT NOT NULL,
   "clientMessageId" TEXT NOT NULL,
   "algorithm" TEXT NOT NULL,
   "keyId" TEXT NOT NULL,
   "wrappedKey" TEXT NOT NULL,
   "iv" TEXT NOT NULL,
   "ciphertext" TEXT NOT NULL,
-  "sentAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "sentAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT "CareMessage_pkey" PRIMARY KEY ("id")
 );
 
 CREATE TABLE "CareMessageAttachment" (
-  "id" UUID NOT NULL DEFAULT gen_random_uuid(),
-  "messageId" UUID NOT NULL,
-  "clinicalDocumentId" UUID NOT NULL,
-  "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "id" TEXT NOT NULL,
+  "messageId" TEXT NOT NULL,
+  "clinicalDocumentId" TEXT NOT NULL,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT "CareMessageAttachment_pkey" PRIMARY KEY ("id")
 );
 
 CREATE TABLE "CareMessageReadReceipt" (
-  "id" UUID NOT NULL DEFAULT gen_random_uuid(),
-  "messageId" UUID NOT NULL,
-  "accountId" UUID NOT NULL,
-  "readAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "id" TEXT NOT NULL,
+  "messageId" TEXT NOT NULL,
+  "accountId" TEXT NOT NULL,
+  "readAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT "CareMessageReadReceipt_pkey" PRIMARY KEY ("id")
 );
 
 CREATE TABLE "NotificationPreference" (
-  "id" UUID NOT NULL DEFAULT gen_random_uuid(),
-  "accountId" UUID NOT NULL,
+  "id" TEXT NOT NULL,
+  "accountId" TEXT NOT NULL,
   "locale" TEXT NOT NULL DEFAULT 'en',
   "inAppEnabled" BOOLEAN NOT NULL DEFAULT TRUE,
   "pushEnabled" BOOLEAN NOT NULL DEFAULT FALSE,
   "emailEnabled" BOOLEAN NOT NULL DEFAULT FALSE,
   "smsEnabled" BOOLEAN NOT NULL DEFAULT FALSE,
-  "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL,
   CONSTRAINT "NotificationPreference_pkey" PRIMARY KEY ("id"),
   CONSTRAINT "NotificationPreference_locale_check" CHECK ("locale" IN ('en', 'ar', 'fr', 'es'))
 );
 
 CREATE TABLE "NotificationEndpoint" (
-  "id" UUID NOT NULL DEFAULT gen_random_uuid(),
-  "accountId" UUID NOT NULL,
+  "id" TEXT NOT NULL,
+  "accountId" TEXT NOT NULL,
   "channel" "NotificationChannel" NOT NULL,
   "externalEndpointRef" TEXT NOT NULL,
   "active" BOOLEAN NOT NULL DEFAULT TRUE,
-  "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL,
   CONSTRAINT "NotificationEndpoint_pkey" PRIMARY KEY ("id"),
   CONSTRAINT "NotificationEndpoint_channel_check" CHECK ("channel" IN ('PUSH', 'SMS'))
 );
 
 CREATE TABLE "NotificationEvent" (
-  "id" UUID NOT NULL DEFAULT gen_random_uuid(),
-  "accountId" UUID NOT NULL,
+  "id" TEXT NOT NULL,
+  "accountId" TEXT NOT NULL,
   "dedupeKey" TEXT NOT NULL,
   "type" "NotificationEventType" NOT NULL,
   "entityType" TEXT NOT NULL,
   "entityId" TEXT NOT NULL,
   "safeTitleKey" TEXT NOT NULL,
   "safeBodyKey" TEXT NOT NULL,
-  "readAt" TIMESTAMPTZ,
-  "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "readAt" TIMESTAMP(3),
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT "NotificationEvent_pkey" PRIMARY KEY ("id")
 );
 
 CREATE TABLE "NotificationDelivery" (
-  "id" UUID NOT NULL DEFAULT gen_random_uuid(),
-  "notificationId" UUID NOT NULL,
+  "id" TEXT NOT NULL,
+  "notificationId" TEXT NOT NULL,
   "channel" "NotificationChannel" NOT NULL,
   "status" "NotificationDeliveryStatus" NOT NULL DEFAULT 'PENDING',
   "providerRef" TEXT,
-  "attemptedAt" TIMESTAMPTZ,
+  "attemptedAt" TIMESTAMP(3),
   "lastErrorCode" TEXT,
   CONSTRAINT "NotificationDelivery_pkey" PRIMARY KEY ("id")
 );
