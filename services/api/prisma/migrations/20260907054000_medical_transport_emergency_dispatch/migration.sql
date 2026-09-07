@@ -111,6 +111,3 @@ ALTER TABLE "EmergencyDispatchEvent"
 ALTER TABLE "EmergencyDispatchEvent"
   ADD CONSTRAINT "EmergencyDispatchEvent_providerId_fkey"
   FOREIGN KEY ("providerId") REFERENCES "Provider"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
-CREATE INDEX "EmergencyAmbulanceRequest_status_requestedAt_idx" ON "EmergencyAmbulanceRequest"("status", "requestedAt");
-CREATE INDEX "EmergencyAmbulanceRequest_assignedProviderId_status_idx" ON "EmergencyAmbulanceRequest"("assignedProviderId", "status");
