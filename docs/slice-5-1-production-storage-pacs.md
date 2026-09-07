@@ -28,7 +28,7 @@ Clinical file
   -> DEK wrapped by KMS
   -> encrypted object
   -> private S3
-  -> optional S3 SSE-KMS defense-in-depth
+  -> S3 SSE-KMS defense-in-depth
 ```
 
 PostgreSQL stores only the opaque object key, integrity digest, lifecycle state and encryption-envelope metadata. It does not store plaintext file contents, titles, filenames, descriptions or PACS URLs.
@@ -43,8 +43,8 @@ PostgreSQL stores only the opaque object key, integrity digest, lifecycle state 
 
 - `AWS_REGION`
 - `DOCUMENT_S3_BUCKET`
+- `DOCUMENT_S3_KMS_KEY_ID`
 - optional `DOCUMENT_S3_PREFIX`
-- recommended `DOCUMENT_S3_KMS_KEY_ID`
 
 The S3 adapter does not create public URLs and never enables public ACL access. Workload identity / instance roles should be used instead of static AWS access keys in environment variables.
 
