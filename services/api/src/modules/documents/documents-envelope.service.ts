@@ -1,6 +1,6 @@
 import { Injectable, InternalServerErrorException } from "@nestjs/common";
 import { PhiEnvelopeEncryption, StaticAesKwKeyProvider, type EncryptedEnvelope, type KeyEncryptionKeyProvider } from "@carepoint/security";
-import { AwsKmsKeyProvider } from "./aws-kms-key-provider";
+import { AwsKmsKeyProvider } from "../../infrastructure/security/aws-kms-key-provider";
 
 @Injectable()
 export class DocumentsEnvelopeService {
@@ -30,7 +30,7 @@ export class DocumentsEnvelopeService {
     if (provider === "aws-kms") {
       const keyId = process.env.DOCUMENT_KMS_KEY_ID;
       if (!keyId) throw new InternalServerErrorException("DOCUMENT_KMS_KEY_ID is required for AWS KMS document encryption.");
-      return new AwsKmsKeyProvider(keyId, process.env.AWS_REGION, process.env.AWS_ENDPOINT_URL_KMS);
+      return new AwsKmsKeyProvider(keyId, "carepoint-clinical-document-dek", process.env.AWS_REGION, process.env.AWS_ENDPOINT_URL_KMS);
     }
     if (provider !== "local") throw new InternalServerErrorException(`Unsupported document key provider '${provider}'.`);
     if (process.env.NODE_ENV === "production") throw new InternalServerErrorException("Local document envelope keys are forbidden in production.");
