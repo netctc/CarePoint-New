@@ -1,5 +1,8 @@
 -- Slice 8: persistent scheduled medical transport and emergency dispatch history.
 
+ALTER TYPE "NotificationEventType" ADD VALUE IF NOT EXISTS 'EMERGENCY_UPDATE';
+ALTER TYPE "NotificationEventType" ADD VALUE IF NOT EXISTS 'TRANSPORT_UPDATE';
+
 CREATE TYPE "MedicalTransportMode" AS ENUM ('GROUND', 'AIR');
 CREATE TYPE "MedicalTransportStatus" AS ENUM ('REQUESTED', 'ASSIGNED', 'EN_ROUTE', 'ARRIVED', 'TRANSPORTING', 'COMPLETED', 'CANCELLED');
 CREATE TYPE "MedicalTransportAssistance" AS ENUM ('STANDARD', 'WHEELCHAIR', 'STRETCHER');
