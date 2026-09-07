@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { AppointmentStatus, Prisma } from "@prisma/client";
 import { DatabaseAuditService } from "../../infrastructure/audit/audit.service";
 import { PrismaService } from "../../infrastructure/prisma/prisma.module";
@@ -6,6 +6,7 @@ import type { SmartAccessContext } from "../../security/smart-token.service";
 import { FhirSearchSupportService, type FhirSearchQuery } from "./fhir-search-support.service";
 
 type FhirResource = Record<string, unknown>;
+export type FhirBulkResourceType = "Patient" | "Appointment";
 
 const FHIR_APPOINTMENT_STATUSES = new Set(["pending", "booked", "cancelled", "fulfilled", "noshow", "entered-in-error"]);
 const DB_STATUS_BY_FHIR: Record<string, AppointmentStatus | null> = {
@@ -29,7 +30,7 @@ export class FhirSystemService {
     this.assertSystem(context);
     const patient = await this.prisma.patientProfile.findUnique({
       where: { id: patientId },
-      include: { user: { select: { email: true, status: true } } },
+      include: { user: { select: { email: true, status: true, updatedAt: true } } },
     });
     if (!patient) throw new NotFoundException("FHIR Patient not found.");
     await this.audit.write({
@@ -55,7 +56,7 @@ export class FhirSystemService {
       this.prisma.patientProfile.count({ where }),
       this.prisma.patientProfile.findMany({
         where,
-        include: { user: { select: { email: true, status: true } } },
+        include: { user: { select: { email: true, status: true, updatedAt: true } } },
         orderBy: { id: "asc" },
         skip: paging.offset,
         take: paging.count,
@@ -151,6 +152,47 @@ export class FhirSystemService {
     });
   }
 
+  async bulkExportSnapshot(
+    context: SmartAccessContext,
+    resourceTypes: FhirBulkResourceType[],
+    since: Date | null,
+    maxResourcesPerType: number,
+  ): Promise<{ transactionTime: string; resources: Partial<Record<FhirBulkResourceType, FhirResource[]>> }> {
+    this.assertSystem(context);
+    if (!Number.isInteger(maxResourcesPerType) || maxResourcesPerType < 1) throw new BadRequestException("FHIR bulk export resource limit is invalid.");
+    const transactionTime = new Date();
+    return this.prisma.$transaction(async (tx) => {
+      const resources: Partial<Record<FhirBulkResourceType, FhirResource[]>> = {};
+      for (const resourceType of resourceTypes) {
+        if (resourceType === "Patient") {
+          const where: Prisma.PatientProfileWhereInput = since
+            ? { OR: [{ updatedAt: { gt: since } }, { user: { updatedAt: { gt: since } } }] }
+            : {};
+          const total = await tx.patientProfile.count({ where });
+          this.assertBulkLimit(resourceType, total, maxResourcesPerType);
+          const patients = await tx.patientProfile.findMany({
+            where,
+            include: { user: { select: { email: true, status: true, updatedAt: true } } },
+            orderBy: { id: "asc" },
+          });
+          resources.Patient = patients.map((patient) => this.toPatient(patient));
+          continue;
+        }
+
+        const where: Prisma.AppointmentWhereInput = since ? { updatedAt: { gt: since } } : {};
+        const total = await tx.appointment.count({ where });
+        this.assertBulkLimit(resourceType, total, maxResourcesPerType);
+        const appointments = await tx.appointment.findMany({
+          where,
+          include: this.appointmentInclude(),
+          orderBy: [{ startsAt: "asc" }, { id: "asc" }],
+        });
+        resources.Appointment = appointments.map((appointment) => this.toAppointment(appointment));
+      }
+      return { transactionTime: transactionTime.toISOString(), resources };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
+  }
+
   private appointmentInclude() {
     return {
       patient: { select: { id: true, firstName: true, lastName: true } },
@@ -164,12 +206,17 @@ export class FhirSystemService {
     firstName: string;
     lastName: string;
     phone: string | null;
-    user: { email: string; status: string };
+    updatedAt: Date;
+    user: { email: string; status: string; updatedAt: Date };
   }): FhirResource {
+    const lastUpdated = patient.updatedAt > patient.user.updatedAt ? patient.updatedAt : patient.user.updatedAt;
     return {
       resourceType: "Patient",
       id: patient.id,
-      meta: { profile: ["http://hl7.org/fhir/StructureDefinition/Patient"] },
+      meta: {
+        profile: ["http://hl7.org/fhir/StructureDefinition/Patient"],
+        lastUpdated: lastUpdated.toISOString(),
+      },
       active: patient.user.status === "ACTIVE",
       name: [{ use: "official", family: patient.lastName, given: [patient.firstName], text: `${patient.firstName} ${patient.lastName}` }],
       telecom: [
@@ -185,6 +232,7 @@ export class FhirSystemService {
     modality: string;
     startsAt: Date;
     endsAt: Date;
+    updatedAt: Date;
     cancellationReason: string | null;
     patient: { id: string; firstName: string; lastName: string };
     provider: { id: string; displayName: string };
@@ -193,6 +241,7 @@ export class FhirSystemService {
     return {
       resourceType: "Appointment",
       id: appointment.id,
+      meta: { lastUpdated: appointment.updatedAt.toISOString() },
       status: this.fhirAppointmentStatus(appointment.status),
       serviceType: [{ text: appointment.service.name }],
       appointmentType: {
@@ -231,6 +280,12 @@ export class FhirSystemService {
       if (status.includes("|") || !FHIR_APPOINTMENT_STATUSES.has(status)) {
         throw new BadRequestException(`Unsupported FHIR Appointment status '${status}'.`);
       }
+    }
+  }
+
+  private assertBulkLimit(resourceType: FhirBulkResourceType, total: number, maxResourcesPerType: number): void {
+    if (total > maxResourcesPerType) {
+      throw new ConflictException(`FHIR bulk export for ${resourceType} exceeded the current safety limit of ${maxResourcesPerType} resources.`);
     }
   }
 
