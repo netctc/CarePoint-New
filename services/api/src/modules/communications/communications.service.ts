@@ -45,7 +45,9 @@ export class CommunicationsService {
 
     const appointment = await this.requireMessagingAppointment(input.appointmentId);
     await this.assertDirectParticipant(principal, appointment);
-    if (!appointment.patient.userId || !appointment.provider.userId) throw new ConflictException("Both appointment parties require linked CarePoint accounts for secure messaging.");
+    const patientAccountId = appointment.patient.userId;
+    const providerAccountId = appointment.provider.userId;
+    if (!patientAccountId || !providerAccountId) throw new ConflictException("Both appointment parties require linked CarePoint accounts for secure messaging.");
 
     const subject = this.requiredText(input.subject, 1, MAX_SUBJECT_CHARS, "subject");
     const encrypted = await this.envelope.encrypt({ schemaVersion: 1, text: subject });
@@ -67,8 +69,8 @@ export class CommunicationsService {
         });
         await tx.careConversationParticipant.createMany({
           data: [
-            { conversationId: created.id, accountId: appointment.patient.userId, kind: "PATIENT" },
-            { conversationId: created.id, accountId: appointment.provider.userId, providerId: appointment.providerId, kind: "PROVIDER" },
+            { conversationId: created.id, accountId: patientAccountId, kind: "PATIENT" },
+            { conversationId: created.id, accountId: providerAccountId, providerId: appointment.providerId, kind: "PROVIDER" },
           ],
         });
         return created;
@@ -140,7 +142,14 @@ export class CommunicationsService {
     });
     const presentedMessages = [];
     for (const message of messages) presentedMessages.push(await this.presentMessage(message));
-    await this.audit.write({ actorId: principal.accountId, action: "CARE_CONVERSATION_READ", objectType: "CARE_CONVERSATION", objectId: conversation.id, purpose: "CARE_COORDINATION", result: "SUCCESS" });
+    await this.audit.write({
+      actorId: principal.accountId,
+      action: "CARE_CONVERSATION_READ",
+      objectType: "CARE_CONVERSATION",
+      objectId: conversation.id,
+      purpose: "CARE_COORDINATION",
+      result: "SUCCESS",
+    });
     return { ...(await this.presentConversation(conversation)), messages: presentedMessages };
   }
 
@@ -185,7 +194,9 @@ export class CommunicationsService {
           },
         });
         if (documentIds.length > 0) {
-          await tx.careMessageAttachment.createMany({ data: documentIds.map((clinicalDocumentId) => ({ messageId: created.id, clinicalDocumentId })) });
+          await tx.careMessageAttachment.createMany({
+            data: documentIds.map((clinicalDocumentId) => ({ messageId: created.id, clinicalDocumentId })),
+          });
         }
         await tx.careMessageReadReceipt.create({ data: { messageId: created.id, accountId: principal.accountId } });
         await tx.careConversation.update({ where: { id: conversationId }, data: { lastMessageAt: created.sentAt } });
@@ -210,7 +221,10 @@ export class CommunicationsService {
       metadata: { conversationId, attachmentCount: documentIds.length },
     });
     await this.notifyOtherParticipants(conversationId, principal.accountId, message.id);
-    const stored = await this.prisma.careMessage.findUnique({ where: { id: message.id }, include: { attachments: true, readReceipts: true } });
+    const stored = await this.prisma.careMessage.findUnique({
+      where: { id: message.id },
+      include: { attachments: true, readReceipts: true },
+    });
     if (!stored) throw new NotFoundException("Secure message not found after persistence.");
     return this.presentMessage(stored);
   }
@@ -225,7 +239,15 @@ export class CommunicationsService {
         skipDuplicates: true,
       });
     }
-    await this.audit.write({ actorId: principal.accountId, action: "CARE_CONVERSATION_MARKED_READ", objectType: "CARE_CONVERSATION", objectId: conversationId, purpose: "CARE_COORDINATION", result: "SUCCESS", metadata: { messageCount: messages.length } });
+    await this.audit.write({
+      actorId: principal.accountId,
+      action: "CARE_CONVERSATION_MARKED_READ",
+      objectType: "CARE_CONVERSATION",
+      objectId: conversationId,
+      purpose: "CARE_COORDINATION",
+      result: "SUCCESS",
+      metadata: { messageCount: messages.length },
+    });
     return { conversationId, unreadCount: 0, readAt: new Date() };
   }
 
@@ -235,13 +257,25 @@ export class CommunicationsService {
     const conversation = await this.prisma.careConversation.findUnique({ where: { id: conversationId } });
     if (!conversation) throw new NotFoundException("Care conversation not found.");
     if (conversation.status === "CLOSED") return this.presentConversation(conversation);
-    const closed = await this.prisma.careConversation.update({ where: { id: conversation.id }, data: { status: "CLOSED", closedAt: new Date() } });
-    await this.audit.write({ actorId: principal.accountId, action: "CARE_CONVERSATION_CLOSED", objectType: "CARE_CONVERSATION", objectId: conversation.id, purpose: "CARE_COORDINATION", result: "SUCCESS" });
+    const closed = await this.prisma.careConversation.update({
+      where: { id: conversation.id },
+      data: { status: "CLOSED", closedAt: new Date() },
+    });
+    await this.audit.write({
+      actorId: principal.accountId,
+      action: "CARE_CONVERSATION_CLOSED",
+      objectType: "CARE_CONVERSATION",
+      objectId: conversation.id,
+      purpose: "CARE_COORDINATION",
+      result: "SUCCESS",
+    });
     return this.presentConversation(closed);
   }
 
   async addCareParticipant(principal: AuthPrincipal, conversationId: string, input: AddCareParticipantInput) {
-    if (principal.role !== "DOCTOR" && principal.role !== "OTHER_PROVIDER") throw new ForbiddenException("Only healthcare providers may coordinate additional care-team participants.");
+    if (principal.role !== "DOCTOR" && principal.role !== "OTHER_PROVIDER") {
+      throw new ForbiddenException("Only healthcare providers may coordinate additional care-team participants.");
+    }
     const callerMembership = await this.requireMembership(principal.accountId, conversationId);
     if (callerMembership.kind !== "PROVIDER") throw new ForbiddenException("A provider conversation membership is required.");
     const conversation = await this.prisma.careConversation.findUnique({ where: { id: conversationId } });
@@ -249,25 +283,70 @@ export class CommunicationsService {
     if (conversation.status !== "OPEN") throw new ConflictException("This care conversation is closed.");
 
     const targetProviderId = this.requiredText(input.providerId, 1, 100, "providerId");
-    const target = await this.prisma.provider.findUnique({ where: { id: targetProviderId }, select: { id: true, userId: true, status: true, class: true, displayName: true } });
+    const target = await this.prisma.provider.findUnique({
+      where: { id: targetProviderId },
+      select: { id: true, userId: true, status: true, class: true, displayName: true },
+    });
     if (!target || target.status !== "ACTIVE" || !target.userId) throw new NotFoundException("Active target provider account not found.");
     if (target.id === callerMembership.providerId) throw new ConflictException("The provider is already the coordinating participant.");
+    const targetAccountId = target.userId;
     const accessBasis = await this.careTeamAccessBasis(target.id, conversation.patientId);
     if (!accessBasis) {
-      await this.audit.write({ actorId: principal.accountId, action: "CARE_PARTICIPANT_ADD_DENIED", objectType: "CARE_CONVERSATION", objectId: conversation.id, purpose: "CARE_COORDINATION", result: "DENIED", metadata: { targetProviderId: target.id } });
+      await this.audit.write({
+        actorId: principal.accountId,
+        action: "CARE_PARTICIPANT_ADD_DENIED",
+        objectType: "CARE_CONVERSATION",
+        objectId: conversation.id,
+        purpose: "CARE_COORDINATION",
+        result: "DENIED",
+        metadata: { targetProviderId: target.id },
+      });
       throw new ForbiddenException("The target provider has no treatment relationship or provider-specific care-coordination consent.");
     }
 
     const participant = await this.prisma.careConversationParticipant.upsert({
-      where: { conversationId_accountId: { conversationId, accountId: target.userId } },
-      create: { conversationId, accountId: target.userId, providerId: target.id, kind: "PROVIDER" },
+      where: { conversationId_accountId: { conversationId, accountId: targetAccountId } },
+      create: { conversationId, accountId: targetAccountId, providerId: target.id, kind: "PROVIDER" },
       update: { providerId: target.id, kind: "PROVIDER", leftAt: null },
     });
-    await this.audit.write({ actorId: principal.accountId, action: "CARE_PARTICIPANT_ADDED", objectType: "CARE_CONVERSATION", objectId: conversation.id, purpose: "CARE_COORDINATION", result: "SUCCESS", metadata: { targetProviderId: target.id, accessBasis } });
-    await this.notifications.notifyAccount({ accountId: target.userId, dedupeKey: `care-participant:${conversation.id}`, type: "CARE_COORDINATION", entityType: "CARE_CONVERSATION", entityId: conversation.id, safeTitleKey: "notification.care.title", safeBodyKey: "notification.care.body" });
+    await this.audit.write({
+      actorId: principal.accountId,
+      action: "CARE_PARTICIPANT_ADDED",
+      objectType: "CARE_CONVERSATION",
+      objectId: conversation.id,
+      purpose: "CARE_COORDINATION",
+      result: "SUCCESS",
+      metadata: { targetProviderId: target.id, accessBasis },
+    });
+    await this.notifications.notifyAccount({
+      accountId: targetAccountId,
+      dedupeKey: `care-participant:${conversation.id}`,
+      type: "CARE_COORDINATION",
+      entityType: "CARE_CONVERSATION",
+      entityId: conversation.id,
+      safeTitleKey: "notification.care.title",
+      safeBodyKey: "notification.care.body",
+    });
     const patient = await this.prisma.patientProfile.findUnique({ where: { id: conversation.patientId }, select: { userId: true } });
-    if (patient?.userId) await this.notifications.notifyAccount({ accountId: patient.userId, dedupeKey: `care-participant:${conversation.id}:${target.id}`, type: "CARE_COORDINATION", entityType: "CARE_CONVERSATION", entityId: conversation.id, safeTitleKey: "notification.care.title", safeBodyKey: "notification.care.body" });
-    return { id: participant.id, providerId: target.id, accountId: target.userId, kind: participant.kind, accessBasis, joinedAt: participant.joinedAt };
+    if (patient?.userId) {
+      await this.notifications.notifyAccount({
+        accountId: patient.userId,
+        dedupeKey: `care-participant:${conversation.id}:${target.id}`,
+        type: "CARE_COORDINATION",
+        entityType: "CARE_CONVERSATION",
+        entityId: conversation.id,
+        safeTitleKey: "notification.care.title",
+        safeBodyKey: "notification.care.body",
+      });
+    }
+    return {
+      id: participant.id,
+      providerId: target.id,
+      accountId: targetAccountId,
+      kind: participant.kind,
+      accessBasis,
+      joinedAt: participant.joinedAt,
+    };
   }
 
   private async notifyOtherParticipants(conversationId: string, senderAccountId: string, messageId: string) {
@@ -296,7 +375,9 @@ export class CommunicationsService {
     });
     if (documents.length !== documentIds.length) throw new BadRequestException("One or more clinical document attachments do not exist.");
     for (const document of documents) {
-      if (document.patientId !== patientId || document.status !== "AVAILABLE") throw new ForbiddenException("Clinical document attachment access denied.");
+      if (document.patientId !== patientId || document.status !== "AVAILABLE") {
+        throw new ForbiddenException("Clinical document attachment access denied.");
+      }
       if ((role === "DOCTOR" || role === "OTHER_PROVIDER") && document.providerId !== senderProviderId && !document.releasedToPatient) {
         throw new ForbiddenException("Providers may attach only their own or patient-released clinical documents.");
       }
@@ -308,7 +389,12 @@ export class CommunicationsService {
     const from = new Date(now.getTime() - TREATMENT_LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
     const to = new Date(now.getTime() + TREATMENT_LOOKAHEAD_DAYS * 24 * 60 * 60 * 1000);
     const relationship = await this.prisma.appointment.findFirst({
-      where: { providerId, patientId, status: { in: ["CONFIRMED", "COMPLETED"] }, startsAt: { gte: from, lte: to } },
+      where: {
+        providerId,
+        patientId,
+        status: { in: ["CONFIRMED", "COMPLETED"] },
+        startsAt: { gte: from, lte: to },
+      },
       select: { id: true },
     });
     if (relationship) return "TREATMENT_RELATIONSHIP";
@@ -329,11 +415,20 @@ export class CommunicationsService {
 
   private async presentConversation(conversation: any) {
     const subject = await this.envelope.decrypt<{ schemaVersion: number; text: string }>(this.subjectEnvelope(conversation));
-    const participants = await this.prisma.careConversationParticipant.findMany({ where: { conversationId: conversation.id, leftAt: null }, orderBy: { joinedAt: "asc" } });
+    const participants = await this.prisma.careConversationParticipant.findMany({
+      where: { conversationId: conversation.id, leftAt: null },
+      orderBy: { joinedAt: "asc" },
+    });
     const accountIds = participants.map((participant) => participant.accountId);
     const providerIds = participants.flatMap((participant) => participant.providerId ? [participant.providerId] : []);
-    const accounts = await this.prisma.user.findMany({ where: { id: { in: accountIds } }, select: { id: true, role: true, patientProfile: { select: { firstName: true, lastName: true } } } });
-    const providers = providerIds.length === 0 ? [] : await this.prisma.provider.findMany({ where: { id: { in: providerIds } }, select: { id: true, displayName: true, class: true } });
+    const accounts = await this.prisma.user.findMany({
+      where: { id: { in: accountIds } },
+      select: { id: true, role: true, patientProfile: { select: { firstName: true, lastName: true } } },
+    });
+    const providers = providerIds.length === 0 ? [] : await this.prisma.provider.findMany({
+      where: { id: { in: providerIds } },
+      select: { id: true, displayName: true, class: true },
+    });
     const accountMap = new Map(accounts.map((account) => [account.id, account]));
     const providerMap = new Map(providers.map((provider) => [provider.id, provider]));
     return {
@@ -349,7 +444,16 @@ export class CommunicationsService {
         const account = accountMap.get(participant.accountId);
         const provider = participant.providerId ? providerMap.get(participant.providerId) : undefined;
         const patientName = account?.patientProfile ? `${account.patientProfile.firstName} ${account.patientProfile.lastName}`.trim() : null;
-        return { id: participant.id, accountId: participant.accountId, providerId: participant.providerId, kind: participant.kind, role: account?.role ?? null, displayName: provider?.displayName ?? patientName, providerClass: provider?.class ?? null, joinedAt: participant.joinedAt };
+        return {
+          id: participant.id,
+          accountId: participant.accountId,
+          providerId: participant.providerId,
+          kind: participant.kind,
+          role: account?.role ?? null,
+          displayName: provider?.displayName ?? patientName,
+          providerClass: provider?.class ?? null,
+          joinedAt: participant.joinedAt,
+        };
       }),
     };
   }
@@ -368,9 +472,18 @@ export class CommunicationsService {
   }
 
   private async requireMembership(accountId: string, conversationId: string) {
-    const membership = await this.prisma.careConversationParticipant.findUnique({ where: { conversationId_accountId: { conversationId, accountId } } });
+    const membership = await this.prisma.careConversationParticipant.findUnique({
+      where: { conversationId_accountId: { conversationId, accountId } },
+    });
     if (!membership || membership.leftAt) {
-      await this.audit.write({ actorId: accountId, action: "CARE_CONVERSATION_ACCESS_DENIED", objectType: "CARE_CONVERSATION", objectId: conversationId, purpose: "CARE_COORDINATION", result: "DENIED" });
+      await this.audit.write({
+        actorId: accountId,
+        action: "CARE_CONVERSATION_ACCESS_DENIED",
+        objectType: "CARE_CONVERSATION",
+        objectId: conversationId,
+        purpose: "CARE_COORDINATION",
+        result: "DENIED",
+      });
       throw new ForbiddenException("Secure conversation access denied.");
     }
     return membership;
@@ -386,7 +499,9 @@ export class CommunicationsService {
       },
     });
     if (!appointment) throw new NotFoundException("Appointment not found.");
-    if (appointment.status !== "CONFIRMED" && appointment.status !== "COMPLETED") throw new ConflictException("Secure messaging requires a confirmed or completed treatment appointment.");
+    if (appointment.status !== "CONFIRMED" && appointment.status !== "COMPLETED") {
+      throw new ConflictException("Secure messaging requires a confirmed or completed treatment appointment.");
+    }
     if (appointment.provider.status !== "ACTIVE") throw new ConflictException("The appointment provider is not active.");
     return appointment;
   }
@@ -394,12 +509,16 @@ export class CommunicationsService {
   private async assertDirectParticipant(principal: AuthPrincipal, appointment: any) {
     if (principal.role === "PATIENT") {
       const patient = await this.prisma.patientProfile.findUnique({ where: { userId: principal.accountId }, select: { id: true } });
-      if (!patient || patient.id !== appointment.patientId) throw new ForbiddenException("Only the appointment patient may create this secure conversation.");
+      if (!patient || patient.id !== appointment.patientId) {
+        throw new ForbiddenException("Only the appointment patient may create this secure conversation.");
+      }
       return;
     }
     if (principal.role === "DOCTOR" || principal.role === "OTHER_PROVIDER") {
       const provider = await this.prisma.provider.findUnique({ where: { userId: principal.accountId }, select: { id: true, status: true } });
-      if (!provider || provider.status !== "ACTIVE" || provider.id !== appointment.providerId) throw new ForbiddenException("Only the appointment provider may create this secure conversation.");
+      if (!provider || provider.status !== "ACTIVE" || provider.id !== appointment.providerId) {
+        throw new ForbiddenException("Only the appointment provider may create this secure conversation.");
+      }
       return;
     }
     throw new ForbiddenException("Secure healthcare messaging is restricted to patients and healthcare providers.");
@@ -413,12 +532,26 @@ export class CommunicationsService {
 
   private subjectEnvelope(row: EncryptedSubjectRow): EncryptedEnvelope {
     if (row.subjectAlgorithm !== "AES-256-GCM") throw new ConflictException("Unsupported conversation subject encryption algorithm.");
-    return { version: 1, algorithm: "AES-256-GCM", keyId: row.subjectKeyId, wrappedKey: row.subjectWrappedKey, iv: row.subjectIv, ciphertext: row.subjectCiphertext };
+    return {
+      version: 1,
+      algorithm: "AES-256-GCM",
+      keyId: row.subjectKeyId,
+      wrappedKey: row.subjectWrappedKey,
+      iv: row.subjectIv,
+      ciphertext: row.subjectCiphertext,
+    };
   }
 
   private messageEnvelope(row: EncryptedRow): EncryptedEnvelope {
     if (row.algorithm !== "AES-256-GCM") throw new ConflictException("Unsupported secure message encryption algorithm.");
-    return { version: 1, algorithm: "AES-256-GCM", keyId: row.keyId, wrappedKey: row.wrappedKey, iv: row.iv, ciphertext: row.ciphertext };
+    return {
+      version: 1,
+      algorithm: "AES-256-GCM",
+      keyId: row.keyId,
+      wrappedKey: row.wrappedKey,
+      iv: row.iv,
+      ciphertext: row.ciphertext,
+    };
   }
 
   private requiredText(value: unknown, min: number, max: number, field: string): string {
