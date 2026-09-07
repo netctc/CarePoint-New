@@ -178,7 +178,9 @@ try {
   if (!oidcDiscovery.payload.grant_types_supported?.includes("refresh_token")) throw new Error("OIDC discovery missing refresh_token grant.");
 
   const metadata = await raw("/fhir/R4/metadata");
-  if (metadata.status !== 200 || metadata.payload.software?.version !== "slice-10.8") throw new Error(`FHIR Slice 10.8 metadata failed: ${JSON.stringify(metadata)}`);
+  const softwareVersion = String(metadata.payload.software?.version || "");
+  const versionMatch = /^slice-10\.(\d+)$/.exec(softwareVersion);
+  if (metadata.status !== 200 || !versionMatch || Number(versionMatch[1]) < 8) throw new Error(`FHIR Slice 10.8+ metadata failed: ${JSON.stringify(metadata)}`);
 
   const patientAToken = await registerPatient(patientAEmail, "Alice");
   await registerPatient(patientBEmail, "Bob");
