@@ -22,7 +22,10 @@ class IamController {
   @Public()
   @Post("register/patient")
   async registerPatient(@Req() request: RequestIdentity, @Body() body: PatientRegistrationBody) {
-    await this.rateLimits.assertAllowed({ namespace: "iam:register:ip", identity: this.clientIp(request), limit: 8, windowSeconds: 3600 });
+    await Promise.all([
+      this.rateLimits.assertAllowed({ namespace: "iam:register:ip", identity: this.clientIp(request), limit: 200, windowSeconds: 3600 }),
+      this.rateLimits.assertAllowed({ namespace: "iam:register:account", identity: body.email?.trim().toLowerCase() || "missing", limit: 3, windowSeconds: 3600 }),
+    ]);
     return this.auth.registerPatient(body);
   }
 
@@ -30,7 +33,7 @@ class IamController {
   @Post("login")
   async login(@Req() request: RequestIdentity, @Body() body: LoginBody) {
     await Promise.all([
-      this.rateLimits.assertAllowed({ namespace: "iam:login:ip", identity: this.clientIp(request), limit: 30, windowSeconds: 300 }),
+      this.rateLimits.assertAllowed({ namespace: "iam:login:ip", identity: this.clientIp(request), limit: 300, windowSeconds: 300 }),
       this.rateLimits.assertAllowed({ namespace: "iam:login:account", identity: body.email?.trim().toLowerCase() || "missing", limit: 20, windowSeconds: 300 }),
     ]);
     return this.auth.login(body.email, body.password);
@@ -40,7 +43,7 @@ class IamController {
   @Post("mfa/verify")
   async completeMfa(@Req() request: RequestIdentity, @Body() body: CompleteMfaBody) {
     await Promise.all([
-      this.rateLimits.assertAllowed({ namespace: "iam:mfa:ip", identity: this.clientIp(request), limit: 30, windowSeconds: 300 }),
+      this.rateLimits.assertAllowed({ namespace: "iam:mfa:ip", identity: this.clientIp(request), limit: 100, windowSeconds: 300 }),
       this.rateLimits.assertAllowed({ namespace: "iam:mfa:challenge", identity: body.challengeId || "missing", limit: 10, windowSeconds: 300 }),
     ]);
     return this.auth.completeMfa(body.challengeId, body.code);
@@ -50,7 +53,7 @@ class IamController {
   @Post("sessions/refresh")
   async refresh(@Req() request: RequestIdentity, @Body() body: RefreshBody) {
     await Promise.all([
-      this.rateLimits.assertAllowed({ namespace: "iam:refresh:ip", identity: this.clientIp(request), limit: 120, windowSeconds: 300 }),
+      this.rateLimits.assertAllowed({ namespace: "iam:refresh:ip", identity: this.clientIp(request), limit: 300, windowSeconds: 300 }),
       this.rateLimits.assertAllowed({ namespace: "iam:refresh:token", identity: body.refreshToken || "missing", limit: 10, windowSeconds: 60 }),
     ]);
     return this.auth.refresh(body.refreshToken);
