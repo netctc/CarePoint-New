@@ -1,0 +1,92 @@
+enum MedicalTransportMode {
+  GROUND
+  AIR
+}
+
+enum MedicalTransportStatus {
+  REQUESTED
+  ASSIGNED
+  EN_ROUTE
+  ARRIVED
+  TRANSPORTING
+  COMPLETED
+  CANCELLED
+}
+
+enum MedicalTransportAssistance {
+  STANDARD
+  WHEELCHAIR
+  STRETCHER
+}
+
+model MedicalTransportRequest {
+  id                   String                     @id @default(uuid())
+  patientId            String
+  mode                 MedicalTransportMode
+  status               MedicalTransportStatus     @default(REQUESTED)
+  assistance           MedicalTransportAssistance @default(STANDARD)
+  scheduledFor         DateTime
+  pickupLatitude       Decimal                    @db.Decimal(9, 6)
+  pickupLongitude      Decimal                    @db.Decimal(9, 6)
+  pickupAddress        String?
+  destinationLatitude  Decimal                    @db.Decimal(9, 6)
+  destinationLongitude Decimal                    @db.Decimal(9, 6)
+  destinationAddress   String?
+  callbackPhone        String?
+  assignedProviderId   String?
+  etaMinutes           Int?
+  clientRequestId      String
+  cancellationReason   String?
+  cancelledAt          DateTime?
+  assignedAt           DateTime?
+  enRouteAt            DateTime?
+  arrivedAt            DateTime?
+  transportingAt       DateTime?
+  completedAt          DateTime?
+  requestedAt          DateTime                   @default(now())
+  updatedAt            DateTime                   @updatedAt
+
+  @@unique([patientId, clientRequestId])
+  @@index([patientId, requestedAt])
+  @@index([mode, status, scheduledFor])
+  @@index([assignedProviderId, status, scheduledFor])
+}
+
+model MedicalTransportEvent {
+  id                 String                  @id @default(uuid())
+  transportRequestId String
+  actorAccountId     String?
+  fromStatus         MedicalTransportStatus?
+  toStatus           MedicalTransportStatus
+  providerId         String?
+  etaMinutes         Int?
+  occurredAt         DateTime                @default(now())
+
+  @@index([transportRequestId, occurredAt])
+  @@index([providerId, occurredAt])
+}
+
+model EmergencyRequestIdempotency {
+  id                 String   @id @default(uuid())
+  patientId          String
+  clientRequestId    String
+  emergencyRequestId String   @unique
+  createdAt          DateTime @default(now())
+
+  @@unique([patientId, clientRequestId])
+  @@index([emergencyRequestId])
+}
+
+model EmergencyDispatchEvent {
+  id                 String                    @id @default(uuid())
+  emergencyRequestId String
+  actorAccountId     String?
+  fromStatus         EmergencyAmbulanceStatus?
+  toStatus           EmergencyAmbulanceStatus
+  providerId         String?
+  etaMinutes         Int?
+  occurredAt         DateTime                  @default(now())
+
+  @@index([emergencyRequestId, occurredAt])
+  @@index([providerId, occurredAt])
+}
