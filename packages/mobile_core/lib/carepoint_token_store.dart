@@ -22,8 +22,10 @@ class SecureCarePointTokenStore implements CarePointTokenStore {
 
   @override
   Future<void> writeTokens({required String accessToken, required String refreshToken}) async {
-    await _storage.write(key: _accessKey, value: accessToken);
+    // Refresh tokens are single-use. Persist the rotated refresh token first so a
+    // partial platform-storage failure remains recoverable on the next startup.
     await _storage.write(key: _refreshKey, value: refreshToken);
+    await _storage.write(key: _accessKey, value: accessToken);
   }
 
   @override
@@ -47,8 +49,8 @@ class MemoryCarePointTokenStore implements CarePointTokenStore {
 
   @override
   Future<void> writeTokens({required String accessToken, required String refreshToken}) async {
-    this.accessToken = accessToken;
     this.refreshToken = refreshToken;
+    this.accessToken = accessToken;
   }
 
   @override
