@@ -98,7 +98,12 @@ try {
   const discovery = await raw("/fhir/R4/.well-known/smart-configuration");
   if (discovery.status !== 200) throw new Error(`SMART discovery failed: ${JSON.stringify(discovery)}`);
   if (discovery.payload.authorization_endpoint !== `${base}/smart/authorize` || discovery.payload.token_endpoint !== `${base}/smart/token`) throw new Error(`SMART endpoint discovery mismatch: ${JSON.stringify(discovery.payload)}`);
-  if (!discovery.payload.capabilities?.includes("permission-v2") || !discovery.payload.capabilities?.includes("context-standalone-patient")) throw new Error("SMART v2 patient capabilities missing.");
+  for (const capability of ["client-public", "permission-patient", "permission-v2"]) {
+    if (!discovery.payload.capabilities?.includes(capability)) throw new Error(`SMART discovery missing implemented capability ${capability}.`);
+  }
+  for (const unsupportedClaim of ["launch-standalone", "context-standalone-patient"]) {
+    if (discovery.payload.capabilities?.includes(unsupportedClaim)) throw new Error(`SMART discovery overclaims unsupported capability ${unsupportedClaim}.`);
+  }
   for (const scope of ["launch/patient", "patient/Patient.r", "patient/Appointment.rs"]) {
     if (!discovery.payload.scopes_supported?.includes(scope)) throw new Error(`SMART discovery missing scope ${scope}.`);
   }
@@ -189,6 +194,7 @@ try {
     nonFhirDenied: true,
     tokenRevocation: true,
     redisBackedEphemeralTokens: true,
+    capabilityClaimsConservative: true,
   }));
 } finally {
   await prisma.$disconnect();
