@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import 'carepoint_api.dart';
-import 'carepoint_auth.dart';
 import 'carepoint_localization.dart';
 import 'transport_localization.dart';
 
