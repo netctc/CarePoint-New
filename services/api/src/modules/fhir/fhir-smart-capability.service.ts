@@ -19,12 +19,20 @@ export class FhirSmartCapabilityService {
       url: "http://fhir-registry.smarthealthit.org/StructureDefinition/oauth-uris",
       extension: [
         { url: "authorize", valueUri: `${this.smart.issuerUrl()}/smart/browser/authorize` },
-        { url: "token", valueUri: `${this.smart.issuerUrl()}/smart/token` },
+        { url: "token", valueUri: this.smart.tokenEndpointUrl() },
       ],
     });
     security.extension = extensions;
-    security.description = "CarePoint bearer sessions plus standalone SMART browser authorization with PKCE, explicit patient consent, OIDC fhirUser identity, granular patient scopes and rotating offline refresh-token families are supported. SMART authorization never expands underlying CarePoint clinical access.";
+    security.service = [{
+      coding: [{
+        system: "http://terminology.hl7.org/CodeSystem/restful-security-service",
+        code: "SMART-on-FHIR",
+        display: "SMART-on-FHIR",
+      }],
+    }];
+    security.description = "CarePoint supports patient-mediated SMART authorization plus pre-registered asymmetric backend-services clients. Backend clients use private_key_jwt and narrowly registered system scopes; all SMART bearer tokens remain restricted to explicitly scoped FHIR routes.";
     server.security = security;
+    server.resource = this.augmentResources(server.resource);
     if (rest.length > 0) rest[0] = server;
     else rest.push(server);
 
@@ -32,13 +40,25 @@ export class FhirSmartCapabilityService {
     const implementation = this.isObject(statement.implementation) ? statement.implementation : {};
     return {
       ...statement,
-      software: { ...software, version: "slice-10.8" },
+      software: { ...software, version: "slice-10.9" },
       implementation: {
         ...implementation,
-        description: "CarePoint FHIR R4 read-only facade with strict patient-scoped search, deterministic pagination, SMART standalone browser launch, explicit consent, OIDC fhirUser identity, PKCE S256, rotating offline refresh-token families, replay-triggered family revocation and fail-closed clinical authorization.",
+        description: "CarePoint FHIR R4 read-only facade with patient-scoped SMART browser authorization, rotating offline refresh families, and asymmetric private_key_jwt backend services limited to registered system/Patient.rs and system/Appointment.rs access.",
       },
       rest,
     };
+  }
+
+  private augmentResources(value: unknown): unknown[] {
+    const resources = Array.isArray(value) ? value.map((item) => this.isObject(item) ? { ...item } : item) : [];
+    const patient = resources.find((item) => this.isObject(item) && item.type === "Patient");
+    if (this.isObject(patient)) {
+      const interactions = Array.isArray(patient.interaction) ? [...patient.interaction] : [];
+      if (!interactions.some((item) => this.isObject(item) && item.code === "search-type")) interactions.push({ code: "search-type" });
+      patient.interaction = interactions;
+      patient.searchParam = [{ name: "_id", type: "token", documentation: "Exact CarePoint Patient resource id; system-scope search only." }];
+    }
+    return resources;
   }
 
   private isObject(value: unknown): value is JsonObject {
