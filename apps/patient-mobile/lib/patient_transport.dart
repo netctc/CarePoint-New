@@ -1,5 +1,4 @@
 import 'package:carepoint_mobile_core/carepoint_api.dart';
-import 'package:carepoint_mobile_core/carepoint_auth.dart';
 import 'package:carepoint_mobile_core/carepoint_localization.dart';
 import 'package:carepoint_mobile_core/transport_localization.dart';
 import 'package:flutter/material.dart';
