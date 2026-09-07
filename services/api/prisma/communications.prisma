@@ -138,6 +138,7 @@ model NotificationEndpoint {
 model NotificationEvent {
   id           String                @id @default(uuid())
   accountId    String
+  dedupeKey    String                @unique
   type         NotificationEventType
   entityType   String
   entityId     String
