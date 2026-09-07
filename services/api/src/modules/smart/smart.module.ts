@@ -3,6 +3,7 @@ import type { AuthPrincipal } from "@carepoint/identity";
 import { DistributedRateLimitService } from "../../infrastructure/redis/redis-security.module";
 import { CurrentPrincipal, Public } from "../../security/api-security.module";
 import { SmartConfigurationService } from "../../security/smart-configuration.service";
+import { SmartBackendService } from "./smart-backend.service";
 import { smartConsentPage, smartErrorPage, smartLoginPage, smartMfaPage } from "./smart-browser-pages";
 import { SmartBrowserService } from "./smart-browser.service";
 import { SmartOAuthService } from "./smart-oauth.service";
@@ -49,6 +50,7 @@ class OpenIdDiscoveryController {
 class SmartOAuthController {
   constructor(
     private readonly oauth: SmartOAuthService,
+    private readonly backend: SmartBackendService,
     private readonly oidc: SmartOidcService,
     private readonly rateLimits: DistributedRateLimitService,
   ) {}
@@ -87,17 +89,20 @@ class SmartOAuthController {
   @Header("X-Content-Type-Options", "nosniff")
   async token(@Req() request: RequestIdentity, @Body() body: SmartInput) {
     const clientId = typeof body.client_id === "string" ? body.client_id : "missing";
+    const grantType = typeof body.grant_type === "string" ? body.grant_type : "missing";
     const credential = typeof body.code === "string"
       ? body.code
       : typeof body.refresh_token === "string"
         ? body.refresh_token
-        : "missing";
+        : typeof body.client_assertion === "string"
+          ? body.client_assertion
+          : "missing";
     await Promise.all([
       this.rateLimits.assertAllowed({ namespace: "smart:token:ip", identity: this.clientIp(request), limit: 180, windowSeconds: 300 }),
       this.rateLimits.assertAllowed({ namespace: "smart:token:client", identity: clientId, limit: 120, windowSeconds: 300 }),
-      this.rateLimits.assertAllowed({ namespace: "smart:token:credential", identity: credential, limit: 10, windowSeconds: 300 }),
+      this.rateLimits.assertAllowed({ namespace: "smart:token:credential", identity: credential, limit: grantType === "client_credentials" ? 3 : 10, windowSeconds: 300 }),
     ]);
-    return this.oauth.exchange(body);
+    return grantType === "client_credentials" ? this.backend.exchange(body) : this.oauth.exchange(body);
   }
 
   @Public()
@@ -107,11 +112,16 @@ class SmartOAuthController {
   @Header("Pragma", "no-cache")
   async revoke(@Req() request: RequestIdentity, @Body() body: SmartInput) {
     const clientId = typeof body.client_id === "string" ? body.client_id : "missing";
+    const assertion = typeof body.client_assertion === "string" ? body.client_assertion : null;
     await Promise.all([
       this.rateLimits.assertAllowed({ namespace: "smart:revoke:ip", identity: this.clientIp(request), limit: 180, windowSeconds: 300 }),
       this.rateLimits.assertAllowed({ namespace: "smart:revoke:client", identity: clientId, limit: 120, windowSeconds: 300 }),
+      ...(assertion
+        ? [this.rateLimits.assertAllowed({ namespace: "smart:revoke:assertion", identity: assertion, limit: 3, windowSeconds: 300 })]
+        : []),
     ]);
-    await this.oauth.revoke(body);
+    if (assertion) await this.backend.revoke(body);
+    else await this.oauth.revoke(body);
     return {};
   }
 
@@ -204,7 +214,7 @@ class SmartBrowserController {
 
 @Module({
   controllers: [SmartDiscoveryController, OpenIdDiscoveryController, SmartOAuthController, SmartBrowserController],
-  providers: [SmartOidcService, SmartOAuthService, SmartBrowserService],
+  providers: [SmartOidcService, SmartOAuthService, SmartBackendService, SmartBrowserService],
 })
 export class SmartModule {}
 

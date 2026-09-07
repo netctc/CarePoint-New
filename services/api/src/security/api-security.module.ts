@@ -34,6 +34,11 @@ export const CurrentPrincipal = createParamDecorator((_data: unknown, context: E
   return request.principal;
 });
 
+export const CurrentSmartContext = createParamDecorator((_data: unknown, context: ExecutionContext): SmartAccessContext | null => {
+  const request = context.switchToHttp().getRequest<{ smartContext?: SmartAccessContext }>();
+  return request.smartContext ?? null;
+});
+
 @Injectable()
 class ApiAccessGuard implements CanActivate {
   constructor(
@@ -86,7 +91,13 @@ class ApiAccessGuard implements CanActivate {
         objectType: "API_ROUTE",
         objectId: request.url ?? null,
         result: "DENIED",
-        metadata: { method: request.method ?? null, role: principal.role, requiredPermissions: permissions, smartClientId: smartContext?.clientId ?? null },
+        metadata: {
+          method: request.method ?? null,
+          role: principal.role,
+          requiredPermissions: permissions,
+          smartClientId: smartContext?.clientId ?? null,
+          smartAuthorizationType: smartContext?.authorizationType ?? null,
+        },
       });
       throw new ForbiddenException("Authorization denied.");
     }

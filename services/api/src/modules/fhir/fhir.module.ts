@@ -4,6 +4,7 @@ import {
   Catch,
   Controller,
   ExecutionContext,
+  ForbiddenException,
   Get,
   Header,
   HttpException,
@@ -17,7 +18,8 @@ import {
   type ExceptionFilter,
 } from "@nestjs/common";
 import type { AuthPrincipal } from "@carepoint/identity";
-import { CurrentPrincipal, Public, RequireSmartFhirAccess } from "../../security/api-security.module";
+import { CurrentPrincipal, CurrentSmartContext, Public, RequireSmartFhirAccess } from "../../security/api-security.module";
+import type { SmartAccessContext } from "../../security/smart-token.service";
 import { ClinicalModule } from "../clinical/clinical.module";
 import { DocumentsModule } from "../documents/documents.module";
 import { OrdersModule } from "../orders/orders.module";
@@ -25,6 +27,7 @@ import { FhirDocumentsService } from "./fhir-documents.service";
 import { FhirSearchService } from "./fhir-search.service";
 import { FhirSearchSupportService, type FhirSearchQuery } from "./fhir-search-support.service";
 import { FhirSmartCapabilityService } from "./fhir-smart-capability.service";
+import { FhirSystemService } from "./fhir-system.service";
 import { FhirService } from "./fhir.service";
 
 interface HttpResponseLike {
@@ -71,6 +74,7 @@ class FhirController {
     private readonly fhirDocuments: FhirDocumentsService,
     private readonly fhirSearch: FhirSearchService,
     private readonly fhirSmart: FhirSmartCapabilityService,
+    private readonly fhirSystem: FhirSystemService,
   ) {}
 
   @Public()
@@ -80,11 +84,27 @@ class FhirController {
     return this.fhirSmart.augment(this.fhirDocuments.augmentCapability(this.fhir.capabilityStatement()));
   }
 
+  @RequireSmartFhirAccess("Patient", "s")
+  @Get("Patient")
+  @Header("Content-Type", "application/fhir+json; charset=utf-8")
+  patients(@CurrentSmartContext() smart: SmartAccessContext | null, @Query() query: FhirSearchQuery) {
+    if (!smart || smart.authorizationType !== "system") {
+      throw new ForbiddenException("FHIR Patient search is available only to authorized SMART backend-services clients.");
+    }
+    return this.fhirSystem.patients(smart, query);
+  }
+
   @RequireSmartFhirAccess("Patient", "r")
   @Get("Patient/:patientId")
   @Header("Content-Type", "application/fhir+json; charset=utf-8")
-  patient(@CurrentPrincipal() principal: AuthPrincipal, @Param("patientId") patientId: string) {
-    return this.fhir.patient(principal, patientId);
+  patient(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @CurrentSmartContext() smart: SmartAccessContext | null,
+    @Param("patientId") patientId: string,
+  ) {
+    return smart?.authorizationType === "system"
+      ? this.fhirSystem.patient(smart, patientId)
+      : this.fhir.patient(principal, patientId);
   }
 
   @Public()
@@ -97,15 +117,27 @@ class FhirController {
   @RequireSmartFhirAccess("Appointment", "s")
   @Get("Appointment")
   @Header("Content-Type", "application/fhir+json; charset=utf-8")
-  appointments(@CurrentPrincipal() principal: AuthPrincipal, @Query() query: FhirSearchQuery) {
-    return this.fhirSearch.appointments(principal, query);
+  appointments(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @CurrentSmartContext() smart: SmartAccessContext | null,
+    @Query() query: FhirSearchQuery,
+  ) {
+    return smart?.authorizationType === "system"
+      ? this.fhirSystem.appointments(smart, query)
+      : this.fhirSearch.appointments(principal, query);
   }
 
   @RequireSmartFhirAccess("Appointment", "r")
   @Get("Appointment/:appointmentId")
   @Header("Content-Type", "application/fhir+json; charset=utf-8")
-  appointment(@CurrentPrincipal() principal: AuthPrincipal, @Param("appointmentId") appointmentId: string) {
-    return this.fhir.appointment(principal, appointmentId);
+  appointment(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @CurrentSmartContext() smart: SmartAccessContext | null,
+    @Param("appointmentId") appointmentId: string,
+  ) {
+    return smart?.authorizationType === "system"
+      ? this.fhirSystem.appointment(smart, appointmentId)
+      : this.fhir.appointment(principal, appointmentId);
   }
 
   @RequireSmartFhirAccess("Encounter", "r")
@@ -179,7 +211,15 @@ class FhirController {
 @Module({
   imports: [ClinicalModule, OrdersModule, DocumentsModule],
   controllers: [FhirController],
-  providers: [FhirService, FhirDocumentsService, FhirSearchService, FhirSearchSupportService, FhirSmartCapabilityService, FhirNoStoreInterceptor],
+  providers: [
+    FhirService,
+    FhirDocumentsService,
+    FhirSearchService,
+    FhirSearchSupportService,
+    FhirSmartCapabilityService,
+    FhirSystemService,
+    FhirNoStoreInterceptor,
+  ],
 })
 export class FhirModule {}
 

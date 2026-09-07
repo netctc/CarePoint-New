@@ -80,6 +80,21 @@ export class RedisSecurityService implements OnModuleInit, OnModuleDestroy {
     this.pruneEphemeral();
   }
 
+  async setEphemeralIfAbsent(key: string, value: string, ttlSeconds: number): Promise<boolean> {
+    this.assertEphemeralInput(key, value, ttlSeconds);
+    if (this.client) {
+      const result = await this.client.set(key, value, "EX", ttlSeconds, "NX");
+      return result === "OK";
+    }
+    const now = Date.now();
+    const current = this.ephemeral.get(key);
+    if (current && current.expiresAt > now) return false;
+    if (current) this.ephemeral.delete(key);
+    this.ephemeral.set(key, { value, expiresAt: now + ttlSeconds * 1000 });
+    this.pruneEphemeral();
+    return true;
+  }
+
   async getEphemeral(key: string): Promise<string | null> {
     this.assertEphemeralKey(key);
     if (this.client) return this.client.get(key);

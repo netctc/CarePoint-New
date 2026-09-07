@@ -70,6 +70,27 @@ jobs:
       - run: npm install
       - run: npm run build
       - run: npm run db:deploy
+      - name: Configure Slice 10.9 SMART backend test client
+        run: |
+          node <<'NODE'
+          const { generateKeyPairSync } = require('node:crypto');
+          const fs = require('node:fs');
+          const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048, publicExponent: 0x10001 });
+          const publicJwk = publicKey.export({ format: 'jwk' });
+          publicJwk.kid = 'slice109-backend-key';
+          publicJwk.alg = 'RS384';
+          publicJwk.use = 'sig';
+          publicJwk.key_ops = ['verify'];
+          const privatePem = privateKey.export({ format: 'pem', type: 'pkcs8' }).toString();
+          const clients = [{
+            clientId: 'slice109-backend-client',
+            name: 'Slice 10.9 SMART Backend Test Client',
+            allowedScopes: ['system/Patient.rs', 'system/Appointment.rs'],
+            jwks: { keys: [publicJwk] },
+          }];
+          fs.appendFileSync(process.env.GITHUB_ENV, `SMART_BACKEND_PRIVATE_KEY_B64=${Buffer.from(privatePem).toString('base64')}\n`);
+          fs.appendFileSync(process.env.GITHUB_ENV, `SMART_BACKEND_CLIENTS_JSON=${JSON.stringify(clients)}\n`);
+          NODE
       - name: Start API
         run: |
           npm --workspace @carepoint/api run start > /tmp/carepoint-api.log 2>&1 &
@@ -94,6 +115,8 @@ jobs:
         run: node services/api/scripts/slice107-smoke.mjs
       - name: Slice 10.8 SMART refresh rotation and revocation smoke test
         run: node services/api/scripts/slice108-smoke.mjs
+      - name: Slice 10.9 SMART backend services smoke test
+        run: node services/api/scripts/slice109-smoke.mjs
       - name: Print API log on failure
         if: failure()
         run: cat /tmp/carepoint-api.log || true
