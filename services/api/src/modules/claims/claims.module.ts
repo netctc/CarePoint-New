@@ -11,8 +11,12 @@ class PatientRevenueCycleController {
 
   @RequirePermissions("PATIENT_READ_CLAIMS")
   @Get("me")
-  mine(@CurrentPrincipal() principal: AuthPrincipal) {
-    return this.claims.patientRevenueCycle(principal);
+  async mine(@CurrentPrincipal() principal: AuthPrincipal) {
+    const result = await this.claims.patientRevenueCycle(principal);
+    return {
+      ...result,
+      eobs: result.eobs.map(({ externalEobRef: _internal, ...eob }) => eob),
+    };
   }
 }
 
