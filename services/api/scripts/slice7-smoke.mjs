@@ -2,11 +2,10 @@ import { PrismaClient } from '@prisma/client';
 
 const base = process.env.CAREPOINT_API_URL || 'http://127.0.0.1:4000/api/v1';
 const prisma = new PrismaClient();
-const clinicalDoctorPassword = process.env.SLICE7_CLINICAL_DOCTOR_PASSWORD;
-const clinicalPatientPassword = process.env.SLICE7_CLINICAL_PATIENT_PASSWORD;
-const outsiderPassword = process.env.SLICE6_DOCTOR_PASSWORD;
+const doctorPassword = process.env.SLICE6_DOCTOR_PASSWORD;
+const patientPassword = process.env.SLICE6_PATIENT_PASSWORD;
 const adminPassword = process.env.BOOTSTRAP_ADMIN_PASSWORD;
-if (!clinicalDoctorPassword || !clinicalPatientPassword || !outsiderPassword || !adminPassword) throw new Error('Slice 7 CI passwords must be supplied through environment variables.');
+if (!doctorPassword || !patientPassword || !adminPassword) throw new Error('Slice 7 CI passwords must be supplied through environment variables.');
 
 async function raw(path, { method = 'GET', token, body } = {}) {
   const headers = { 'content-type': 'application/json' };
@@ -25,34 +24,68 @@ async function login(email, password) {
   if (!result.accessToken) throw new Error(`No access token for ${email}`);
   return result.accessToken;
 }
+async function ensurePatient(email, password) {
+  const created = await raw('/iam/register/patient', { method: 'POST', body: { email, password, firstName: 'Slice 7', lastName: 'Patient' } });
+  if (created.status !== 201 && created.status !== 409) throw new Error(`Unable to prepare Slice 7 patient: HTTP ${created.status} ${JSON.stringify(created.payload)}`);
+}
+async function ensureDoctorAccount(adminToken, email, password) {
+  const created = await raw('/iam/accounts', { method: 'POST', token: adminToken, body: { email, password, role: 'DOCTOR' } });
+  if (created.status !== 201 && created.status !== 409) throw new Error(`Unable to prepare Slice 7 doctor ${email}: HTTP ${created.status} ${JSON.stringify(created.payload)}`);
+}
 
 async function main() {
-  const patientToken = await login('patient-clinical@carepoint.test', clinicalPatientPassword);
-  const doctorAToken = await login('doctor-clinical-a@carepoint.test', clinicalDoctorPassword);
-  const doctorBToken = await login('doctor-clinical-b@carepoint.test', clinicalDoctorPassword);
-  const outsiderToken = await login('doctor-slice2@carepoint.test', outsiderPassword);
   const adminToken = await login('admin-ci@carepoint.test', adminPassword);
+  const patientEmail = 'patient-slice7@carepoint.test';
+  const doctorAEmail = 'doctor-a-slice7@carepoint.test';
+  const doctorBEmail = 'doctor-b-slice7@carepoint.test';
+  await ensurePatient(patientEmail, patientPassword);
+  await ensureDoctorAccount(adminToken, doctorAEmail, doctorPassword);
+  await ensureDoctorAccount(adminToken, doctorBEmail, doctorPassword);
 
-  const patient = await prisma.user.findUnique({ where: { email: 'patient-clinical@carepoint.test' }, include: { patientProfile: true } });
-  const doctorA = await prisma.user.findUnique({ where: { email: 'doctor-clinical-a@carepoint.test' }, include: { provider: true } });
-  const doctorB = await prisma.user.findUnique({ where: { email: 'doctor-clinical-b@carepoint.test' }, include: { provider: true } });
+  const patientToken = await login(patientEmail, patientPassword);
+  const doctorAToken = await login(doctorAEmail, doctorPassword);
+  const doctorBToken = await login(doctorBEmail, doctorPassword);
+  const outsiderToken = await login('doctor-slice2@carepoint.test', doctorPassword);
+
+  const patient = await prisma.user.findUnique({ where: { email: patientEmail }, include: { patientProfile: true } });
+  const doctorAUser = await prisma.user.findUnique({ where: { email: doctorAEmail } });
+  const doctorBUser = await prisma.user.findUnique({ where: { email: doctorBEmail } });
   const outsider = await prisma.user.findUnique({ where: { email: 'doctor-slice2@carepoint.test' }, include: { provider: true } });
-  if (!patient?.patientProfile?.id || !doctorA?.provider?.id || !doctorB?.provider?.id || !outsider?.provider?.id) throw new Error('Slice 7 prerequisite identities are missing.');
+  if (!patient?.patientProfile?.id || !doctorAUser || !doctorBUser || !outsider?.provider?.id) throw new Error('Slice 7 prerequisite identities are missing.');
 
-  const appointment = await prisma.appointment.findFirst({
-    where: { patientId: patient.patientProfile.id, providerId: doctorA.provider.id, status: 'COMPLETED' },
-    orderBy: { createdAt: 'desc' },
+  const doctorAProvider = await prisma.provider.upsert({
+    where: { userId: doctorAUser.id },
+    create: { userId: doctorAUser.id, class: 'DOCTOR', displayName: 'Slice 7 Doctor A', status: 'ACTIVE' },
+    update: { status: 'ACTIVE', displayName: 'Slice 7 Doctor A' },
   });
-  if (!appointment) throw new Error('Completed clinical appointment fixture is missing.');
+  const doctorBProvider = await prisma.provider.upsert({
+    where: { userId: doctorBUser.id },
+    create: { userId: doctorBUser.id, class: 'DOCTOR', displayName: 'Slice 7 Doctor B', status: 'ACTIVE' },
+    update: { status: 'ACTIVE', displayName: 'Slice 7 Doctor B' },
+  });
+  const serviceA = await prisma.service.create({ data: {
+    providerId: doctorAProvider.id, name: 'Slice 7 secure follow-up',
+    labels: { en: 'Secure follow-up', ar: 'متابعة آمنة', fr: 'Suivi sécurisé', es: 'Seguimiento seguro' }, currency: 'USD',
+  }});
+  const serviceB = await prisma.service.create({ data: {
+    providerId: doctorBProvider.id, name: 'Slice 7 care coordination',
+    labels: { en: 'Care coordination', ar: 'تنسيق الرعاية', fr: 'Coordination des soins', es: 'Coordinación asistencial' }, currency: 'USD',
+  }});
+  const now = Date.now();
+  const completedStart = new Date(now - 24 * 60 * 60 * 1000);
+  const appointment = await prisma.appointment.create({ data: {
+    patientId: patient.patientProfile.id, providerId: doctorAProvider.id, serviceId: serviceA.id,
+    modality: 'CLINIC', status: 'COMPLETED', startsAt: completedStart, endsAt: new Date(completedStart.getTime() + 30 * 60 * 1000),
+  }});
+  const careStart = new Date(now + 7 * 24 * 60 * 60 * 1000);
+  await prisma.appointment.create({ data: {
+    patientId: patient.patientProfile.id, providerId: doctorBProvider.id, serviceId: serviceB.id,
+    modality: 'CLINIC', status: 'CONFIRMED', startsAt: careStart, endsAt: new Date(careStart.getTime() + 30 * 60 * 1000),
+  }});
 
   const subjectPlaintext = 'Synthetic secure follow-up subject';
   const initialPlaintext = 'Synthetic private initial message for encrypted-at-rest verification.';
-  const createInput = {
-    appointmentId: appointment.id,
-    subject: subjectPlaintext,
-    initialMessage: initialPlaintext,
-    clientConversationId: 'slice7-conversation-0001',
-  };
+  const createInput = { appointmentId: appointment.id, subject: subjectPlaintext, initialMessage: initialPlaintext, clientConversationId: 'slice7-conversation-0001' };
   const conversation = await request('/communications/conversations', { method: 'POST', token: patientToken, body: createInput });
   if (conversation.status !== 'OPEN' || conversation.appointmentId !== appointment.id || conversation.subject !== subjectPlaintext) throw new Error('Secure conversation creation response is invalid.');
   if (!conversation.messages?.some((item) => item.body === initialPlaintext)) throw new Error('Initial secure message was not returned after conversation creation.');
@@ -128,11 +161,11 @@ async function main() {
   if (unauthorizedCareAdd.status !== 403) throw new Error(`Provider without treatment relationship was admitted to care team: HTTP ${unauthorizedCareAdd.status}.`);
 
   const careMember = await request(`/communications/conversations/${conversation.id}/participants`, {
-    method: 'POST', token: doctorAToken, body: { providerId: doctorB.provider.id },
+    method: 'POST', token: doctorAToken, body: { providerId: doctorBProvider.id },
   });
-  if (careMember.providerId !== doctorB.provider.id || careMember.accessBasis !== 'TREATMENT_RELATIONSHIP') throw new Error('Treatment-related provider was not admitted with the correct access basis.');
+  if (careMember.providerId !== doctorBProvider.id || careMember.accessBasis !== 'TREATMENT_RELATIONSHIP') throw new Error('Treatment-related provider was not admitted with the correct access basis.');
   const doctorBThread = await request(`/communications/conversations/${conversation.id}`, { token: doctorBToken });
-  if (!doctorBThread.participants?.some((item) => item.providerId === doctorB.provider.id)) throw new Error('Admitted care-team provider cannot access the conversation.');
+  if (!doctorBThread.participants?.some((item) => item.providerId === doctorBProvider.id)) throw new Error('Admitted care-team provider cannot access the conversation.');
   const careReply = await request(`/communications/conversations/${conversation.id}/messages`, {
     method: 'POST', token: doctorBToken, body: { body: 'Synthetic care-team coordination follow-up.', clientMessageId: 'slice7-care-team-message-0001' },
   });
