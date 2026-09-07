@@ -4,6 +4,7 @@ import { AuditModule } from "./modules/audit/audit.module";
 import { BillingModule } from "./modules/billing/billing.module";
 import { ClaimsModule } from "./modules/claims/claims.module";
 import { ClinicalModule } from "./modules/clinical/clinical.module";
+import { CommunicationsModule } from "./modules/communications/communications.module";
 import { ConsentModule } from "./modules/consent/consent.module";
 import { DocumentsModule } from "./modules/documents/documents.module";
 import { EmergencyModule } from "./modules/emergency/emergency.module";
@@ -32,6 +33,7 @@ import { TelehealthModule } from "./modules/telehealth/telehealth.module";
     DocumentsModule,
     BillingModule,
     ClaimsModule,
+    CommunicationsModule,
   ],
 })
 export class AppModule {}
