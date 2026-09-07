@@ -87,11 +87,15 @@ class SmartOAuthController {
   @Header("X-Content-Type-Options", "nosniff")
   async token(@Req() request: RequestIdentity, @Body() body: SmartInput) {
     const clientId = typeof body.client_id === "string" ? body.client_id : "missing";
-    const code = typeof body.code === "string" ? body.code : "missing";
+    const credential = typeof body.code === "string"
+      ? body.code
+      : typeof body.refresh_token === "string"
+        ? body.refresh_token
+        : "missing";
     await Promise.all([
       this.rateLimits.assertAllowed({ namespace: "smart:token:ip", identity: this.clientIp(request), limit: 180, windowSeconds: 300 }),
       this.rateLimits.assertAllowed({ namespace: "smart:token:client", identity: clientId, limit: 120, windowSeconds: 300 }),
-      this.rateLimits.assertAllowed({ namespace: "smart:token:code", identity: code, limit: 10, windowSeconds: 300 }),
+      this.rateLimits.assertAllowed({ namespace: "smart:token:credential", identity: credential, limit: 10, windowSeconds: 300 }),
     ]);
     return this.oauth.exchange(body);
   }
