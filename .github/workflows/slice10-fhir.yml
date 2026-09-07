@@ -50,6 +50,8 @@ jobs:
       ORDER_SIGNING_SECRET_BASE64: AwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwM=
       DOCUMENT_STORAGE_PROVIDER: local
       DOCUMENT_STORAGE_LOCAL_ROOT: /tmp/carepoint-documents
+      BULK_EXPORT_STORAGE_PROVIDER: local
+      BULK_EXPORT_STORAGE_LOCAL_ROOT: /tmp/carepoint-bulk-export
       DOCUMENT_KEY_PROVIDER: local
       DOCUMENT_ENVELOPE_KEY_ID: ci-documents-kek-v1
       DOCUMENT_ENVELOPE_KEY_BASE64: BAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQ=
@@ -70,7 +72,7 @@ jobs:
       - run: npm install
       - run: npm run build
       - run: npm run db:deploy
-      - name: Configure Slice 10.9 SMART backend test client
+      - name: Configure Slice 10.9+ SMART backend test clients
         run: |
           node <<'NODE'
           const { generateKeyPairSync } = require('node:crypto');
@@ -82,12 +84,20 @@ jobs:
           publicJwk.use = 'sig';
           publicJwk.key_ops = ['verify'];
           const privatePem = privateKey.export({ format: 'pem', type: 'pkcs8' }).toString();
-          const clients = [{
-            clientId: 'slice109-backend-client',
-            name: 'Slice 10.9 SMART Backend Test Client',
-            allowedScopes: ['system/Patient.rs', 'system/Appointment.rs'],
-            jwks: { keys: [publicJwk] },
-          }];
+          const clients = [
+            {
+              clientId: 'slice109-backend-client',
+              name: 'Slice 10.9 SMART Backend Test Client',
+              allowedScopes: ['system/Patient.rs', 'system/Appointment.rs'],
+              jwks: { keys: [publicJwk] },
+            },
+            {
+              clientId: 'slice1010-other-client',
+              name: 'Slice 10.10 Isolation Test Client',
+              allowedScopes: ['system/Patient.rs', 'system/Appointment.rs'],
+              jwks: { keys: [publicJwk] },
+            },
+          ];
           fs.appendFileSync(process.env.GITHUB_ENV, `SMART_BACKEND_PRIVATE_KEY_B64=${Buffer.from(privatePem).toString('base64')}\n`);
           fs.appendFileSync(process.env.GITHUB_ENV, `SMART_BACKEND_CLIENTS_JSON=${JSON.stringify(clients)}\n`);
           NODE
@@ -117,6 +127,8 @@ jobs:
         run: node services/api/scripts/slice108-smoke.mjs
       - name: Slice 10.9 SMART backend services smoke test
         run: node services/api/scripts/slice109-smoke.mjs
+      - name: Slice 10.10 FHIR bulk data export smoke test
+        run: node services/api/scripts/slice1010-smoke.mjs
       - name: Print API log on failure
         if: failure()
         run: cat /tmp/carepoint-api.log || true

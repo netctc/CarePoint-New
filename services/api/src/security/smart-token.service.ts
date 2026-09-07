@@ -101,6 +101,26 @@ export class SmartTokenService {
     throw new ForbiddenException(`SMART token does not grant ${requirement.interaction === "r" ? "read" : "search"} access to ${requirement.resourceType}.`);
   }
 
+  async assertSystemFhirOperation(context: SmartAccessContext, operation: string, requestUrl: string | null): Promise<void> {
+    if (context.authorizationType === "system") return;
+    await this.audit.write({
+      actorId: context.principal.accountId,
+      action: "SMART_SYSTEM_OPERATION_DENIED",
+      objectType: "FHIR_OPERATION",
+      objectId: operation,
+      purpose: "SYSTEM_ACCESS",
+      result: "DENIED",
+      metadata: {
+        authorizationType: context.authorizationType,
+        clientId: context.clientId,
+        patientId: context.patientId,
+        requestUrl,
+        scopes: context.scopes,
+      },
+    });
+    throw new ForbiddenException(`FHIR operation '${operation}' requires a SMART backend-services token.`);
+  }
+
   async denyNonFhirRoute(context: SmartAccessContext, requestUrl: string | null): Promise<never> {
     await this.audit.write({
       actorId: context.principal.accountId,
