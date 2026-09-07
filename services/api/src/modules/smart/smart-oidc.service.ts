@@ -1,5 +1,5 @@
 import { Injectable, OnModuleInit } from "@nestjs/common";
-import { createPrivateKey, createPublicKey, createSign, generateKeyPairSync, randomUUID, type KeyObject } from "node:crypto";
+import { createHash, createPrivateKey, createPublicKey, createSign, generateKeyPairSync, randomUUID, type KeyObject } from "node:crypto";
 import { SmartConfigurationService } from "../../security/smart-configuration.service";
 
 interface IdTokenInput {
@@ -40,9 +40,7 @@ export class SmartOidcService implements OnModuleInit {
 
   jwks(): Record<string, unknown> {
     const jwk = this.publicKey.export({ format: "jwk" }) as JsonWebKey;
-    return {
-      keys: [{ ...jwk, kid: this.keyId, use: "sig", alg: "RS256" }],
-    };
+    return { keys: [{ ...jwk, kid: this.keyId, use: "sig", alg: "RS256" }] };
   }
 
   signIdToken(input: IdTokenInput): string {
@@ -68,15 +66,9 @@ export class SmartOidcService implements OnModuleInit {
   }
 
   private subject(clientId: string, userId: string): string {
-    const value = Buffer.from(`${this.config.issuerUrl()}|${clientId}|${userId}`, "utf8");
-    return createPublicKey(this.publicKey).export({ format: "der", type: "spki" }).subarray(0, 0).length === 0
-      ? this.sha256(value)
-      : this.sha256(value);
-  }
-
-  private sha256(value: Buffer): string {
-    const { createHash } = require("node:crypto") as typeof import("node:crypto");
-    return createHash("sha256").update(value).digest("base64url");
+    return createHash("sha256")
+      .update(`${this.config.issuerUrl()}|${clientId}|${userId}`, "utf8")
+      .digest("base64url");
   }
 
   private encode(value: unknown): string {
