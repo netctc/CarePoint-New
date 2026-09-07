@@ -7,6 +7,7 @@ import { DocumentsEnvelopeService } from "./documents-envelope.service";
 import { DocumentsAttestationService } from "./documents-attestation.service";
 import { DocumentMalwareScannerService } from "./document-malware-scanner.service";
 import { DicomWebService } from "./dicomweb.service";
+import { DocumentsImagingInteropService } from "./documents-imaging-interop.service";
 
 @Controller("clinical-documents")
 class ClinicalDocumentsController {
@@ -134,7 +135,8 @@ class DiagnosticReportsController {
     DocumentsAttestationService,
     DocumentMalwareScannerService,
     DicomWebService,
+    DocumentsImagingInteropService,
   ],
-  exports: [DocumentsService],
+  exports: [DocumentsService, DocumentsImagingInteropService],
 })
 export class DocumentsModule {}

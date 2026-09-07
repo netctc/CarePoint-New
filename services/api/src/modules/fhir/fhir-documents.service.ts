@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import type { AuthPrincipal } from "@carepoint/identity";
 import { DatabaseAuditService } from "../../infrastructure/audit/audit.service";
 import { DocumentsService } from "../documents/documents.service";
+import { DocumentsImagingInteropService, type AuthorizedImagingStudyView } from "../documents/documents-imaging-interop.service";
 
 const FHIR_VERSION = "4.0.1";
 
@@ -45,6 +46,7 @@ type DiagnosticReportView = {
 export class FhirDocumentsService {
   constructor(
     private readonly documents: DocumentsService,
+    private readonly imaging: DocumentsImagingInteropService,
     private readonly audit: DatabaseAuditService,
   ) {}
 
@@ -54,6 +56,7 @@ export class FhirDocumentsService {
     const resources = Array.isArray(server.resource) ? [...server.resource] : [];
     this.appendCapability(resources, { type: "DiagnosticReport", interaction: [{ code: "read" }] });
     this.appendCapability(resources, { type: "DocumentReference", interaction: [{ code: "read" }] });
+    this.appendCapability(resources, { type: "ImagingStudy", interaction: [{ code: "read" }] });
     server.resource = resources;
     if (rest.length > 0) rest[0] = server;
     else rest.push(server);
@@ -61,7 +64,7 @@ export class FhirDocumentsService {
     const software = this.isObject(statement.software) ? statement.software : {};
     return {
       ...statement,
-      software: { ...software, version: "slice-10.3" },
+      software: { ...software, version: "slice-10.4" },
       rest,
     };
   }
@@ -95,6 +98,26 @@ export class FhirDocumentsService {
         basis: document.accessBasis,
         storageMode: document.storageMode,
         releasedToPatient: document.releasedToPatient,
+        fhirVersion: FHIR_VERSION,
+      },
+    });
+    return resource;
+  }
+
+  async imagingStudy(principal: AuthPrincipal, documentId: string): Promise<FhirResource> {
+    const study = await this.imaging.imagingStudy(principal, documentId);
+    const resource = this.toImagingStudy(study);
+    await this.audit.write({
+      actorId: principal.accountId,
+      action: "FHIR_IMAGING_STUDY_READ",
+      objectType: "CLINICAL_DOCUMENT",
+      objectId: study.id,
+      purpose: this.purpose(study.accessBasis),
+      result: "SUCCESS",
+      metadata: {
+        basis: study.accessBasis,
+        dicomScope: study.dicom.scope,
+        proxyRequired: study.dicom.proxyRequired,
         fhirVersion: FHIR_VERSION,
       },
     });
@@ -173,6 +196,22 @@ export class FhirDocumentsService {
       ...(document.encounterRef
         ? { context: { encounter: [{ reference: `Encounter/${document.encounterRef}` }] } }
         : {}),
+    };
+  }
+
+  private toImagingStudy(study: AuthorizedImagingStudyView): FhirResource {
+    const description = this.firstText(study.title, study.description);
+    return {
+      resourceType: "ImagingStudy",
+      id: study.id,
+      identifier: [{
+        system: "urn:dicom:uid",
+        value: `urn:oid:${study.dicom.studyInstanceUid}`,
+      }],
+      status: "available",
+      subject: { reference: `Patient/${study.patientId}` },
+      ...(study.encounterRef ? { encounter: { reference: `Encounter/${study.encounterRef}` } } : {}),
+      ...(description ? { description } : {}),
     };
   }
 
