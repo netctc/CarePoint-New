@@ -62,9 +62,7 @@ export class SmartConfigurationService implements OnModuleInit {
       token_endpoint: `${this.issuer}/smart/token`,
       revocation_endpoint: `${this.issuer}/smart/revoke`,
       capabilities: [
-        "launch-standalone",
         "client-public",
-        "context-standalone-patient",
         "permission-patient",
         "permission-v2",
       ],
