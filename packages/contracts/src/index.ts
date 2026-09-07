@@ -36,6 +36,15 @@ export type TelehealthSessionStatus = (typeof TelehealthSessionStatuses)[number]
 export const EmergencyAmbulanceStatuses = ["REQUESTED", "DISPATCHING", "ASSIGNED", "EN_ROUTE", "ARRIVED", "TRANSPORTING", "COMPLETED", "CANCELLED"] as const;
 export type EmergencyAmbulanceStatus = (typeof EmergencyAmbulanceStatuses)[number];
 
+export const InvoiceStatuses = ["OPEN", "PARTIALLY_PAID", "PAID", "VOID", "REFUNDED"] as const;
+export type InvoiceStatus = (typeof InvoiceStatuses)[number];
+export const PaymentIntentStatuses = ["REQUIRES_ACTION", "PROCESSING", "SUCCEEDED", "FAILED", "CANCELLED"] as const;
+export type PaymentIntentStatus = (typeof PaymentIntentStatuses)[number];
+export const InsuranceEligibilityStatuses = ["PENDING", "ELIGIBLE", "NOT_ELIGIBLE", "UNKNOWN"] as const;
+export type InsuranceEligibilityStatus = (typeof InsuranceEligibilityStatuses)[number];
+export const PriorAuthorizationStatuses = ["NOT_REQUIRED", "PENDING", "APPROVED", "DENIED", "EXPIRED", "CANCELLED"] as const;
+export type PriorAuthorizationStatus = (typeof PriorAuthorizationStatuses)[number];
+
 export interface MedicalSpecialty { id: string; code: string; labels: LocalizedText; parentId: string | null; active: boolean; }
 export interface OtherProviderCategory { id: string; slug: string; labels: LocalizedText; family: OtherProviderFamily; active: boolean; requiredCredentialTypes: readonly string[]; enabledModalities: readonly AppointmentModality[]; }
 
@@ -68,6 +77,47 @@ export interface CreateAvailabilityRuleInput {
 export interface CreateBookingInput {
   slotId: string;
   idempotencyKey: string;
+}
+
+export interface CreatePaymentIntentInput {
+  idempotencyKey: string;
+  amountMinor?: number;
+  paymentMethodToken?: string;
+}
+
+export interface CreateRefundInput {
+  idempotencyKey: string;
+  amountMinor: number;
+  reason?: string;
+}
+
+export interface CreateInsuranceCoverageInput {
+  payerCode: string;
+  payerName: string;
+  externalPolicyRef: string;
+  displayLabel?: string;
+  effectiveFrom?: string;
+  effectiveUntil?: string;
+}
+
+export interface InsuranceEligibilityInput {
+  coverageId: string;
+  idempotencyKey: string;
+}
+
+export interface PriorAuthorizationInput {
+  coverageId: string;
+  idempotencyKey: string;
+  eligibilityCheckId?: string;
+}
+
+export interface CreateProviderPayoutInput {
+  providerId: string;
+  amountMinor: number;
+  currency: string;
+  idempotencyKey: string;
+  periodStart?: string;
+  periodEnd?: string;
 }
 
 export interface TelehealthReadinessInput {
