@@ -39,7 +39,7 @@ export function smartConsentPage(view: SmartBrowserView): string {
        <h2>Requested permissions</h2>
        <ul>${view.scopes.map((scope) => `<li><code>${escapeHtml(scope)}</code><span>${escapeHtml(scopeDescription(scope))}</span></li>`).join("")}</ul>
      </div>
-     <p class="privacy">CarePoint will continue to enforce your patient boundary, consent rules and clinical release controls. The application receives only the permissions listed above.</p>
+     <p class="privacy">CarePoint will continue to enforce your patient boundary, consent rules and clinical release controls. The application receives only the permissions listed above. If offline access is requested, the application may continue using the approved permissions after this browser session ends until the authorization expires or is revoked.</p>
      <form method="post" action="/api/v1/smart/browser/consent" class="actions">
        ${hidden("transaction", view.transactionId)}
        <button type="submit" name="decision" value="approve">Approve access</button>
@@ -82,6 +82,7 @@ function scopeDescription(scope: string): string {
   if (scope === "launch/patient") return "Use your patient launch context for this authorization.";
   if (scope === "openid") return "Receive an OpenID Connect identity token for this sign-in.";
   if (scope === "fhirUser") return "Receive your FHIR Patient identity in the ID Token.";
+  if (scope === "offline_access") return "Continue the approved access after this browser session ends, using rotating refresh tokens for up to 30 days or until revoked.";
   const match = /^patient\/([^.]*)\.([a-z]+)$/.exec(scope);
   if (!match) return "SMART permission requested by the application.";
   const resource = match[1] ?? "FHIR";
