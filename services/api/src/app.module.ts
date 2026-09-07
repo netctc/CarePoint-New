@@ -17,6 +17,7 @@ import { OnboardingModule } from "./modules/onboarding/onboarding.module";
 import { OrdersModule } from "./modules/orders/orders.module";
 import { ProvidersModule } from "./modules/providers/providers.module";
 import { SchedulingModule } from "./modules/scheduling/scheduling.module";
+import { SmartModule } from "./modules/smart/smart.module";
 import { TelehealthModule } from "./modules/telehealth/telehealth.module";
 import { TransportModule } from "./modules/transport/transport.module";
 
@@ -41,6 +42,7 @@ import { TransportModule } from "./modules/transport/transport.module";
     BillingModule,
     ClaimsModule,
     CommunicationsModule,
+    SmartModule,
     FhirModule,
   ],
 })

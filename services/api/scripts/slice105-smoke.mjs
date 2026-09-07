@@ -56,7 +56,9 @@ function expectSearchBundle(result, label) {
 
 try {
   const metadata = await raw("/fhir/R4/metadata");
-  if (metadata.status !== 200 || metadata.payload.resourceType !== "CapabilityStatement" || metadata.payload.software?.version !== "slice-10.5") throw new Error(`FHIR metadata failed: ${JSON.stringify(metadata)}`);
+  const softwareVersion = metadata.payload.software?.version;
+  const versionMatch = typeof softwareVersion === "string" ? /^slice-10\.(\d+)$/.exec(softwareVersion) : null;
+  if (metadata.status !== 200 || metadata.payload.resourceType !== "CapabilityStatement" || !versionMatch || Number(versionMatch[1]) < 5) throw new Error(`FHIR metadata failed: ${JSON.stringify(metadata)}`);
   if (!metadata.cacheControl.includes("no-store") || metadata.nosniff !== "nosniff") throw new Error("FHIR metadata hardening headers missing.");
   const capabilities = new Map((metadata.payload.rest?.[0]?.resource || []).map((resource) => [resource.type, resource]));
   for (const type of ["Appointment", "DiagnosticReport", "DocumentReference"]) {
