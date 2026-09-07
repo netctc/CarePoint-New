@@ -100,6 +100,54 @@ void main() {
     expect((await api.refundProviderPayment('pi1', amountMinor: 1000, idempotencyKey: 'refund-test-0001', reason: 'Adjustment'))['status'], 'SUCCEEDED');
   });
 
+  test('claims mobile client preserves ownership boundaries and rework lifecycle', () async {
+    final paths = <String>[];
+    final client = MockClient((request) async {
+      paths.add(request.url.path);
+      expect(request.headers['authorization'], 'Bearer claims-access');
+      if (request.url.path.endsWith('/revenue-cycle/me')) {
+        return http.Response(jsonEncode({'patientId': 'p1', 'claims': [{'id': 'clm1', 'status': 'ADJUDICATED'}], 'eobs': []}), 200);
+      }
+      if (request.url.path.endsWith('/provider/revenue-cycle/claims') && request.method == 'GET') {
+        return http.Response(jsonEncode({'providerId': 'pr1', 'claims': [{'id': 'clm1', 'status': 'DENIED'}], 'eobs': [], 'remittances': []}), 200);
+      }
+      if (request.url.path.endsWith('/provider/revenue-cycle/appointments/appt1/claims')) {
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(body['coverageId'], 'cov1');
+        expect(body['idempotencyKey'], 'claim-mobile-test-0001');
+        expect(body.containsKey('patientId'), false);
+        expect(body.containsKey('providerId'), false);
+        return http.Response(jsonEncode({'id': 'clm1', 'appointmentId': 'appt1', 'version': 1, 'status': 'SUBMITTED'}), 200);
+      }
+      if (request.url.path.endsWith('/provider/revenue-cycle/claims/clm1/refresh')) {
+        return http.Response(jsonEncode({'claim': {'id': 'clm1', 'status': 'DENIED'}, 'eob': {'denialCode': 'TEST'}}), 200);
+      }
+      if (request.url.path.endsWith('/provider/revenue-cycle/claims/clm1/rework')) {
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(body['reasonCode'], 'CORRECTED_CLAIM');
+        expect(body.containsKey('patientId'), false);
+        return http.Response(jsonEncode({'id': 'clm2', 'previousClaimId': 'clm1', 'version': 2, 'status': 'SUBMITTED'}), 200);
+      }
+      return http.Response('{}', 404);
+    });
+    final api = CarePointApi(baseUrl: 'https://carepoint.test/api/v1', client: client)
+      ..accessToken = 'claims-access'
+      ..refreshToken = 'claims-refresh';
+
+    expect((await api.patientRevenueCycle())['patientId'], 'p1');
+    expect((await api.providerRevenueCycle())['providerId'], 'pr1');
+    expect((await api.submitInsuranceClaim('appt1', coverageId: 'cov1', idempotencyKey: 'claim-mobile-test-0001'))['status'], 'SUBMITTED');
+    expect((await api.refreshProviderClaim('clm1'))['claim']['status'], 'DENIED');
+    expect((await api.reworkProviderClaim('clm1', idempotencyKey: 'claim-rework-mobile-0001', reasonCode: 'CORRECTED_CLAIM'))['version'], 2);
+    expect(paths, containsAll([
+      '/api/v1/revenue-cycle/me',
+      '/api/v1/provider/revenue-cycle/claims',
+      '/api/v1/provider/revenue-cycle/appointments/appt1/claims',
+      '/api/v1/provider/revenue-cycle/claims/clm1/refresh',
+      '/api/v1/provider/revenue-cycle/claims/clm1/rework',
+    ]));
+  });
+
   test('hosted payment boundary accepts HTTPS only', () {
     expect(secureHostedPaymentUri('https://payments.example.test/pay/1'), isNotNull);
     expect(secureHostedPaymentUri('http://payments.example.test/pay/1'), isNull);
