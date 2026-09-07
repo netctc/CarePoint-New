@@ -9,13 +9,17 @@ import type {
 } from "@carepoint/contracts";
 import type { AuthPrincipal } from "@carepoint/identity";
 import { CurrentPrincipal, RequirePermissions } from "../../security/api-security.module";
+import { BillingIdempotencyService } from "./billing-idempotency.service";
 import { BillingService } from "./billing.service";
 import { PaymentGatewayService } from "./payment-gateway.service";
 import { InsuranceGatewayService } from "./insurance-gateway.service";
 
 @Controller("billing")
 class PatientBillingController {
-  constructor(private readonly billing: BillingService) {}
+  constructor(
+    private readonly billing: BillingService,
+    private readonly idempotency: BillingIdempotencyService,
+  ) {}
 
   @RequirePermissions("PATIENT_MANAGE_BILLING")
   @Get("me")
@@ -26,7 +30,7 @@ class PatientBillingController {
   @RequirePermissions("PATIENT_MANAGE_BILLING")
   @Post("invoices/:invoiceId/payment-intents")
   createIntent(@CurrentPrincipal() principal: AuthPrincipal, @Param("invoiceId") invoiceId: string, @Body() body: CreatePaymentIntentInput) {
-    return this.billing.createPaymentIntent(principal, invoiceId, body);
+    return this.idempotency.createPaymentIntent(principal, invoiceId, body);
   }
 
   @RequirePermissions("PATIENT_MANAGE_BILLING", "FINANCE_OPERATE")
@@ -125,7 +129,7 @@ class FinanceOperationsController {
 
 @Module({
   controllers: [PatientBillingController, InsuranceController, ProviderFinanceController, FinanceOperationsController],
-  providers: [BillingService, PaymentGatewayService, InsuranceGatewayService],
+  providers: [BillingService, BillingIdempotencyService, PaymentGatewayService, InsuranceGatewayService],
   exports: [BillingService],
 })
 export class BillingModule {}
