@@ -55,6 +55,10 @@ jobs:
       INSURANCE_GATEWAY_PROVIDER: mock
       CLAIMS_GATEWAY_PROVIDER: mock
       CLAIMS_MOCK_DENIAL_THRESHOLD_MINOR: 100000
+      MESSAGING_KEY_PROVIDER: local
+      MESSAGING_ENVELOPE_KEY_ID: ci-messaging-kek-v1
+      MESSAGING_ENVELOPE_KEY_BASE64: BgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgY=
+      NOTIFICATION_GATEWAY_PROVIDER: mock
       SLICE6_DOCTOR_PASSWORD: CarePoint-Doctor#2026
       SLICE6_PATIENT_PASSWORD: CarePoint-Patient#2026
       BOOTSTRAP_ADMIN_EMAIL: admin-ci@carepoint.test
@@ -113,6 +117,8 @@ jobs:
         run: node services/api/scripts/slice6-smoke.mjs
       - name: Slice 6.2 claims EOB and revenue cycle smoke test
         run: node services/api/scripts/slice62-smoke.mjs
+      - name: Slice 7 secure messaging notifications and care coordination smoke test
+        run: node services/api/scripts/slice7-smoke.mjs
       - name: Print API log on failure
         if: failure()
         run: cat /tmp/carepoint-api.log || true
