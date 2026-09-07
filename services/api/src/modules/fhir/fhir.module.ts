@@ -1,14 +1,19 @@
 import {
   ArgumentsHost,
+  CallHandler,
   Catch,
   Controller,
+  ExecutionContext,
   Get,
   Header,
   HttpException,
+  Injectable,
   Module,
+  NestInterceptor,
   Param,
   Query,
   UseFilters,
+  UseInterceptors,
   type ExceptionFilter,
 } from "@nestjs/common";
 import type { AuthPrincipal } from "@carepoint/identity";
@@ -17,12 +22,23 @@ import { ClinicalModule } from "../clinical/clinical.module";
 import { DocumentsModule } from "../documents/documents.module";
 import { OrdersModule } from "../orders/orders.module";
 import { FhirDocumentsService } from "./fhir-documents.service";
+import { FhirSearchService } from "./fhir-search.service";
+import { FhirSearchSupportService, type FhirSearchQuery } from "./fhir-search-support.service";
 import { FhirService } from "./fhir.service";
 
 interface HttpResponseLike {
   status(code: number): HttpResponseLike;
   setHeader(name: string, value: string): void;
   json(value: unknown): void;
+}
+
+@Injectable()
+class FhirNoStoreInterceptor implements NestInterceptor {
+  intercept(context: ExecutionContext, next: CallHandler) {
+    const response = context.switchToHttp().getResponse<HttpResponseLike>();
+    hardenHeaders(response);
+    return next.handle();
+  }
 }
 
 @Catch(HttpException)
@@ -37,6 +53,7 @@ class FhirHttpExceptionFilter implements ExceptionFilter {
         ? String((body as { message?: unknown }).message ?? exception.message)
         : exception.message;
     response.setHeader("content-type", "application/fhir+json; charset=utf-8");
+    hardenHeaders(response);
     response.status(status).json({
       resourceType: "OperationOutcome",
       issue: [{ severity: "error", code: outcomeCode(status), diagnostics }],
@@ -46,10 +63,12 @@ class FhirHttpExceptionFilter implements ExceptionFilter {
 
 @Controller("fhir/R4")
 @UseFilters(FhirHttpExceptionFilter)
+@UseInterceptors(FhirNoStoreInterceptor)
 class FhirController {
   constructor(
     private readonly fhir: FhirService,
     private readonly fhirDocuments: FhirDocumentsService,
+    private readonly fhirSearch: FhirSearchService,
   ) {}
 
   @Public()
@@ -74,8 +93,8 @@ class FhirController {
 
   @Get("Appointment")
   @Header("Content-Type", "application/fhir+json; charset=utf-8")
-  appointments(@CurrentPrincipal() principal: AuthPrincipal, @Query("patient") patient: string) {
-    return this.fhir.appointmentsForPatient(principal, patient);
+  appointments(@CurrentPrincipal() principal: AuthPrincipal, @Query() query: FhirSearchQuery) {
+    return this.fhirSearch.appointments(principal, query);
   }
 
   @Get("Appointment/:appointmentId")
@@ -112,10 +131,22 @@ class FhirController {
     return this.fhir.serviceRequest(principal, orderId);
   }
 
+  @Get("DiagnosticReport")
+  @Header("Content-Type", "application/fhir+json; charset=utf-8")
+  diagnosticReports(@CurrentPrincipal() principal: AuthPrincipal, @Query() query: FhirSearchQuery) {
+    return this.fhirDocuments.diagnosticReports(principal, query);
+  }
+
   @Get("DiagnosticReport/:reportId")
   @Header("Content-Type", "application/fhir+json; charset=utf-8")
   diagnosticReport(@CurrentPrincipal() principal: AuthPrincipal, @Param("reportId") reportId: string) {
     return this.fhirDocuments.diagnosticReport(principal, reportId);
+  }
+
+  @Get("DocumentReference")
+  @Header("Content-Type", "application/fhir+json; charset=utf-8")
+  documentReferences(@CurrentPrincipal() principal: AuthPrincipal, @Query() query: FhirSearchQuery) {
+    return this.fhirDocuments.documentReferences(principal, query);
   }
 
   @Get("DocumentReference/:documentId")
@@ -134,9 +165,16 @@ class FhirController {
 @Module({
   imports: [ClinicalModule, OrdersModule, DocumentsModule],
   controllers: [FhirController],
-  providers: [FhirService, FhirDocumentsService],
+  providers: [FhirService, FhirDocumentsService, FhirSearchService, FhirSearchSupportService, FhirNoStoreInterceptor],
 })
 export class FhirModule {}
+
+function hardenHeaders(response: HttpResponseLike): void {
+  response.setHeader("Cache-Control", "private, no-store, max-age=0");
+  response.setHeader("Pragma", "no-cache");
+  response.setHeader("X-Content-Type-Options", "nosniff");
+  response.setHeader("Vary", "Authorization");
+}
 
 function outcomeCode(status: number): string {
   if (status === 400) return "invalid";

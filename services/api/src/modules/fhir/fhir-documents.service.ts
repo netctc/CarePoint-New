@@ -1,10 +1,14 @@
-import { Injectable } from "@nestjs/common";
+import { BadRequestException, ConflictException, ForbiddenException, Injectable } from "@nestjs/common";
 import type { AuthPrincipal } from "@carepoint/identity";
 import { DatabaseAuditService } from "../../infrastructure/audit/audit.service";
 import { DocumentsService } from "../documents/documents.service";
 import { DocumentsImagingInteropService, type AuthorizedImagingStudyView } from "../documents/documents-imaging-interop.service";
+import { FhirSearchSupportService, type FhirSearchQuery } from "./fhir-search-support.service";
 
 const FHIR_VERSION = "4.0.1";
+const DOCUMENT_SOURCE_WINDOW = 500;
+const DIAGNOSTIC_STATUSES = new Set(["registered", "partial", "preliminary", "final", "amended", "corrected", "appended", "cancelled", "entered-in-error", "unknown"]);
+const DOCUMENT_REFERENCE_STATUSES = new Set(["current", "superseded", "entered-in-error"]);
 
 type FhirResource = Record<string, unknown>;
 type JsonObject = Record<string, unknown>;
@@ -42,20 +46,39 @@ type DiagnosticReportView = {
   data: JsonObject;
 };
 
+type DocumentList = { patientId: string; accessBasis: string; items: DocumentView[] };
+type DiagnosticList = { patientId: string; accessBasis: string; items: DiagnosticReportView[] };
+
 @Injectable()
 export class FhirDocumentsService {
   constructor(
     private readonly documents: DocumentsService,
     private readonly imaging: DocumentsImagingInteropService,
     private readonly audit: DatabaseAuditService,
+    private readonly search: FhirSearchSupportService,
   ) {}
 
   augmentCapability(statement: FhirResource): FhirResource {
     const rest = Array.isArray(statement.rest) ? [...statement.rest] : [];
     const server: JsonObject = rest.length > 0 && this.isObject(rest[0]) ? { ...rest[0] } : { mode: "server" };
     const resources = Array.isArray(server.resource) ? [...server.resource] : [];
-    this.appendCapability(resources, { type: "DiagnosticReport", interaction: [{ code: "read" }] });
-    this.appendCapability(resources, { type: "DocumentReference", interaction: [{ code: "read" }] });
+    this.enhanceAppointmentSearch(resources);
+    this.appendCapability(resources, {
+      type: "DiagnosticReport",
+      interaction: [{ code: "read" }, { code: "search-type" }],
+      searchParam: [
+        { name: "patient", type: "reference", documentation: "CarePoint Patient resource id" },
+        { name: "status", type: "token", documentation: "FHIR DiagnosticReport status" },
+      ],
+    });
+    this.appendCapability(resources, {
+      type: "DocumentReference",
+      interaction: [{ code: "read" }, { code: "search-type" }],
+      searchParam: [
+        { name: "patient", type: "reference", documentation: "CarePoint Patient resource id" },
+        { name: "status", type: "token", documentation: "FHIR DocumentReference status" },
+      ],
+    });
     this.appendCapability(resources, { type: "ImagingStudy", interaction: [{ code: "read" }] });
     server.resource = resources;
     if (rest.length > 0) rest[0] = server;
@@ -64,7 +87,11 @@ export class FhirDocumentsService {
     const software = this.isObject(statement.software) ? statement.software : {};
     return {
       ...statement,
-      software: { ...software, version: "slice-10.4" },
+      software: { ...software, version: "slice-10.5" },
+      implementation: {
+        ...(this.isObject(statement.implementation) ? statement.implementation : {}),
+        description: "CarePoint FHIR R4 read-only facade with strict patient-scoped search, deterministic pagination, fail-closed authorization and no-store response hardening.",
+      },
       rest,
     };
   }
@@ -82,6 +109,29 @@ export class FhirDocumentsService {
       metadata: { basis: report.accessBasis, fhirVersion: FHIR_VERSION },
     });
     return resource;
+  }
+
+  async diagnosticReports(principal: AuthPrincipal, query: FhirSearchQuery): Promise<FhirResource> {
+    this.search.assertAllowed(query, ["patient", "status", "_count", "_offset"]);
+    const patientId = this.patientId(this.search.required(query, "patient"));
+    const paging = this.search.paging(query);
+    const statuses = this.search.tokens(query, "status");
+    this.assertTokens(statuses, DIAGNOSTIC_STATUSES, "DiagnosticReport status");
+    const source = await this.diagnosticSource(principal, patientId);
+    this.assertSourceWindow(source.items.length, "DiagnosticReport");
+    const resources = source.items.map((item) => this.toDiagnosticReport(item));
+    const filtered = statuses.length === 0 ? resources : resources.filter((resource) => typeof resource.status === "string" && statuses.includes(resource.status));
+    const page = filtered.slice(paging.offset, paging.offset + paging.count);
+    await this.audit.write({
+      actorId: principal.accountId,
+      action: "FHIR_DIAGNOSTIC_REPORT_SEARCH",
+      objectType: "PATIENT",
+      objectId: patientId,
+      purpose: this.purpose(source.accessBasis),
+      result: "SUCCESS",
+      metadata: { basis: source.accessBasis, count: paging.count, offset: paging.offset, total: filtered.length, statuses, fhirVersion: FHIR_VERSION },
+    });
+    return this.search.bundle({ resources: page, total: filtered.length, route: "/api/v1/fhir/R4/DiagnosticReport", query, paging });
   }
 
   async documentReference(principal: AuthPrincipal, documentId: string): Promise<FhirResource> {
@@ -104,6 +154,29 @@ export class FhirDocumentsService {
     return resource;
   }
 
+  async documentReferences(principal: AuthPrincipal, query: FhirSearchQuery): Promise<FhirResource> {
+    this.search.assertAllowed(query, ["patient", "status", "_count", "_offset"]);
+    const patientId = this.patientId(this.search.required(query, "patient"));
+    const paging = this.search.paging(query);
+    const statuses = this.search.tokens(query, "status");
+    this.assertTokens(statuses, DOCUMENT_REFERENCE_STATUSES, "DocumentReference status");
+    const source = await this.documentSource(principal, patientId);
+    this.assertSourceWindow(source.items.length, "DocumentReference");
+    const resources = source.items.map((item) => this.toDocumentReference(item));
+    const filtered = statuses.length === 0 ? resources : resources.filter((resource) => typeof resource.status === "string" && statuses.includes(resource.status));
+    const page = filtered.slice(paging.offset, paging.offset + paging.count);
+    await this.audit.write({
+      actorId: principal.accountId,
+      action: "FHIR_DOCUMENT_REFERENCE_SEARCH",
+      objectType: "PATIENT",
+      objectId: patientId,
+      purpose: this.purpose(source.accessBasis),
+      result: "SUCCESS",
+      metadata: { basis: source.accessBasis, count: paging.count, offset: paging.offset, total: filtered.length, statuses, fhirVersion: FHIR_VERSION },
+    });
+    return this.search.bundle({ resources: page, total: filtered.length, route: "/api/v1/fhir/R4/DocumentReference", query, paging });
+  }
+
   async imagingStudy(principal: AuthPrincipal, documentId: string): Promise<FhirResource> {
     const study = await this.imaging.imagingStudy(principal, documentId);
     const resource = this.toImagingStudy(study);
@@ -122,6 +195,30 @@ export class FhirDocumentsService {
       },
     });
     return resource;
+  }
+
+  private async documentSource(principal: AuthPrincipal, patientId: string): Promise<DocumentList> {
+    if (principal.role === "PATIENT") {
+      const source = await this.documents.patientDocuments(principal) as DocumentList;
+      if (source.patientId !== patientId) {
+        await this.audit.write({ actorId: principal.accountId, action: "FHIR_DOCUMENT_REFERENCE_SEARCH_DENIED", objectType: "PATIENT", objectId: patientId, purpose: "PATIENT_ACCESS", result: "DENIED", metadata: { fhirVersion: FHIR_VERSION } });
+        throw new ForbiddenException("FHIR DocumentReference search access denied.");
+      }
+      return source;
+    }
+    return this.documents.providerPatientDocuments(principal, patientId) as Promise<DocumentList>;
+  }
+
+  private async diagnosticSource(principal: AuthPrincipal, patientId: string): Promise<DiagnosticList> {
+    if (principal.role === "PATIENT") {
+      const source = await this.documents.patientDiagnosticReports(principal) as DiagnosticList;
+      if (source.patientId !== patientId) {
+        await this.audit.write({ actorId: principal.accountId, action: "FHIR_DIAGNOSTIC_REPORT_SEARCH_DENIED", objectType: "PATIENT", objectId: patientId, purpose: "PATIENT_ACCESS", result: "DENIED", metadata: { fhirVersion: FHIR_VERSION } });
+        throw new ForbiddenException("FHIR DiagnosticReport search access denied.");
+      }
+      return source;
+    }
+    return this.documents.providerPatientDiagnosticReports(principal, patientId) as Promise<DiagnosticList>;
   }
 
   private toDiagnosticReport(report: DiagnosticReportView): FhirResource {
@@ -244,10 +341,41 @@ export class FhirDocumentsService {
     return concepts;
   }
 
+  private enhanceAppointmentSearch(resources: unknown[]): void {
+    const appointment = resources.find((candidate) => this.isObject(candidate) && candidate.type === "Appointment");
+    if (!this.isObject(appointment)) return;
+    const searchParam = Array.isArray(appointment.searchParam) ? [...appointment.searchParam] : [];
+    const hasStatus = searchParam.some((candidate) => this.isObject(candidate) && candidate.name === "status");
+    if (!hasStatus) searchParam.push({ name: "status", type: "token", documentation: "FHIR Appointment status" });
+    appointment.searchParam = searchParam;
+  }
+
   private appendCapability(resources: unknown[], resource: JsonObject): void {
     const type = resource.type;
     const exists = resources.some((candidate) => this.isObject(candidate) && candidate.type === type);
     if (!exists) resources.push(resource);
+  }
+
+  private assertSourceWindow(size: number, resourceType: string): void {
+    if (size >= DOCUMENT_SOURCE_WINDOW) {
+      throw new ConflictException(`FHIR ${resourceType} search exceeded the current CarePoint safety window; pagination cannot claim an exact total.`);
+    }
+  }
+
+  private assertTokens(tokens: string[], allowed: Set<string>, label: string): void {
+    for (const token of tokens) {
+      if (token.includes("|") || !allowed.has(token)) throw new BadRequestException(`Unsupported FHIR ${label} '${token}'.`);
+    }
+  }
+
+  private patientId(reference: string): string {
+    const value = reference.trim();
+    if (value.startsWith("Patient/")) {
+      const id = value.slice("Patient/".length);
+      if (!id) throw new BadRequestException("FHIR patient reference is invalid.");
+      return id;
+    }
+    return value;
   }
 
   private purpose(accessBasis: string): "PATIENT_ACCESS" | "TREATMENT" {
