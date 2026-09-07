@@ -9,6 +9,8 @@ export interface SmartClientConfiguration {
 
 export const SMART_SUPPORTED_SCOPES = [
   "launch/patient",
+  "openid",
+  "fhirUser",
   "patient/Patient.r",
   "patient/Appointment.rs",
   "patient/Encounter.r",
@@ -58,11 +60,15 @@ export class SmartConfigurationService implements OnModuleInit {
   discovery(): Record<string, unknown> {
     return {
       issuer: this.issuer,
-      authorization_endpoint: `${this.issuer}/smart/authorize`,
+      authorization_endpoint: `${this.issuer}/smart/browser/authorize`,
       token_endpoint: `${this.issuer}/smart/token`,
       revocation_endpoint: `${this.issuer}/smart/revoke`,
+      jwks_uri: `${this.issuer}/smart/jwks`,
       capabilities: [
+        "launch-standalone",
         "client-public",
+        "context-standalone-patient",
+        "sso-openid-connect",
         "permission-patient",
         "permission-v2",
       ],
@@ -71,6 +77,24 @@ export class SmartConfigurationService implements OnModuleInit {
       grant_types_supported: ["authorization_code"],
       code_challenge_methods_supported: ["S256"],
       token_endpoint_auth_methods_supported: ["none"],
+    };
+  }
+
+  openidConfiguration(): Record<string, unknown> {
+    return {
+      issuer: this.issuer,
+      authorization_endpoint: `${this.issuer}/smart/browser/authorize`,
+      token_endpoint: `${this.issuer}/smart/token`,
+      jwks_uri: `${this.issuer}/smart/jwks`,
+      response_types_supported: ["code"],
+      response_modes_supported: ["query"],
+      grant_types_supported: ["authorization_code"],
+      subject_types_supported: ["pairwise"],
+      id_token_signing_alg_values_supported: ["RS256"],
+      scopes_supported: [...SMART_SUPPORTED_SCOPES],
+      token_endpoint_auth_methods_supported: ["none"],
+      code_challenge_methods_supported: ["S256"],
+      claims_supported: ["iss", "sub", "aud", "exp", "iat", "auth_time", "nonce", "fhirUser"],
     };
   }
 
@@ -117,7 +141,6 @@ export class SmartConfigurationService implements OnModuleInit {
     if (url.protocol !== "https:" && !(url.protocol === "http:" && loopback)) {
       throw new Error(`SMART redirect URI '${raw}' must use HTTPS or an HTTP loopback host.`);
     }
-    if (production && url.username) throw new Error("SMART redirect URIs must not contain embedded credentials.");
     if (url.username || url.password) throw new Error("SMART redirect URIs must not contain embedded credentials.");
     return url.toString();
   }

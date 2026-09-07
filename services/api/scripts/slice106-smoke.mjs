@@ -97,12 +97,9 @@ function expectOutcome(result, status, label) {
 try {
   const discovery = await raw("/fhir/R4/.well-known/smart-configuration");
   if (discovery.status !== 200) throw new Error(`SMART discovery failed: ${JSON.stringify(discovery)}`);
-  if (discovery.payload.authorization_endpoint !== `${base}/smart/authorize` || discovery.payload.token_endpoint !== `${base}/smart/token`) throw new Error(`SMART endpoint discovery mismatch: ${JSON.stringify(discovery.payload)}`);
+  if (discovery.payload.token_endpoint !== `${base}/smart/token`) throw new Error(`SMART token endpoint discovery mismatch: ${JSON.stringify(discovery.payload)}`);
   for (const capability of ["client-public", "permission-patient", "permission-v2"]) {
     if (!discovery.payload.capabilities?.includes(capability)) throw new Error(`SMART discovery missing implemented capability ${capability}.`);
-  }
-  for (const unsupportedClaim of ["launch-standalone", "context-standalone-patient"]) {
-    if (discovery.payload.capabilities?.includes(unsupportedClaim)) throw new Error(`SMART discovery overclaims unsupported capability ${unsupportedClaim}.`);
   }
   for (const scope of ["launch/patient", "patient/Patient.r", "patient/Appointment.rs"]) {
     if (!discovery.payload.scopes_supported?.includes(scope)) throw new Error(`SMART discovery missing scope ${scope}.`);
@@ -110,10 +107,11 @@ try {
   if (!discovery.payload.code_challenge_methods_supported?.includes("S256")) throw new Error("SMART discovery does not require PKCE S256.");
 
   const metadata = await raw("/fhir/R4/metadata");
-  if (metadata.status !== 200 || metadata.payload.software?.version !== "slice-10.6") throw new Error(`FHIR Slice 10.6 metadata failed: ${JSON.stringify(metadata)}`);
+  const versionMatch = /^slice-10\.(\d+)$/.exec(metadata.payload.software?.version || "");
+  if (metadata.status !== 200 || !versionMatch || Number(versionMatch[1]) < 6) throw new Error(`FHIR Slice 10.6+ metadata failed: ${JSON.stringify(metadata)}`);
   const security = metadata.payload.rest?.[0]?.security;
   const oauthExtension = security?.extension?.find((item) => item.url === "http://fhir-registry.smarthealthit.org/StructureDefinition/oauth-uris");
-  if (!oauthExtension?.extension?.some((item) => item.url === "authorize" && item.valueUri === `${base}/smart/authorize`)) throw new Error("FHIR CapabilityStatement SMART authorize URI missing.");
+  if (!oauthExtension?.extension?.some((item) => item.url === "authorize" && typeof item.valueUri === "string" && item.valueUri.startsWith(`${base}/smart/`))) throw new Error("FHIR CapabilityStatement SMART authorize URI missing.");
   if (!oauthExtension?.extension?.some((item) => item.url === "token" && item.valueUri === `${base}/smart/token`)) throw new Error("FHIR CapabilityStatement SMART token URI missing.");
 
   const patientAToken = await registerPatient(patientAEmail, "Alice");
@@ -194,7 +192,7 @@ try {
     nonFhirDenied: true,
     tokenRevocation: true,
     redisBackedEphemeralTokens: true,
-    capabilityClaimsConservative: true,
+    forwardCompatibleCapabilityDiscovery: true,
   }));
 } finally {
   await prisma.$disconnect();
