@@ -3,6 +3,7 @@ import { tokenHash, type AuthPrincipal } from "@carepoint/identity";
 import { DatabaseAuditService } from "../infrastructure/audit/audit.service";
 import { PrismaService } from "../infrastructure/prisma/prisma.module";
 import { RedisSecurityService } from "../infrastructure/redis/redis-security.module";
+import { SmartConfigurationService } from "./smart-configuration.service";
 
 export type SmartFhirInteraction = "r" | "s";
 export interface SmartFhirRequirement {
@@ -10,17 +11,21 @@ export interface SmartFhirRequirement {
   interaction: SmartFhirInteraction;
 }
 
+export type SmartAuthorizationType = "patient" | "system";
+
 export interface SmartAccessContext {
   principal: AuthPrincipal;
+  authorizationType: SmartAuthorizationType;
   tokenId: string;
   clientId: string;
-  patientId: string;
+  patientId: string | null;
   scopes: string[];
   expiresAt: string;
   refreshFamilyId?: string;
 }
 
 export interface StoredSmartAccessToken {
+  tokenKind?: "patient";
   tokenId: string;
   clientId: string;
   userId: string;
@@ -28,6 +33,14 @@ export interface StoredSmartAccessToken {
   scopes: string[];
   expiresAt: string;
   refreshFamilyId?: string;
+}
+
+export interface StoredSmartSystemAccessToken {
+  tokenKind: "system";
+  tokenId: string;
+  clientId: string;
+  scopes: string[];
+  expiresAt: string;
 }
 
 export interface StoredSmartRefreshFamily {
@@ -40,12 +53,15 @@ export interface StoredSmartRefreshFamily {
   expiresAt: string;
 }
 
+type ParsedSmartAccessToken = StoredSmartAccessToken | StoredSmartSystemAccessToken;
+
 @Injectable()
 export class SmartTokenService {
   constructor(
     private readonly redis: RedisSecurityService,
     private readonly prisma: PrismaService,
     private readonly audit: DatabaseAuditService,
+    private readonly config: SmartConfigurationService,
   ) {}
 
   async validateAccessToken(accessToken: string): Promise<SmartAccessContext> {
@@ -58,6 +74,60 @@ export class SmartTokenService {
       throw new UnauthorizedException("Access token is invalid or expired.");
     }
 
+    if (token.tokenKind === "system") return this.validateSystemToken(token, accessKey);
+    return this.validatePatientToken(token, accessKey);
+  }
+
+  async assertFhirAccess(context: SmartAccessContext, requirement: SmartFhirRequirement, requestUrl: string | null): Promise<void> {
+    const allowed = context.scopes.some((scope) => this.scopeAllows(scope, requirement, context.authorizationType));
+    if (allowed) return;
+    await this.audit.write({
+      actorId: context.principal.accountId,
+      action: "SMART_SCOPE_DENIED",
+      objectType: "FHIR_ROUTE",
+      objectId: requestUrl,
+      purpose: context.authorizationType === "patient" ? "PATIENT_ACCESS" : "SYSTEM_ACCESS",
+      result: "DENIED",
+      metadata: {
+        authorizationType: context.authorizationType,
+        clientId: context.clientId,
+        patientId: context.patientId,
+        resourceType: requirement.resourceType,
+        interaction: requirement.interaction,
+        scopes: context.scopes,
+        refreshFamilyId: context.refreshFamilyId ?? null,
+      },
+    });
+    throw new ForbiddenException(`SMART token does not grant ${requirement.interaction === "r" ? "read" : "search"} access to ${requirement.resourceType}.`);
+  }
+
+  async denyNonFhirRoute(context: SmartAccessContext, requestUrl: string | null): Promise<never> {
+    await this.audit.write({
+      actorId: context.principal.accountId,
+      action: "SMART_NON_FHIR_ROUTE_DENIED",
+      objectType: "API_ROUTE",
+      objectId: requestUrl,
+      purpose: context.authorizationType === "patient" ? "PATIENT_ACCESS" : "SYSTEM_ACCESS",
+      result: "DENIED",
+      metadata: {
+        authorizationType: context.authorizationType,
+        clientId: context.clientId,
+        patientId: context.patientId,
+        refreshFamilyId: context.refreshFamilyId ?? null,
+      },
+    });
+    throw new ForbiddenException("SMART access tokens are restricted to explicitly scoped FHIR routes.");
+  }
+
+  tokenKey(accessToken: string): string {
+    return `carepoint:smart:token:${tokenHash(accessToken)}`;
+  }
+
+  refreshFamilyKey(familyId: string): string {
+    return `carepoint:smart:refresh-family:${familyId}`;
+  }
+
+  private async validatePatientToken(token: StoredSmartAccessToken, accessKey: string): Promise<SmartAccessContext> {
     if (token.refreshFamilyId) {
       const familyRaw = await this.redis.getEphemeral(this.refreshFamilyKey(token.refreshFamilyId));
       if (!familyRaw) {
@@ -87,6 +157,7 @@ export class SmartTokenService {
     }
     return {
       principal: { accountId: user.id, role: "PATIENT", sessionId: token.tokenId },
+      authorizationType: "patient",
       tokenId: token.tokenId,
       clientId: token.clientId,
       patientId: token.patientId,
@@ -96,65 +167,43 @@ export class SmartTokenService {
     };
   }
 
-  async assertFhirAccess(context: SmartAccessContext, requirement: SmartFhirRequirement, requestUrl: string | null): Promise<void> {
-    const allowed = context.scopes.some((scope) => this.scopeAllows(scope, requirement));
-    if (allowed) return;
-    await this.audit.write({
-      actorId: context.principal.accountId,
-      action: "SMART_SCOPE_DENIED",
-      objectType: "FHIR_ROUTE",
-      objectId: requestUrl,
-      purpose: "PATIENT_ACCESS",
-      result: "DENIED",
-      metadata: {
-        clientId: context.clientId,
-        patientId: context.patientId,
-        resourceType: requirement.resourceType,
-        interaction: requirement.interaction,
-        scopes: context.scopes,
-        refreshFamilyId: context.refreshFamilyId ?? null,
+  private async validateSystemToken(token: StoredSmartSystemAccessToken, accessKey: string): Promise<SmartAccessContext> {
+    const client = this.config.backendClient(token.clientId);
+    if (!client || !token.scopes.every((scope) => client.allowedScopes.includes(scope))) {
+      await this.redis.deleteEphemeral(accessKey);
+      throw new UnauthorizedException("Access token is invalid or expired.");
+    }
+    return {
+      principal: {
+        accountId: `smart-system:${token.clientId}`,
+        role: "SUPPORT",
+        sessionId: token.tokenId,
       },
-    });
-    throw new ForbiddenException(`SMART token does not grant ${requirement.interaction === "r" ? "read" : "search"} access to ${requirement.resourceType}.`);
+      authorizationType: "system",
+      tokenId: token.tokenId,
+      clientId: token.clientId,
+      patientId: null,
+      scopes: token.scopes,
+      expiresAt: token.expiresAt,
+    };
   }
 
-  async denyNonFhirRoute(context: SmartAccessContext, requestUrl: string | null): Promise<never> {
-    await this.audit.write({
-      actorId: context.principal.accountId,
-      action: "SMART_NON_FHIR_ROUTE_DENIED",
-      objectType: "API_ROUTE",
-      objectId: requestUrl,
-      purpose: "PATIENT_ACCESS",
-      result: "DENIED",
-      metadata: { clientId: context.clientId, patientId: context.patientId, refreshFamilyId: context.refreshFamilyId ?? null },
-    });
-    throw new ForbiddenException("SMART access tokens are restricted to explicitly scoped FHIR routes.");
-  }
-
-  tokenKey(accessToken: string): string {
-    return `carepoint:smart:token:${tokenHash(accessToken)}`;
-  }
-
-  refreshFamilyKey(familyId: string): string {
-    return `carepoint:smart:refresh-family:${familyId}`;
-  }
-
-  private scopeAllows(scope: string, requirement: SmartFhirRequirement): boolean {
-    const match = /^patient\/([A-Z][A-Za-z0-9]*)\.([cruds]+)$/.exec(scope);
+  private scopeAllows(scope: string, requirement: SmartFhirRequirement, authorizationType: SmartAuthorizationType): boolean {
+    const prefix = authorizationType === "patient" ? "patient" : "system";
+    const match = new RegExp(`^${prefix}\\/([A-Z][A-Za-z0-9]*)\\.([cruds]+)$`).exec(scope);
     if (!match || match[1] !== requirement.resourceType) return false;
     return match[2]?.includes(requirement.interaction) ?? false;
   }
 
-  private parseStoredToken(value: string): StoredSmartAccessToken {
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(value);
-    } catch {
-      throw new UnauthorizedException("Access token is invalid or expired.");
-    }
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new UnauthorizedException("Access token is invalid or expired.");
-    const item = parsed as Record<string, unknown>;
+  private parseStoredToken(value: string): ParsedSmartAccessToken {
+    const item = this.parseJson(value);
+    if (item.tokenKind === "system") return this.parseSystemToken(item);
+    return this.parsePatientToken(item);
+  }
+
+  private parsePatientToken(item: Record<string, unknown>): StoredSmartAccessToken {
     if (
+      (item.tokenKind !== undefined && item.tokenKind !== "patient") ||
       typeof item.tokenId !== "string" ||
       typeof item.clientId !== "string" ||
       typeof item.userId !== "string" ||
@@ -167,6 +216,7 @@ export class SmartTokenService {
       throw new UnauthorizedException("Access token is invalid or expired.");
     }
     return {
+      ...(item.tokenKind === "patient" ? { tokenKind: "patient" as const } : {}),
       tokenId: item.tokenId,
       clientId: item.clientId,
       userId: item.userId,
@@ -177,7 +227,27 @@ export class SmartTokenService {
     };
   }
 
-  private parseRefreshFamily(value: string): StoredSmartRefreshFamily {
+  private parseSystemToken(item: Record<string, unknown>): StoredSmartSystemAccessToken {
+    if (
+      item.tokenKind !== "system" ||
+      typeof item.tokenId !== "string" ||
+      typeof item.clientId !== "string" ||
+      typeof item.expiresAt !== "string" ||
+      !Array.isArray(item.scopes) ||
+      !item.scopes.every((scope) => typeof scope === "string")
+    ) {
+      throw new UnauthorizedException("Access token is invalid or expired.");
+    }
+    return {
+      tokenKind: "system",
+      tokenId: item.tokenId,
+      clientId: item.clientId,
+      scopes: item.scopes as string[],
+      expiresAt: item.expiresAt,
+    };
+  }
+
+  private parseJson(value: string): Record<string, unknown> {
     let parsed: unknown;
     try {
       parsed = JSON.parse(value);
@@ -185,7 +255,11 @@ export class SmartTokenService {
       throw new UnauthorizedException("Access token is invalid or expired.");
     }
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new UnauthorizedException("Access token is invalid or expired.");
-    const item = parsed as Record<string, unknown>;
+    return parsed as Record<string, unknown>;
+  }
+
+  private parseRefreshFamily(value: string): StoredSmartRefreshFamily {
+    const item = this.parseJson(value);
     if (
       typeof item.familyId !== "string" ||
       typeof item.clientId !== "string" ||
