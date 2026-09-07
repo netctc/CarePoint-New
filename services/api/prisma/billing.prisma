@@ -22,6 +22,7 @@ enum RefundStatus {
 
 enum ProviderLedgerEntryType {
   CHARGE
+  INSURANCE_PAYMENT
   REFUND
   PLATFORM_FEE
   PAYOUT
@@ -197,17 +198,17 @@ model ProviderPayout {
 }
 
 model InsuranceCoverage {
-  id                            String                  @id @default(uuid())
+  id                            String                   @id @default(uuid())
   patientId                     String
   payerCode                     String
   payerName                     String
   externalPolicyRef             String
   displayLabel                  String?
   status                        InsuranceCoverageStatus @default(ACTIVE)
-  effectiveFrom                 DateTime?               @db.Date
-  effectiveUntil                DateTime?               @db.Date
-  createdAt                     DateTime                @default(now())
-  updatedAt                     DateTime                @updatedAt
+  effectiveFrom                 DateTime?                @db.Date
+  effectiveUntil                DateTime?                @db.Date
+  createdAt                     DateTime                 @default(now())
+  updatedAt                     DateTime                 @updatedAt
 
   @@unique([patientId, payerCode, externalPolicyRef])
   @@index([patientId, status])
