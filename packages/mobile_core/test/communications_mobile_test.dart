@@ -107,6 +107,6 @@ void main() {
     await tester.tap(find.text('Notifications'));
     await tester.pumpAndSettle();
     expect(find.text('Notification preferences'), findsOneWidget);
-    expect(find.text('Secure messages'), findsAtLeast(1));
+    expect(find.text('Secure messages'), findsAtLeastNWidgets(1));
   });
 }
