@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { ApiSecurityModule } from "./security/api-security.module";
+import { RedisSecurityModule } from "./infrastructure/redis/redis-security.module";
 import { AuditModule } from "./modules/audit/audit.module";
 import { BillingModule } from "./modules/billing/billing.module";
 import { ClaimsModule } from "./modules/claims/claims.module";
@@ -19,6 +20,7 @@ import { TransportModule } from "./modules/transport/transport.module";
 
 @Module({
   imports: [
+    RedisSecurityModule,
     ApiSecurityModule,
     HealthModule,
     ProvidersModule,
