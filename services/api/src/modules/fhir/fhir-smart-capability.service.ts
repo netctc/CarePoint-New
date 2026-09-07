@@ -18,12 +18,12 @@ export class FhirSmartCapabilityService {
     extensions.push({
       url: "http://fhir-registry.smarthealthit.org/StructureDefinition/oauth-uris",
       extension: [
-        { url: "authorize", valueUri: `${this.smart.issuerUrl()}/smart/authorize` },
+        { url: "authorize", valueUri: `${this.smart.issuerUrl()}/smart/browser/authorize` },
         { url: "token", valueUri: `${this.smart.issuerUrl()}/smart/token` },
       ],
     });
     security.extension = extensions;
-    security.description = "CarePoint bearer sessions and patient-mediated SMART OAuth 2.0 authorization-code tokens are supported. SMART scopes never expand underlying CarePoint clinical authorization.";
+    security.description = "CarePoint bearer sessions plus standalone SMART browser authorization with PKCE, explicit patient consent, OIDC fhirUser identity and granular patient scopes are supported. SMART authorization never expands underlying CarePoint clinical access.";
     server.security = security;
     if (rest.length > 0) rest[0] = server;
     else rest.push(server);
@@ -32,10 +32,10 @@ export class FhirSmartCapabilityService {
     const implementation = this.isObject(statement.implementation) ? statement.implementation : {};
     return {
       ...statement,
-      software: { ...software, version: "slice-10.6" },
+      software: { ...software, version: "slice-10.7" },
       implementation: {
         ...implementation,
-        description: "CarePoint FHIR R4 read-only facade with strict patient-scoped search, deterministic pagination, SMART 2.2-style patient scopes, PKCE S256 and fail-closed clinical authorization.",
+        description: "CarePoint FHIR R4 read-only facade with strict patient-scoped search, deterministic pagination, SMART standalone browser launch, explicit consent, OIDC fhirUser identity, PKCE S256 and fail-closed clinical authorization.",
       },
       rest,
     };
