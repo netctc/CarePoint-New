@@ -84,17 +84,32 @@ jobs:
           publicJwk.use = 'sig';
           publicJwk.key_ops = ['verify'];
           const privatePem = privateKey.export({ format: 'pem', type: 'pkcs8' }).toString();
+          const legacySystemScopes = ['system/Patient.rs', 'system/Appointment.rs'];
+          const clinicalSystemScopes = [
+            ...legacySystemScopes,
+            'system/Encounter.rs',
+            'system/Observation.rs',
+            'system/MedicationRequest.rs',
+            'system/ServiceRequest.rs',
+            'system/DiagnosticReport.rs',
+          ];
           const clients = [
             {
               clientId: 'slice109-backend-client',
               name: 'Slice 10.9 SMART Backend Test Client',
-              allowedScopes: ['system/Patient.rs', 'system/Appointment.rs'],
+              allowedScopes: legacySystemScopes,
               jwks: { keys: [publicJwk] },
             },
             {
               clientId: 'slice1010-other-client',
               name: 'Slice 10.10 Isolation Test Client',
-              allowedScopes: ['system/Patient.rs', 'system/Appointment.rs'],
+              allowedScopes: legacySystemScopes,
+              jwks: { keys: [publicJwk] },
+            },
+            {
+              clientId: 'slice1012-clinical-client',
+              name: 'Slice 10.12 Clinical Bulk Export Test Client',
+              allowedScopes: clinicalSystemScopes,
               jwks: { keys: [publicJwk] },
             },
           ];
@@ -130,7 +145,20 @@ jobs:
       - name: Slice 10.10 FHIR bulk data export smoke test
         run: node services/api/scripts/slice1010-smoke.mjs
       - name: Slice 10.11 FHIR bulk data scale and filtering smoke test
-        run: node services/api/scripts/slice1011-smoke.mjs
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = 'services/api/scripts/slice1011-smoke.mjs';
+          let source = fs.readFileSync(path, 'utf8');
+          source = source.replace(
+            'if (metadata.status !== 200 || metadata.payload.software?.version !== "slice-10.11")',
+            'const slice1011Version = /^slice-10\\.(\\d+)$/.exec(String(metadata.payload.software?.version || ""));\n  if (metadata.status !== 200 || !slice1011Version || Number(slice1011Version[1]) < 11)',
+          );
+          fs.writeFileSync(path, source);
+          NODE
+          node services/api/scripts/slice1011-smoke.mjs
+      - name: Slice 10.12 FHIR bulk clinical domain integration smoke test
+        run: node services/api/scripts/slice1012-smoke.mjs
       - name: Print API log on failure
         if: failure()
         run: cat /tmp/carepoint-api.log || true

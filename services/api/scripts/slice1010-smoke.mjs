@@ -159,7 +159,11 @@ try {
   expectFhir(missingPrefer, 400, "Bulk export without Prefer: respond-async was accepted");
 
   const unsupportedType = await kickoff(fullToken, "_type=Observation");
-  expectFhir(unsupportedType, 400, "Unsupported bulk resource type was accepted");
+  expectFhir(
+    unsupportedType,
+    Number(versionMatch[1]) >= 12 ? 403 : 400,
+    "Unauthorized or unsupported bulk Observation type was accepted",
+  );
 
   const missingScope = await kickoff(patientOnlyToken, "_type=Appointment");
   expectFhir(missingScope, 403, "Patient-only system scope exported Appointment");

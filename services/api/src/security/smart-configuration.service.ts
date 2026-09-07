@@ -43,6 +43,11 @@ export const SMART_PATIENT_SCOPES = [
 export const SMART_SYSTEM_SCOPES = [
   "system/Patient.rs",
   "system/Appointment.rs",
+  "system/Encounter.rs",
+  "system/Observation.rs",
+  "system/MedicationRequest.rs",
+  "system/ServiceRequest.rs",
+  "system/DiagnosticReport.rs",
 ] as const;
 
 export const SMART_SUPPORTED_SCOPES = [...SMART_PATIENT_SCOPES, ...SMART_SYSTEM_SCOPES] as const;
