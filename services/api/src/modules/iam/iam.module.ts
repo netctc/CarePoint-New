@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, Module, Param, Post, Req } from "@nestjs/common";
 import type { AuthPrincipal, IdentityRole } from "@carepoint/identity";
+import { PrismaService } from "../../infrastructure/prisma/prisma.module";
 import { DistributedRateLimitService } from "../../infrastructure/redis/redis-security.module";
 import { CurrentPrincipal, Public, RequirePermissions } from "../../security/api-security.module";
 import { PersistentAuthService } from "../../security/persistent-auth.service";
@@ -10,13 +11,14 @@ interface LoginBody { email: string; password: string; }
 interface ConfirmMfaBody { code: string; }
 interface CompleteMfaBody { challengeId: string; code: string; }
 interface RefreshBody { refreshToken: string; }
-interface RequestIdentity { ip?: string; socket?: { remoteAddress?: string }; }
+interface RequestIdentity { ip?: string; socket?: { remoteAddress?: string }; headers?: Record<string, string | string[] | undefined>; }
 
 @Controller("iam")
 class IamController {
   constructor(
     private readonly auth: PersistentAuthService,
     private readonly rateLimits: DistributedRateLimitService,
+    private readonly prisma: PrismaService,
   ) {}
 
   @Public()
@@ -36,7 +38,9 @@ class IamController {
       this.rateLimits.assertAllowed({ namespace: "iam:login:ip", identity: this.clientIp(request), limit: 300, windowSeconds: 300 }),
       this.rateLimits.assertAllowed({ namespace: "iam:login:account", identity: body.email?.trim().toLowerCase() || "missing", limit: 20, windowSeconds: 300 }),
     ]);
-    return this.auth.login(body.email, body.password);
+    const result = await this.auth.login(body.email, body.password);
+    if ("sessionId" in result) await this.captureSessionContext(result.sessionId, request);
+    return result;
   }
 
   @Public()
@@ -46,7 +50,9 @@ class IamController {
       this.rateLimits.assertAllowed({ namespace: "iam:mfa:ip", identity: this.clientIp(request), limit: 100, windowSeconds: 300 }),
       this.rateLimits.assertAllowed({ namespace: "iam:mfa:challenge", identity: body.challengeId || "missing", limit: 10, windowSeconds: 300 }),
     ]);
-    return this.auth.completeMfa(body.challengeId, body.code);
+    const result = await this.auth.completeMfa(body.challengeId, body.code);
+    await this.captureSessionContext(result.sessionId, request);
+    return result;
   }
 
   @Public()
@@ -56,7 +62,9 @@ class IamController {
       this.rateLimits.assertAllowed({ namespace: "iam:refresh:ip", identity: this.clientIp(request), limit: 300, windowSeconds: 300 }),
       this.rateLimits.assertAllowed({ namespace: "iam:refresh:token", identity: body.refreshToken || "missing", limit: 10, windowSeconds: 60 }),
     ]);
-    return this.auth.refresh(body.refreshToken);
+    const result = await this.auth.refresh(body.refreshToken);
+    await this.captureSessionContext(result.sessionId, request);
+    return result;
   }
 
   @RequirePermissions("IAM_MANAGE_ACCOUNTS")
@@ -88,6 +96,41 @@ class IamController {
   }
 
   @RequirePermissions("SELF_SESSION_MANAGE")
+  @Get("sessions")
+  async sessions(@CurrentPrincipal() principal: AuthPrincipal) {
+    const now = new Date();
+    const rows = await this.prisma.authSession.findMany({
+      where: { userId: principal.accountId },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+      select: {
+        id: true,
+        expiresAt: true,
+        refreshExpiresAt: true,
+        revokedAt: true,
+        replacedBySessionId: true,
+        userAgent: true,
+        ipAddress: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+    return rows.map((row) => ({
+      id: row.id,
+      current: row.id === principal.sessionId,
+      active: row.revokedAt === null && row.refreshExpiresAt > now,
+      accessExpiresAt: row.expiresAt.toISOString(),
+      refreshExpiresAt: row.refreshExpiresAt.toISOString(),
+      revokedAt: row.revokedAt?.toISOString() ?? null,
+      replacedBySessionId: row.replacedBySessionId,
+      userAgent: row.userAgent,
+      ipAddress: row.ipAddress,
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+    }));
+  }
+
+  @RequirePermissions("SELF_SESSION_MANAGE")
   @Delete("sessions/:sessionId")
   async revoke(@CurrentPrincipal() principal: AuthPrincipal, @Param("sessionId") sessionId: string) {
     await this.auth.revokeSession(principal, sessionId);
@@ -116,6 +159,13 @@ class IamController {
 
   private clientIp(request: RequestIdentity): string {
     return request.ip?.trim() || request.socket?.remoteAddress?.trim() || "unknown";
+  }
+
+  private async captureSessionContext(sessionId: string, request: RequestIdentity): Promise<void> {
+    const rawUserAgent = request.headers?.["user-agent"];
+    const userAgent = (Array.isArray(rawUserAgent) ? rawUserAgent[0] : rawUserAgent)?.trim().slice(0, 500) || null;
+    const ipAddress = this.clientIp(request).slice(0, 80);
+    await this.prisma.authSession.update({ where: { id: sessionId }, data: { userAgent, ipAddress } });
   }
 }
 
