@@ -51,6 +51,10 @@ jobs:
       DOCUMENT_SIGNING_PROVIDER: local
       DOCUMENT_SIGNING_KEY_ID: ci-documents-signing-v1
       DOCUMENT_SIGNING_SECRET_BASE64: BQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQU=
+      PAYMENT_GATEWAY_PROVIDER: mock
+      INSURANCE_GATEWAY_PROVIDER: mock
+      SLICE6_DOCTOR_PASSWORD: CarePoint-Doctor#2026
+      SLICE6_PATIENT_PASSWORD: CarePoint-Patient#2026
       BOOTSTRAP_ADMIN_EMAIL: admin-ci@carepoint.test
       BOOTSTRAP_ADMIN_PASSWORD: CarePoint-CI-Admin#2026
     steps:
@@ -103,6 +107,8 @@ jobs:
         run: node services/api/scripts/slice4-smoke.mjs
       - name: Slice 5 encrypted clinical documents smoke test
         run: node services/api/scripts/slice5-smoke.mjs
+      - name: Slice 6 payments insurance and financial operations smoke test
+        run: node services/api/scripts/slice6-smoke.mjs
       - name: Print API log on failure
         if: failure()
         run: cat /tmp/carepoint-api.log || true
