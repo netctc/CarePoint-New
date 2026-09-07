@@ -114,7 +114,7 @@ export class NotificationsService {
     const user = await this.prisma.user.findUnique({ where: { id: accountId }, select: { email: true } });
     if (!user) throw new NotFoundException("Notification recipient account not found.");
 
-    const external: Array<{ channel: "PUSH" | "EMAIL" | "SMS"; enabled: boolean; destinationRef?: string }> = [
+    const external: Array<{ channel: "PUSH" | "EMAIL" | "SMS"; enabled: boolean; destinationRef: string | undefined }> = [
       { channel: "PUSH", enabled: preference.pushEnabled, destinationRef: endpointByChannel.get("PUSH") },
       { channel: "EMAIL", enabled: preference.emailEnabled, destinationRef: user.email },
       { channel: "SMS", enabled: preference.smsEnabled, destinationRef: endpointByChannel.get("SMS") },
