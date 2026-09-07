@@ -5,7 +5,9 @@ const base = process.env.CAREPOINT_API_URL || "http://127.0.0.1:4000/api/v1";
 const fhirBase = process.env.SMART_FHIR_BASE_URL || `${base}/fhir/R4`;
 const tokenEndpoint = `${base}/smart/token`;
 const assertionType = "urn:ietf:params:oauth:client-assertion-type:jwt-bearer";
-const clientId = "slice109-backend-client";
+// Keep Slice 10.11's kickoff budget isolated from the cumulative Slice 10.10 probes
+// without weakening the production client-scoped Bulk Data rate limit.
+const clientId = "slice1010-other-client";
 const keyId = "slice109-backend-key";
 const privateKeyB64 = process.env.SMART_BACKEND_PRIVATE_KEY_B64;
 if (!privateKeyB64) throw new Error("SMART_BACKEND_PRIVATE_KEY_B64 is required for Slice 10.11 smoke testing.");
