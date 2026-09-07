@@ -46,5 +46,6 @@ class ClinicalController {
 @Module({
   controllers: [ClinicalController],
   providers: [ClinicalService, ClinicalEnvelopeService],
+  exports: [ClinicalService],
 })
 export class ClinicalModule {}

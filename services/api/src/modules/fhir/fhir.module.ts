@@ -13,6 +13,7 @@ import {
 } from "@nestjs/common";
 import type { AuthPrincipal } from "@carepoint/identity";
 import { CurrentPrincipal, Public } from "../../security/api-security.module";
+import { ClinicalModule } from "../clinical/clinical.module";
 import { FhirService } from "./fhir.service";
 
 interface HttpResponseLike {
@@ -76,9 +77,22 @@ class FhirController {
   appointment(@CurrentPrincipal() principal: AuthPrincipal, @Param("appointmentId") appointmentId: string) {
     return this.fhir.appointment(principal, appointmentId);
   }
+
+  @Get("Encounter/:appointmentId")
+  @Header("Content-Type", "application/fhir+json; charset=utf-8")
+  encounter(@CurrentPrincipal() principal: AuthPrincipal, @Param("appointmentId") appointmentId: string) {
+    return this.fhir.encounter(principal, appointmentId);
+  }
+
+  @Get("Observation")
+  @Header("Content-Type", "application/fhir+json; charset=utf-8")
+  observations(@CurrentPrincipal() principal: AuthPrincipal, @Query("encounter") encounter: string) {
+    return this.fhir.observationsForEncounter(principal, encounter);
+  }
 }
 
 @Module({
+  imports: [ClinicalModule],
   controllers: [FhirController],
   providers: [FhirService],
 })

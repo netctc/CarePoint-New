@@ -50,6 +50,10 @@ try {
     throw new Error(`FHIR metadata failed: ${JSON.stringify(metadata)}`);
   }
   if (!metadata.contentType.includes("application/fhir+json")) throw new Error(`FHIR content type missing: ${metadata.contentType}`);
+  const advertisedResources = metadata.payload.rest?.[0]?.resource?.map((resource) => resource.type) || [];
+  for (const resourceType of ["Patient", "Practitioner", "Appointment", "Encounter", "Observation"]) {
+    if (!advertisedResources.includes(resourceType)) throw new Error(`FHIR metadata does not advertise ${resourceType}.`);
+  }
 
   const patientAToken = await registerPatient(patientAEmail, "Alice");
   const patientBToken = await registerPatient(patientBEmail, "Bob");
@@ -135,15 +139,103 @@ try {
     throw new Error(`Expected cross-patient FHIR search 403, got ${JSON.stringify(crossSearch)}`);
   }
 
+  const encounterBeforeDocumentation = await raw(`/fhir/R4/Encounter/${encodeURIComponent(appointment.id)}`, { token: patientBToken });
+  if (encounterBeforeDocumentation.status !== 404 || encounterBeforeDocumentation.payload.resourceType !== "OperationOutcome") {
+    throw new Error(`Expected undocumented FHIR Encounter to return 404, got ${JSON.stringify(encounterBeforeDocumentation)}`);
+  }
+
+  const clinicalRecord = await request(`/clinical/appointments/${appointment.id}/records`, {
+    method: "POST",
+    token: doctorToken,
+    body: {
+      chiefComplaint: "FHIR clinical interoperability smoke test",
+      objective: "Stable outpatient assessment for interoperability validation.",
+      vitals: {
+        heartRateBpm: 72,
+        oxygenSaturationPct: 99,
+        systolicMmHg: 120,
+        diastolicMmHg: 80,
+      },
+    },
+  });
+  if (!clinicalRecord.id || clinicalRecord.revision !== 1) throw new Error(`Clinical record creation failed: ${JSON.stringify(clinicalRecord)}`);
+
+  const patientEncounter = await raw(`/fhir/R4/Encounter/${encodeURIComponent(appointment.id)}`, { token: patientBToken });
+  if (patientEncounter.status !== 200 || patientEncounter.payload.resourceType !== "Encounter" || patientEncounter.payload.id !== appointment.id) {
+    throw new Error(`FHIR Encounter patient read failed: ${JSON.stringify(patientEncounter)}`);
+  }
+  if (patientEncounter.payload.subject?.reference !== `Patient/${patientB.id}`) {
+    throw new Error(`FHIR Encounter has incorrect patient reference: ${JSON.stringify(patientEncounter.payload.subject)}`);
+  }
+  if (patientEncounter.payload.appointment?.[0]?.reference !== `Appointment/${appointment.id}`) {
+    throw new Error(`FHIR Encounter has incorrect Appointment reference: ${JSON.stringify(patientEncounter.payload.appointment)}`);
+  }
+  if (patientEncounter.payload.participant?.[0]?.individual?.reference !== `Practitioner/${provider.id}`) {
+    throw new Error(`FHIR Encounter has incorrect Practitioner reference: ${JSON.stringify(patientEncounter.payload.participant)}`);
+  }
+  if (patientEncounter.payload.status !== "in-progress") throw new Error(`Expected in-progress Encounter before finalization: ${JSON.stringify(patientEncounter.payload)}`);
+
+  const doctorEncounter = await raw(`/fhir/R4/Encounter/${encodeURIComponent(appointment.id)}`, { token: doctorToken });
+  if (doctorEncounter.status !== 200) throw new Error(`Assigned practitioner could not read FHIR Encounter: ${JSON.stringify(doctorEncounter)}`);
+
+  const wrongPatientEncounter = await raw(`/fhir/R4/Encounter/${encodeURIComponent(appointment.id)}`, { token: patientAToken });
+  if (wrongPatientEncounter.status !== 403 || wrongPatientEncounter.payload.resourceType !== "OperationOutcome") {
+    throw new Error(`Expected FHIR Encounter cross-patient 403, got ${JSON.stringify(wrongPatientEncounter)}`);
+  }
+
+  const observations = await raw(`/fhir/R4/Observation?encounter=${encodeURIComponent(`Encounter/${appointment.id}`)}`, { token: patientBToken });
+  if (observations.status !== 200 || observations.payload.resourceType !== "Bundle" || observations.payload.type !== "searchset" || observations.payload.total !== 4) {
+    throw new Error(`FHIR Observation search failed: ${JSON.stringify(observations)}`);
+  }
+  for (const entry of observations.payload.entry || []) {
+    if (entry.resource?.resourceType !== "Observation") throw new Error(`FHIR Observation bundle contains a non-Observation resource: ${JSON.stringify(entry)}`);
+    if (entry.resource.subject?.reference !== `Patient/${patientB.id}`) throw new Error(`FHIR Observation has incorrect patient reference: ${JSON.stringify(entry.resource)}`);
+    if (entry.resource.encounter?.reference !== `Encounter/${appointment.id}`) throw new Error(`FHIR Observation has incorrect Encounter reference: ${JSON.stringify(entry.resource)}`);
+    if (entry.resource.status !== "preliminary") throw new Error(`Expected preliminary Observation before finalization: ${JSON.stringify(entry.resource)}`);
+  }
+
+  const doctorObservations = await raw(`/fhir/R4/Observation?encounter=${encodeURIComponent(appointment.id)}`, { token: doctorToken });
+  if (doctorObservations.status !== 200 || doctorObservations.payload.total !== 4) {
+    throw new Error(`Assigned practitioner could not search FHIR Observations: ${JSON.stringify(doctorObservations)}`);
+  }
+
+  const wrongPatientObservations = await raw(`/fhir/R4/Observation?encounter=${encodeURIComponent(appointment.id)}`, { token: patientAToken });
+  if (wrongPatientObservations.status !== 403 || wrongPatientObservations.payload.resourceType !== "OperationOutcome") {
+    throw new Error(`Expected FHIR Observation cross-patient 403, got ${JSON.stringify(wrongPatientObservations)}`);
+  }
+
+  const missingEncounterSearch = await raw("/fhir/R4/Observation", { token: patientBToken });
+  if (missingEncounterSearch.status !== 400 || missingEncounterSearch.payload.resourceType !== "OperationOutcome") {
+    throw new Error(`Expected missing encounter search parameter to return FHIR 400, got ${JSON.stringify(missingEncounterSearch)}`);
+  }
+
+  const finalized = await request(`/clinical/appointments/${appointment.id}/finalize`, { method: "POST", token: doctorToken, body: {} });
+  if (!finalized.finalized || finalized.appointment?.status !== "COMPLETED") throw new Error(`Clinical encounter finalization failed: ${JSON.stringify(finalized)}`);
+
+  const finishedEncounter = await raw(`/fhir/R4/Encounter/${encodeURIComponent(appointment.id)}`, { token: patientBToken });
+  if (finishedEncounter.status !== 200 || finishedEncounter.payload.status !== "finished") {
+    throw new Error(`FHIR Encounter did not become finished after clinical finalization: ${JSON.stringify(finishedEncounter)}`);
+  }
+
+  const finalObservations = await raw(`/fhir/R4/Observation?encounter=${encodeURIComponent(appointment.id)}`, { token: patientBToken });
+  if (finalObservations.status !== 200 || finalObservations.payload.total !== 4 || !finalObservations.payload.entry?.every((entry) => entry.resource?.status === "final")) {
+    throw new Error(`FHIR Observations did not become final after encounter finalization: ${JSON.stringify(finalObservations)}`);
+  }
+
   console.log(JSON.stringify({
     status: "passed",
     fhirVersion: metadata.payload.fhirVersion,
     patientId: patientB.id,
     practitionerId: provider.id,
     appointmentId: appointment.id,
+    clinicalRecordId: clinicalRecord.id,
     appointmentSearchTotal: search.payload.total,
+    observationCount: finalObservations.payload.total,
+    encounterStatus: finishedEncounter.payload.status,
     crossPatientStatus: crossPatient.status,
     crossAppointmentStatus: wrongPatientAppointment.status,
+    crossEncounterStatus: wrongPatientEncounter.status,
+    crossObservationStatus: wrongPatientObservations.status,
   }));
 } finally {
   await prisma.$disconnect();
