@@ -123,6 +123,12 @@ class FhirController {
   documentReference(@CurrentPrincipal() principal: AuthPrincipal, @Param("documentId") documentId: string) {
     return this.fhirDocuments.documentReference(principal, documentId);
   }
+
+  @Get("ImagingStudy/:documentId")
+  @Header("Content-Type", "application/fhir+json; charset=utf-8")
+  imagingStudy(@CurrentPrincipal() principal: AuthPrincipal, @Param("documentId") documentId: string) {
+    return this.fhirDocuments.imagingStudy(principal, documentId);
+  }
 }
 
 @Module({
