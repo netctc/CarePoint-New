@@ -7,9 +7,15 @@ interface MemoryBucket {
   resetAt: number;
 }
 
+interface MemoryEphemeralValue {
+  value: string;
+  expiresAt: number;
+}
+
 @Injectable()
 export class RedisSecurityService implements OnModuleInit, OnModuleDestroy {
   private client?: Redis;
+  private readonly ephemeral = new Map<string, MemoryEphemeralValue>();
 
   async onModuleInit(): Promise<void> {
     const url = process.env.REDIS_URL?.trim();
@@ -55,6 +61,71 @@ export class RedisSecurityService implements OnModuleInit, OnModuleDestroy {
     const result = await this.client.eval(script, 1, key, String(windowSeconds));
     if (!Array.isArray(result) || result.length < 2) throw new Error("Redis rate-limit response is invalid.");
     return { count: Number(result[0]), ttlSeconds: Math.max(1, Number(result[1])) };
+  }
+
+  async setEphemeral(key: string, value: string, ttlSeconds: number): Promise<void> {
+    this.assertEphemeralInput(key, value, ttlSeconds);
+    if (this.client) {
+      await this.client.set(key, value, "EX", ttlSeconds);
+      return;
+    }
+    this.ephemeral.set(key, { value, expiresAt: Date.now() + ttlSeconds * 1000 });
+    this.pruneEphemeral();
+  }
+
+  async getEphemeral(key: string): Promise<string | null> {
+    this.assertEphemeralKey(key);
+    if (this.client) return this.client.get(key);
+    const current = this.ephemeral.get(key);
+    if (!current) return null;
+    if (current.expiresAt <= Date.now()) {
+      this.ephemeral.delete(key);
+      return null;
+    }
+    return current.value;
+  }
+
+  async consumeEphemeral(key: string): Promise<string | null> {
+    this.assertEphemeralKey(key);
+    if (this.client) {
+      const script = `
+        local value = redis.call('GET', KEYS[1])
+        if value then redis.call('DEL', KEYS[1]) end
+        return value
+      `;
+      const result = await this.client.eval(script, 1, key);
+      return typeof result === "string" ? result : null;
+    }
+    const current = this.ephemeral.get(key);
+    this.ephemeral.delete(key);
+    return current && current.expiresAt > Date.now() ? current.value : null;
+  }
+
+  async deleteEphemeral(key: string): Promise<void> {
+    this.assertEphemeralKey(key);
+    if (this.client) {
+      await this.client.del(key);
+      return;
+    }
+    this.ephemeral.delete(key);
+  }
+
+  private assertEphemeralInput(key: string, value: string, ttlSeconds: number): void {
+    this.assertEphemeralKey(key);
+    if (!value || value.length > 65536) throw new Error("Ephemeral security value is invalid.");
+    if (!Number.isInteger(ttlSeconds) || ttlSeconds < 1 || ttlSeconds > 86400) throw new Error("Ephemeral security TTL is invalid.");
+  }
+
+  private assertEphemeralKey(key: string): void {
+    if (!key.startsWith("carepoint:") || key.length > 300) throw new Error("Ephemeral security key is invalid.");
+  }
+
+  private pruneEphemeral(): void {
+    if (this.ephemeral.size < 5000) return;
+    const now = Date.now();
+    for (const [key, item] of this.ephemeral) {
+      if (item.expiresAt <= now) this.ephemeral.delete(key);
+    }
   }
 }
 
