@@ -1,8 +1,15 @@
-import { Controller, Get, Module } from "@nestjs/common";
+import { Controller, Get, Module, ServiceUnavailableException } from "@nestjs/common";
+import { PrismaService } from "../../infrastructure/prisma/prisma.module";
+import { RedisSecurityService } from "../../infrastructure/redis/redis-security.module";
 import { Public } from "../../security/api-security.module";
 
 @Controller("health")
 class HealthController {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly redis: RedisSecurityService,
+  ) {}
+
   @Public()
   @Get()
   getHealth() {
@@ -12,6 +19,27 @@ class HealthController {
       architecture: "modular-monolith",
       timestamp: new Date().toISOString(),
     };
+  }
+
+  @Public()
+  @Get("ready")
+  async getReadiness() {
+    let database = false;
+    try {
+      await this.prisma.$queryRaw`SELECT 1`;
+      database = true;
+    } catch {
+      database = false;
+    }
+    const redis = await this.redis.ping();
+    const payload = {
+      status: database && redis ? "ready" : "not-ready",
+      service: "carepoint-api",
+      dependencies: { postgres: database, redis },
+      timestamp: new Date().toISOString(),
+    };
+    if (!database || !redis) throw new ServiceUnavailableException(payload);
+    return payload;
   }
 }
 
