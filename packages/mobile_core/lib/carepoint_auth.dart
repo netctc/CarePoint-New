@@ -38,11 +38,28 @@ class _CarePointLoginGateState extends State<CarePointLoginGate> {
   String? challengeId;
   String? error;
   bool busy = false;
+  bool restoring = true;
 
   @override
   void initState() {
     super.initState();
     api = widget.api ?? CarePointApi();
+    _restoreSession();
+  }
+
+  Future<void> _restoreSession() async {
+    try {
+      final restored = await api.restoreSession();
+      if (restored != null && restored.role == widget.expectedRole) {
+        if (mounted) setState(() => session = restored);
+      } else if (restored != null) {
+        await api.logout();
+      }
+    } catch (_) {
+      await api.logout();
+    } finally {
+      if (mounted) setState(() => restoring = false);
+    }
   }
 
   @override
@@ -78,6 +95,12 @@ class _CarePointLoginGateState extends State<CarePointLoginGate> {
 
   @override
   Widget build(BuildContext context) {
+    if (restoring) {
+      return Scaffold(
+        backgroundColor: widget.dark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+        body: const SafeArea(child: Center(child: CircularProgressIndicator())),
+      );
+    }
     if (session != null) return widget.builder(context, session!, signOut);
     final locale = widget.locale;
     return Scaffold(
