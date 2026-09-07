@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { ApiSecurityModule } from "./security/api-security.module";
 import { AuditModule } from "./modules/audit/audit.module";
+import { BillingModule } from "./modules/billing/billing.module";
 import { ClinicalModule } from "./modules/clinical/clinical.module";
 import { ConsentModule } from "./modules/consent/consent.module";
 import { DocumentsModule } from "./modules/documents/documents.module";
@@ -28,6 +29,7 @@ import { TelehealthModule } from "./modules/telehealth/telehealth.module";
     ClinicalModule,
     OrdersModule,
     DocumentsModule,
+    BillingModule,
   ],
 })
 export class AppModule {}
