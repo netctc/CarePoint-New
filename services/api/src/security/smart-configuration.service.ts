@@ -89,7 +89,7 @@ export class SmartConfigurationService implements OnModuleInit {
       response_types_supported: ["code"],
       response_modes_supported: ["query"],
       grant_types_supported: ["authorization_code"],
-      subject_types_supported: ["public"],
+      subject_types_supported: ["pairwise"],
       id_token_signing_alg_values_supported: ["RS256"],
       scopes_supported: [...SMART_SUPPORTED_SCOPES],
       token_endpoint_auth_methods_supported: ["none"],
