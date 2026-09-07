@@ -146,7 +146,8 @@ export class FhirService {
   async encounter(principal: AuthPrincipal, appointmentId: string): Promise<FhirResource> {
     const view = await this.clinical.getEncounter(principal, appointmentId);
     if (!view.latestRecord) throw new NotFoundException("FHIR Encounter is not available until clinical documentation exists.");
-    const resource = this.toEncounter(view);
+    const patientId = await this.patientIdForAppointment(appointmentId);
+    const resource = this.toEncounter(view, patientId);
     await this.audit.write({
       actorId: principal.accountId,
       action: "FHIR_ENCOUNTER_READ",
@@ -163,7 +164,8 @@ export class FhirService {
     const appointmentId = this.parseEncounterReference(encounterReference);
     const view = await this.clinical.getEncounter(principal, appointmentId);
     if (!view.latestRecord) throw new NotFoundException("FHIR Encounter is not available until clinical documentation exists.");
-    const vitals = this.vitalObservations(view);
+    const patientId = await this.patientIdForAppointment(appointmentId);
+    const vitals = this.vitalObservations(view, patientId);
     await this.audit.write({
       actorId: principal.accountId,
       action: "FHIR_OBSERVATION_SEARCH",
@@ -225,7 +227,7 @@ export class FhirService {
     };
   }
 
-  private toEncounter(view: any): FhirResource {
+  private toEncounter(view: any, patientId: string): FhirResource {
     const appointment = view.appointment;
     return {
       resourceType: "Encounter",
@@ -236,7 +238,7 @@ export class FhirService {
         coding: [{ system: "urn:carepoint:appointment-modality", code: appointment.modality }],
         text: appointment.service?.name ?? appointment.modality,
       }],
-      subject: { reference: `Patient/${view.latestRecord.data.patientId ?? view.latestRecord.patientId ?? ""}` },
+      subject: { reference: `Patient/${patientId}` },
       participant: [{ individual: { reference: `Practitioner/${appointment.provider.id}`, display: appointment.provider.displayName } }],
       appointment: [{ reference: `Appointment/${appointment.id}` }],
       period: { start: new Date(appointment.startsAt).toISOString(), end: new Date(appointment.endsAt).toISOString() },
@@ -244,11 +246,10 @@ export class FhirService {
     };
   }
 
-  private vitalObservations(view: any): FhirResource[] {
+  private vitalObservations(view: any, patientId: string): FhirResource[] {
     const record = view.latestRecord;
     const vitals = record?.data?.vitals;
     if (!vitals || typeof vitals !== "object" || Array.isArray(vitals)) return [];
-    const patientId = this.patientIdForAppointment(view.appointment.id);
     const effective = typeof record.data.authoredAt === "string" ? record.data.authoredAt : new Date(record.createdAt).toISOString();
     const observations: FhirResource[] = [];
     for (const [key, rawValue] of Object.entries(vitals as Record<string, unknown>)) {
@@ -273,10 +274,13 @@ export class FhirService {
     return observations;
   }
 
-  private patientIdForAppointment(appointmentId: string): string {
-    // The clinical view deliberately does not expose the Patient id directly.
-    // The value is injected by observationFromAppointment before resources are returned.
-    return appointmentId;
+  private async patientIdForAppointment(appointmentId: string): Promise<string> {
+    const appointment = await this.prisma.appointment.findUnique({
+      where: { id: appointmentId },
+      select: { patientId: true },
+    });
+    if (!appointment) throw new NotFoundException("FHIR Encounter not found.");
+    return appointment.patientId;
   }
 
   private canReadAppointment(principal: AuthPrincipal, patientUserId: string, providerUserId: string | null): boolean {
