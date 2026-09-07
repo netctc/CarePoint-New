@@ -44,6 +44,8 @@ async function main() {
   const invoice = await prisma.invoice.findUnique({ where: { appointmentId: appointment.id } });
   if (!snapshot || !invoice) throw new Error('Booking-time pricing snapshot and invoice were not created atomically.');
   if (snapshot.unitPriceMinor !== 7500 || snapshot.totalMinor !== 7500 || invoice.totalMinor !== 7500 || invoice.balanceDueMinor !== 7500 || invoice.status !== 'OPEN') throw new Error('Unexpected initial financial snapshot.');
+  const appointmentReference = appointment.id.replace(/-/g, '').toUpperCase();
+  if (!invoice.number.endsWith(appointmentReference)) throw new Error('Invoice number is not deterministically derived from the complete appointment UUID.');
 
   const cancelled = await prisma.appointment.findFirst({ where: { providerId: doctor.provider.id, status: 'CANCELLED', serviceId: appointment.serviceId, startsAt: appointment.startsAt }, orderBy: { createdAt: 'asc' } });
   if (!cancelled) throw new Error('Cancelled Slice 2 booking fixture missing.');
@@ -84,7 +86,9 @@ async function main() {
   if (paymentRetry.id !== payment.id || paymentRetry.receipt?.id !== payment.receipt.id) throw new Error('Payment idempotency retry returned a different settlement.');
 
   const storedPayment = await prisma.paymentIntent.findUnique({ where: { id: payment.id } });
+  const storedReceipt = await prisma.paymentReceipt.findUnique({ where: { paymentIntentId: payment.id } });
   if (!storedPayment || Object.keys(storedPayment).some((key) => ['pan', 'cvv', 'cardNumber', 'paymentMethodToken'].includes(key))) throw new Error('Payment persistence contains a prohibited card credential field.');
+  if (!storedReceipt?.number.endsWith(payment.id.replace(/-/g, '').toUpperCase())) throw new Error('Receipt number is not deterministically derived from the complete payment UUID.');
   const paidInvoice = await prisma.invoice.findUnique({ where: { id: invoice.id } });
   if (!paidInvoice || paidInvoice.status !== 'PAID' || paidInvoice.amountPaidMinor !== 2250 || paidInvoice.balanceDueMinor !== 0) throw new Error('Invoice was not marked paid after settlement.');
 
@@ -98,13 +102,21 @@ async function main() {
   const summaryAfterPayout = await request('/provider/finance/summary', { token: doctorToken });
   if (summaryAfterPayout.availableBalanceMinorByCurrency?.USD !== 1250) throw new Error('Unexpected provider balance after payout.');
 
-  const refundInput = { idempotencyKey: 'slice6-refund-0001', amountMinor: 2250, reason: 'CI full refund' };
-  const refund = await request(`/provider/finance/payment-intents/${payment.id}/refunds`, { method: 'POST', token: doctorToken, body: refundInput });
-  if (refund.status !== 'SUCCEEDED') throw new Error('Mock refund did not settle.');
-  const refundRetry = await request(`/provider/finance/payment-intents/${payment.id}/refunds`, { method: 'POST', token: doctorToken, body: refundInput });
-  if (refundRetry.id !== refund.id) throw new Error('Refund idempotency retry returned a different refund.');
+  const partialRefundInput = { idempotencyKey: 'slice6-refund-partial-0001', amountMinor: 1000, reason: 'CI partial refund' };
+  const partialRefund = await request(`/provider/finance/payment-intents/${payment.id}/refunds`, { method: 'POST', token: doctorToken, body: partialRefundInput });
+  if (partialRefund.status !== 'SUCCEEDED') throw new Error('Mock partial refund did not settle.');
+  const partialRefundRetry = await request(`/provider/finance/payment-intents/${payment.id}/refunds`, { method: 'POST', token: doctorToken, body: partialRefundInput });
+  if (partialRefundRetry.id !== partialRefund.id) throw new Error('Partial refund idempotency retry returned a different refund.');
+  const partiallyRefundedInvoice = await prisma.invoice.findUnique({ where: { id: invoice.id } });
+  if (!partiallyRefundedInvoice || partiallyRefundedInvoice.status !== 'PAID' || partiallyRefundedInvoice.amountRefundedMinor !== 1000) throw new Error('Partial refund incorrectly presented the invoice as fully refunded.');
+
+  const finalRefundInput = { idempotencyKey: 'slice6-refund-final-0001', amountMinor: 1250, reason: 'CI remaining refund' };
+  const finalRefund = await request(`/provider/finance/payment-intents/${payment.id}/refunds`, { method: 'POST', token: doctorToken, body: finalRefundInput });
+  if (finalRefund.status !== 'SUCCEEDED') throw new Error('Mock final refund did not settle.');
+  const finalRefundRetry = await request(`/provider/finance/payment-intents/${payment.id}/refunds`, { method: 'POST', token: doctorToken, body: finalRefundInput });
+  if (finalRefundRetry.id !== finalRefund.id) throw new Error('Final refund idempotency retry returned a different refund.');
   const refundedInvoice = await prisma.invoice.findUnique({ where: { id: invoice.id } });
-  if (!refundedInvoice || refundedInvoice.status !== 'REFUNDED' || refundedInvoice.amountRefundedMinor !== 2250) throw new Error('Invoice refund state is incorrect.');
+  if (!refundedInvoice || refundedInvoice.status !== 'REFUNDED' || refundedInvoice.amountRefundedMinor !== 2250) throw new Error('Invoice full-refund state is incorrect.');
 
   const ledger = await request('/provider/finance/ledger', { token: doctorToken });
   const types = new Set(ledger.filter((item) => item.invoiceId === invoice.id || item.payoutId === payout.id).map((item) => item.type));
@@ -113,7 +125,7 @@ async function main() {
   const financeDenied = await raw('/provider/finance/summary', { token: patientToken });
   if (financeDenied.status !== 403) throw new Error(`Patient unexpectedly accessed provider finance: HTTP ${financeDenied.status}.`);
 
-  console.log(JSON.stringify({ status: 'passed', immutablePricing: true, cancelledInvoiceVoided: true, policyReferenceRedacted: true, eligibilityAllocated: true, priorAuthorization: priorAuth.status, paymentSettled: true, paymentIdempotent: true, prohibitedCardFieldsAbsent: true, payoutSettled: true, refundSettled: true, refundIdempotent: true, providerFinanceBoundary: true }));
+  console.log(JSON.stringify({ status: 'passed', immutablePricing: true, deterministicFinancialIdentifiers: true, cancelledInvoiceVoided: true, policyReferenceRedacted: true, eligibilityAllocated: true, priorAuthorization: priorAuth.status, paymentSettled: true, paymentIdempotent: true, prohibitedCardFieldsAbsent: true, payoutSettled: true, partialRefundStateProtected: true, partialRefundIdempotent: true, fullRefundSettled: true, fullRefundIdempotent: true, providerFinanceBoundary: true }));
 }
 
 try { await main(); } finally { await prisma.$disconnect(); }
