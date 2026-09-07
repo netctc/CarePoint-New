@@ -84,8 +84,10 @@ function scopeDescription(scope: string): string {
   if (scope === "fhirUser") return "Receive your FHIR Patient identity in the ID Token.";
   const match = /^patient\/([^.]*)\.([a-z]+)$/.exec(scope);
   if (!match) return "SMART permission requested by the application.";
-  const actions = match[2].split("").map((action) => action === "r" ? "read" : action === "s" ? "search" : action).join(", ");
-  return `${actions} ${match[1]} resources within your patient context.`;
+  const resource = match[1] ?? "FHIR";
+  const permissionToken = match[2] ?? "";
+  const actions = permissionToken.split("").map((action) => action === "r" ? "read" : action === "s" ? "search" : action).join(", ");
+  return `${actions} ${resource} resources within your patient context.`;
 }
 
 function hidden(name: string, value: string): string {
