@@ -61,8 +61,20 @@ async function main() {
   const patient = await prisma.patientProfile.findUnique({ where: { id: fixtureAppointment.patientId }, include: { user: true } });
   if (!patient?.user?.email) throw new Error('Patient fixture missing.');
   const patientToken = await login(patient.user.email, patientPassword);
-  const coverage = await prisma.insuranceCoverage.findFirst({ where: { patientId: patient.id, payerCode: 'CARE-CI', status: 'ACTIVE' }, orderBy: { createdAt: 'desc' } });
-  if (!coverage) throw new Error('Slice 6 insurance coverage fixture missing.');
+
+  const coverage = await request('/insurance/me/coverages', {
+    method: 'POST',
+    token: patientToken,
+    body: {
+      payerCode: 'CLAIMS-CI',
+      payerName: 'CarePoint Claims CI Insurance',
+      externalPolicyRef: 'opaque-claims-policy-reference-ci',
+      displayLabel: 'Claims CI Health Plan',
+      effectiveFrom: '2025-01-01',
+      effectiveUntil: '2031-12-31',
+    },
+  });
+  if (!coverage?.id || coverage.externalPolicyRef !== undefined || coverage.policyReferenceStoredExternally !== true) throw new Error('Slice 6.2 coverage fixture was not created with a redacted policy reference.');
 
   const standardService = await prisma.service.findFirst({ where: { providerId: doctor.provider.id, active: true, modalities: { some: { modality: 'CLINIC', active: true } } }, orderBy: { createdAt: 'asc' } });
   if (!standardService) throw new Error('Active clinic service fixture missing.');
@@ -170,6 +182,7 @@ async function main() {
 
   console.log(JSON.stringify({
     status: 'passed',
+    selfContainedCoverageFixture: true,
     claimSubmissionIdempotent: true,
     patientClaimBoundary: true,
     adjudicationReconciled: true,
