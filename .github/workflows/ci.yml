@@ -119,6 +119,8 @@ jobs:
         run: node services/api/scripts/slice62-smoke.mjs
       - name: Slice 7 secure messaging notifications and care coordination smoke test
         run: node services/api/scripts/slice7-smoke.mjs
+      - name: Slice 8 medical transport and emergency dispatch smoke test
+        run: node services/api/scripts/slice8-smoke.mjs
       - name: Print API log on failure
         if: failure()
         run: cat /tmp/carepoint-api.log || true
