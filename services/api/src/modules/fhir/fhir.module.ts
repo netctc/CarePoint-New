@@ -14,7 +14,9 @@ import {
 import type { AuthPrincipal } from "@carepoint/identity";
 import { CurrentPrincipal, Public } from "../../security/api-security.module";
 import { ClinicalModule } from "../clinical/clinical.module";
+import { DocumentsModule } from "../documents/documents.module";
 import { OrdersModule } from "../orders/orders.module";
+import { FhirDocumentsService } from "./fhir-documents.service";
 import { FhirService } from "./fhir.service";
 
 interface HttpResponseLike {
@@ -45,13 +47,16 @@ class FhirHttpExceptionFilter implements ExceptionFilter {
 @Controller("fhir/R4")
 @UseFilters(FhirHttpExceptionFilter)
 class FhirController {
-  constructor(private readonly fhir: FhirService) {}
+  constructor(
+    private readonly fhir: FhirService,
+    private readonly fhirDocuments: FhirDocumentsService,
+  ) {}
 
   @Public()
   @Get("metadata")
   @Header("Content-Type", "application/fhir+json; charset=utf-8")
   metadata() {
-    return this.fhir.capabilityStatement();
+    return this.fhirDocuments.augmentCapability(this.fhir.capabilityStatement());
   }
 
   @Get("Patient/:patientId")
@@ -106,12 +111,24 @@ class FhirController {
   serviceRequest(@CurrentPrincipal() principal: AuthPrincipal, @Param("orderId") orderId: string) {
     return this.fhir.serviceRequest(principal, orderId);
   }
+
+  @Get("DiagnosticReport/:reportId")
+  @Header("Content-Type", "application/fhir+json; charset=utf-8")
+  diagnosticReport(@CurrentPrincipal() principal: AuthPrincipal, @Param("reportId") reportId: string) {
+    return this.fhirDocuments.diagnosticReport(principal, reportId);
+  }
+
+  @Get("DocumentReference/:documentId")
+  @Header("Content-Type", "application/fhir+json; charset=utf-8")
+  documentReference(@CurrentPrincipal() principal: AuthPrincipal, @Param("documentId") documentId: string) {
+    return this.fhirDocuments.documentReference(principal, documentId);
+  }
 }
 
 @Module({
-  imports: [ClinicalModule, OrdersModule],
+  imports: [ClinicalModule, OrdersModule, DocumentsModule],
   controllers: [FhirController],
-  providers: [FhirService],
+  providers: [FhirService, FhirDocumentsService],
 })
 export class FhirModule {}
 

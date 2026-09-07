@@ -135,5 +135,6 @@ class DiagnosticReportsController {
     DocumentMalwareScannerService,
     DicomWebService,
   ],
+  exports: [DocumentsService],
 })
 export class DocumentsModule {}
