@@ -4,6 +4,7 @@ import { CurrentPrincipal, RequirePermissions } from "../../security/api-securit
 import { OrdersService } from "./orders.service";
 import { OrdersEnvelopeService } from "./orders-envelope.service";
 import { OrdersAttestationService } from "./orders-attestation.service";
+import { OrdersSystemExportService } from "./orders-system-export.service";
 
 @Controller("clinical-orders")
 class OrdersController {
@@ -78,7 +79,7 @@ class OrdersController {
 
 @Module({
   controllers: [OrdersController],
-  providers: [OrdersService, OrdersEnvelopeService, OrdersAttestationService],
-  exports: [OrdersService],
+  providers: [OrdersService, OrdersEnvelopeService, OrdersAttestationService, OrdersSystemExportService],
+  exports: [OrdersService, OrdersSystemExportService],
 })
 export class OrdersModule {}
