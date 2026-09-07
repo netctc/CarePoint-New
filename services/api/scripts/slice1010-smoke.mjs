@@ -122,7 +122,9 @@ function expectFhir(result, status, label) {
 
 try {
   const metadata = await raw("/fhir/R4/metadata");
-  if (metadata.status !== 200 || metadata.payload.software?.version !== "slice-10.10") throw new Error(`FHIR Slice 10.10 metadata failed: ${JSON.stringify(metadata)}`);
+  const softwareVersion = String(metadata.payload.software?.version || "");
+  const versionMatch = /^slice-10\.(\d+)$/.exec(softwareVersion);
+  if (metadata.status !== 200 || !versionMatch || Number(versionMatch[1]) < 10) throw new Error(`FHIR Slice 10.10+ metadata failed: ${JSON.stringify(metadata)}`);
   const exportOperation = metadata.payload.rest?.[0]?.operation?.find((item) => item.name === "export");
   if (!exportOperation || !String(exportOperation.definition || "").includes("bulkdata")) throw new Error("CapabilityStatement does not advertise Bulk Data $export.");
 
@@ -248,7 +250,7 @@ try {
 
   console.log(JSON.stringify({
     status: "passed",
-    softwareVersion: metadata.payload.software?.version,
+    softwareVersion,
     asynchronousKickoff: true,
     protectedPolling: true,
     sameClientEnforcement: true,

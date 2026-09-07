@@ -41,10 +41,10 @@ export class FhirSmartCapabilityService {
     const implementation = this.isObject(statement.implementation) ? statement.implementation : {};
     return {
       ...statement,
-      software: { ...software, version: "slice-10.10" },
+      software: { ...software, version: "slice-10.11" },
       implementation: {
         ...implementation,
-        description: "CarePoint FHIR R4 read-only facade with patient-scoped SMART browser authorization, rotating offline refresh families, asymmetric private_key_jwt backend services, and secure asynchronous system-level Bulk Data $export for authorized Patient and Appointment resources.",
+        description: "CarePoint FHIR R4 read-only facade with patient-scoped SMART browser authorization, rotating offline refresh families, asymmetric private_key_jwt backend services, and hardened asynchronous system-level Bulk Data $export with strict Patient/Appointment _typeFilter support, deterministic NDJSON chunking, retention and payload safety controls.",
       },
       rest,
     };
@@ -65,13 +65,14 @@ export class FhirSmartCapabilityService {
   private augmentOperations(value: unknown): unknown[] {
     const operations = Array.isArray(value) ? [...value] : [];
     const definition = "http://hl7.org/fhir/uv/bulkdata/OperationDefinition/export";
-    if (!operations.some((item) => this.isObject(item) && item.name === "export")) {
-      operations.push({
-        name: "export",
-        definition,
-        documentation: "Asynchronous FHIR Bulk Data system-level export. CarePoint currently exports only Patient and Appointment NDJSON for SMART backend-services clients whose system scopes cover every requested resource type.",
-      });
-    }
+    const existing = operations.find((item) => this.isObject(item) && item.name === "export");
+    const exportOperation = {
+      name: "export",
+      definition,
+      documentation: "Asynchronous FHIR Bulk Data system-level export. CarePoint exports Patient and Appointment NDJSON for SMART backend-services clients whose system scopes cover every requested type. Slice 10.11 additionally supports strict _typeFilter subsets: Patient?_id=... and Appointment?patient=...&status=..., plus deterministic multi-file NDJSON chunking and bounded total payload controls.",
+    };
+    if (this.isObject(existing)) Object.assign(existing, exportOperation);
+    else operations.push(exportOperation);
     return operations;
   }
 

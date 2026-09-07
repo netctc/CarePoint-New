@@ -10,11 +10,13 @@ const MAX_OFFSET = 10000;
 
 @Injectable()
 export class FhirSearchSupportService {
-  assertAllowed(query: FhirSearchQuery, allowed: readonly string[]): void {
+  assertAllowed(query: FhirSearchQuery, allowed: readonly string[], repeatable: readonly string[] = []): void {
     const accepted = new Set(allowed);
+    const repeated = new Set(repeatable);
     for (const key of Object.keys(query)) {
       if (!accepted.has(key)) throw new BadRequestException(`Unsupported FHIR search parameter '${key}'.`);
-      this.single(query[key], key);
+      if (repeated.has(key)) this.values(query, key);
+      else this.single(query[key], key);
     }
   }
 
@@ -33,6 +35,19 @@ export class FhirSearchSupportService {
   optional(query: FhirSearchQuery, name: string): string | null {
     const value = this.single(query[name], name);
     return typeof value === "string" && value.trim() ? value.trim() : null;
+  }
+
+  values(query: FhirSearchQuery, name: string): string[] {
+    const raw = query[name];
+    if (raw === undefined || raw === null || raw === "") return [];
+    const values = Array.isArray(raw) ? raw : [raw];
+    if (values.length === 0) return [];
+    return values.map((value) => {
+      if (typeof value !== "string" || !value.trim()) {
+        throw new BadRequestException(`FHIR search parameter '${name}' must contain non-empty string values.`);
+      }
+      return value.trim();
+    });
   }
 
   tokens(query: FhirSearchQuery, name: string): string[] {

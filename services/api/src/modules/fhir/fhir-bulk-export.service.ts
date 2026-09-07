@@ -22,13 +22,24 @@ const DEFAULT_RETENTION_SECONDS = 24 * 60 * 60;
 const MAX_RETENTION_SECONDS = 7 * 24 * 60 * 60;
 const DEFAULT_MAX_RESOURCES_PER_TYPE = 10_000;
 const MAX_RESOURCES_PER_TYPE = 50_000;
+const DEFAULT_MAX_RESOURCES_PER_FILE = 1_000;
+const MAX_RESOURCES_PER_FILE = 5_000;
+const DEFAULT_MAX_TOTAL_RESOURCES = 20_000;
+const MAX_TOTAL_RESOURCES = 100_000;
+const DEFAULT_MAX_TOTAL_BYTES = 64 * 1024 * 1024;
+const MAX_TOTAL_BYTES = 512 * 1024 * 1024;
+const MAX_TYPE_FILTER_LENGTH = 2_048;
+const MAX_FILTER_IDS = 100;
 const OUTPUT_FORMAT = "application/fhir+ndjson";
 const SUPPORTED_TYPES: readonly FhirBulkResourceType[] = ["Patient", "Appointment"];
+const FHIR_APPOINTMENT_STATUSES = new Set(["pending", "booked", "cancelled", "fulfilled", "noshow", "entered-in-error"]);
 
+type FhirResource = Record<string, unknown>;
 type BulkExportStatus = "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED";
 
 interface BulkExportArtifact {
   type: FhirBulkResourceType;
+  fileName: string;
   objectKey: string;
   count: number;
   bytes: number;
@@ -43,6 +54,8 @@ interface BulkExportJob {
   authorizedScopes: string[];
   resourceTypes: FhirBulkResourceType[];
   since: string | null;
+  typeFilters: string[];
+  request: string;
   outputFormat: typeof OUTPUT_FORMAT;
   status: BulkExportStatus;
   createdAt: string;
@@ -84,11 +97,13 @@ export class FhirBulkExportService {
     this.assertSystem(context);
     this.assertPrefer(preferHeader);
     this.assertAccept(acceptHeader);
-    this.support.assertAllowed(query, ["_outputFormat", "_type", "_since"]);
+    this.support.assertAllowed(query, ["_outputFormat", "_type", "_since", "_typeFilter"], ["_typeFilter"]);
 
     const outputFormat = this.outputFormat(this.support.optional(query, "_outputFormat"));
     const requestedTypes = this.resourceTypes(context, this.support.tokens(query, "_type"));
     const since = this.since(this.support.optional(query, "_since"));
+    const typeFilters = this.typeFilters(requestedTypes, this.support.values(query, "_typeFilter"));
+    const request = this.requestUrl(requestedTypes, since, typeFilters, outputFormat);
     const jobId = randomToken(24);
     const createdAt = new Date().toISOString();
     const job: BulkExportJob = {
@@ -99,6 +114,8 @@ export class FhirBulkExportService {
       authorizedScopes: [...context.scopes],
       resourceTypes: requestedTypes,
       since: since?.toISOString() ?? null,
+      typeFilters,
+      request,
       outputFormat,
       status: "QUEUED",
       createdAt,
@@ -122,6 +139,7 @@ export class FhirBulkExportService {
         tokenId: context.tokenId,
         resourceTypes: requestedTypes,
         since: job.since,
+        typeFilters,
         outputFormat,
       },
     });
@@ -181,7 +199,7 @@ export class FhirBulkExportService {
     if (job.status !== "COMPLETED") throw new ConflictException("FHIR bulk export files are not available until the job completes.");
     this.assertNotExpired(job);
     const resourceType = this.fileResourceType(fileName);
-    const artifact = job.artifacts.find((item) => item.type === resourceType);
+    const artifact = job.artifacts.find((item) => item.fileName === fileName && item.type === resourceType);
     if (!artifact) throw new NotFoundException("FHIR bulk export file not found.");
     const content = await this.storage.get(artifact.objectKey);
     const digest = createHash("sha256").update(content, "utf8").digest("hex");
@@ -193,7 +211,7 @@ export class FhirBulkExportService {
         objectId: job.jobId,
         purpose: "SYSTEM_ACCESS",
         result: "FAILED",
-        metadata: { clientId: context.clientId, resourceType },
+        metadata: { clientId: context.clientId, resourceType, fileName },
       });
       throw new InternalServerErrorException("FHIR bulk export file integrity validation failed.");
     }
@@ -204,9 +222,9 @@ export class FhirBulkExportService {
       objectId: job.jobId,
       purpose: "SYSTEM_ACCESS",
       result: "SUCCESS",
-      metadata: { clientId: context.clientId, tokenId: context.tokenId, resourceType, count: artifact.count, bytes: artifact.bytes },
+      metadata: { clientId: context.clientId, tokenId: context.tokenId, resourceType, fileName, count: artifact.count, bytes: artifact.bytes },
     });
-    return { content, fileName: `${resourceType}.ndjson`, expiresAt: job.expiresAt as string };
+    return { content, fileName: artifact.fileName, expiresAt: job.expiresAt as string };
   }
 
   private async process(jobId: string): Promise<void> {
@@ -238,25 +256,49 @@ export class FhirBulkExportService {
       const retentionSeconds = this.retentionSeconds();
       const completedAt = new Date();
       const expiresAt = new Date(completedAt.getTime() + retentionSeconds * 1000).toISOString();
+      const maxPerFile = this.maxResourcesPerFile();
+      const maxTotalResources = this.maxTotalResources();
+      const maxTotalBytes = this.maxTotalBytes();
+      let totalResources = 0;
+      let totalBytes = 0;
 
       for (const resourceType of running.resourceTypes) {
         if (await this.redis.getEphemeral(this.cancelKey(jobId))) {
           await this.removeArtifacts(written);
           return;
         }
-        const resources = snapshot.resources[resourceType] ?? [];
-        if (resources.length === 0) continue;
-        const content = `${resources.map((resource) => JSON.stringify(resource)).join("\n")}\n`;
-        const objectKey = `${jobId}/${resourceType}.ndjson`;
-        const artifact: BulkExportArtifact = {
-          type: resourceType,
-          objectKey,
-          count: resources.length,
-          bytes: Buffer.byteLength(content, "utf8"),
-          sha256: createHash("sha256").update(content, "utf8").digest("hex"),
-        };
-        await this.storage.put(objectKey, content, expiresAt);
-        written.push(artifact);
+        const source = snapshot.resources[resourceType] ?? [];
+        const resources = this.applyTypeFilter(resourceType, source, running.typeFilters);
+        totalResources += resources.length;
+        if (totalResources > maxTotalResources) {
+          throw new ConflictException(`FHIR bulk export exceeded the current total safety limit of ${maxTotalResources} resources.`);
+        }
+        const chunks = this.chunks(resources, maxPerFile);
+        for (let index = 0; index < chunks.length; index += 1) {
+          if (await this.redis.getEphemeral(this.cancelKey(jobId))) {
+            await this.removeArtifacts(written);
+            return;
+          }
+          const chunk = chunks[index] as FhirResource[];
+          const content = `${chunk.map((resource) => JSON.stringify(resource)).join("\n")}\n`;
+          const bytes = Buffer.byteLength(content, "utf8");
+          totalBytes += bytes;
+          if (totalBytes > maxTotalBytes) {
+            throw new ConflictException(`FHIR bulk export exceeded the current total payload safety limit of ${maxTotalBytes} bytes.`);
+          }
+          const fileName = `${resourceType}-${String(index + 1).padStart(5, "0")}.ndjson`;
+          const objectKey = `${jobId}/${fileName}`;
+          const artifact: BulkExportArtifact = {
+            type: resourceType,
+            fileName,
+            objectKey,
+            count: chunk.length,
+            bytes,
+            sha256: createHash("sha256").update(content, "utf8").digest("hex"),
+          };
+          await this.storage.put(objectKey, content, expiresAt);
+          written.push(artifact);
+        }
       }
 
       if (await this.redis.getEphemeral(this.cancelKey(jobId))) {
@@ -283,9 +325,12 @@ export class FhirBulkExportService {
         metadata: {
           clientId: completed.clientId,
           resourceTypes: completed.resourceTypes,
+          typeFilters: completed.typeFilters,
           transactionTime: completed.transactionTime,
           expiresAt,
-          output: written.map((item) => ({ type: item.type, count: item.count, bytes: item.bytes, sha256: item.sha256 })),
+          totalResources,
+          totalBytes,
+          output: written.map((item) => ({ type: item.type, fileName: item.fileName, count: item.count, bytes: item.bytes, sha256: item.sha256 })),
         },
       });
     } catch (error) {
@@ -320,11 +365,12 @@ export class FhirBulkExportService {
     return {
       manifestType: "http://hl7.org/fhir/uv/bulkdata/OperationDefinition/export",
       transactionTime: job.transactionTime,
+      request: job.request,
       requiresAccessToken: true,
       outputFormat: OUTPUT_FORMAT,
       output: job.artifacts.map((artifact) => ({
         type: artifact.type,
-        url: this.fileUrl(job.jobId, artifact.type),
+        url: this.fileUrl(job.jobId, artifact.fileName),
         count: artifact.count,
       })),
       error: [],
@@ -361,11 +407,116 @@ export class FhirBulkExportService {
     }
     const unique: FhirBulkResourceType[] = [];
     for (const value of requested) {
-      if (value !== "Patient" && value !== "Appointment") throw new BadRequestException(`FHIR bulk export does not support resource type '${value}'.`);
-      this.assertTypeScope(context.scopes, value);
-      if (!unique.includes(value)) unique.push(value);
+      if (!SUPPORTED_TYPES.includes(value as FhirBulkResourceType)) throw new BadRequestException(`FHIR bulk export does not support resource type '${value}'.`);
+      const type = value as FhirBulkResourceType;
+      this.assertTypeScope(context.scopes, type);
+      if (!unique.includes(type)) unique.push(type);
     }
     return unique;
+  }
+
+  private typeFilters(resourceTypes: FhirBulkResourceType[], values: string[]): string[] {
+    if (values.length === 0) return [];
+    if (values.length > SUPPORTED_TYPES.length) throw new BadRequestException("FHIR bulk export supports at most one _typeFilter per resource type.");
+    const seen = new Set<FhirBulkResourceType>();
+    const result: string[] = [];
+    for (const raw of values) {
+      if (raw.length > MAX_TYPE_FILTER_LENGTH) throw new BadRequestException("FHIR bulk export _typeFilter is too long.");
+      const separator = raw.indexOf("?");
+      if (separator <= 0 || separator === raw.length - 1) throw new BadRequestException("FHIR bulk export _typeFilter must be a FHIR search query such as Patient?_id=123.");
+      const rawType = raw.slice(0, separator);
+      if (!SUPPORTED_TYPES.includes(rawType as FhirBulkResourceType)) throw new BadRequestException(`FHIR bulk export does not support _typeFilter resource type '${rawType}'.`);
+      const resourceType = rawType as FhirBulkResourceType;
+      if (!resourceTypes.includes(resourceType)) throw new BadRequestException(`FHIR bulk export _typeFilter for ${resourceType} requires ${resourceType} in the export resource set.`);
+      if (seen.has(resourceType)) throw new BadRequestException(`FHIR bulk export supports only one _typeFilter for ${resourceType}.`);
+      seen.add(resourceType);
+      const params = new URLSearchParams(raw.slice(separator + 1));
+      result.push(resourceType === "Patient" ? this.patientTypeFilter(params) : this.appointmentTypeFilter(params));
+    }
+    return result;
+  }
+
+  private patientTypeFilter(params: URLSearchParams): string {
+    this.assertNestedFilterParams(params, ["_id"], "Patient");
+    const values = params.getAll("_id");
+    if (values.length !== 1) throw new BadRequestException("FHIR bulk Patient _typeFilter requires exactly one _id parameter.");
+    const ids = this.filterTokens(values[0] as string, "Patient _id", MAX_FILTER_IDS);
+    for (const id of ids) if (!this.validResourceId(id)) throw new BadRequestException(`FHIR bulk Patient _typeFilter contains invalid id '${id}'.`);
+    const canonical = new URLSearchParams();
+    canonical.set("_id", ids.join(","));
+    return `Patient?${canonical.toString()}`;
+  }
+
+  private appointmentTypeFilter(params: URLSearchParams): string {
+    this.assertNestedFilterParams(params, ["patient", "status"], "Appointment");
+    const patientValues = params.getAll("patient");
+    const statusValues = params.getAll("status");
+    if (patientValues.length > 1 || statusValues.length > 1) {
+      throw new BadRequestException("FHIR bulk Appointment _typeFilter parameters must not be repeated inside the filter query.");
+    }
+    if (patientValues.length === 0 && statusValues.length === 0) {
+      throw new BadRequestException("FHIR bulk Appointment _typeFilter requires patient and/or status.");
+    }
+    const canonical = new URLSearchParams();
+    if (patientValues.length === 1) {
+      const patientId = this.patientReferenceId(patientValues[0] as string);
+      canonical.set("patient", `Patient/${patientId}`);
+    }
+    if (statusValues.length === 1) {
+      const statuses = this.filterTokens(statusValues[0] as string, "Appointment status", FHIR_APPOINTMENT_STATUSES.size);
+      for (const status of statuses) {
+        if (status.includes("|") || !FHIR_APPOINTMENT_STATUSES.has(status)) {
+          throw new BadRequestException(`Unsupported FHIR Appointment status '${status}' in _typeFilter.`);
+        }
+      }
+      canonical.set("status", statuses.join(","));
+    }
+    return `Appointment?${canonical.toString()}`;
+  }
+
+  private assertNestedFilterParams(params: URLSearchParams, allowed: readonly string[], resourceType: FhirBulkResourceType): void {
+    const accepted = new Set(allowed);
+    for (const key of params.keys()) {
+      if (!accepted.has(key)) throw new BadRequestException(`Unsupported FHIR ${resourceType} _typeFilter search parameter '${key}'.`);
+    }
+  }
+
+  private filterTokens(value: string, label: string, max: number): string[] {
+    const values = [...new Set(value.split(",").map((item) => item.trim()).filter(Boolean))];
+    if (values.length === 0) throw new BadRequestException(`FHIR bulk ${label} filter is empty.`);
+    if (values.length > max) throw new BadRequestException(`FHIR bulk ${label} filter exceeds the supported value count of ${max}.`);
+    return values;
+  }
+
+  private applyTypeFilter(resourceType: FhirBulkResourceType, resources: FhirResource[], typeFilters: string[]): FhirResource[] {
+    const raw = typeFilters.find((value) => value.startsWith(`${resourceType}?`));
+    if (!raw) return resources;
+    const params = new URLSearchParams(raw.slice(raw.indexOf("?") + 1));
+    if (resourceType === "Patient") {
+      const ids = new Set(this.filterTokens(params.get("_id") ?? "", "Patient _id", MAX_FILTER_IDS));
+      return resources.filter((resource) => typeof resource.id === "string" && ids.has(resource.id));
+    }
+    const patientReference = params.get("patient");
+    const statuses = params.get("status") ? new Set(this.filterTokens(params.get("status") as string, "Appointment status", FHIR_APPOINTMENT_STATUSES.size)) : null;
+    return resources.filter((resource) => {
+      if (statuses && (typeof resource.status !== "string" || !statuses.has(resource.status))) return false;
+      if (patientReference && !this.appointmentHasPatient(resource, patientReference)) return false;
+      return true;
+    });
+  }
+
+  private appointmentHasPatient(resource: FhirResource, patientReference: string): boolean {
+    if (!Array.isArray(resource.participant)) return false;
+    return resource.participant.some((participant) => {
+      if (!this.isObject(participant) || !this.isObject(participant.actor)) return false;
+      return participant.actor.reference === patientReference;
+    });
+  }
+
+  private chunks(resources: FhirResource[], size: number): FhirResource[][] {
+    const result: FhirResource[][] = [];
+    for (let offset = 0; offset < resources.length; offset += size) result.push(resources.slice(offset, offset + size));
+    return result;
   }
 
   private assertTypeScope(scopes: string[], resourceType: FhirBulkResourceType): void {
@@ -422,9 +573,22 @@ export class FhirBulkExportService {
   }
 
   private fileResourceType(fileName: string): FhirBulkResourceType {
-    const match = /^(Patient|Appointment)\.ndjson$/.exec(fileName);
+    const match = /^(Patient|Appointment)(?:-\d{5})?\.ndjson$/.exec(fileName);
     if (!match) throw new NotFoundException("FHIR bulk export file not found.");
     return match[1] as FhirBulkResourceType;
+  }
+
+  private patientReferenceId(reference: string): string {
+    const trimmed = reference.trim();
+    const id = trimmed.startsWith("Patient/") ? trimmed.slice("Patient/".length) : trimmed;
+    if (!this.validResourceId(id) || (trimmed.includes("/") && !trimmed.startsWith("Patient/"))) {
+      throw new BadRequestException("FHIR bulk Appointment patient filter is invalid.");
+    }
+    return id;
+  }
+
+  private validResourceId(value: string): boolean {
+    return /^[A-Za-z0-9.-]{1,128}$/.test(value);
   }
 
   private jobContext(job: BulkExportJob): SmartAccessContext {
@@ -446,6 +610,18 @@ export class FhirBulkExportService {
 
   private maxResourcesPerType(): number {
     return this.integerEnv("BULK_EXPORT_MAX_RESOURCES_PER_TYPE", DEFAULT_MAX_RESOURCES_PER_TYPE, 1, MAX_RESOURCES_PER_TYPE);
+  }
+
+  private maxResourcesPerFile(): number {
+    return this.integerEnv("BULK_EXPORT_MAX_RESOURCES_PER_FILE", DEFAULT_MAX_RESOURCES_PER_FILE, 1, MAX_RESOURCES_PER_FILE);
+  }
+
+  private maxTotalResources(): number {
+    return this.integerEnv("BULK_EXPORT_MAX_TOTAL_RESOURCES", DEFAULT_MAX_TOTAL_RESOURCES, 1, MAX_TOTAL_RESOURCES);
+  }
+
+  private maxTotalBytes(): number {
+    return this.integerEnv("BULK_EXPORT_MAX_TOTAL_BYTES", DEFAULT_MAX_TOTAL_BYTES, 1, MAX_TOTAL_BYTES);
   }
 
   private retentionSeconds(): number {
@@ -476,14 +652,17 @@ export class FhirBulkExportService {
     }
     if (!value || typeof value !== "object" || Array.isArray(value)) throw new InternalServerErrorException("FHIR bulk export job state is invalid.");
     const job = value as Record<string, unknown>;
+    const typeFilters = job.typeFilters === undefined ? [] : job.typeFilters;
     if (
       job.version !== 1 ||
       typeof job.jobId !== "string" ||
       typeof job.clientId !== "string" ||
       typeof job.kickoffTokenId !== "string" ||
       !Array.isArray(job.authorizedScopes) || !job.authorizedScopes.every((item) => typeof item === "string") ||
-      !Array.isArray(job.resourceTypes) || !job.resourceTypes.every((item) => item === "Patient" || item === "Appointment") ||
+      !Array.isArray(job.resourceTypes) || !job.resourceTypes.every((item) => SUPPORTED_TYPES.includes(item as FhirBulkResourceType)) ||
       (job.since !== null && typeof job.since !== "string") ||
+      !Array.isArray(typeFilters) || !typeFilters.every((item) => typeof item === "string") ||
+      (job.request !== undefined && typeof job.request !== "string") ||
       job.outputFormat !== OUTPUT_FORMAT ||
       !["QUEUED", "RUNNING", "COMPLETED", "FAILED"].includes(String(job.status)) ||
       typeof job.createdAt !== "string" ||
@@ -494,6 +673,12 @@ export class FhirBulkExportService {
       !Array.isArray(job.artifacts) ||
       (job.error !== null && typeof job.error !== "string")
     ) throw new InternalServerErrorException("FHIR bulk export job state is invalid.");
+    const resourceTypes = job.resourceTypes as FhirBulkResourceType[];
+    const since = job.since as string | null;
+    const normalizedFilters = typeFilters as string[];
+    const request = typeof job.request === "string"
+      ? job.request
+      : this.requestUrl(resourceTypes, since ? new Date(since) : null, normalizedFilters, OUTPUT_FORMAT);
     const artifacts = job.artifacts.map((item) => this.parseArtifact(item));
     return {
       version: 1,
@@ -501,8 +686,10 @@ export class FhirBulkExportService {
       clientId: job.clientId,
       kickoffTokenId: job.kickoffTokenId,
       authorizedScopes: job.authorizedScopes as string[],
-      resourceTypes: job.resourceTypes as FhirBulkResourceType[],
-      since: job.since as string | null,
+      resourceTypes,
+      since,
+      typeFilters: normalizedFilters,
+      request,
       outputFormat: OUTPUT_FORMAT,
       status: job.status as BulkExportStatus,
       createdAt: job.createdAt,
@@ -519,19 +706,38 @@ export class FhirBulkExportService {
     if (!value || typeof value !== "object" || Array.isArray(value)) throw new InternalServerErrorException("FHIR bulk export artifact state is invalid.");
     const item = value as Record<string, unknown>;
     if (
-      (item.type !== "Patient" && item.type !== "Appointment") ||
+      !SUPPORTED_TYPES.includes(item.type as FhirBulkResourceType) ||
       typeof item.objectKey !== "string" ||
       typeof item.count !== "number" || !Number.isSafeInteger(item.count) || item.count < 0 ||
       typeof item.bytes !== "number" || !Number.isSafeInteger(item.bytes) || item.bytes < 0 ||
-      typeof item.sha256 !== "string" || !/^[a-f0-9]{64}$/.test(item.sha256)
+      typeof item.sha256 !== "string" || !/^[a-f0-9]{64}$/.test(item.sha256) ||
+      (item.fileName !== undefined && typeof item.fileName !== "string")
     ) throw new InternalServerErrorException("FHIR bulk export artifact state is invalid.");
+    const type = item.type as FhirBulkResourceType;
+    const fileName = typeof item.fileName === "string" ? item.fileName : `${type}.ndjson`;
+    if (this.fileResourceType(fileName) !== type) throw new InternalServerErrorException("FHIR bulk export artifact file name is invalid.");
     return {
-      type: item.type,
+      type,
+      fileName,
       objectKey: item.objectKey,
       count: item.count,
       bytes: item.bytes,
       sha256: item.sha256,
     };
+  }
+
+  private requestUrl(
+    resourceTypes: FhirBulkResourceType[],
+    since: Date | null,
+    typeFilters: string[],
+    outputFormat: typeof OUTPUT_FORMAT,
+  ): string {
+    const params = new URLSearchParams();
+    params.set("_type", resourceTypes.join(","));
+    if (since) params.set("_since", since.toISOString());
+    params.set("_outputFormat", outputFormat);
+    for (const filter of typeFilters) params.append("_typeFilter", filter);
+    return `${this.config.fhirBaseUrl()}/$export?${params.toString()}`;
   }
 
   private async removeArtifacts(artifacts: BulkExportArtifact[]): Promise<void> {
@@ -558,7 +764,11 @@ export class FhirBulkExportService {
     return `${this.config.fhirBaseUrl()}/$export-status/${jobId}`;
   }
 
-  private fileUrl(jobId: string, resourceType: FhirBulkResourceType): string {
-    return `${this.config.fhirBaseUrl()}/$export-file/${jobId}/${resourceType}.ndjson`;
+  private fileUrl(jobId: string, fileName: string): string {
+    return `${this.config.fhirBaseUrl()}/$export-file/${jobId}/${fileName}`;
+  }
+
+  private isObject(value: unknown): value is Record<string, unknown> {
+    return Boolean(value) && typeof value === "object" && !Array.isArray(value);
   }
 }
