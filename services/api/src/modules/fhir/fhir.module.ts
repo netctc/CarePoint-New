@@ -51,6 +51,7 @@ interface HttpResponseLike {
 
 interface FhirRequestLike {
   headers?: Record<string, string | string[] | undefined>;
+  originalUrl?: string;
 }
 
 @Injectable()
@@ -115,7 +116,7 @@ class FhirController {
     await this.rateLimits.assertAllowed({ namespace: "fhir:bulk:kickoff", identity: smart.clientId, limit: 10, windowSeconds: 300 });
     const result = await this.bulkExport.kickoff(
       smart,
-      query,
+      preserveBulkTypeFilters(query, request.originalUrl),
       headerValue(request.headers?.prefer),
       headerValue(request.headers?.accept),
     );
@@ -324,6 +325,17 @@ function hardenHeaders(response: HttpResponseLike): void {
 
 function headerValue(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value.join(",") : value;
+}
+
+function preserveBulkTypeFilters(query: FhirSearchQuery, originalUrl: string | undefined): FhirSearchQuery {
+  if (!originalUrl) return query;
+  let filters: string[];
+  try {
+    filters = new URL(originalUrl, "http://carepoint.local").searchParams.getAll("_typeFilter");
+  } catch {
+    return query;
+  }
+  return filters.length > 0 ? { ...query, _typeFilter: filters } : query;
 }
 
 function outcomeCode(status: number): string {
