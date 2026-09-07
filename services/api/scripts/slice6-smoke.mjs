@@ -62,7 +62,7 @@ async function main() {
 
   const coverage = await request('/insurance/me/coverages', {
     method: 'POST', token: patientToken,
-    body: { payerCode: 'CARE-CI', payerName: 'CarePoint CI Insurance', externalPolicyRef: 'opaque-policy-reference-ci', displayLabel: 'CI Health Plan', effectiveFrom: '2029-01-01', effectiveUntil: '2031-12-31' },
+    body: { payerCode: 'CARE-CI', payerName: 'CarePoint CI Insurance', externalPolicyRef: 'opaque-policy-reference-ci', displayLabel: 'CI Health Plan', effectiveFrom: '2025-01-01', effectiveUntil: '2031-12-31' },
   });
   if (coverage.externalPolicyRef !== undefined || coverage.policyReferenceStoredExternally !== true) throw new Error('Coverage creation leaked the opaque policy reference.');
   const coverages = await request('/insurance/me/coverages', { token: patientToken });
