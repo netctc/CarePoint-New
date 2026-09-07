@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 part 'financial_api.dart';
+part 'transport_api.dart';
 
 class CarePointApiException implements Exception {
   const CarePointApiException(this.message, {this.statusCode, this.payload});
