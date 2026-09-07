@@ -93,6 +93,7 @@ CREATE TABLE "NotificationEndpoint" (
 CREATE TABLE "NotificationEvent" (
   "id" UUID NOT NULL DEFAULT gen_random_uuid(),
   "accountId" UUID NOT NULL,
+  "dedupeKey" TEXT NOT NULL,
   "type" "NotificationEventType" NOT NULL,
   "entityType" TEXT NOT NULL,
   "entityId" TEXT NOT NULL,
@@ -129,6 +130,7 @@ CREATE INDEX "CareMessageReadReceipt_accountId_readAt_idx" ON "CareMessageReadRe
 CREATE UNIQUE INDEX "NotificationPreference_accountId_key" ON "NotificationPreference"("accountId");
 CREATE UNIQUE INDEX "NotificationEndpoint_accountId_channel_externalEndpointRef_key" ON "NotificationEndpoint"("accountId", "channel", "externalEndpointRef");
 CREATE INDEX "NotificationEndpoint_accountId_channel_active_idx" ON "NotificationEndpoint"("accountId", "channel", "active");
+CREATE UNIQUE INDEX "NotificationEvent_dedupeKey_key" ON "NotificationEvent"("dedupeKey");
 CREATE INDEX "NotificationEvent_accountId_readAt_createdAt_idx" ON "NotificationEvent"("accountId", "readAt", "createdAt");
 CREATE INDEX "NotificationEvent_type_createdAt_idx" ON "NotificationEvent"("type", "createdAt");
 CREATE UNIQUE INDEX "NotificationDelivery_notificationId_channel_key" ON "NotificationDelivery"("notificationId", "channel");
