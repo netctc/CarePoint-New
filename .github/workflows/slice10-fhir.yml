@@ -1,0 +1,64 @@
+name: Slice 10 FHIR
+
+on:
+  pull_request:
+
+jobs:
+  fhir:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: carepoint
+          POSTGRES_PASSWORD: carepoint
+          POSTGRES_DB: carepoint
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U carepoint -d carepoint"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://carepoint:carepoint@127.0.0.1:5432/carepoint?schema=public
+      REDIS_URL: redis://127.0.0.1:6379
+      ALLOWED_ORIGINS: http://localhost:3000
+      TELEHEALTH_PROVIDER: mock
+      PAYMENT_GATEWAY_PROVIDER: mock
+      INSURANCE_GATEWAY_PROVIDER: mock
+      CLAIMS_GATEWAY_PROVIDER: mock
+      NOTIFICATION_GATEWAY_PROVIDER: mock
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - run: npm run build
+      - run: npm run db:deploy
+      - name: Start API
+        run: |
+          npm --workspace @carepoint/api run start > /tmp/carepoint-api.log 2>&1 &
+          echo $! > /tmp/carepoint-api.pid
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:4000/api/v1/health/ready > /dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/carepoint-api.log
+          exit 1
+      - name: Slice 10 FHIR R4 interoperability smoke test
+        run: node services/api/scripts/slice10-smoke.mjs
+      - name: Print API log on failure
+        if: failure()
+        run: cat /tmp/carepoint-api.log || true
