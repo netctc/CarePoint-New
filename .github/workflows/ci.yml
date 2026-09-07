@@ -53,6 +53,8 @@ jobs:
       DOCUMENT_SIGNING_SECRET_BASE64: BQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQU=
       PAYMENT_GATEWAY_PROVIDER: mock
       INSURANCE_GATEWAY_PROVIDER: mock
+      CLAIMS_GATEWAY_PROVIDER: mock
+      CLAIMS_MOCK_DENIAL_THRESHOLD_MINOR: 100000
       SLICE6_DOCTOR_PASSWORD: CarePoint-Doctor#2026
       SLICE6_PATIENT_PASSWORD: CarePoint-Patient#2026
       BOOTSTRAP_ADMIN_EMAIL: admin-ci@carepoint.test
@@ -109,6 +111,8 @@ jobs:
         run: node services/api/scripts/slice5-smoke.mjs
       - name: Slice 6 payments insurance and financial operations smoke test
         run: node services/api/scripts/slice6-smoke.mjs
+      - name: Slice 6.2 claims EOB and revenue cycle smoke test
+        run: node services/api/scripts/slice62-smoke.mjs
       - name: Print API log on failure
         if: failure()
         run: cat /tmp/carepoint-api.log || true
