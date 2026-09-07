@@ -41,7 +41,7 @@ export class ClaimsService {
     if (!roleHasPermission(principal.role, "REVENUE_CYCLE_OPERATE")) throw new ForbiddenException("Revenue cycle operator permission is required.");
     const normalized = status ? this.claimStatus(status) : undefined;
     const claims = await this.prisma.insuranceClaim.findMany({
-      where: normalized ? { status: normalized } : undefined,
+      ...(normalized ? { where: { status: normalized } } : {}),
       orderBy: [{ submittedAt: "desc" }, { version: "desc" }],
       take: 500,
     });
