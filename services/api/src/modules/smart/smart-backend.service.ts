@@ -181,7 +181,7 @@ export class SmartBackendService {
 
   private verifyAssertion(header: string, claims: string, signature: string, jwk: SmartBackendJwk): boolean {
     try {
-      const publicKey = createPublicKey({ key: jwk as JsonWebKey, format: "jwk" });
+      const publicKey = createPublicKey({ key: jwk as unknown as JsonWebKey, format: "jwk" });
       const verifier = createVerify("RSA-SHA384");
       verifier.update(`${header}.${claims}`, "ascii");
       verifier.end();
