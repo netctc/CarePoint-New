@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import 'carepoint_token_store.dart';
+
 part 'financial_api.dart';
 part 'transport_api.dart';
 
@@ -28,28 +30,45 @@ class CarePointSession {
 }
 
 class CarePointApi {
-  CarePointApi({String? baseUrl, http.Client? client})
+  CarePointApi({String? baseUrl, http.Client? client, CarePointTokenStore? tokenStore})
       : baseUrl = (baseUrl ?? const String.fromEnvironment('CAREPOINT_API_BASE', defaultValue: 'http://10.0.2.2:4000/api/v1')).replaceAll(RegExp(r'/+$'), ''),
-        _client = client ?? http.Client();
+        _client = client ?? http.Client(),
+        _tokenStore = tokenStore ?? SecureCarePointTokenStore();
 
   final String baseUrl;
   final http.Client _client;
+  final CarePointTokenStore _tokenStore;
   String? accessToken;
   String? refreshToken;
 
   bool get isAuthenticated => accessToken != null;
 
+  Future<CarePointSession?> restoreSession() async {
+    accessToken = await _tokenStore.readAccessToken();
+    refreshToken = await _tokenStore.readRefreshToken();
+    if (refreshToken == null || refreshToken!.isEmpty) {
+      await logout();
+      return null;
+    }
+    try {
+      return CarePointSession(account: await me(), api: this);
+    } catch (_) {
+      await logout();
+      return null;
+    }
+  }
+
   Future<CarePointSession> login(String email, String password) async {
     final result = await _send('POST', '/iam/login', body: {'email': email.trim(), 'password': password}, authenticated: false, retryAuth: false);
     final map = _asMap(result);
     if (map['requiresMfa'] == true) throw CarePointMfaRequired(map['challengeId'].toString(), map['expiresAt'].toString());
-    _captureTokens(map);
+    await _captureTokens(map);
     return CarePointSession(account: await me(), api: this);
   }
 
   Future<CarePointSession> completeMfa(String challengeId, String code) async {
     final result = await _send('POST', '/iam/mfa/verify', body: {'challengeId': challengeId, 'code': code.trim()}, authenticated: false, retryAuth: false);
-    _captureTokens(_asMap(result));
+    await _captureTokens(_asMap(result));
     return CarePointSession(account: await me(), api: this);
   }
 
@@ -84,7 +103,7 @@ class CarePointApi {
   }
   Future<List<Map<String, dynamic>>> providerAppointments({DateTime? from, DateTime? to}) async => _asList(await _send('GET', '/provider/appointments', query: {if (from != null) 'from': from.toUtc().toIso8601String(), if (to != null) 'to': to.toUtc().toIso8601String()}));
   Future<List<Map<String, dynamic>>> availabilityRules() async => _asList(await _send('GET', '/provider/availability/rules'));
-  Future<Map<String, dynamic>> createAvailabilityRule({required String serviceId, required String modality, required String timezone, required int weekday, required int startMinute, required int endMinute, required int intervalMinutes, int slotCapacity = 1, required String effectiveFrom, String? effectiveUntil}) async => _asMap(await _send('POST', '/provider/availability/rules', body: {'serviceId': serviceId, 'modality': modality, 'timezone': timezone, 'weekday': weekday, 'startMinute': startMinute, 'endMinute': endMinute, 'intervalMinutes': intervalMinutes, 'slotCapacity': slotCapacity, 'effectiveFrom': effectiveFrom, if (effectiveUntil != null && effectiveUntil.isNotEmpty) 'effectiveUntil': effectiveUntil}));
+  Future<Map<String, dynamic>> createAvailabilityRule({required String serviceId, required String modality, required String timezone, required int weekday, required int startMinute, required int endMinute, required int intervalMinutes, int slotCapacity = 1, required String effectiveFrom, String? effectiveUntil}) async => _asMap(await _send('POST', '/provider/availability/rules', body: {'serviceId': serviceId, 'modality': modality, 'timezone': timezone, 'weekday': weekday, 'startMinute': startMinute, 'endMinute': endMinute, 'intervalMinutes': intervalMinutes, 'slotCapacity': slotCapacity, 'effectiveFrom': effectiveFrom, if (effectiveUntil != null) 'effectiveUntil': effectiveUntil}));
   Future<Map<String, dynamic>> generateAvailability({required String fromDate, required String toDate, String? ruleId}) async => _asMap(await _send('POST', '/provider/availability/generate', body: {'fromDate': fromDate, 'toDate': toDate, if (ruleId != null) 'ruleId': ruleId}));
 
   Future<Map<String, dynamic>> telehealthStatus(String appointmentId) async => _asMap(await _send('GET', '/telehealth/appointments/$appointmentId'));
@@ -125,7 +144,11 @@ class CarePointApi {
   Future<Map<String, dynamic>> finalizeDiagnosticReport(String reportId) async => _asMap(await _send('POST', '/diagnostic-reports/$reportId/finalize', body: const {}));
   Future<Map<String, dynamic>> releaseDiagnosticReport(String reportId) async => _asMap(await _send('POST', '/diagnostic-reports/$reportId/release', body: const {}));
 
-  Future<void> logout() async { accessToken = null; refreshToken = null; }
+  Future<void> logout() async {
+    accessToken = null;
+    refreshToken = null;
+    await _tokenStore.clear();
+  }
 
   Future<dynamic> _send(String method, String path, {Map<String, String>? query, Map<String, dynamic>? body, bool authenticated = true, bool retryAuth = true}) async {
     final response = await _raw(method, path, query: query, body: body, authenticated: authenticated);
@@ -167,19 +190,21 @@ class CarePointApi {
     if (token == null) return false;
     try {
       final result = _decode(await _raw('POST', '/iam/sessions/refresh', body: {'refreshToken': token}, authenticated: false));
-      _captureTokens(_asMap(result));
+      await _captureTokens(_asMap(result));
       return true;
     } catch (_) {
       accessToken = null;
       refreshToken = null;
+      await _tokenStore.clear();
       return false;
     }
   }
 
-  void _captureTokens(Map<String, dynamic> value) {
+  Future<void> _captureTokens(Map<String, dynamic> value) async {
     final access = value['accessToken']?.toString();
     final refresh = value['refreshToken']?.toString();
     if (access == null || access.isEmpty || refresh == null || refresh.isEmpty) throw const CarePointApiException('Authentication response did not contain session tokens.');
+    await _tokenStore.writeTokens(accessToken: access, refreshToken: refresh);
     accessToken = access;
     refreshToken = refresh;
   }
