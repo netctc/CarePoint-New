@@ -44,6 +44,14 @@ jobs:
       ORDER_SIGNING_PROVIDER: local
       ORDER_SIGNING_KEY_ID: ci-orders-signing-v1
       ORDER_SIGNING_SECRET_BASE64: AwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwM=
+      DOCUMENT_STORAGE_PROVIDER: local
+      DOCUMENT_STORAGE_LOCAL_ROOT: /tmp/carepoint-documents
+      DOCUMENT_KEY_PROVIDER: local
+      DOCUMENT_ENVELOPE_KEY_ID: ci-documents-kek-v1
+      DOCUMENT_ENVELOPE_KEY_BASE64: BAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQ=
+      DOCUMENT_SIGNING_PROVIDER: local
+      DOCUMENT_SIGNING_KEY_ID: ci-documents-signing-v1
+      DOCUMENT_SIGNING_SECRET_BASE64: BQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQU=
       PAYMENT_GATEWAY_PROVIDER: mock
       INSURANCE_GATEWAY_PROVIDER: mock
       CLAIMS_GATEWAY_PROVIDER: mock
@@ -68,6 +76,8 @@ jobs:
           exit 1
       - name: Slice 10 FHIR R4 interoperability smoke test
         run: node services/api/scripts/slice10-smoke.mjs
+      - name: Slice 10.3 FHIR diagnostics and documents smoke test
+        run: node services/api/scripts/slice103-smoke.mjs
       - name: Print API log on failure
         if: failure()
         run: cat /tmp/carepoint-api.log || true
