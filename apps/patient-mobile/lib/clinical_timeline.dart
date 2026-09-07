@@ -3,6 +3,8 @@ import 'package:carepoint_mobile_core/carepoint_localization.dart';
 import 'package:carepoint_mobile_core/clinical_documents.dart';
 import 'package:carepoint_mobile_core/clinical_localization.dart';
 import 'package:carepoint_mobile_core/clinical_orders.dart';
+import 'package:carepoint_mobile_core/revenue_cycle_localization.dart';
+import 'package:carepoint_mobile_core/revenue_cycle_workspace.dart';
 import 'package:flutter/material.dart';
 
 class PatientClinicalTimelinePage extends StatefulWidget {
@@ -34,6 +36,11 @@ class _PatientClinicalTimelinePageState extends State<PatientClinicalTimelinePag
       OutlinedButton.icon(
         onPressed: () => Navigator.push<void>(context, MaterialPageRoute(builder: (_) => Directionality(textDirection: widget.locale.textDirection, child: PatientClinicalDocumentsPage(session: widget.session, locale: widget.locale)))),
         icon: const Icon(Icons.folder_shared_outlined), label: Text(documentText(widget.locale, 'title')),
+      ),
+      const SizedBox(height: 8),
+      OutlinedButton.icon(
+        onPressed: () => Navigator.push<void>(context, MaterialPageRoute(builder: (_) => Directionality(textDirection: widget.locale.textDirection, child: PatientRevenueCyclePage(session: widget.session, locale: widget.locale)))),
+        icon: const Icon(Icons.request_quote_outlined), label: Text(revenueText(widget.locale, 'title')),
       ),
       if (items.isEmpty && orders.isEmpty) Padding(padding: const EdgeInsets.all(24), child: Text(clinicalText(widget.locale, 'noRecords'), textAlign: TextAlign.center)),
       if (items.isNotEmpty) ...[const SizedBox(height: 16), ...items.map(_clinicalCard)],
