@@ -3,10 +3,12 @@ import { roleHasPermission, type AuthPrincipal } from "@carepoint/identity";
 import { PrismaService } from "../../infrastructure/prisma/prisma.module";
 import { DatabaseAuditService } from "../../infrastructure/audit/audit.service";
 import { ClinicalService } from "../clinical/clinical.service";
+import { OrdersService } from "../orders/orders.service";
 
 const FHIR_VERSION = "4.0.1";
 
 type FhirResource = Record<string, unknown>;
+type JsonObject = Record<string, unknown>;
 
 interface VitalDefinition {
   id: string;
@@ -32,6 +34,7 @@ export class FhirService {
     private readonly prisma: PrismaService,
     private readonly audit: DatabaseAuditService,
     private readonly clinical: ClinicalService,
+    private readonly orders: OrdersService,
   ) {}
 
   capabilityStatement(): FhirResource {
@@ -41,7 +44,7 @@ export class FhirService {
       status: "active",
       date: "2026-09-07",
       kind: "instance",
-      software: { name: "CarePoint", version: "slice-10.1" },
+      software: { name: "CarePoint", version: "slice-10.2" },
       implementation: { description: "CarePoint FHIR R4 read-only interoperability facade" },
       fhirVersion: FHIR_VERSION,
       format: ["json"],
@@ -64,8 +67,13 @@ export class FhirService {
             {
               type: "Observation",
               interaction: [{ code: "search-type" }],
-              searchParam: [{ name: "encounter", type: "reference", documentation: "FHIR Encounter reference backed by a CarePoint appointment encounter" }],
+              searchParam: [
+                { name: "encounter", type: "reference", documentation: "FHIR Encounter reference backed by a CarePoint appointment encounter" },
+                { name: "based-on", type: "reference", documentation: "FHIR ServiceRequest reference backed by a CarePoint laboratory order" },
+              ],
             },
+            { type: "MedicationRequest", interaction: [{ code: "read" }] },
+            { type: "ServiceRequest", interaction: [{ code: "read" }] },
           ],
         },
       ],
@@ -135,12 +143,7 @@ export class FhirService {
       take: 200,
     });
     await this.audit.write({ actorId: principal.accountId, action: "FHIR_APPOINTMENT_SEARCH", objectType: "PATIENT", objectId: patient.id, result: "SUCCESS", metadata: { count: appointments.length } });
-    return {
-      resourceType: "Bundle",
-      type: "searchset",
-      total: appointments.length,
-      entry: appointments.map((item) => ({ fullUrl: `urn:uuid:${item.id}`, resource: this.toAppointment(item), search: { mode: "match" } })),
-    };
+    return this.searchBundle(appointments.map((item) => this.toAppointment(item)));
   }
 
   async encounter(principal: AuthPrincipal, appointmentId: string): Promise<FhirResource> {
@@ -160,6 +163,17 @@ export class FhirService {
     return resource;
   }
 
+  async observations(principal: AuthPrincipal, encounterReference?: string, basedOnReference?: string): Promise<FhirResource> {
+    const encounter = encounterReference?.trim();
+    const basedOn = basedOnReference?.trim();
+    if ((!encounter && !basedOn) || (encounter && basedOn)) {
+      throw new BadRequestException("FHIR Observation search requires exactly one of encounter or based-on.");
+    }
+    return encounter
+      ? this.observationsForEncounter(principal, encounter)
+      : this.labObservationsForServiceRequest(principal, basedOn as string);
+  }
+
   async observationsForEncounter(principal: AuthPrincipal, encounterReference: string): Promise<FhirResource> {
     const appointmentId = this.parseEncounterReference(encounterReference);
     const view = await this.clinical.getEncounter(principal, appointmentId);
@@ -173,14 +187,60 @@ export class FhirService {
       objectId: appointmentId,
       purpose: "TREATMENT",
       result: "SUCCESS",
-      metadata: { basis: view.accessBasis, count: vitals.length, fhirVersion: FHIR_VERSION },
+      metadata: { basis: view.accessBasis, category: "vital-signs", count: vitals.length, fhirVersion: FHIR_VERSION },
     });
-    return {
-      resourceType: "Bundle",
-      type: "searchset",
-      total: vitals.length,
-      entry: vitals.map((resource) => ({ fullUrl: `urn:uuid:${resource.id}`, resource, search: { mode: "match" } })),
-    };
+    return this.searchBundle(vitals);
+  }
+
+  async medicationRequest(principal: AuthPrincipal, orderId: string): Promise<FhirResource> {
+    const order = await this.orders.getOrder(principal, orderId);
+    if (order.type !== "PRESCRIPTION") throw new NotFoundException("FHIR MedicationRequest not found.");
+    const resource = this.toMedicationRequest(order);
+    await this.audit.write({
+      actorId: principal.accountId,
+      action: "FHIR_MEDICATION_REQUEST_READ",
+      objectType: "CLINICAL_ORDER",
+      objectId: order.id,
+      purpose: this.orderPurpose(order.accessBasis),
+      result: "SUCCESS",
+      metadata: { basis: order.accessBasis, fhirVersion: FHIR_VERSION },
+    });
+    return resource;
+  }
+
+  async serviceRequest(principal: AuthPrincipal, orderId: string): Promise<FhirResource> {
+    const order = await this.orders.getOrder(principal, orderId);
+    if (order.type !== "LABORATORY") throw new NotFoundException("FHIR ServiceRequest not found.");
+    const resource = this.toServiceRequest(order);
+    await this.audit.write({
+      actorId: principal.accountId,
+      action: "FHIR_SERVICE_REQUEST_READ",
+      objectType: "CLINICAL_ORDER",
+      objectId: order.id,
+      purpose: this.orderPurpose(order.accessBasis),
+      result: "SUCCESS",
+      metadata: { basis: order.accessBasis, fhirVersion: FHIR_VERSION },
+    });
+    return resource;
+  }
+
+  async labObservationsForServiceRequest(principal: AuthPrincipal, basedOnReference: string): Promise<FhirResource> {
+    const orderId = this.parseServiceRequestReference(basedOnReference);
+    const order = await this.orders.getOrder(principal, orderId);
+    if (order.type !== "LABORATORY") throw new NotFoundException("FHIR ServiceRequest not found.");
+
+    const released = order.labResult && order.labResult.status === "RELEASED" && order.labResult.released === true;
+    const resources = released ? this.labObservations(order) : [];
+    await this.audit.write({
+      actorId: principal.accountId,
+      action: "FHIR_LAB_OBSERVATION_SEARCH",
+      objectType: "CLINICAL_ORDER",
+      objectId: order.id,
+      purpose: this.orderPurpose(order.accessBasis),
+      result: "SUCCESS",
+      metadata: { basis: order.accessBasis, released: Boolean(released), count: resources.length, fhirVersion: FHIR_VERSION },
+    });
+    return this.searchBundle(resources);
   }
 
   private toPatient(patient: { id: string; firstName: string; lastName: string; phone: string | null; user: { email: string; status: string } }): FhirResource {
@@ -274,6 +334,156 @@ export class FhirService {
     return observations;
   }
 
+  private toMedicationRequest(order: any): FhirResource {
+    const data = this.jsonObject(order.data);
+    const medication = this.jsonObject(data.medication);
+    const dosageInstruction = this.stringValue(data.dosageInstruction) ?? "See CarePoint prescription";
+    const resource: FhirResource = {
+      resourceType: "MedicationRequest",
+      id: order.id,
+      status: switchMedicationRequestStatus(order.status),
+      intent: "order",
+      medicationCodeableConcept: this.codeableConcept(medication, "name"),
+      subject: { reference: `Patient/${order.patientId}` },
+      encounter: { reference: `Encounter/${order.encounterRef}` },
+      authoredOn: this.isoDate(order.signedAt),
+      requester: { reference: `Practitioner/${order.providerId}` },
+      dosageInstruction: [{ text: dosageInstruction }],
+    };
+    const refills = this.numberValue(data.refills);
+    const quantity = this.numberValue(data.quantity);
+    if (refills !== null || quantity !== null) {
+      resource.dispenseRequest = {
+        ...(refills !== null ? { numberOfRepeatsAllowed: refills } : {}),
+        ...(quantity !== null ? { quantity: { value: quantity } } : {}),
+      };
+    }
+    const notes = ["route", "frequency", "duration", "reason", "instructions"]
+      .map((key) => this.stringValue(data[key]))
+      .filter((value): value is string => Boolean(value));
+    if (notes.length) resource.note = notes.map((text) => ({ text }));
+    return resource;
+  }
+
+  private toServiceRequest(order: any): FhirResource {
+    const data = this.jsonObject(order.data);
+    const tests = Array.isArray(data.tests) ? data.tests.map((item) => this.jsonObject(item)) : [];
+    const testConcepts = tests.map((test) => this.codeableConcept(test, "display"));
+    const display = tests.map((test) => this.stringValue(test.display)).filter((value): value is string => Boolean(value)).join(", ") || "Laboratory order";
+    const priority = this.stringValue(data.priority)?.toLowerCase();
+    const resource: FhirResource = {
+      resourceType: "ServiceRequest",
+      id: order.id,
+      status: switchServiceRequestStatus(order.status),
+      intent: "order",
+      ...(priority === "urgent" || priority === "routine" ? { priority } : {}),
+      code: { text: display },
+      ...(testConcepts.length ? { orderDetail: testConcepts } : {}),
+      subject: { reference: `Patient/${order.patientId}` },
+      encounter: { reference: `Encounter/${order.encounterRef}` },
+      authoredOn: this.isoDate(order.signedAt),
+      requester: { reference: `Practitioner/${order.providerId}` },
+    };
+    const reason = this.stringValue(data.reason);
+    if (reason) resource.reasonCode = [{ text: reason }];
+    const instructions = this.stringValue(data.instructions);
+    const specimen = this.stringValue(data.specimen);
+    const fasting = typeof data.fasting === "boolean" ? data.fasting : null;
+    const patientInstructions = [
+      instructions,
+      specimen ? `Specimen: ${specimen}` : null,
+      fasting === true ? "Fasting required" : fasting === false ? "Fasting not required" : null,
+    ].filter((value): value is string => Boolean(value));
+    if (patientInstructions.length) resource.patientInstruction = patientInstructions.join(". ");
+    return resource;
+  }
+
+  private labObservations(order: any): FhirResource[] {
+    const result = order.labResult;
+    const data = this.jsonObject(result?.data);
+    const entries = Array.isArray(data.observations) ? data.observations : [];
+    const effective = this.isoDate(result?.releasedAt ?? result?.validatedAt ?? order.signedAt);
+    return entries.flatMap((raw: unknown, index: number) => {
+      const item = this.jsonObject(raw);
+      const display = this.stringValue(item.display);
+      const value = item.value;
+      if (!display || (typeof value !== "string" && typeof value !== "number")) return [];
+      const resource: FhirResource = {
+        resourceType: "Observation",
+        id: `${result.id}-lab-${index + 1}`.slice(0, 64),
+        status: "final",
+        category: [{ coding: [{ system: "http://terminology.hl7.org/CodeSystem/observation-category", code: "laboratory", display: "Laboratory" }] }],
+        code: this.codeableConcept(item, "display"),
+        subject: { reference: `Patient/${order.patientId}` },
+        encounter: { reference: `Encounter/${order.encounterRef}` },
+        basedOn: [{ reference: `ServiceRequest/${order.id}` }],
+        effectiveDateTime: effective,
+      };
+      if (typeof value === "number") {
+        const unit = this.stringValue(item.unit);
+        resource.valueQuantity = { value, ...(unit ? { unit } : {}) };
+      } else {
+        resource.valueString = value;
+      }
+      const referenceRange = this.stringValue(item.referenceRange);
+      if (referenceRange) resource.referenceRange = [{ text: referenceRange }];
+      const flag = this.stringValue(item.flag);
+      if (flag) resource.interpretation = [{ text: flag }];
+      return [resource];
+    });
+  }
+
+  private searchBundle(resources: FhirResource[]): FhirResource {
+    return {
+      resourceType: "Bundle",
+      type: "searchset",
+      total: resources.length,
+      entry: resources.map((resource) => ({ fullUrl: `urn:uuid:${String(resource.id ?? "resource")}`, resource, search: { mode: "match" } })),
+    };
+  }
+
+  private codeableConcept(input: JsonObject, displayField: string): FhirResource {
+    const display = this.stringValue(input[displayField]);
+    const code = this.stringValue(input.code);
+    const rawSystem = this.stringValue(input.codeSystem);
+    const coding = code
+      ? [{ ...(rawSystem ? { system: this.codeSystemUri(rawSystem) } : {}), code, ...(display ? { display } : {}) }]
+      : [];
+    return { ...(coding.length ? { coding } : {}), ...(display ? { text: display } : {}) };
+  }
+
+  private codeSystemUri(value: string): string {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === "loinc") return "http://loinc.org";
+    if (normalized === "rxnorm") return "http://www.nlm.nih.gov/research/umls/rxnorm";
+    if (normalized === "snomed" || normalized === "snomed-ct" || normalized === "snomed ct") return "http://snomed.info/sct";
+    if (normalized === "icd-10" || normalized === "icd10") return "http://hl7.org/fhir/sid/icd-10";
+    if (/^[a-z][a-z0-9+.-]*:/i.test(value)) return value;
+    return `urn:carepoint:code-system:${encodeURIComponent(value.trim())}`;
+  }
+
+  private jsonObject(value: unknown): JsonObject {
+    return value && typeof value === "object" && !Array.isArray(value) ? value as JsonObject : {};
+  }
+
+  private stringValue(value: unknown): string | null {
+    return typeof value === "string" && value.trim() ? value.trim() : null;
+  }
+
+  private numberValue(value: unknown): number | null {
+    return typeof value === "number" && Number.isFinite(value) ? value : null;
+  }
+
+  private isoDate(value: unknown): string {
+    const date = value instanceof Date ? value : new Date(String(value));
+    if (Number.isNaN(date.getTime())) throw new NotFoundException("FHIR resource date is unavailable.");
+    return date.toISOString();
+  }
+
+  private orderPurpose(accessBasis: unknown): "PATIENT_ACCESS" | "TREATMENT" {
+    return accessBasis === "PATIENT_SELF" ? "PATIENT_ACCESS" : "TREATMENT";
+  }
+
   private async patientIdForAppointment(appointmentId: string): Promise<string> {
     const appointment = await this.prisma.appointment.findUnique({
       where: { id: appointmentId },
@@ -301,6 +511,13 @@ export class FhirService {
     return input;
   }
 
+  private parseServiceRequestReference(value: string): string {
+    const input = value?.trim();
+    if (!input) throw new BadRequestException("FHIR Observation search requires based-on.");
+    if (input.startsWith("ServiceRequest/")) return input.slice("ServiceRequest/".length);
+    return input;
+  }
+
   private async denied(principal: AuthPrincipal, action: string, objectType: string, objectId: string): Promise<void> {
     await this.audit.write({ actorId: principal.accountId, action, objectType, objectId, result: "DENIED", metadata: { role: principal.role, fhirVersion: FHIR_VERSION } });
   }
@@ -314,5 +531,23 @@ function switchAppointmentStatus(status: string): string {
     case "COMPLETED": return "fulfilled";
     case "NO_SHOW": return "noshow";
     default: return "entered-in-error";
+  }
+}
+
+function switchMedicationRequestStatus(status: string): string {
+  switch (status) {
+    case "SIGNED": return "active";
+    case "CANCELLED": return "cancelled";
+    case "FULFILLED": return "completed";
+    default: return "unknown";
+  }
+}
+
+function switchServiceRequestStatus(status: string): string {
+  switch (status) {
+    case "SIGNED": return "active";
+    case "CANCELLED": return "revoked";
+    case "FULFILLED": return "completed";
+    default: return "unknown";
   }
 }
