@@ -116,3 +116,81 @@ extension CarePointFinancialApi on CarePointApi {
         if (reason?.trim().isNotEmpty == true) 'reason': reason!.trim(),
       }));
 }
+
+extension CarePointCommunicationsApi on CarePointApi {
+  Future<List<Map<String, dynamic>>> careConversations() async =>
+      _asList(await _send('GET', '/communications/conversations'));
+
+  Future<Map<String, dynamic>> createCareConversation({
+    required String appointmentId,
+    required String subject,
+    required String clientConversationId,
+    String? initialMessage,
+  }) async =>
+      _asMap(await _send('POST', '/communications/conversations', body: {
+        'appointmentId': appointmentId,
+        'subject': subject.trim(),
+        'clientConversationId': clientConversationId,
+        if (initialMessage?.trim().isNotEmpty == true) 'initialMessage': initialMessage!.trim(),
+      }));
+
+  Future<Map<String, dynamic>> careConversation(String conversationId) async =>
+      _asMap(await _send('GET', '/communications/conversations/$conversationId'));
+
+  Future<Map<String, dynamic>> sendCareMessage(
+    String conversationId, {
+    required String body,
+    required String clientMessageId,
+    List<String> attachmentDocumentIds = const [],
+  }) async =>
+      _asMap(await _send('POST', '/communications/conversations/$conversationId/messages', body: {
+        'body': body.trim(),
+        'clientMessageId': clientMessageId,
+        if (attachmentDocumentIds.isNotEmpty) 'attachmentDocumentIds': attachmentDocumentIds,
+      }));
+
+  Future<Map<String, dynamic>> markCareConversationRead(String conversationId) async =>
+      _asMap(await _send('POST', '/communications/conversations/$conversationId/read', body: const {}));
+
+  Future<Map<String, dynamic>> closeCareConversation(String conversationId) async =>
+      _asMap(await _send('POST', '/communications/conversations/$conversationId/close', body: const {}));
+
+  Future<Map<String, dynamic>> addCareParticipant(String conversationId, {required String providerId}) async =>
+      _asMap(await _send('POST', '/communications/conversations/$conversationId/participants', body: {'providerId': providerId}));
+
+  Future<Map<String, dynamic>> notificationPreferences() async =>
+      _asMap(await _send('GET', '/notifications/preferences'));
+
+  Future<Map<String, dynamic>> updateNotificationPreferences({
+    String? locale,
+    bool? inAppEnabled,
+    bool? pushEnabled,
+    bool? emailEnabled,
+    bool? smsEnabled,
+  }) async =>
+      _asMap(await _send('PATCH', '/notifications/preferences', body: {
+        if (locale?.trim().isNotEmpty == true) 'locale': locale!.trim(),
+        if (inAppEnabled != null) 'inAppEnabled': inAppEnabled,
+        if (pushEnabled != null) 'pushEnabled': pushEnabled,
+        if (emailEnabled != null) 'emailEnabled': emailEnabled,
+        if (smsEnabled != null) 'smsEnabled': smsEnabled,
+      }));
+
+  Future<List<Map<String, dynamic>>> notificationEndpoints() async =>
+      _asList(await _send('GET', '/notifications/endpoints'));
+
+  Future<Map<String, dynamic>> registerNotificationEndpoint({required String channel, required String externalEndpointRef}) async =>
+      _asMap(await _send('POST', '/notifications/endpoints', body: {
+        'channel': channel,
+        'externalEndpointRef': externalEndpointRef,
+      }));
+
+  Future<Map<String, dynamic>> deactivateNotificationEndpoint(String endpointId) async =>
+      _asMap(await _send('POST', '/notifications/endpoints/$endpointId/deactivate', body: const {}));
+
+  Future<List<Map<String, dynamic>>> notifications() async =>
+      _asList(await _send('GET', '/notifications'));
+
+  Future<Map<String, dynamic>> markNotificationRead(String notificationId) async =>
+      _asMap(await _send('POST', '/notifications/$notificationId/read', body: const {}));
+}
