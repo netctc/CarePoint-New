@@ -66,6 +66,35 @@ extension CarePointFinancialApi on CarePointApi {
         if (eligibilityCheckId?.trim().isNotEmpty == true) 'eligibilityCheckId': eligibilityCheckId!.trim(),
       }));
 
+  Future<Map<String, dynamic>> patientRevenueCycle() async =>
+      _asMap(await _send('GET', '/revenue-cycle/me'));
+
+  Future<Map<String, dynamic>> providerRevenueCycle() async =>
+      _asMap(await _send('GET', '/provider/revenue-cycle/claims'));
+
+  Future<Map<String, dynamic>> submitInsuranceClaim(
+    String appointmentId, {
+    required String coverageId,
+    required String idempotencyKey,
+  }) async =>
+      _asMap(await _send('POST', '/provider/revenue-cycle/appointments/$appointmentId/claims', body: {
+        'coverageId': coverageId,
+        'idempotencyKey': idempotencyKey,
+      }));
+
+  Future<Map<String, dynamic>> refreshProviderClaim(String claimId) async =>
+      _asMap(await _send('POST', '/provider/revenue-cycle/claims/$claimId/refresh', body: const {}));
+
+  Future<Map<String, dynamic>> reworkProviderClaim(
+    String claimId, {
+    required String idempotencyKey,
+    required String reasonCode,
+  }) async =>
+      _asMap(await _send('POST', '/provider/revenue-cycle/claims/$claimId/rework', body: {
+        'idempotencyKey': idempotencyKey,
+        'reasonCode': reasonCode,
+      }));
+
   Future<Map<String, dynamic>> providerFinanceSummary() async =>
       _asMap(await _send('GET', '/provider/finance/summary'));
 
