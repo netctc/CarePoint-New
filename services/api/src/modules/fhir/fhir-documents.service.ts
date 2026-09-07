@@ -50,7 +50,7 @@ export class FhirDocumentsService {
 
   augmentCapability(statement: FhirResource): FhirResource {
     const rest = Array.isArray(statement.rest) ? [...statement.rest] : [];
-    const server = rest.length > 0 && this.isObject(rest[0]) ? { ...rest[0] } : { mode: "server" };
+    const server: JsonObject = rest.length > 0 && this.isObject(rest[0]) ? { ...rest[0] } : { mode: "server" };
     const resources = Array.isArray(server.resource) ? [...server.resource] : [];
     this.appendCapability(resources, { type: "DiagnosticReport", interaction: [{ code: "read" }] });
     this.appendCapability(resources, { type: "DocumentReference", interaction: [{ code: "read" }] });
