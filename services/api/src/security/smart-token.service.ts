@@ -17,6 +17,7 @@ export interface SmartAccessContext {
   patientId: string;
   scopes: string[];
   expiresAt: string;
+  refreshFamilyId?: string;
 }
 
 export interface StoredSmartAccessToken {
@@ -25,6 +26,17 @@ export interface StoredSmartAccessToken {
   userId: string;
   patientId: string;
   scopes: string[];
+  expiresAt: string;
+  refreshFamilyId?: string;
+}
+
+export interface StoredSmartRefreshFamily {
+  familyId: string;
+  clientId: string;
+  userId: string;
+  patientId: string;
+  scopes: string[];
+  createdAt: string;
   expiresAt: string;
 }
 
@@ -37,19 +49,40 @@ export class SmartTokenService {
   ) {}
 
   async validateAccessToken(accessToken: string): Promise<SmartAccessContext> {
-    const stored = await this.redis.getEphemeral(this.tokenKey(accessToken));
+    const accessKey = this.tokenKey(accessToken);
+    const stored = await this.redis.getEphemeral(accessKey);
     if (!stored) throw new UnauthorizedException("Access token is invalid or expired.");
     const token = this.parseStoredToken(stored);
     if (new Date(token.expiresAt).getTime() <= Date.now()) {
-      await this.redis.deleteEphemeral(this.tokenKey(accessToken));
+      await this.redis.deleteEphemeral(accessKey);
       throw new UnauthorizedException("Access token is invalid or expired.");
     }
+
+    if (token.refreshFamilyId) {
+      const familyRaw = await this.redis.getEphemeral(this.refreshFamilyKey(token.refreshFamilyId));
+      if (!familyRaw) {
+        await this.redis.deleteEphemeral(accessKey);
+        throw new UnauthorizedException("Access token is invalid or expired.");
+      }
+      const family = this.parseRefreshFamily(familyRaw);
+      if (
+        family.familyId !== token.refreshFamilyId ||
+        family.clientId !== token.clientId ||
+        family.userId !== token.userId ||
+        family.patientId !== token.patientId ||
+        new Date(family.expiresAt).getTime() <= Date.now()
+      ) {
+        await this.redis.deleteEphemeral(accessKey);
+        throw new UnauthorizedException("Access token is invalid or expired.");
+      }
+    }
+
     const user = await this.prisma.user.findUnique({
       where: { id: token.userId },
       select: { id: true, role: true, status: true, patientProfile: { select: { id: true } } },
     });
     if (!user || user.status !== "ACTIVE" || user.role !== "PATIENT" || user.patientProfile?.id !== token.patientId) {
-      await this.redis.deleteEphemeral(this.tokenKey(accessToken));
+      await this.redis.deleteEphemeral(accessKey);
       throw new UnauthorizedException("Access token is invalid or expired.");
     }
     return {
@@ -59,6 +92,7 @@ export class SmartTokenService {
       patientId: token.patientId,
       scopes: token.scopes,
       expiresAt: token.expiresAt,
+      ...(token.refreshFamilyId ? { refreshFamilyId: token.refreshFamilyId } : {}),
     };
   }
 
@@ -78,6 +112,7 @@ export class SmartTokenService {
         resourceType: requirement.resourceType,
         interaction: requirement.interaction,
         scopes: context.scopes,
+        refreshFamilyId: context.refreshFamilyId ?? null,
       },
     });
     throw new ForbiddenException(`SMART token does not grant ${requirement.interaction === "r" ? "read" : "search"} access to ${requirement.resourceType}.`);
@@ -91,13 +126,17 @@ export class SmartTokenService {
       objectId: requestUrl,
       purpose: "PATIENT_ACCESS",
       result: "DENIED",
-      metadata: { clientId: context.clientId, patientId: context.patientId },
+      metadata: { clientId: context.clientId, patientId: context.patientId, refreshFamilyId: context.refreshFamilyId ?? null },
     });
     throw new ForbiddenException("SMART access tokens are restricted to explicitly scoped FHIR routes.");
   }
 
   tokenKey(accessToken: string): string {
     return `carepoint:smart:token:${tokenHash(accessToken)}`;
+  }
+
+  refreshFamilyKey(familyId: string): string {
+    return `carepoint:smart:refresh-family:${familyId}`;
   }
 
   private scopeAllows(scope: string, requirement: SmartFhirRequirement): boolean {
@@ -121,6 +160,7 @@ export class SmartTokenService {
       typeof item.userId !== "string" ||
       typeof item.patientId !== "string" ||
       typeof item.expiresAt !== "string" ||
+      (item.refreshFamilyId !== undefined && typeof item.refreshFamilyId !== "string") ||
       !Array.isArray(item.scopes) ||
       !item.scopes.every((scope) => typeof scope === "string")
     ) {
@@ -132,6 +172,39 @@ export class SmartTokenService {
       userId: item.userId,
       patientId: item.patientId,
       scopes: item.scopes as string[],
+      expiresAt: item.expiresAt,
+      ...(typeof item.refreshFamilyId === "string" ? { refreshFamilyId: item.refreshFamilyId } : {}),
+    };
+  }
+
+  private parseRefreshFamily(value: string): StoredSmartRefreshFamily {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(value);
+    } catch {
+      throw new UnauthorizedException("Access token is invalid or expired.");
+    }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new UnauthorizedException("Access token is invalid or expired.");
+    const item = parsed as Record<string, unknown>;
+    if (
+      typeof item.familyId !== "string" ||
+      typeof item.clientId !== "string" ||
+      typeof item.userId !== "string" ||
+      typeof item.patientId !== "string" ||
+      typeof item.createdAt !== "string" ||
+      typeof item.expiresAt !== "string" ||
+      !Array.isArray(item.scopes) ||
+      !item.scopes.every((scope) => typeof scope === "string")
+    ) {
+      throw new UnauthorizedException("Access token is invalid or expired.");
+    }
+    return {
+      familyId: item.familyId,
+      clientId: item.clientId,
+      userId: item.userId,
+      patientId: item.patientId,
+      scopes: item.scopes as string[],
+      createdAt: item.createdAt,
       expiresAt: item.expiresAt,
     };
   }
