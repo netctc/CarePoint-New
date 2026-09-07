@@ -8,6 +8,7 @@ import type {
 } from "@carepoint/contracts";
 import type { AuthPrincipal } from "@carepoint/identity";
 import { CurrentPrincipal, RequirePermissions } from "../../security/api-security.module";
+import { CareMembershipAccessService } from "./care-membership-access.service";
 import { CommunicationsService } from "./communications.service";
 import { MessagingEnvelopeService } from "./messaging-envelope.service";
 import { NotificationGatewayService } from "./notification-gateway.service";
@@ -15,11 +16,15 @@ import { NotificationsService } from "./notifications.service";
 
 @Controller("communications")
 class CommunicationsController {
-  constructor(private readonly communications: CommunicationsService) {}
+  constructor(
+    private readonly communications: CommunicationsService,
+    private readonly access: CareMembershipAccessService,
+  ) {}
 
   @RequirePermissions("PATIENT_SECURE_MESSAGE", "PROVIDER_SECURE_MESSAGE")
   @Get("conversations")
-  list(@CurrentPrincipal() principal: AuthPrincipal) {
+  async list(@CurrentPrincipal() principal: AuthPrincipal) {
+    await this.access.pruneForAccount(principal.accountId);
     return this.communications.listConversations(principal);
   }
 
@@ -31,39 +36,49 @@ class CommunicationsController {
 
   @RequirePermissions("PATIENT_SECURE_MESSAGE", "PROVIDER_SECURE_MESSAGE")
   @Get("conversations/:conversationId")
-  get(@CurrentPrincipal() principal: AuthPrincipal, @Param("conversationId") conversationId: string) {
+  async get(@CurrentPrincipal() principal: AuthPrincipal, @Param("conversationId") conversationId: string) {
+    await this.access.pruneConversation(conversationId);
+    await this.access.assertActiveAccess(principal, conversationId);
     return this.communications.getConversation(principal, conversationId);
   }
 
   @RequirePermissions("PATIENT_SECURE_MESSAGE", "PROVIDER_SECURE_MESSAGE")
   @Post("conversations/:conversationId/messages")
-  send(
+  async send(
     @CurrentPrincipal() principal: AuthPrincipal,
     @Param("conversationId") conversationId: string,
     @Body() body: SendCareMessageInput,
   ) {
+    await this.access.pruneConversation(conversationId);
+    await this.access.assertActiveAccess(principal, conversationId);
     return this.communications.sendMessage(principal, conversationId, body);
   }
 
   @RequirePermissions("PATIENT_SECURE_MESSAGE", "PROVIDER_SECURE_MESSAGE")
   @Post("conversations/:conversationId/read")
-  read(@CurrentPrincipal() principal: AuthPrincipal, @Param("conversationId") conversationId: string) {
+  async read(@CurrentPrincipal() principal: AuthPrincipal, @Param("conversationId") conversationId: string) {
+    await this.access.pruneConversation(conversationId);
+    await this.access.assertActiveAccess(principal, conversationId);
     return this.communications.markRead(principal, conversationId);
   }
 
   @RequirePermissions("PATIENT_SECURE_MESSAGE", "PROVIDER_SECURE_MESSAGE")
   @Post("conversations/:conversationId/close")
-  close(@CurrentPrincipal() principal: AuthPrincipal, @Param("conversationId") conversationId: string) {
+  async close(@CurrentPrincipal() principal: AuthPrincipal, @Param("conversationId") conversationId: string) {
+    await this.access.pruneConversation(conversationId);
+    await this.access.assertActiveAccess(principal, conversationId);
     return this.communications.closeConversation(principal, conversationId);
   }
 
   @RequirePermissions("CARE_COORDINATION_MANAGE")
   @Post("conversations/:conversationId/participants")
-  addParticipant(
+  async addParticipant(
     @CurrentPrincipal() principal: AuthPrincipal,
     @Param("conversationId") conversationId: string,
     @Body() body: AddCareParticipantInput,
   ) {
+    await this.access.pruneConversation(conversationId);
+    await this.access.assertActiveAccess(principal, conversationId);
     return this.communications.addCareParticipant(principal, conversationId, body);
   }
 }
@@ -117,7 +132,13 @@ class NotificationsController {
 
 @Module({
   controllers: [CommunicationsController, NotificationsController],
-  providers: [CommunicationsService, MessagingEnvelopeService, NotificationsService, NotificationGatewayService],
+  providers: [
+    CommunicationsService,
+    CareMembershipAccessService,
+    MessagingEnvelopeService,
+    NotificationsService,
+    NotificationGatewayService,
+  ],
   exports: [NotificationsService],
 })
 export class CommunicationsModule {}
