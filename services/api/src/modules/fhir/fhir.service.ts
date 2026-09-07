@@ -229,7 +229,7 @@ export class FhirService {
     const order = await this.orders.getOrder(principal, orderId);
     if (order.type !== "LABORATORY") throw new NotFoundException("FHIR ServiceRequest not found.");
 
-    const released = order.labResult && order.labResult.status === "RELEASED" && order.labResult.released === true;
+    const released = this.isReleasedLabResult(order.labResult);
     const resources = released ? this.labObservations(order) : [];
     await this.audit.write({
       actorId: principal.accountId,
@@ -238,7 +238,7 @@ export class FhirService {
       objectId: order.id,
       purpose: this.orderPurpose(order.accessBasis),
       result: "SUCCESS",
-      metadata: { basis: order.accessBasis, released: Boolean(released), count: resources.length, fhirVersion: FHIR_VERSION },
+      metadata: { basis: order.accessBasis, released, count: resources.length, fhirVersion: FHIR_VERSION },
     });
     return this.searchBundle(resources);
   }
@@ -399,10 +399,10 @@ export class FhirService {
   }
 
   private labObservations(order: any): FhirResource[] {
-    const result = order.labResult;
-    const data = this.jsonObject(result?.data);
+    const result = this.jsonObject(order.labResult);
+    const data = this.jsonObject(result.data);
     const entries = Array.isArray(data.observations) ? data.observations : [];
-    const effective = this.isoDate(result?.releasedAt ?? result?.validatedAt ?? order.signedAt);
+    const effective = this.isoDate(result.releasedAt ?? result.validatedAt ?? order.signedAt);
     return entries.flatMap((raw: unknown, index: number) => {
       const item = this.jsonObject(raw);
       const display = this.stringValue(item.display);
@@ -410,7 +410,7 @@ export class FhirService {
       if (!display || (typeof value !== "string" && typeof value !== "number")) return [];
       const resource: FhirResource = {
         resourceType: "Observation",
-        id: `${result.id}-lab-${index + 1}`.slice(0, 64),
+        id: `${String(result.id ?? order.id)}-lab-${index + 1}`.slice(0, 64),
         status: "final",
         category: [{ coding: [{ system: "http://terminology.hl7.org/CodeSystem/observation-category", code: "laboratory", display: "Laboratory" }] }],
         code: this.codeableConcept(item, "display"),
@@ -464,6 +464,11 @@ export class FhirService {
 
   private jsonObject(value: unknown): JsonObject {
     return value && typeof value === "object" && !Array.isArray(value) ? value as JsonObject : {};
+  }
+
+  private isReleasedLabResult(value: unknown): boolean {
+    const result = this.jsonObject(value);
+    return result.status === "RELEASED" && result.released === true;
   }
 
   private stringValue(value: unknown): string | null {
