@@ -3,11 +3,19 @@ import { AppointmentStatus, Prisma } from "@prisma/client";
 import { DatabaseAuditService } from "../../infrastructure/audit/audit.service";
 import { PrismaService } from "../../infrastructure/prisma/prisma.module";
 import type { SmartAccessContext } from "../../security/smart-token.service";
+import { FhirClinicalBulkService, type FhirClinicalBulkResourceType } from "./fhir-clinical-bulk.service";
 import { FhirSearchSupportService, type FhirSearchQuery } from "./fhir-search-support.service";
 
 type FhirResource = Record<string, unknown>;
-export type FhirBulkResourceType = "Patient" | "Appointment";
+export type FhirBulkResourceType = "Patient" | "Appointment" | FhirClinicalBulkResourceType;
 
+const CLINICAL_BULK_TYPES = new Set<FhirClinicalBulkResourceType>([
+  "Encounter",
+  "Observation",
+  "MedicationRequest",
+  "ServiceRequest",
+  "DiagnosticReport",
+]);
 const FHIR_APPOINTMENT_STATUSES = new Set(["pending", "booked", "cancelled", "fulfilled", "noshow", "entered-in-error"]);
 const DB_STATUS_BY_FHIR: Record<string, AppointmentStatus | null> = {
   pending: AppointmentStatus.REQUESTED,
@@ -24,6 +32,7 @@ export class FhirSystemService {
     private readonly prisma: PrismaService,
     private readonly support: FhirSearchSupportService,
     private readonly audit: DatabaseAuditService,
+    private readonly clinicalBulk: FhirClinicalBulkService,
   ) {}
 
   async patient(context: SmartAccessContext, patientId: string): Promise<FhirResource> {
@@ -161,8 +170,9 @@ export class FhirSystemService {
     this.assertSystem(context);
     if (!Number.isInteger(maxResourcesPerType) || maxResourcesPerType < 1) throw new BadRequestException("FHIR bulk export resource limit is invalid.");
     const transactionTime = new Date();
-    return this.prisma.$transaction(async (tx) => {
-      const resources: Partial<Record<FhirBulkResourceType, FhirResource[]>> = {};
+    const resources: Partial<Record<FhirBulkResourceType, FhirResource[]>> = {};
+
+    await this.prisma.$transaction(async (tx) => {
       for (const resourceType of resourceTypes) {
         if (resourceType === "Patient") {
           const where: Prisma.PatientProfileWhereInput = since
@@ -179,18 +189,30 @@ export class FhirSystemService {
           continue;
         }
 
-        const where: Prisma.AppointmentWhereInput = since ? { updatedAt: { gt: since } } : {};
-        const total = await tx.appointment.count({ where });
-        this.assertBulkLimit(resourceType, total, maxResourcesPerType);
-        const appointments = await tx.appointment.findMany({
-          where,
-          include: this.appointmentInclude(),
-          orderBy: [{ startsAt: "asc" }, { id: "asc" }],
-        });
-        resources.Appointment = appointments.map((appointment) => this.toAppointment(appointment));
+        if (resourceType === "Appointment") {
+          const where: Prisma.AppointmentWhereInput = since ? { updatedAt: { gt: since } } : {};
+          const total = await tx.appointment.count({ where });
+          this.assertBulkLimit(resourceType, total, maxResourcesPerType);
+          const appointments = await tx.appointment.findMany({
+            where,
+            include: this.appointmentInclude(),
+            orderBy: [{ startsAt: "asc" }, { id: "asc" }],
+          });
+          resources.Appointment = appointments.map((appointment) => this.toAppointment(appointment));
+        }
       }
-      return { transactionTime: transactionTime.toISOString(), resources };
     }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
+
+    const clinicalTypes = resourceTypes.filter(
+      (resourceType): resourceType is FhirClinicalBulkResourceType => CLINICAL_BULK_TYPES.has(resourceType as FhirClinicalBulkResourceType),
+    );
+    if (clinicalTypes.length > 0) {
+      Object.assign(
+        resources,
+        await this.clinicalBulk.snapshot(context, clinicalTypes, since, transactionTime, maxResourcesPerType),
+      );
+    }
+    return { transactionTime: transactionTime.toISOString(), resources };
   }
 
   private appointmentInclude() {
