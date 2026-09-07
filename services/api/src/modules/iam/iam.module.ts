@@ -1,5 +1,6 @@
-import { Body, Controller, Delete, Get, Module, Param, Post } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Module, Param, Post, Req } from "@nestjs/common";
 import type { AuthPrincipal, IdentityRole } from "@carepoint/identity";
+import { DistributedRateLimitService } from "../../infrastructure/redis/redis-security.module";
 import { CurrentPrincipal, Public, RequirePermissions } from "../../security/api-security.module";
 import { PersistentAuthService } from "../../security/persistent-auth.service";
 
@@ -9,32 +10,49 @@ interface LoginBody { email: string; password: string; }
 interface ConfirmMfaBody { code: string; }
 interface CompleteMfaBody { challengeId: string; code: string; }
 interface RefreshBody { refreshToken: string; }
+interface RequestIdentity { ip?: string; socket?: { remoteAddress?: string }; }
 
 @Controller("iam")
 class IamController {
-  constructor(private readonly auth: PersistentAuthService) {}
+  constructor(
+    private readonly auth: PersistentAuthService,
+    private readonly rateLimits: DistributedRateLimitService,
+  ) {}
 
   @Public()
   @Post("register/patient")
-  registerPatient(@Body() body: PatientRegistrationBody) {
+  async registerPatient(@Req() request: RequestIdentity, @Body() body: PatientRegistrationBody) {
+    await this.rateLimits.assertAllowed({ namespace: "iam:register:ip", identity: this.clientIp(request), limit: 8, windowSeconds: 3600 });
     return this.auth.registerPatient(body);
   }
 
   @Public()
   @Post("login")
-  login(@Body() body: LoginBody) {
+  async login(@Req() request: RequestIdentity, @Body() body: LoginBody) {
+    await Promise.all([
+      this.rateLimits.assertAllowed({ namespace: "iam:login:ip", identity: this.clientIp(request), limit: 30, windowSeconds: 300 }),
+      this.rateLimits.assertAllowed({ namespace: "iam:login:account", identity: body.email?.trim().toLowerCase() || "missing", limit: 20, windowSeconds: 300 }),
+    ]);
     return this.auth.login(body.email, body.password);
   }
 
   @Public()
   @Post("mfa/verify")
-  completeMfa(@Body() body: CompleteMfaBody) {
+  async completeMfa(@Req() request: RequestIdentity, @Body() body: CompleteMfaBody) {
+    await Promise.all([
+      this.rateLimits.assertAllowed({ namespace: "iam:mfa:ip", identity: this.clientIp(request), limit: 30, windowSeconds: 300 }),
+      this.rateLimits.assertAllowed({ namespace: "iam:mfa:challenge", identity: body.challengeId || "missing", limit: 10, windowSeconds: 300 }),
+    ]);
     return this.auth.completeMfa(body.challengeId, body.code);
   }
 
   @Public()
   @Post("sessions/refresh")
-  refresh(@Body() body: RefreshBody) {
+  async refresh(@Req() request: RequestIdentity, @Body() body: RefreshBody) {
+    await Promise.all([
+      this.rateLimits.assertAllowed({ namespace: "iam:refresh:ip", identity: this.clientIp(request), limit: 120, windowSeconds: 300 }),
+      this.rateLimits.assertAllowed({ namespace: "iam:refresh:token", identity: body.refreshToken || "missing", limit: 10, windowSeconds: 60 }),
+    ]);
     return this.auth.refresh(body.refreshToken);
   }
 
@@ -91,6 +109,10 @@ class IamController {
   @Post("accounts/:accountId/suspend")
   suspendAccount(@CurrentPrincipal() principal: AuthPrincipal, @Param("accountId") accountId: string) {
     return this.auth.suspendAccount(principal.accountId, accountId);
+  }
+
+  private clientIp(request: RequestIdentity): string {
+    return request.ip?.trim() || request.socket?.remoteAddress?.trim() || "unknown";
   }
 }
 
