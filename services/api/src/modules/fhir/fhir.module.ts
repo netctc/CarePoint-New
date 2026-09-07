@@ -14,6 +14,7 @@ import {
 import type { AuthPrincipal } from "@carepoint/identity";
 import { CurrentPrincipal, Public } from "../../security/api-security.module";
 import { ClinicalModule } from "../clinical/clinical.module";
+import { OrdersModule } from "../orders/orders.module";
 import { FhirService } from "./fhir.service";
 
 interface HttpResponseLike {
@@ -86,13 +87,29 @@ class FhirController {
 
   @Get("Observation")
   @Header("Content-Type", "application/fhir+json; charset=utf-8")
-  observations(@CurrentPrincipal() principal: AuthPrincipal, @Query("encounter") encounter: string) {
-    return this.fhir.observationsForEncounter(principal, encounter);
+  observations(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Query("encounter") encounter?: string,
+    @Query("based-on") basedOn?: string,
+  ) {
+    return this.fhir.observations(principal, encounter, basedOn);
+  }
+
+  @Get("MedicationRequest/:orderId")
+  @Header("Content-Type", "application/fhir+json; charset=utf-8")
+  medicationRequest(@CurrentPrincipal() principal: AuthPrincipal, @Param("orderId") orderId: string) {
+    return this.fhir.medicationRequest(principal, orderId);
+  }
+
+  @Get("ServiceRequest/:orderId")
+  @Header("Content-Type", "application/fhir+json; charset=utf-8")
+  serviceRequest(@CurrentPrincipal() principal: AuthPrincipal, @Param("orderId") orderId: string) {
+    return this.fhir.serviceRequest(principal, orderId);
   }
 }
 
 @Module({
-  imports: [ClinicalModule],
+  imports: [ClinicalModule, OrdersModule],
   controllers: [FhirController],
   providers: [FhirService],
 })
