@@ -2,7 +2,7 @@ import 'package:carepoint_mobile_core/carepoint_auth.dart';
 import 'package:carepoint_mobile_core/carepoint_localization.dart';
 import 'package:carepoint_mobile_core/financial_localization.dart';
 import 'package:carepoint_mobile_core/financial_workspace.dart';
-import 'package:carepoint_mobile_core/provider_workspace.dart';
+import 'package:carepoint_mobile_core/revenue_cycle_workspace.dart';
 import 'package:flutter/material.dart';
 
 void main() => runApp(const DoctorApp());
@@ -37,7 +37,7 @@ class _DoctorAppState extends State<DoctorApp> {
                 accent: const Color(0xFF22D3EE),
                 dark: true,
                 builder: (gateContext, session, signOut) => Stack(children: [
-                  ProviderWorkspace(
+                  ProviderWorkspaceWithRevenueCycle(
                     session: session,
                     locale: locale,
                     title: cpText(locale, 'doctor.title'),
