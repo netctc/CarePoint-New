@@ -37,7 +37,7 @@ jobs:
       SMART_ISSUER_URL: http://127.0.0.1:4000/api/v1
       SMART_FHIR_BASE_URL: http://127.0.0.1:4000/api/v1/fhir/R4
       SMART_PUBLIC_CLIENTS_JSON: >-
-        [{"clientId":"slice106-public-client","name":"Slice 10.6 SMART Test App","redirectUris":["https://smart-app.carepoint.test/callback"],"allowedScopes":["launch/patient","patient/Patient.r","patient/Appointment.rs"]},{"clientId":"slice107-browser-client","name":"Slice 10.7 SMART Browser Test App","redirectUris":["https://smart-browser.carepoint.test/callback"],"allowedScopes":["launch/patient","openid","fhirUser","patient/Patient.r","patient/Appointment.rs"]}]
+        [{"clientId":"slice106-public-client","name":"Slice 10.6 SMART Test App","redirectUris":["https://smart-app.carepoint.test/callback"],"allowedScopes":["launch/patient","patient/Patient.r","patient/Appointment.rs"]},{"clientId":"slice107-browser-client","name":"Slice 10.7 SMART Browser Test App","redirectUris":["https://smart-browser.carepoint.test/callback"],"allowedScopes":["launch/patient","openid","fhirUser","patient/Patient.r","patient/Appointment.rs"]},{"clientId":"slice108-offline-client","name":"Slice 10.8 SMART Offline Test App","redirectUris":["https://smart-offline.carepoint.test/callback"],"allowedScopes":["launch/patient","openid","fhirUser","offline_access","patient/Patient.r","patient/Appointment.rs"]}]
       TELEHEALTH_PROVIDER: mock
       CLINICAL_KEY_PROVIDER: local
       CLINICAL_ENVELOPE_KEY_ID: ci-clinical-kek-v1
@@ -92,6 +92,8 @@ jobs:
         run: node services/api/scripts/slice106-smoke.mjs
       - name: Slice 10.7 SMART browser OIDC and consent smoke test
         run: node services/api/scripts/slice107-smoke.mjs
+      - name: Slice 10.8 SMART refresh rotation and revocation smoke test
+        run: node services/api/scripts/slice108-smoke.mjs
       - name: Print API log on failure
         if: failure()
         run: cat /tmp/carepoint-api.log || true

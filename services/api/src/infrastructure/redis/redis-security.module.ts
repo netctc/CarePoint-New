@@ -12,6 +12,13 @@ interface MemoryEphemeralValue {
   expiresAt: number;
 }
 
+export interface EphemeralConsumeAndMarkResult {
+  status: "consumed" | "reused" | "missing";
+  value: string | null;
+}
+
+const MAX_EPHEMERAL_TTL_SECONDS = 31 * 24 * 60 * 60;
+
 @Injectable()
 export class RedisSecurityService implements OnModuleInit, OnModuleDestroy {
   private client?: Redis;
@@ -101,6 +108,49 @@ export class RedisSecurityService implements OnModuleInit, OnModuleDestroy {
     return current && current.expiresAt > Date.now() ? current.value : null;
   }
 
+  async consumeAndMarkEphemeral(activeKey: string, usedKey: string, usedTtlSeconds: number): Promise<EphemeralConsumeAndMarkResult> {
+    this.assertEphemeralKey(activeKey);
+    this.assertEphemeralKey(usedKey);
+    if (!Number.isInteger(usedTtlSeconds) || usedTtlSeconds < 1 || usedTtlSeconds > MAX_EPHEMERAL_TTL_SECONDS) {
+      throw new Error("Ephemeral security TTL is invalid.");
+    }
+    if (this.client) {
+      const script = `
+        local active = redis.call('GET', KEYS[1])
+        if active then
+          redis.call('DEL', KEYS[1])
+          redis.call('SET', KEYS[2], active, 'EX', ARGV[1])
+          return {'consumed', active}
+        end
+        local used = redis.call('GET', KEYS[2])
+        if used then return {'reused', used} end
+        return {'missing', ''}
+      `;
+      const result = await this.client.eval(script, 2, activeKey, usedKey, String(usedTtlSeconds));
+      if (!Array.isArray(result) || result.length < 2) throw new Error("Redis ephemeral rotation response is invalid.");
+      const status = result[0];
+      const value = result[1];
+      if (status !== "consumed" && status !== "reused" && status !== "missing") {
+        throw new Error("Redis ephemeral rotation status is invalid.");
+      }
+      return { status, value: typeof value === "string" && value ? value : null };
+    }
+
+    const now = Date.now();
+    const active = this.ephemeral.get(activeKey);
+    if (active && active.expiresAt > now) {
+      this.ephemeral.delete(activeKey);
+      this.ephemeral.set(usedKey, { value: active.value, expiresAt: now + usedTtlSeconds * 1000 });
+      this.pruneEphemeral();
+      return { status: "consumed", value: active.value };
+    }
+    if (active) this.ephemeral.delete(activeKey);
+    const used = this.ephemeral.get(usedKey);
+    if (used && used.expiresAt > now) return { status: "reused", value: used.value };
+    if (used) this.ephemeral.delete(usedKey);
+    return { status: "missing", value: null };
+  }
+
   async deleteEphemeral(key: string): Promise<void> {
     this.assertEphemeralKey(key);
     if (this.client) {
@@ -113,7 +163,7 @@ export class RedisSecurityService implements OnModuleInit, OnModuleDestroy {
   private assertEphemeralInput(key: string, value: string, ttlSeconds: number): void {
     this.assertEphemeralKey(key);
     if (!value || value.length > 65536) throw new Error("Ephemeral security value is invalid.");
-    if (!Number.isInteger(ttlSeconds) || ttlSeconds < 1 || ttlSeconds > 86400) throw new Error("Ephemeral security TTL is invalid.");
+    if (!Number.isInteger(ttlSeconds) || ttlSeconds < 1 || ttlSeconds > MAX_EPHEMERAL_TTL_SECONDS) throw new Error("Ephemeral security TTL is invalid.");
   }
 
   private assertEphemeralKey(key: string): void {
