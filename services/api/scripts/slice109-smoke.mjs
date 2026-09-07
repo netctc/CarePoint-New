@@ -118,7 +118,7 @@ function expectFhir(result, status, label) {
 try {
   const discovery = await raw("/fhir/R4/.well-known/smart-configuration");
   if (discovery.status !== 200) throw new Error(`SMART discovery failed: ${JSON.stringify(discovery)}`);
-  for (const capability of ["client-confidential-asymmetric", "permission-system"]) {
+  for (const capability of ["client-confidential-asymmetric", "permission-v2"]) {
     if (!discovery.payload.capabilities?.includes(capability)) throw new Error(`SMART discovery missing ${capability}.`);
   }
   if (!discovery.payload.grant_types_supported?.includes("client_credentials")) throw new Error("SMART discovery missing client_credentials.");
