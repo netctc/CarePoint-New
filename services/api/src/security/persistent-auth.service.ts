@@ -170,25 +170,56 @@ export class PersistentAuthService {
     if (!verifyTotp(secret, code)) throw new UnauthorizedException("Invalid MFA code.");
 
     const material = this.newSession(challenge.userId);
-    await this.prisma.$transaction([
-      this.prisma.authChallenge.update({ where: { id: challenge.id }, data: { consumedAt: new Date() } }),
-      this.prisma.authSession.create({ data: material.data }),
-    ]);
+    const claimed = await this.prisma.$transaction(async (tx) => {
+      const now = new Date();
+      const consumed = await tx.authChallenge.updateMany({
+        where: { id: challenge.id, type: "MFA_LOGIN", consumedAt: null, expiresAt: { gt: now } },
+        data: { consumedAt: now },
+      });
+      if (consumed.count !== 1) return false;
+      await tx.authSession.create({ data: material.data });
+      return true;
+    });
+    if (!claimed) {
+      await this.audit.write({ actorId: challenge.userId, action: "MFA_CHALLENGE_REPLAY_DENIED", objectType: "AUTH_CHALLENGE", objectId: challenge.id, result: "DENIED" });
+      throw new UnauthorizedException("MFA challenge expired, invalid, or already used.");
+    }
     await this.audit.write({ actorId: challenge.userId, action: "MFA_CHALLENGE_VERIFIED", objectType: "AUTH_CHALLENGE", objectId: challenge.id, result: "SUCCESS" });
     await this.audit.write({ actorId: challenge.userId, action: "LOGIN_SUCCEEDED", objectType: "SESSION", objectId: material.tokens.sessionId, result: "SUCCESS", metadata: { mfa: true } });
     return material.tokens;
   }
 
   async refresh(refreshToken: string): Promise<SessionTokens> {
-    const current = await this.prisma.authSession.findUnique({ where: { refreshTokenHash: tokenHash(refreshToken) }, include: { user: true } });
+    const refreshTokenHash = tokenHash(refreshToken);
+    const current = await this.prisma.authSession.findUnique({ where: { refreshTokenHash }, include: { user: true } });
     if (!current || current.revokedAt || current.refreshExpiresAt.getTime() <= Date.now() || current.user.status !== "ACTIVE") {
+      if (current) {
+        await this.audit.write({ actorId: current.userId, action: "REFRESH_TOKEN_REPLAY_DENIED", objectType: "SESSION", objectId: current.id, result: "DENIED", metadata: { replaced: Boolean(current.replacedBySessionId) } });
+      }
       throw new UnauthorizedException("Refresh token is invalid or expired.");
     }
+
     const material = this.newSession(current.userId);
-    await this.prisma.$transaction([
-      this.prisma.authSession.update({ where: { id: current.id }, data: { revokedAt: new Date(), replacedBySessionId: material.tokens.sessionId } }),
-      this.prisma.authSession.create({ data: material.data }),
-    ]);
+    const claimed = await this.prisma.$transaction(async (tx) => {
+      const now = new Date();
+      const rotated = await tx.authSession.updateMany({
+        where: {
+          id: current.id,
+          refreshTokenHash,
+          revokedAt: null,
+          refreshExpiresAt: { gt: now },
+        },
+        data: { revokedAt: now, replacedBySessionId: material.tokens.sessionId },
+      });
+      if (rotated.count !== 1) return false;
+      await tx.authSession.create({ data: material.data });
+      return true;
+    });
+
+    if (!claimed) {
+      await this.audit.write({ actorId: current.userId, action: "REFRESH_TOKEN_REPLAY_DENIED", objectType: "SESSION", objectId: current.id, result: "DENIED", metadata: { concurrentReplay: true } });
+      throw new UnauthorizedException("Refresh token is invalid, expired, or already used.");
+    }
     await this.audit.write({ actorId: current.userId, action: "SESSION_ROTATED", objectType: "SESSION", objectId: current.id, result: "SUCCESS", metadata: { replacementSessionId: material.tokens.sessionId } });
     return material.tokens;
   }
