@@ -224,17 +224,21 @@ try {
   if (revoked.status !== 200) throw new Error(`Backend token revocation failed: ${JSON.stringify(revoked)}`);
   expectFhir(await raw(`/fhir/R4/Patient/${patientA.id}`, { token: systemToken }), 401, "Revoked backend token remained active");
 
+  const expectedAuditActions = [
+    "SMART_BACKEND_CLIENT_AUTHENTICATED",
+    "SMART_BACKEND_ACCESS_TOKEN_ISSUED",
+    "FHIR_SYSTEM_PATIENT_READ",
+    "FHIR_SYSTEM_PATIENT_SEARCH",
+    "FHIR_SYSTEM_APPOINTMENT_READ",
+    "FHIR_SYSTEM_APPOINTMENT_SEARCH",
+    "SMART_BACKEND_ACCESS_TOKEN_REVOKED",
+  ];
   const auditEvents = await prisma.auditEvent.findMany({
-    where: {
-      OR: [
-        { objectId: clientId },
-        { action: { in: ["FHIR_SYSTEM_PATIENT_READ", "FHIR_SYSTEM_PATIENT_SEARCH", "FHIR_SYSTEM_APPOINTMENT_READ", "FHIR_SYSTEM_APPOINTMENT_SEARCH"] } },
-      ],
-    },
+    where: { action: { in: expectedAuditActions } },
     orderBy: { occurredAt: "desc" },
-    take: 100,
+    take: 200,
   });
-  for (const action of ["SMART_BACKEND_CLIENT_AUTHENTICATED", "SMART_BACKEND_ACCESS_TOKEN_ISSUED", "FHIR_SYSTEM_PATIENT_READ", "FHIR_SYSTEM_APPOINTMENT_SEARCH", "SMART_BACKEND_ACCESS_TOKEN_REVOKED"]) {
+  for (const action of expectedAuditActions) {
     if (!auditEvents.some((event) => event.action === action)) throw new Error(`Expected backend audit event ${action} was not recorded.`);
   }
 
