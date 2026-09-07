@@ -30,9 +30,10 @@ export class FhirSmartCapabilityService {
         display: "SMART-on-FHIR",
       }],
     }];
-    security.description = "CarePoint supports patient-mediated SMART authorization plus pre-registered asymmetric backend-services clients. Backend clients use private_key_jwt and narrowly registered system scopes; all SMART bearer tokens remain restricted to explicitly scoped FHIR routes.";
+    security.description = "CarePoint supports patient-mediated SMART authorization plus pre-registered asymmetric backend-services clients. Backend clients use private_key_jwt and narrowly registered system scopes; all SMART bearer tokens remain restricted to explicitly scoped FHIR routes and authorized bulk-export jobs.";
     server.security = security;
     server.resource = this.augmentResources(server.resource);
+    server.operation = this.augmentOperations(server.operation);
     if (rest.length > 0) rest[0] = server;
     else rest.push(server);
 
@@ -40,10 +41,10 @@ export class FhirSmartCapabilityService {
     const implementation = this.isObject(statement.implementation) ? statement.implementation : {};
     return {
       ...statement,
-      software: { ...software, version: "slice-10.9" },
+      software: { ...software, version: "slice-10.10" },
       implementation: {
         ...implementation,
-        description: "CarePoint FHIR R4 read-only facade with patient-scoped SMART browser authorization, rotating offline refresh families, and asymmetric private_key_jwt backend services limited to registered system/Patient.rs and system/Appointment.rs access.",
+        description: "CarePoint FHIR R4 read-only facade with patient-scoped SMART browser authorization, rotating offline refresh families, asymmetric private_key_jwt backend services, and secure asynchronous system-level Bulk Data $export for authorized Patient and Appointment resources.",
       },
       rest,
     };
@@ -59,6 +60,19 @@ export class FhirSmartCapabilityService {
       patient.searchParam = [{ name: "_id", type: "token", documentation: "Exact CarePoint Patient resource id; system-scope search only." }];
     }
     return resources;
+  }
+
+  private augmentOperations(value: unknown): unknown[] {
+    const operations = Array.isArray(value) ? [...value] : [];
+    const definition = "http://hl7.org/fhir/uv/bulkdata/OperationDefinition/export";
+    if (!operations.some((item) => this.isObject(item) && item.name === "export")) {
+      operations.push({
+        name: "export",
+        definition,
+        documentation: "Asynchronous FHIR Bulk Data system-level export. CarePoint currently exports only Patient and Appointment NDJSON for SMART backend-services clients whose system scopes cover every requested resource type.",
+      });
+    }
+    return operations;
   }
 
   private isObject(value: unknown): value is JsonObject {
