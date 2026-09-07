@@ -66,18 +66,21 @@ export class NotificationsService {
   }
 
   async list(principal: AuthPrincipal) {
-    return this.prisma.notificationEvent.findMany({
+    const rows = await this.prisma.notificationEvent.findMany({
       where: { accountId: principal.accountId },
       include: { deliveries: { orderBy: { channel: "asc" } } },
       orderBy: { createdAt: "desc" },
       take: 200,
     });
+    return rows.map((row) => this.presentNotification(row));
   }
 
   async markRead(principal: AuthPrincipal, notificationId: string) {
     const updated = await this.prisma.notificationEvent.updateMany({ where: { id: notificationId, accountId: principal.accountId }, data: { readAt: new Date() } });
     if (updated.count === 0) throw new NotFoundException("Notification not found.");
-    return this.prisma.notificationEvent.findUnique({ where: { id: notificationId }, include: { deliveries: true } });
+    const row = await this.prisma.notificationEvent.findUnique({ where: { id: notificationId }, include: { deliveries: { orderBy: { channel: "asc" } } } });
+    if (!row) throw new NotFoundException("Notification not found.");
+    return this.presentNotification(row);
   }
 
   async notifyAccount(input: {
@@ -160,6 +163,30 @@ export class NotificationsService {
 
   private presentEndpoint(endpoint: { id: string; channel: string; active: boolean; createdAt: Date; updatedAt: Date }) {
     return { id: endpoint.id, channel: endpoint.channel, active: endpoint.active, externalEndpointReferenceStoredExternally: true, createdAt: endpoint.createdAt, updatedAt: endpoint.updatedAt };
+  }
+
+  private presentNotification(notification: {
+    id: string;
+    type: string;
+    entityType: string;
+    entityId: string;
+    safeTitleKey: string;
+    safeBodyKey: string;
+    readAt: Date | null;
+    createdAt: Date;
+    deliveries: Array<{ channel: string; status: string; attemptedAt: Date | null }>;
+  }) {
+    return {
+      id: notification.id,
+      type: notification.type,
+      entityType: notification.entityType,
+      entityId: notification.entityId,
+      safeTitleKey: notification.safeTitleKey,
+      safeBodyKey: notification.safeBodyKey,
+      readAt: notification.readAt,
+      createdAt: notification.createdAt,
+      deliveries: notification.deliveries.map((delivery) => ({ channel: delivery.channel, status: delivery.status, attemptedAt: delivery.attemptedAt })),
+    };
   }
 
   private safeTemplateKey(value: unknown, field: string): string {
