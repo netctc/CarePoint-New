@@ -9,9 +9,10 @@ import {
   SetMetadata,
   UnauthorizedException,
 } from "@nestjs/common";
-import { APP_GUARD, Reflector } from "@nestjs/core";
+import { APP_FILTER, APP_GUARD, Reflector } from "@nestjs/core";
 import { principalHasAnyPermission, type AuthPrincipal, type Permission } from "@carepoint/identity";
 import { PrismaModule } from "../infrastructure/prisma/prisma.module";
+import { PrismaKnownRequestFilter } from "../infrastructure/prisma/prisma-conflict.filter";
 import { DatabaseAuditService } from "../infrastructure/audit/audit.service";
 import { MfaEnvelopeService } from "../infrastructure/security/mfa-envelope.service";
 import { PersistentAuthService } from "./persistent-auth.service";
@@ -73,6 +74,7 @@ class ApiAccessGuard implements CanActivate {
     MfaEnvelopeService,
     PersistentAuthService,
     { provide: APP_GUARD, useClass: ApiAccessGuard },
+    { provide: APP_FILTER, useClass: PrismaKnownRequestFilter },
   ],
   exports: [DatabaseAuditService, MfaEnvelopeService, PersistentAuthService],
 })
