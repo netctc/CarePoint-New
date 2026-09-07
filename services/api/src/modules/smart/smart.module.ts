@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Header, Module, Post, Query, Req, Res } from "@nestjs/common";
+import { Body, Controller, Get, Header, HttpCode, Module, Post, Query, Req, Res } from "@nestjs/common";
 import type { AuthPrincipal } from "@carepoint/identity";
 import { DistributedRateLimitService } from "../../infrastructure/redis/redis-security.module";
 import { CurrentPrincipal, Public } from "../../security/api-security.module";
@@ -53,6 +53,7 @@ class SmartOAuthController {
 
   @Public()
   @Post("token")
+  @HttpCode(200)
   @Header("Content-Type", "application/json; charset=utf-8")
   @Header("Cache-Control", "no-store")
   @Header("Pragma", "no-cache")
@@ -70,6 +71,7 @@ class SmartOAuthController {
 
   @Public()
   @Post("revoke")
+  @HttpCode(200)
   @Header("Cache-Control", "no-store")
   @Header("Pragma", "no-cache")
   async revoke(@Req() request: RequestIdentity, @Body() body: SmartInput) {
