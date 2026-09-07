@@ -44,6 +44,10 @@ export const InsuranceEligibilityStatuses = ["PENDING", "ELIGIBLE", "NOT_ELIGIBL
 export type InsuranceEligibilityStatus = (typeof InsuranceEligibilityStatuses)[number];
 export const PriorAuthorizationStatuses = ["NOT_REQUIRED", "PENDING", "APPROVED", "DENIED", "EXPIRED", "CANCELLED"] as const;
 export type PriorAuthorizationStatus = (typeof PriorAuthorizationStatuses)[number];
+export const InsuranceClaimStatuses = ["SUBMITTED", "ACCEPTED", "PENDING", "ADJUDICATED", "DENIED", "PAID", "VOID"] as const;
+export type InsuranceClaimStatus = (typeof InsuranceClaimStatuses)[number];
+export const ClaimReconciliationStatuses = ["NOT_RECONCILED", "RECONCILED", "REVIEW_REQUIRED"] as const;
+export type ClaimReconciliationStatus = (typeof ClaimReconciliationStatuses)[number];
 
 export interface MedicalSpecialty { id: string; code: string; labels: LocalizedText; parentId: string | null; active: boolean; }
 export interface OtherProviderCategory { id: string; slug: string; labels: LocalizedText; family: OtherProviderFamily; active: boolean; requiredCredentialTypes: readonly string[]; enabledModalities: readonly AppointmentModality[]; }
@@ -109,6 +113,16 @@ export interface PriorAuthorizationInput {
   coverageId: string;
   idempotencyKey: string;
   eligibilityCheckId?: string;
+}
+
+export interface SubmitInsuranceClaimInput {
+  coverageId: string;
+  idempotencyKey: string;
+}
+
+export interface ReworkInsuranceClaimInput {
+  idempotencyKey: string;
+  reasonCode: string;
 }
 
 export interface CreateProviderPayoutInput {
