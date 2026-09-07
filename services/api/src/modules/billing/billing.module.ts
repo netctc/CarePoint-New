@@ -13,6 +13,7 @@ import { BillingIdempotencyService } from "./billing-idempotency.service";
 import { BillingService } from "./billing.service";
 import { PaymentGatewayService } from "./payment-gateway.service";
 import { InsuranceGatewayService } from "./insurance-gateway.service";
+import { InsurancePresentationService } from "./insurance-presentation.service";
 
 @Controller("billing")
 class PatientBillingController {
@@ -42,12 +43,15 @@ class PatientBillingController {
 
 @Controller("insurance")
 class InsuranceController {
-  constructor(private readonly billing: BillingService) {}
+  constructor(
+    private readonly billing: BillingService,
+    private readonly presentation: InsurancePresentationService,
+  ) {}
 
   @RequirePermissions("PATIENT_MANAGE_INSURANCE")
   @Get("me/coverages")
   coverages(@CurrentPrincipal() principal: AuthPrincipal) {
-    return this.billing.listPatientCoverages(principal);
+    return this.presentation.listPatientCoverages(principal);
   }
 
   @RequirePermissions("PATIENT_MANAGE_INSURANCE")
@@ -129,7 +133,7 @@ class FinanceOperationsController {
 
 @Module({
   controllers: [PatientBillingController, InsuranceController, ProviderFinanceController, FinanceOperationsController],
-  providers: [BillingService, BillingIdempotencyService, PaymentGatewayService, InsuranceGatewayService],
+  providers: [BillingService, BillingIdempotencyService, InsurancePresentationService, PaymentGatewayService, InsuranceGatewayService],
   exports: [BillingService],
 })
 export class BillingModule {}
