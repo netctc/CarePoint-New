@@ -5,9 +5,11 @@ import 'package:carepoint_mobile_core/clinical_localization.dart';
 import 'package:carepoint_mobile_core/financial_localization.dart';
 import 'package:carepoint_mobile_core/financial_workspace.dart';
 import 'package:carepoint_mobile_core/telehealth_room.dart';
+import 'package:carepoint_mobile_core/transport_localization.dart';
 import 'package:flutter/material.dart';
 
 import 'clinical_timeline.dart';
+import 'patient_transport.dart';
 
 void main() => runApp(const CarePointPatientApp());
 
@@ -128,18 +130,10 @@ class _PatientSearchPageState extends State<PatientSearchPage> {
     finally { if (mounted) setState(() => busy = false); }
   }
 
-  void emergency() => showModalBottomSheet<void>(
-        context: context,
-        builder: (_) => Directionality(
-          textDirection: widget.locale.textDirection,
-          child: SafeArea(child: Padding(padding: const EdgeInsets.all(22), child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            Text(cpText(widget.locale, 'patient.emergencyTitle'), style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w800)),
-            const SizedBox(height: 12),
-            Text(cpText(widget.locale, 'patient.emergencyText')),
-            const SizedBox(height: 18),
-            FilledButton.icon(style: FilledButton.styleFrom(backgroundColor: const Color(0xFFE11D48)), onPressed: () => Navigator.pop(context), icon: const Icon(Icons.emergency_outlined), label: Text(cpText(widget.locale, 'patient.requestNow'))),
-          ]))),
-        ),
+  Future<void> emergency() => openEmergencyAmbulanceFlow(
+        context,
+        session: widget.session,
+        locale: widget.locale,
       );
 
   @override
@@ -159,6 +153,20 @@ class _PatientSearchPageState extends State<PatientSearchPage> {
                 decoration: BoxDecoration(color: const Color(0xFFFFF1F2), border: Border.all(color: const Color(0xFFFDA4AF)), borderRadius: BorderRadius.circular(20)),
                 child: Row(children: [const CircleAvatar(backgroundColor: Color(0xFFE11D48), child: Icon(Icons.emergency_share_outlined, color: Colors.white)), const SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(cpText(widget.locale, 'patient.emergency'), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: Color(0xFFBE123C))), Text(cpText(widget.locale, 'patient.emergencyAction'), style: const TextStyle(fontWeight: FontWeight.w800)), Text(cpText(widget.locale, 'patient.emergencyHint'), style: const TextStyle(fontSize: 11, color: Color(0xFF9F1239)))]))]),
               ),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: () => Navigator.push<void>(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => Directionality(
+                    textDirection: widget.locale.textDirection,
+                    child: PatientMedicalTransportPage(session: widget.session, locale: widget.locale),
+                  ),
+                ),
+              ),
+              icon: const Icon(Icons.local_shipping_outlined),
+              label: Text(transportText(widget.locale, 'schedule')),
             ),
             const SizedBox(height: 16),
             TextField(
