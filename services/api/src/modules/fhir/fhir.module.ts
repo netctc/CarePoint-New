@@ -3,6 +3,7 @@ import {
   CallHandler,
   Catch,
   Controller,
+  Delete,
   ExecutionContext,
   ForbiddenException,
   Get,
@@ -13,16 +14,27 @@ import {
   NestInterceptor,
   Param,
   Query,
+  Req,
+  Res,
   UseFilters,
   UseInterceptors,
   type ExceptionFilter,
 } from "@nestjs/common";
 import type { AuthPrincipal } from "@carepoint/identity";
-import { CurrentPrincipal, CurrentSmartContext, Public, RequireSmartFhirAccess } from "../../security/api-security.module";
+import { DistributedRateLimitService } from "../../infrastructure/redis/redis-security.module";
+import {
+  CurrentPrincipal,
+  CurrentSmartContext,
+  Public,
+  RequireSmartFhirAccess,
+  RequireSmartSystemFhirOperation,
+} from "../../security/api-security.module";
 import type { SmartAccessContext } from "../../security/smart-token.service";
 import { ClinicalModule } from "../clinical/clinical.module";
 import { DocumentsModule } from "../documents/documents.module";
 import { OrdersModule } from "../orders/orders.module";
+import { FhirBulkExportService } from "./fhir-bulk-export.service";
+import { FhirBulkExportStorageService } from "./fhir-bulk-export-storage.service";
 import { FhirDocumentsService } from "./fhir-documents.service";
 import { FhirSearchService } from "./fhir-search.service";
 import { FhirSearchSupportService, type FhirSearchQuery } from "./fhir-search-support.service";
@@ -34,6 +46,11 @@ interface HttpResponseLike {
   status(code: number): HttpResponseLike;
   setHeader(name: string, value: string): void;
   json(value: unknown): void;
+  send(value?: unknown): void;
+}
+
+interface FhirRequestLike {
+  headers?: Record<string, string | string[] | undefined>;
 }
 
 @Injectable()
@@ -75,6 +92,8 @@ class FhirController {
     private readonly fhirSearch: FhirSearchService,
     private readonly fhirSmart: FhirSmartCapabilityService,
     private readonly fhirSystem: FhirSystemService,
+    private readonly bulkExport: FhirBulkExportService,
+    private readonly rateLimits: DistributedRateLimitService,
   ) {}
 
   @Public()
@@ -82,6 +101,77 @@ class FhirController {
   @Header("Content-Type", "application/fhir+json; charset=utf-8")
   metadata() {
     return this.fhirSmart.augment(this.fhirDocuments.augmentCapability(this.fhir.capabilityStatement()));
+  }
+
+  @RequireSmartSystemFhirOperation("$export")
+  @Get("$export")
+  async export(
+    @CurrentSmartContext() smart: SmartAccessContext | null,
+    @Query() query: FhirSearchQuery,
+    @Req() request: FhirRequestLike,
+    @Res() response: HttpResponseLike,
+  ): Promise<void> {
+    if (!smart) throw new ForbiddenException("FHIR bulk export requires SMART backend-services authentication.");
+    await this.rateLimits.assertAllowed({ namespace: "fhir:bulk:kickoff", identity: smart.clientId, limit: 10, windowSeconds: 300 });
+    const result = await this.bulkExport.kickoff(
+      smart,
+      query,
+      headerValue(request.headers?.prefer),
+      headerValue(request.headers?.accept),
+    );
+    response.setHeader("Content-Location", result.contentLocation);
+    response.status(202).send();
+  }
+
+  @RequireSmartSystemFhirOperation("$export-status")
+  @Get("$export-status/:jobId")
+  async exportStatus(
+    @CurrentSmartContext() smart: SmartAccessContext | null,
+    @Param("jobId") jobId: string,
+    @Res() response: HttpResponseLike,
+  ): Promise<void> {
+    if (!smart) throw new ForbiddenException("FHIR bulk export status requires SMART backend-services authentication.");
+    await this.rateLimits.assertAllowed({ namespace: "fhir:bulk:status", identity: `${smart.clientId}:${jobId}`, limit: 60, windowSeconds: 60 });
+    const result = await this.bulkExport.poll(smart, jobId);
+    if (result.state === "in-progress") {
+      response.setHeader("Retry-After", String(result.retryAfterSeconds));
+      response.setHeader("X-Progress", result.progress);
+      response.status(202).send();
+      return;
+    }
+    response.setHeader("Content-Type", "application/json; charset=utf-8");
+    response.setHeader("Expires", new Date(result.expiresAt).toUTCString());
+    response.status(200).json(result.manifest);
+  }
+
+  @RequireSmartSystemFhirOperation("$export-status")
+  @Delete("$export-status/:jobId")
+  async cancelExport(
+    @CurrentSmartContext() smart: SmartAccessContext | null,
+    @Param("jobId") jobId: string,
+    @Res() response: HttpResponseLike,
+  ): Promise<void> {
+    if (!smart) throw new ForbiddenException("FHIR bulk export cancellation requires SMART backend-services authentication.");
+    await this.rateLimits.assertAllowed({ namespace: "fhir:bulk:cancel", identity: `${smart.clientId}:${jobId}`, limit: 20, windowSeconds: 60 });
+    await this.bulkExport.cancel(smart, jobId);
+    response.status(202).send();
+  }
+
+  @RequireSmartSystemFhirOperation("$export-file")
+  @Get("$export-file/:jobId/:fileName")
+  async exportFile(
+    @CurrentSmartContext() smart: SmartAccessContext | null,
+    @Param("jobId") jobId: string,
+    @Param("fileName") fileName: string,
+    @Res() response: HttpResponseLike,
+  ): Promise<void> {
+    if (!smart) throw new ForbiddenException("FHIR bulk export download requires SMART backend-services authentication.");
+    await this.rateLimits.assertAllowed({ namespace: "fhir:bulk:download", identity: `${smart.clientId}:${jobId}`, limit: 30, windowSeconds: 60 });
+    const result = await this.bulkExport.download(smart, jobId, fileName);
+    response.setHeader("Content-Type", "application/fhir+ndjson; charset=utf-8");
+    response.setHeader("Content-Disposition", `attachment; filename="${result.fileName}"`);
+    response.setHeader("Expires", new Date(result.expiresAt).toUTCString());
+    response.status(200).send(result.content);
   }
 
   @RequireSmartFhirAccess("Patient", "s")
@@ -218,6 +308,8 @@ class FhirController {
     FhirSearchSupportService,
     FhirSmartCapabilityService,
     FhirSystemService,
+    FhirBulkExportService,
+    FhirBulkExportStorageService,
     FhirNoStoreInterceptor,
   ],
 })
@@ -230,10 +322,16 @@ function hardenHeaders(response: HttpResponseLike): void {
   response.setHeader("Vary", "Authorization");
 }
 
+function headerValue(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value.join(",") : value;
+}
+
 function outcomeCode(status: number): string {
   if (status === 400) return "invalid";
   if (status === 401 || status === 403) return "forbidden";
   if (status === 404) return "not-found";
   if (status === 409) return "conflict";
+  if (status === 429) return "throttled";
+  if (status >= 500) return "exception";
   return "processing";
 }
