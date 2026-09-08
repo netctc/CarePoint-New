@@ -22,4 +22,5 @@ if (process.env.NODE_ENV === "test") {
   await import("./patient-p1-smoke.mjs");
   await import("./doctor-d1-smoke.mjs");
   await import("./doctor-d2-smoke.mjs");
+  await import("./other-provider-o1-smoke.mjs");
 }
