@@ -4,6 +4,7 @@ import { NestFactory } from "@nestjs/core";
 import { NestExpressApplication } from "@nestjs/platform-express";
 import helmet from "helmet";
 import { AppModule } from "./app.module";
+import { KmsReadinessService } from "./infrastructure/security/kms-readiness.service";
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { cors: false, rawBody: true });
@@ -33,6 +34,11 @@ async function bootstrap(): Promise<void> {
     allowedHeaders: ["Authorization", "Content-Type", "Idempotency-Key", "X-Request-Id"],
   });
   app.setGlobalPrefix("api/v1");
+
+  // Production must prove that every configured envelope-encryption domain can
+  // round-trip a DEK through AWS KMS before the process starts accepting traffic.
+  await app.get(KmsReadinessService).assertStartupReady();
+
   const port = Number(process.env.PORT ?? 4000);
   await app.listen(port, "0.0.0.0");
 }
