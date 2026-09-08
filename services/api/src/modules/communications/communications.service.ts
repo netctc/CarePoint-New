@@ -176,6 +176,10 @@ export class CommunicationsService {
     const documentIds = [...new Set(input.attachmentDocumentIds ?? [])];
     if (documentIds.length > MAX_ATTACHMENTS) throw new BadRequestException(`A secure message supports at most ${MAX_ATTACHMENTS} attachments.`);
     await this.validateAttachments(conversation.patientId, membership.providerId, principal.role, documentIds);
+    const notificationRecipients = await this.prisma.careConversationParticipant.findMany({
+      where: { conversationId, leftAt: null, accountId: { not: principal.accountId } },
+      select: { accountId: true },
+    });
 
     const encrypted = await this.envelope.encrypt({ schemaVersion: 1, text: body });
     let message;
@@ -200,6 +204,17 @@ export class CommunicationsService {
         }
         await tx.careMessageReadReceipt.create({ data: { messageId: created.id, accountId: principal.accountId } });
         await tx.careConversation.update({ where: { id: conversationId }, data: { lastMessageAt: created.sentAt } });
+        for (const recipient of notificationRecipients) {
+          await this.notifications.enqueueAccountInTransaction(tx, {
+            accountId: recipient.accountId,
+            dedupeKey: `secure-message:${created.id}`,
+            type: "SECURE_MESSAGE",
+            entityType: "CARE_CONVERSATION",
+            entityId: conversationId,
+            safeTitleKey: "notification.message.title",
+            safeBodyKey: "notification.message.body",
+          });
+        }
         return created;
       });
     } catch (error) {
@@ -220,7 +235,7 @@ export class CommunicationsService {
       result: "SUCCESS",
       metadata: { conversationId, attachmentCount: documentIds.length },
     });
-    await this.notifyOtherParticipants(conversationId, principal.accountId, message.id);
+    this.notifications.wakeOutbox();
     const stored = await this.prisma.careMessage.findUnique({
       where: { id: message.id },
       include: { attachments: true, readReceipts: true },
@@ -304,11 +319,36 @@ export class CommunicationsService {
       throw new ForbiddenException("The target provider has no treatment relationship or provider-specific care-coordination consent.");
     }
 
-    const participant = await this.prisma.careConversationParticipant.upsert({
-      where: { conversationId_accountId: { conversationId, accountId: targetAccountId } },
-      create: { conversationId, accountId: targetAccountId, providerId: target.id, kind: "PROVIDER" },
-      update: { providerId: target.id, kind: "PROVIDER", leftAt: null },
+    const patient = await this.prisma.patientProfile.findUnique({ where: { id: conversation.patientId }, select: { userId: true } });
+    const participant = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.careConversationParticipant.upsert({
+        where: { conversationId_accountId: { conversationId, accountId: targetAccountId } },
+        create: { conversationId, accountId: targetAccountId, providerId: target.id, kind: "PROVIDER" },
+        update: { providerId: target.id, kind: "PROVIDER", leftAt: null },
+      });
+      await this.notifications.enqueueAccountInTransaction(tx, {
+        accountId: targetAccountId,
+        dedupeKey: `care-participant:${conversation.id}`,
+        type: "CARE_COORDINATION",
+        entityType: "CARE_CONVERSATION",
+        entityId: conversation.id,
+        safeTitleKey: "notification.care.title",
+        safeBodyKey: "notification.care.body",
+      });
+      if (patient?.userId) {
+        await this.notifications.enqueueAccountInTransaction(tx, {
+          accountId: patient.userId,
+          dedupeKey: `care-participant:${conversation.id}:${target.id}`,
+          type: "CARE_COORDINATION",
+          entityType: "CARE_CONVERSATION",
+          entityId: conversation.id,
+          safeTitleKey: "notification.care.title",
+          safeBodyKey: "notification.care.body",
+        });
+      }
+      return created;
     });
+    this.notifications.wakeOutbox();
     await this.audit.write({
       actorId: principal.accountId,
       action: "CARE_PARTICIPANT_ADDED",
@@ -318,27 +358,6 @@ export class CommunicationsService {
       result: "SUCCESS",
       metadata: { targetProviderId: target.id, accessBasis },
     });
-    await this.notifications.notifyAccount({
-      accountId: targetAccountId,
-      dedupeKey: `care-participant:${conversation.id}`,
-      type: "CARE_COORDINATION",
-      entityType: "CARE_CONVERSATION",
-      entityId: conversation.id,
-      safeTitleKey: "notification.care.title",
-      safeBodyKey: "notification.care.body",
-    });
-    const patient = await this.prisma.patientProfile.findUnique({ where: { id: conversation.patientId }, select: { userId: true } });
-    if (patient?.userId) {
-      await this.notifications.notifyAccount({
-        accountId: patient.userId,
-        dedupeKey: `care-participant:${conversation.id}:${target.id}`,
-        type: "CARE_COORDINATION",
-        entityType: "CARE_CONVERSATION",
-        entityId: conversation.id,
-        safeTitleKey: "notification.care.title",
-        safeBodyKey: "notification.care.body",
-      });
-    }
     return {
       id: participant.id,
       providerId: target.id,
