@@ -1,6 +1,7 @@
 import { Injectable, InternalServerErrorException } from "@nestjs/common";
 import { AccessToken, WebhookReceiver } from "livekit-server-sdk";
 import { createHmac } from "node:crypto";
+import { ExternalSecretResolverService } from "../../infrastructure/secrets/external-secret-resolver.service";
 
 export interface TelehealthJoinTokenInput {
   roomName: string;
@@ -23,6 +24,8 @@ export interface TelehealthWebhookEvent {
 
 @Injectable()
 export class TelehealthProviderService {
+  constructor(private readonly secrets: ExternalSecretResolverService = new ExternalSecretResolverService()) {}
+
   async issueJoinToken(input: TelehealthJoinTokenInput): Promise<TelehealthJoinTokenResult> {
     const mode = this.mode();
     const expiresAt = new Date(Date.now() + input.ttlSeconds * 1000);
@@ -37,7 +40,7 @@ export class TelehealthProviderService {
       };
     }
 
-    const { url, apiKey, apiSecret } = this.liveKitConfiguration();
+    const { url, apiKey, apiSecret } = await this.liveKitConfiguration();
     const token = new AccessToken(apiKey, apiSecret, {
       identity: input.participantIdentity,
       ttl: input.ttlSeconds,
@@ -66,7 +69,7 @@ export class TelehealthProviderService {
       };
     }
 
-    const { apiKey, apiSecret } = this.liveKitConfiguration();
+    const { apiKey, apiSecret } = await this.liveKitConfiguration();
     const receiver = new WebhookReceiver(apiKey, apiSecret);
     const event = await receiver.receive(rawBody, authorization);
     const narrowed = event as unknown as { event?: string; room?: { name?: string }; participant?: { identity?: string } };
@@ -92,11 +95,11 @@ export class TelehealthProviderService {
     return secret;
   }
 
-  private liveKitConfiguration(): { url: string; apiKey: string; apiSecret: string } {
+  private async liveKitConfiguration(): Promise<{ url: string; apiKey: string; apiSecret: string }> {
     const url = process.env.LIVEKIT_URL?.trim();
-    const apiKey = process.env.LIVEKIT_API_KEY?.trim();
-    const apiSecret = process.env.LIVEKIT_API_SECRET?.trim();
-    if (!url || !apiKey || !apiSecret) throw new InternalServerErrorException("LiveKit server configuration is incomplete.");
+    if (!url) throw new InternalServerErrorException("LiveKit server URL is missing.");
+    const apiKey = await this.secrets.resolve("livekit-api-key");
+    const apiSecret = await this.secrets.resolve("livekit-api-secret");
     return { url, apiKey, apiSecret };
   }
 }
