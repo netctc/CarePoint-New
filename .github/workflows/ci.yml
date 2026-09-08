@@ -131,6 +131,8 @@ jobs:
         run: node services/api/scripts/admin-b6-smoke.mjs
       - name: Phase B7 Admin security and audit acceptance
         run: node services/api/scripts/admin-b7-smoke.mjs
+      - name: Phase B8 Admin telehealth and care delivery acceptance
+        run: node services/api/scripts/admin-b8-smoke.mjs
       - name: Slice 2 scheduling and concurrency smoke test
         run: node services/api/scripts/slice2-smoke.mjs
       - name: Slice 3 secure telemedicine smoke test
