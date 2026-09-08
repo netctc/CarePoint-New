@@ -1,5 +1,6 @@
 import { DecryptCommand, EncryptCommand, KMSClient } from "@aws-sdk/client-kms";
 import type { KeyEncryptionKeyProvider, WrappedDataKey } from "@carepoint/security";
+import { randomBytes, timingSafeEqual } from "node:crypto";
 
 export class AwsKmsKeyProvider implements KeyEncryptionKeyProvider {
   private readonly client: KMSClient;
@@ -43,5 +44,27 @@ export class AwsKmsKeyProvider implements KeyEncryptionKeyProvider {
     const bytes = Uint8Array.from(result.Plaintext);
     if (bytes.byteLength !== 32) throw new Error("AWS KMS returned an invalid data key length.");
     return bytes;
+  }
+
+  /**
+   * Proves the configured KMS key can both wrap and unwrap a 256-bit DEK
+   * using the exact EncryptionContext used by the application domain.
+   * Plaintext probe material is zeroed before returning.
+   */
+  async healthCheck(): Promise<void> {
+    const plaintext = Uint8Array.from(randomBytes(32));
+    let unwrapped: Uint8Array | undefined;
+    try {
+      const wrapped = await this.wrapDataKey(plaintext);
+      unwrapped = await this.unwrapDataKey(wrapped);
+      const left = Buffer.from(plaintext);
+      const right = Buffer.from(unwrapped);
+      if (left.length !== right.length || !timingSafeEqual(left, right)) {
+        throw new Error("AWS KMS envelope key round-trip validation failed.");
+      }
+    } finally {
+      plaintext.fill(0);
+      unwrapped?.fill(0);
+    }
   }
 }
