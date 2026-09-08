@@ -125,7 +125,7 @@ await expectReject(
 );
 
 await expectReject(
-  /CLINICAL_KMS_KEY_ID account '123456789012' does not match AWS_KMS_ACCOUNT_ID '210987654321'/,
+  /MFA_KMS_KEY_ID account '123456789012' does not match AWS_KMS_ACCOUNT_ID '210987654321'/,
   () => { process.env.AWS_KMS_ACCOUNT_ID = "210987654321"; },
 );
 
