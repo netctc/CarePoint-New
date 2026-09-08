@@ -495,16 +495,35 @@ model Consent {
 }
 
 model AuditEvent {
-  id         String   @id @default(uuid())
-  actorId    String?
-  action     String
-  objectType String
-  objectId   String?
-  purpose    String?
-  result     String
-  metadata   Json?
-  occurredAt DateTime @default(now())
+  id           String             @id @default(uuid())
+  actorId      String?
+  action       String
+  objectType   String
+  objectId     String?
+  purpose      String?
+  result       String
+  metadata     Json?
+  occurredAt   DateTime           @default(now())
+  siemDelivery SiemAuditDelivery?
 
   @@index([actorId, occurredAt])
   @@index([objectType, objectId, occurredAt])
+}
+
+model SiemAuditDelivery {
+  id           String     @id @default(uuid())
+  auditEventId String     @unique
+  status       String     @default("PENDING")
+  attemptCount Int        @default(0)
+  availableAt  DateTime   @default(now())
+  leaseOwner   String?
+  leaseUntil   DateTime?
+  exportedAt   DateTime?
+  errorCode    String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  auditEvent   AuditEvent @relation(fields: [auditEventId], references: [id], onDelete: Cascade)
+
+  @@index([status, availableAt])
+  @@index([leaseUntil])
 }
