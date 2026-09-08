@@ -47,13 +47,37 @@ function safeMessage(error: unknown): string {
     for (const item of raw.split(",")) {
       const separator = item.indexOf("=");
       if (separator <= 0) continue;
+      const name = item.slice(0, separator).trim();
       const encoded = item.slice(separator + 1).trim();
-      for (const candidate of [encoded, safelyDecode(encoded)]) {
-        if (candidate) output = output.split(candidate).join("<otlp-header-value>");
+      for (const candidate of headerRedactionCandidates(name, encoded)) {
+        output = output.split(candidate).join("<otlp-header-value>");
       }
     }
   }
   return output.slice(0, 500);
+}
+
+function headerRedactionCandidates(name: string, encoded: string): string[] {
+  const decoded = safelyDecode(encoded);
+  const candidates = new Set<string>();
+  for (const candidate of [encoded, decoded]) {
+    if (candidate) candidates.add(candidate);
+  }
+
+  if (name.toLowerCase() === "authorization") {
+    const credentialSeparator = decoded.search(/\s/);
+    if (credentialSeparator > 0 && credentialSeparator < decoded.length - 1) {
+      const credential = decoded.slice(credentialSeparator + 1).trim();
+      if (credential) {
+        candidates.add(credential);
+        candidates.add(encodeURIComponent(credential));
+      }
+    }
+  }
+
+  return [...candidates]
+    .filter(Boolean)
+    .sort((left, right) => right.length - left.length);
 }
 
 function safelyDecode(value: string): string {
