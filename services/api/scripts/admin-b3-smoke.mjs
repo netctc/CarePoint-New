@@ -56,8 +56,8 @@ try{
   await prisma.provider.create({data:{userId:reviewUser.id,class:"DOCTOR",displayName:"B3 Review",status:"PENDING_REVIEW"}});
   const onboarding=await prisma.providerOnboarding.create({data:{userId:reviewUser.id,kind:"DOCTOR",specialtyId:specialty.id,state:"PENDING_REVIEW",submittedAt:new Date()}}); ids.onboarding=onboarding.id;
   const service=await prisma.service.create({data:{providerId:doctor.id,name:"B3 Service",currency:"USD"}}); ids.service=service.id;
-  const now=Date.now(); const rows=[["CLINIC","COMPLETED",-3600000],["TELEMEDICINE","CONFIRMED",3600000],["HOME_VISIT","REQUESTED",7200000]];
-  for(const [modality,status,delta] of rows){ const startsAt=new Date(now+delta); const row=await prisma.appointment.create({data:{patientId:patient.id,providerId:doctor.id,serviceId:service.id,modality,status,startsAt,endsAt:new Date(startsAt.getTime()+1800000)}}); ids.appointments.push(row.id); }
+  const now=Date.now(); const fixtureDate=new Date(now); const offset=-fixtureDate.getTimezoneOffset(); const fixtureAnchor=new Date(fixtureDate.getFullYear(),fixtureDate.getMonth(),fixtureDate.getDate(),12,0,0,0).getTime(); const rows=[["CLINIC","COMPLETED",-3600000],["TELEMEDICINE","CONFIRMED",0],["HOME_VISIT","REQUESTED",3600000]];
+  for(const [modality,status,delta] of rows){ const startsAt=new Date(fixtureAnchor+delta); const row=await prisma.appointment.create({data:{patientId:patient.id,providerId:doctor.id,serviceId:service.id,modality,status,startsAt,endsAt:new Date(startsAt.getTime()+1800000)}}); ids.appointments.push(row.id); }
   const pricing=await prisma.pricingSnapshot.create({data:{appointmentId:ids.appointments[1],patientId:patient.id,providerId:doctor.id,serviceId:service.id,modality:"TELEMEDICINE",serviceName:"B3 Service",currency:"USD",unitPriceMinor:12000,totalMinor:12000}}); ids.pricing=pricing.id;
   const invoice=await prisma.invoice.create({data:{number:`B3-${now}`,appointmentId:ids.appointments[1],pricingSnapshotId:pricing.id,patientId:patient.id,providerId:doctor.id,currency:"USD",totalMinor:12000,patientResponsibilityMinor:12000,balanceDueMinor:12000,status:"OPEN"}}); ids.invoice=invoice.id;
   const coverage=await prisma.insuranceCoverage.create({data:{patientId:patient.id,payerCode:"B3",payerName:"B3 Payer",externalPolicyRef:`B3-${now}`}}); ids.coverage=coverage.id;
@@ -67,7 +67,7 @@ try{
   const transport=await prisma.medicalTransportRequest.create({data:{patientId:patient.id,mode:"GROUND",status:"REQUESTED",scheduledFor:new Date(now+10800000),pickupLatitude:33.89,pickupLongitude:35.5,destinationLatitude:33.9,destinationLongitude:35.51,clientRequestId:`b3-transport-${now}`}}); ids.transport=transport.id;
   const audit=await prisma.auditEvent.create({data:{actorId:patient.userId,action:"B3_TEST_ACCESS_DENIED",objectType:"B3_FIXTURE",result:"DENIED"}}); ids.audit=audit.id;
 
-  const offset=-new Date().getTimezoneOffset(); const snapshot=await web(`/api/admin/operations/command-center?tzOffsetMinutes=${offset}`,jar);
+  const snapshot=await web(`/api/admin/operations/command-center?tzOffsetMinutes=${offset}`,jar);
   assert(snapshot.response.status===200,`B3 snapshot failed: ${snapshot.text}`); const text=JSON.stringify(snapshot.payload);
   assert(!/accessToken|refreshToken/i.test(text),"B3 snapshot leaked bearer material.");
   for(const key of ["patientId","firstName","lastName","phone","callbackPhone","pickupAddress","destinationAddress","latitude","longitude","note","externalPolicyRef"]) assert(!text.includes(`\"${key}\"`),`B3 snapshot leaked ${key}.`);
