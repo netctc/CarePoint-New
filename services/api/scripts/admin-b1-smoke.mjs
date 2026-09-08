@@ -215,3 +215,4 @@ try {
 }
 
 await import("./admin-b2-smoke.mjs");
+await import("./admin-b3-smoke.mjs");
