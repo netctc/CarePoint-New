@@ -177,10 +177,13 @@ export function shouldSampleTrace(
   if (sampler.name.startsWith("parentbased_") && remoteParent) return remoteParent.sampled;
   if (sampler.name.endsWith("always_on")) return true;
   if (sampler.name.endsWith("always_off")) return false;
+  if (sampler.ratio <= 0) return false;
+  if (sampler.ratio >= 1) return true;
   const high64 = BigInt(`0x${traceId.slice(0, 16)}`);
-  const threshold = BigInt(Math.floor(sampler.ratio * Number.MAX_SAFE_INTEGER));
   const normalized = high64 >> 11n;
-  return normalized <= threshold;
+  const sampleSpace = 2 ** 53;
+  const threshold = BigInt(Math.floor(sampler.ratio * sampleSpace));
+  return normalized < threshold;
 }
 
 export async function sendOtlpJson(

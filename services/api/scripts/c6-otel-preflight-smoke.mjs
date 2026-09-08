@@ -123,6 +123,13 @@ assert.equal(
   shouldSampleTrace(validParent.traceId, { ...validParent, sampled: false, traceFlags: "00" }, config.sampler),
   false,
 );
+const ratioZeroSampler = { name: "traceidratio", ratio: 0 };
+const ratioOneSampler = { name: "traceidratio", ratio: 1 };
+const ratioHalfSampler = { name: "traceidratio", ratio: 0.5 };
+assert.equal(shouldSampleTrace("00000000000000000000000000000001", null, ratioZeroSampler), false);
+assert.equal(shouldSampleTrace("ffffffffffffffffffffffffffffffff", null, ratioOneSampler), true);
+assert.equal(shouldSampleTrace("00000000000000000000000000000001", null, ratioHalfSampler), true);
+assert.equal(shouldSampleTrace("ffffffffffffffffffffffffffffffff", null, ratioHalfSampler), false);
 
 configureProduction();
 let requiredCalls = 0;
