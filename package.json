@@ -17,6 +17,9 @@
     "db:deploy": "npm --workspace @carepoint/api run db:deploy",
     "db:bootstrap": "npm --workspace @carepoint/api run db:bootstrap"
   },
+  "overrides": {
+    "deepmerge-ts": "^8.0.1"
+  },
   "engines": {
     "node": ">=22.11.0 <25",
     "npm": ">=10"
