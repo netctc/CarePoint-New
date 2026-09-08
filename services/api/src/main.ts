@@ -7,6 +7,7 @@ import { AppModule } from "./app.module";
 import { assertProductionOtlpReady } from "./infrastructure/observability/production-otel-preflight";
 import { assertProductionDatabaseReady } from "./infrastructure/prisma/production-database-preflight";
 import { assertProductionRedisReady } from "./infrastructure/redis/production-redis-preflight";
+import { assertProductionExternalSecretsReady } from "./infrastructure/secrets/production-external-secrets-preflight";
 import { assertProductionKmsReady } from "./infrastructure/security/production-kms-preflight";
 import { assertProductionKmsRotationReady } from "./infrastructure/security/production-kms-rotation-preflight";
 import { assertProductionObjectStorageReady } from "./infrastructure/security/production-object-storage-preflight";
@@ -15,6 +16,7 @@ import { assertProductionSiemReady } from "./infrastructure/siem/production-siem
 async function bootstrap(): Promise<void> {
   await assertProductionKmsReady();
   await assertProductionKmsRotationReady();
+  await assertProductionExternalSecretsReady();
   await assertProductionObjectStorageReady();
   await assertProductionDatabaseReady();
   await assertProductionRedisReady();
