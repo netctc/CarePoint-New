@@ -204,7 +204,7 @@ class _DoctorAccessGateState extends State<DoctorAccessGate> {
 
   Widget _specialtyCard(Map<String, dynamic> specialty) => Card(
         child: ListTile(
-          leading: CircleAvatar(backgroundColor: widget.accent.withValues(alpha: .14), child: Icon(Icons.stethoscope, color: widget.accent)),
+          leading: CircleAvatar(backgroundColor: widget.accent.withValues(alpha: .14), child: Icon(Icons.medical_services_outlined, color: widget.accent)),
           title: Text(_t('specialty'), style: const TextStyle(fontWeight: FontWeight.w800)),
           subtitle: Text(_localized(specialty['labels'], specialty['code']?.toString() ?? '—')),
         ),
