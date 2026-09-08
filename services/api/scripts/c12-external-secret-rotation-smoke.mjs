@@ -30,10 +30,12 @@ const rotatedFile = join(dir, "payment.kms.b64.next");
 const encodeCipher = (marker) => Buffer.from(marker, "utf8").toString("base64");
 let decryptCalls = 0;
 const contexts = [];
+const keyIds = [];
 const fakeKms = {
   async send(command) {
     decryptCalls += 1;
     contexts.push(command.input.EncryptionContext);
+    keyIds.push(command.input.KeyId);
     const marker = Buffer.from(command.input.CiphertextBlob).toString("utf8");
     const value = marker === "cipher-one" ? "resolved-value-one" : marker === "cipher-two" ? "resolved-value-two" : "unexpected";
     return { Plaintext: Buffer.from(value, "utf8"), KeyId: "kms-key-id-redacted" };
@@ -44,12 +46,14 @@ try {
   await writeFile(secretFile, `${encodeCipher("cipher-one")}\n`, { mode: 0o600 });
   const env = {
     NODE_ENV: "test",
+    EXTERNAL_SECRET_KMS_KEY_ID: "alias/carepoint/external-secrets",
     PAYMENT_GATEWAY_API_KEY_KMS_FILE: secretFile,
   };
   const cache = new Map();
 
   assert.equal(await resolveExternalSecret("payment-gateway-api-key", env, fakeKms, cache), "resolved-value-one");
   assert.equal(decryptCalls, 1);
+  assert.equal(keyIds[0], "alias/carepoint/external-secrets");
   assert.deepEqual(contexts[0], { purpose: "carepoint-external-secret", secret: "payment-gateway-api-key" });
 
   assert.equal(await resolveExternalSecret("payment-gateway-api-key", env, fakeKms, cache), "resolved-value-one");
@@ -59,6 +63,7 @@ try {
   await rename(rotatedFile, secretFile);
   assert.equal(await resolveExternalSecret("payment-gateway-api-key", env, fakeKms, cache), "resolved-value-two");
   assert.equal(decryptCalls, 2, "atomic ciphertext replacement must trigger KMS re-decryption without process restart");
+  assert.equal(keyIds[1], "alias/carepoint/external-secrets");
 
   const legacyValue = ["development", "placeholder", "value"].join("-");
   assert.equal(
@@ -84,6 +89,15 @@ try {
   await assert.rejects(
     resolveExternalSecret("payment-gateway-api-key", { NODE_ENV: "production" }, fakeKms, new Map()),
     /PAYMENT_GATEWAY_API_KEY_KMS_FILE is required in production/,
+  );
+  await assert.rejects(
+    resolveExternalSecret(
+      "payment-gateway-api-key",
+      { NODE_ENV: "production", PAYMENT_GATEWAY_API_KEY_KMS_FILE: secretFile },
+      fakeKms,
+      new Map(),
+    ),
+    /EXTERNAL_SECRET_KMS_KEY_ID is required in production/,
   );
   await assert.rejects(
     resolveExternalSecret(
@@ -126,6 +140,8 @@ for (const [path, secretName] of consumers) {
   assert.ok(source.includes(`secrets.resolve(\"${secretName}\")`), `${path} must resolve ${secretName} through C12`);
 }
 
+const kmsSource = await readFile(new URL("../src/infrastructure/security/production-kms-preflight.ts", import.meta.url), "utf8");
+assert.match(kmsSource, /EXTERNAL_SECRET_KMS_KEY_ID/);
 const packageSource = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
 assert.ok(packageSource.scripts.test.includes("c12:external-secret-rotation"));
 assert.equal(packageSource.dependencies["@aws-sdk/client-kms"], "3.1128.0");
