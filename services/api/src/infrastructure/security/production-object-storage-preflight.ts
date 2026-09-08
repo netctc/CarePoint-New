@@ -10,34 +10,34 @@ import {
 import { DescribeKeyCommand, KMSClient } from "@aws-sdk/client-kms";
 
 type PublicAccessBlockInspection = {
-  blockPublicAcls?: boolean;
-  ignorePublicAcls?: boolean;
-  blockPublicPolicy?: boolean;
-  restrictPublicBuckets?: boolean;
+  blockPublicAcls?: boolean | undefined;
+  ignorePublicAcls?: boolean | undefined;
+  blockPublicPolicy?: boolean | undefined;
+  restrictPublicBuckets?: boolean | undefined;
 };
 
 type LifecycleRuleInspection = {
-  status?: string;
+  status?: string | undefined;
   prefix: string;
-  expirationDays?: number;
+  expirationDays?: number | undefined;
 };
 
 export type ObjectStorageBucketInspection = {
   region: string;
-  publicAccessBlock?: PublicAccessBlockInspection;
-  defaultEncryption?: { algorithm?: string; kmsKeyId?: string };
+  publicAccessBlock?: PublicAccessBlockInspection | undefined;
+  defaultEncryption?: { algorithm?: string | undefined; kmsKeyId?: string | undefined } | undefined;
   ownershipModes: string[];
   lifecycleRules: LifecycleRuleInspection[];
 };
 
 export type ObjectStorageKmsInspection = {
-  keyId?: string;
-  arn?: string;
-  enabled?: boolean;
-  keyState?: string;
-  keyUsage?: string;
-  keySpec?: string;
-  keyManager?: string;
+  keyId?: string | undefined;
+  arn?: string | undefined;
+  enabled?: boolean | undefined;
+  keyState?: string | undefined;
+  keyUsage?: string | undefined;
+  keySpec?: string | undefined;
+  keyManager?: string | undefined;
 };
 
 export type InspectProductionBucket = (bucket: string) => Promise<ObjectStorageBucketInspection>;
@@ -180,12 +180,16 @@ function validateStorageKmsKey(keyId: string, inspection: ObjectStorageKmsInspec
     throw new Error(`Storage KMS key '${keyId}' must be customer-managed.`);
   }
   const arn = inspection.arn?.trim();
-  const arnRegion = arn ? parseKmsArnRegion(arn) : null;
-  if (!arn || !inspection.keyId?.trim() || !arnRegion) {
+  const parsedArn = arn ? parseKmsKeyArn(arn) : null;
+  if (!arn || !inspection.keyId?.trim() || !parsedArn) {
     throw new Error(`Storage KMS key '${keyId}' metadata must include a valid KeyId and KMS ARN.`);
   }
-  if (arnRegion !== region) {
-    throw new Error(`Storage KMS key '${keyId}' is in region '${arnRegion}', expected '${region}'.`);
+  if (parsedArn.region !== region) {
+    throw new Error(`Storage KMS key '${keyId}' is in region '${parsedArn.region}', expected '${region}'.`);
+  }
+  const expectedAccountId = process.env.AWS_KMS_ACCOUNT_ID?.trim();
+  if (expectedAccountId && parsedArn.accountId !== expectedAccountId) {
+    throw new Error(`Storage KMS key '${keyId}' belongs to account '${parsedArn.accountId}', expected '${expectedAccountId}'.`);
   }
 }
 
@@ -225,10 +229,10 @@ function liveBucketInspector(region: string): InspectProductionBucket {
       ownershipModes: ownership?.OwnershipControls?.Rules?.map((rule) => String(rule.ObjectOwnership ?? "")).filter(Boolean) ?? [],
       lifecycleRules: lifecycle?.Rules?.map((rule) => {
         const raw = rule as unknown as {
-          Status?: string;
-          Prefix?: string;
-          Filter?: { Prefix?: string; And?: { Prefix?: string } };
-          Expiration?: { Days?: number };
+          Status?: string | undefined;
+          Prefix?: string | undefined;
+          Filter?: { Prefix?: string | undefined; And?: { Prefix?: string | undefined } | undefined } | undefined;
+          Expiration?: { Days?: number | undefined } | undefined;
         };
         return {
           status: raw.Status,
@@ -291,12 +295,14 @@ function normalizeS3Region(value: unknown): string {
   return String(value);
 }
 
-function parseKmsArnRegion(value: string): string | null {
-  return /^arn:[^:]+:kms:([^:]+):[0-9]{12}:key\/.+$/.exec(value)?.[1] ?? null;
+function parseKmsKeyArn(value: string): { region: string; accountId: string; keyId: string } | null {
+  const match = /^arn:[^:]+:kms:([^:]+):([0-9]{12}):key\/(.+)$/.exec(value);
+  if (!match?.[1] || !match[2] || !match[3]) return null;
+  return { region: match[1], accountId: match[2], keyId: match[3] };
 }
 
 function kmsKeyIdFromArn(value: string): string | null {
-  return /^arn:[^:]+:kms:[^:]+:[0-9]{12}:key\/(.+)$/.exec(value)?.[1] ?? null;
+  return parseKmsKeyArn(value)?.keyId ?? null;
 }
 
 function parsePositiveInteger(value: string, name: string): number {
