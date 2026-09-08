@@ -82,7 +82,7 @@ async function kickoff(token, types = ["Patient"]) {
 }
 
 function jobIdFromLocation(location) {
-  const match = /\/$export-status\/([A-Za-z0-9_-]+)$/.exec(location);
+  const match = /\/\$export-status\/([A-Za-z0-9_-]+)$/.exec(location);
   if (!match) throw new Error(`Invalid Slice 10.13 Content-Location: ${location}`);
   return match[1];
 }
@@ -179,19 +179,32 @@ try {
         ...recoveredPayload,
         jobId: expiredJobId,
         status: "COMPLETED",
-        completedAt: new Date(Date.now() - 10_000).toISOString(),
         expiresAt: new Date(Date.now() - 5_000).toISOString(),
-        artifacts: [],
       },
       availableAt: new Date(Date.now() - 10_000),
       purgeAt: new Date(Date.now() - 5_000),
     },
   });
   await redis.del(`carepoint:fhir:bulk-export:${expiredJobId}`);
-  await waitForDeleted(expiredJobId, "Expired durable job cleanup failed", 80);
+  await waitForDeleted(expiredJobId, "Expired durable job was not removed by cleanup");
 
-  console.log("Slice 10.13 durable FHIR bulk jobs smoke test passed.");
+  const normalStatus = await raw(`${fhirBase}/$export-status/${normalJobId}`, { token });
+  if (normalStatus.status !== 200 || !Array.isArray(normalStatus.payload.output)) {
+    throw new Error(`Normal durable job status failed after persistence: ${JSON.stringify(normalStatus)}`);
+  }
+
+  console.log(JSON.stringify({
+    status: "passed",
+    softwareVersion: metadata.payload.software?.version,
+    durablePostgres: true,
+    persistedBeforeResponse: true,
+    leaseRecovery: true,
+    redisLossRecovery: true,
+    cleanupLifecycle: true,
+    clientBoundOwnership: normalRow.clientId === clientId,
+  }));
 } finally {
-  await redis.quit().catch(() => undefined);
-  await prisma.$disconnect();
+  await prisma.fhirBulkExportJobState.deleteMany({ where: { clientId } }).catch(() => undefined);
+  await prisma.$disconnect().catch(() => undefined);
+  redis.disconnect();
 }
