@@ -17,21 +17,23 @@ class OrdersController {
 
   @RequirePermissions("CLINICAL_ORDER_WRITE")
   @Post("appointments/:appointmentId/prescriptions")
-  prescription(
+  async prescription(
     @CurrentPrincipal() principal: AuthPrincipal,
     @Param("appointmentId") appointmentId: string,
     @Body() body: Record<string, unknown>,
   ) {
+    await this.capabilities.assertClinicalOrderCapability(principal, "PRESCRIPTION");
     return this.orders.createOrder(principal, appointmentId, "PRESCRIPTION", body);
   }
 
   @RequirePermissions("CLINICAL_ORDER_WRITE")
   @Post("appointments/:appointmentId/laboratory")
-  laboratory(
+  async laboratory(
     @CurrentPrincipal() principal: AuthPrincipal,
     @Param("appointmentId") appointmentId: string,
     @Body() body: Record<string, unknown>,
   ) {
+    await this.capabilities.assertClinicalOrderCapability(principal, "LABORATORY");
     return this.orders.createOrder(principal, appointmentId, "LABORATORY", body);
   }
 
