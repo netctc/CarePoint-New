@@ -9,6 +9,12 @@ type KeyRequirement = {
   keySpec: "SYMMETRIC_DEFAULT" | "HMAC_256";
 };
 
+export type DescribeProductionKmsKey = (keyId: string) => Promise<KeyMetadata | undefined>;
+
+export interface ProductionKmsPreflightOptions {
+  describeKey?: DescribeProductionKmsKey;
+}
+
 const REQUIREMENTS: KeyRequirement[] = [
   { domain: "MFA secrets", providerEnv: "MFA_KEY_PROVIDER", expectedProvider: "aws-kms", keyEnv: "MFA_KMS_KEY_ID", keyUsage: "ENCRYPT_DECRYPT", keySpec: "SYMMETRIC_DEFAULT" },
   { domain: "clinical records", providerEnv: "CLINICAL_KEY_PROVIDER", expectedProvider: "aws-kms", keyEnv: "CLINICAL_KMS_KEY_ID", keyUsage: "ENCRYPT_DECRYPT", keySpec: "SYMMETRIC_DEFAULT" },
@@ -20,14 +26,11 @@ const REQUIREMENTS: KeyRequirement[] = [
   { domain: "telehealth session keys", providerEnv: "TELEHEALTH_KEY_PROVIDER", expectedProvider: "aws-kms", keyEnv: "TELEHEALTH_KMS_KEY_ID", keyUsage: "ENCRYPT_DECRYPT", keySpec: "SYMMETRIC_DEFAULT" },
 ];
 
-export async function assertProductionKmsReady(): Promise<void> {
+export async function assertProductionKmsReady(options: ProductionKmsPreflightOptions = {}): Promise<void> {
   if (process.env.NODE_ENV !== "production") return;
 
   const region = required("AWS_REGION");
-  const client = new KMSClient({
-    region,
-    ...(process.env.AWS_ENDPOINT_URL_KMS?.trim() ? { endpoint: process.env.AWS_ENDPOINT_URL_KMS.trim() } : {}),
-  });
+  const describeKey = options.describeKey ?? liveDescribeKey(region);
 
   for (const requirement of REQUIREMENTS) {
     const configuredProvider = (process.env[requirement.providerEnv] ?? requirement.expectedProvider).trim();
@@ -38,7 +41,7 @@ export async function assertProductionKmsReady(): Promise<void> {
     const keyId = required(requirement.keyEnv);
     let metadata: KeyMetadata | undefined;
     try {
-      metadata = (await client.send(new DescribeKeyCommand({ KeyId: keyId }))).KeyMetadata;
+      metadata = await describeKey(keyId);
     } catch (error) {
       throw new Error(`Production KMS preflight could not describe ${requirement.keyEnv} for ${requirement.domain}: ${errorMessage(error)}`);
     }
@@ -53,6 +56,14 @@ export async function assertProductionKmsReady(): Promise<void> {
       throw new Error(`${requirement.keyEnv} must use ${requirement.keySpec}, got '${metadata.KeySpec ?? "unknown"}' (${requirement.domain}).`);
     }
   }
+}
+
+function liveDescribeKey(region: string): DescribeProductionKmsKey {
+  const client = new KMSClient({
+    region,
+    ...(process.env.AWS_ENDPOINT_URL_KMS?.trim() ? { endpoint: process.env.AWS_ENDPOINT_URL_KMS.trim() } : {}),
+  });
+  return async (keyId: string) => (await client.send(new DescribeKeyCommand({ KeyId: keyId }))).KeyMetadata;
 }
 
 function required(name: string): string {
