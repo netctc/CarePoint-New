@@ -1,0 +1,86 @@
+name: C9 Patch Prisma Schema
+
+on:
+  push:
+    branches:
+      - feature/phase-c9-durable-siem-audit-export
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.head_commit.message == 'ci(c9): patch prisma schema once'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: feature/phase-c9-durable-siem-audit-export
+      - name: Patch C9 Prisma schema
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('services/api/prisma/schema.prisma')
+          source = path.read_text()
+          old = '''model AuditEvent {
+            id         String   @id @default(uuid())
+            actorId    String?
+            action     String
+            objectType String
+            objectId   String?
+            purpose    String?
+            result     String
+            metadata   Json?
+            occurredAt DateTime @default(now())
+
+            @@index([actorId, occurredAt])
+            @@index([objectType, objectId, occurredAt])
+          }'''
+          old = '\n'.join(line[10:] if line.startswith('          ') else line for line in old.splitlines())
+          new = '''model AuditEvent {
+            id           String             @id @default(uuid())
+            actorId      String?
+            action       String
+            objectType   String
+            objectId     String?
+            purpose      String?
+            result       String
+            metadata     Json?
+            occurredAt   DateTime           @default(now())
+            siemDelivery SiemAuditDelivery?
+
+            @@index([actorId, occurredAt])
+            @@index([objectType, objectId, occurredAt])
+          }
+
+          model SiemAuditDelivery {
+            id           String     @id @default(uuid())
+            auditEventId String     @unique
+            status       String     @default("PENDING")
+            attemptCount Int        @default(0)
+            availableAt  DateTime   @default(now())
+            leaseOwner   String?
+            leaseUntil   DateTime?
+            exportedAt   DateTime?
+            errorCode    String?
+            createdAt    DateTime   @default(now())
+            updatedAt    DateTime   @updatedAt
+            auditEvent   AuditEvent @relation(fields: [auditEventId], references: [id], onDelete: Cascade)
+
+            @@index([status, availableAt])
+            @@index([leaseUntil])
+          }'''
+          new = '\n'.join(line[10:] if line.startswith('          ') else line for line in new.splitlines())
+          if old not in source:
+              raise SystemExit('AuditEvent model block not found exactly once')
+          if source.count(old) != 1:
+              raise SystemExit(f'Expected one AuditEvent model block, found {source.count(old)}')
+          path.write_text(source.replace(old, new, 1))
+          PY
+      - name: Commit C9 Prisma schema
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add services/api/prisma/schema.prisma
+          git commit -m "feat(c9): add durable SIEM audit outbox model"
+          git push origin HEAD:feature/phase-c9-durable-siem-audit-export
