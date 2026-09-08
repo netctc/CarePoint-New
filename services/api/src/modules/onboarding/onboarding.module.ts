@@ -31,13 +31,15 @@ class OnboardingController {
 
   @RequirePermissions("PROVIDER_SELF_ONBOARD")
   @Post("doctors")
-  startDoctor(@CurrentPrincipal() principal: AuthPrincipal, @Body() body: DoctorOnboardingBody) {
+  async startDoctor(@CurrentPrincipal() principal: AuthPrincipal, @Body() body: DoctorOnboardingBody) {
+    await this.selfOnboarding.assertCanStart(principal);
     return this.onboarding.startDoctor(principal, body.specialtyId);
   }
 
   @RequirePermissions("PROVIDER_SELF_ONBOARD")
   @Post("other-providers")
-  startOtherProvider(@CurrentPrincipal() principal: AuthPrincipal, @Body() body: OtherProviderOnboardingBody) {
+  async startOtherProvider(@CurrentPrincipal() principal: AuthPrincipal, @Body() body: OtherProviderOnboardingBody) {
+    await this.selfOnboarding.assertCanStart(principal);
     return this.onboarding.startOtherProvider(principal, body.providerCategoryId);
   }
 
