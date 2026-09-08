@@ -143,15 +143,31 @@ async function main() {
   const patientListAfterRead = await request('/communications/conversations', { token: patientToken });
   if (patientListAfterRead.find((item) => item.id === conversation.id)?.unreadCount !== 0) throw new Error('Read receipt did not clear patient unread count.');
 
-  const patientNotifications = await request('/notifications', { token: patientToken });
-  const replyNotifications = patientNotifications.filter((item) => item.type === 'SECURE_MESSAGE' && item.entityId === conversation.id);
-  if (replyNotifications.length !== 1) throw new Error(`Message retry created duplicate patient notifications: ${replyNotifications.length}.`);
-  const replyNotification = replyNotifications[0];
+  let replyNotification;
+  const notificationDeadline = Date.now() + 10000;
+  while (Date.now() < notificationDeadline) {
+    const patientNotifications = await request('/notifications', { token: patientToken });
+    const replyNotifications = patientNotifications.filter((item) => item.type === 'SECURE_MESSAGE' && item.entityId === conversation.id);
+    if (replyNotifications.length > 1) throw new Error(`Message retry created duplicate patient notifications: ${replyNotifications.length}.`);
+    const candidate = replyNotifications[0];
+    if (candidate?.deliveries?.length === 4 && candidate.deliveries.every((item) => item.status !== 'PENDING')) {
+      replyNotification = candidate;
+      break;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  if (!replyNotification) throw new Error('Durable notification outbox did not settle within the Slice 7 acceptance window.');
   if (JSON.stringify(replyNotification).includes(doctorReplyPlaintext) || replyNotification.safeTitleKey !== 'notification.message.title' || replyNotification.safeBodyKey !== 'notification.message.body') throw new Error('Notification event contains unsafe message content.');
-  const inAppDelivery = replyNotification.deliveries?.find((item) => item.channel === 'IN_APP');
-  const pushDelivery = replyNotification.deliveries?.find((item) => item.channel === 'PUSH');
-  if (inAppDelivery?.status !== 'SENT' || pushDelivery?.status !== 'SENT') throw new Error('Expected in-app and mock push notification delivery did not complete.');
+  const inAppDelivery = replyNotification.deliveries.find((item) => item.channel === 'IN_APP');
+  const pushDelivery = replyNotification.deliveries.find((item) => item.channel === 'PUSH');
+  const emailDelivery = replyNotification.deliveries.find((item) => item.channel === 'EMAIL');
+  const smsDelivery = replyNotification.deliveries.find((item) => item.channel === 'SMS');
+  if (inAppDelivery?.status !== 'SENT' || pushDelivery?.status !== 'SENT' || emailDelivery?.status !== 'SKIPPED' || smsDelivery?.status !== 'SKIPPED') throw new Error('Durable notification channel outcomes are unexpected.');
   if (JSON.stringify(replyNotification.deliveries).includes(endpointRef)) throw new Error('Notification delivery presentation leaked the destination endpoint reference.');
+  const durableDeliveries = await prisma.notificationDelivery.findMany({ where: { notificationId: replyNotification.id }, orderBy: { channel: 'asc' } });
+  if (durableDeliveries.length !== 4 || durableDeliveries.some((item) => item.status === 'PENDING')) throw new Error('Durable notification outbox rows did not reach terminal states.');
+  if (durableDeliveries.some((item) => item.attemptCount < 1 || item.leaseOwner !== null || item.leaseUntil !== null)) throw new Error('Durable notification leases or attempt accounting are invalid after settlement.');
+  if (durableDeliveries.find((item) => item.channel === 'PUSH')?.providerRef?.startsWith('mock_nt_') !== true) throw new Error('Durable mock push provider reference was not persisted.');
   const readNotification = await request(`/notifications/${replyNotification.id}/read`, { method: 'POST', token: patientToken, body: {} });
   if (!readNotification.readAt) throw new Error('Notification read state was not persisted.');
 
@@ -197,7 +213,7 @@ async function main() {
   console.log(JSON.stringify({
     status: 'passed', appointmentBoundConversation: true, conversationIdempotent: true, messageIdempotent: true,
     encryptedAtRest: true, adminAndOutsiderDenied: true, attachmentDoesNotGrantDocumentAccess: true,
-    readReceipts: true, notificationPayloadPhiNeutral: true, notificationDeliveryIdempotent: true,
+    readReceipts: true, notificationPayloadPhiNeutral: true, notificationDeliveryIdempotent: true, durableNotificationOutbox: true,
     pushEndpointRedacted: true, mockPushDelivered: true, careTeamRelationshipGate: true,
     closedConversationProtected: true, communicationsAuditedWithoutMessagePhi: true,
   }));
