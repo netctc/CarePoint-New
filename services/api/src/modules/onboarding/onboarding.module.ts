@@ -2,6 +2,7 @@ import { Body, Controller, Get, Module, Param, Post } from "@nestjs/common";
 import type { AuthPrincipal } from "@carepoint/identity";
 import { CurrentPrincipal, RequirePermissions } from "../../security/api-security.module";
 import { PersistentOnboardingService } from "./persistent-onboarding.service";
+import { ProviderSelfOnboardingService } from "./provider-self-onboarding.service";
 
 interface DoctorOnboardingBody { specialtyId: string; }
 interface OtherProviderOnboardingBody { providerCategoryId: string; }
@@ -11,7 +12,16 @@ interface GovernanceDecisionBody { note: string; }
 
 @Controller("onboarding")
 class OnboardingController {
-  constructor(private readonly onboarding: PersistentOnboardingService) {}
+  constructor(
+    private readonly onboarding: PersistentOnboardingService,
+    private readonly selfOnboarding: ProviderSelfOnboardingService,
+  ) {}
+
+  @RequirePermissions("PROVIDER_SELF_ONBOARD")
+  @Get("me")
+  mine(@CurrentPrincipal() principal: AuthPrincipal) {
+    return this.selfOnboarding.state(principal);
+  }
 
   @RequirePermissions("PROVIDER_REVIEW")
   @Get()
@@ -95,6 +105,6 @@ class OnboardingController {
 
 @Module({
   controllers: [OnboardingController],
-  providers: [PersistentOnboardingService],
+  providers: [PersistentOnboardingService, ProviderSelfOnboardingService],
 })
 export class OnboardingModule {}
