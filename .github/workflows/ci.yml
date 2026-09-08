@@ -76,22 +76,20 @@ jobs:
       BOOTSTRAP_ADMIN_EMAIL: admin-ci@carepoint.test
       BOOTSTRAP_ADMIN_PASSWORD: CarePoint-CI-Admin#2026
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
       - name: Use repository npm toolchain
         run: |
           npm install --global npm@10.9.2
           test "$(npm --version)" = "10.9.2"
-      - run: npm install
-      - name: Phase C2 capture generated lockfile
-        uses: actions/upload-artifact@v4
-        with:
-          name: c2-package-lock
-          path: package-lock.json
-          if-no-files-found: error
-          retention-days: 1
+      - name: Resolve candidate dependency lock without package scripts
+        run: npm install --package-lock-only --ignore-scripts
+      - name: Phase C2 verify dependency lock digest
+        run: sha256sum --check --strict .ci/npm-package-lock.sha256
+      - name: Install verified dependency graph
+        run: npm ci
       - name: Phase C2 high-severity dependency audit
         run: npm audit --audit-level=high
       - run: npm run build
@@ -179,9 +177,10 @@ jobs:
   flutter:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
+          flutter-version: "3.47.2"
           channel: stable
       - name: Test shared mobile client
         working-directory: packages/mobile_core
