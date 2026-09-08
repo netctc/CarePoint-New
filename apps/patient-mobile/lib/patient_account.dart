@@ -212,7 +212,7 @@ class _PatientAccountPageState extends State<PatientAccountPage> {
           _sectionTitle(Icons.notifications_none, '${_t('notifications')} · $unread ${_t('unread')}'),
           const SizedBox(height: 10),
           DropdownButtonFormField<String>(
-            value: preferences['locale']?.toString() ?? widget.locale.name,
+            initialValue: preferences['locale']?.toString() ?? widget.locale.name,
             decoration: InputDecoration(labelText: _t('notificationLanguage'), border: const OutlineInputBorder()),
             items: const [
               DropdownMenuItem(value: 'en', child: Text('English')),
