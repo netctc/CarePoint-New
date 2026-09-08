@@ -7,7 +7,7 @@
     "prebuild": "prisma generate --schema prisma",
     "build": "nest build",
     "start": "node dist/main.js",
-    "test": "npm run c3:object-storage-preflight && npm run c4:redis-preflight && npm run c5:postgres-preflight && npm run c6:otel-preflight && npm run c7:notification-outbox && npm run c8:kms-rotation-preflight",
+    "test": "npm run c3:object-storage-preflight && npm run c4:redis-preflight && npm run c5:postgres-preflight && npm run c6:otel-preflight && npm run c7:notification-outbox && npm run c8:kms-rotation-preflight && npm run c9:siem-audit-export",
     "typecheck": "prisma generate --schema prisma && tsc -p tsconfig.json --noEmit",
     "db:generate": "prisma generate --schema prisma",
     "db:migrate": "prisma migrate dev --schema prisma",
@@ -20,7 +20,8 @@
     "c5:postgres-preflight": "node scripts/c5-postgres-preflight-smoke.mjs",
     "c6:otel-preflight": "node scripts/c6-otel-preflight-smoke.mjs",
     "c7:notification-outbox": "node scripts/c7-notification-outbox-smoke.mjs",
-    "c8:kms-rotation-preflight": "node scripts/c8-kms-rotation-preflight-smoke.mjs"
+    "c8:kms-rotation-preflight": "node scripts/c8-kms-rotation-preflight-smoke.mjs",
+    "c9:siem-audit-export": "node scripts/c9-siem-audit-export-smoke.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-kms": "3.1128.0",
