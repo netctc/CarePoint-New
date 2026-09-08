@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import { ExternalSecretResolverService } from "../secrets/external-secret-resolver.service";
 import type { SiemAuditEventPayload } from "./siem-event-presenter.service";
 
 const DEFAULT_TIMEOUT_MS = 10_000;
@@ -16,6 +17,7 @@ export function siemGatewayConfiguration(env: NodeJS.ProcessEnv = process.env): 
   const timeoutMs = integerEnv(env.SIEM_EXPORT_TIMEOUT_MS, DEFAULT_TIMEOUT_MS, 1_000, MAX_TIMEOUT_MS, "SIEM_EXPORT_TIMEOUT_MS");
   const rawEndpoint = env.SIEM_EXPORT_URL?.trim() || null;
   const apiKey = env.SIEM_EXPORT_API_KEY?.trim() || null;
+  const encryptedApiKeyFile = env.SIEM_EXPORT_API_KEY_KMS_FILE?.trim() || null;
 
   if (env.NODE_ENV === "production" && !enabled) {
     throw new Error("SIEM_EXPORT_ENABLED=true is required in production for Phase C9 audit forwarding.");
@@ -24,21 +26,24 @@ export function siemGatewayConfiguration(env: NodeJS.ProcessEnv = process.env): 
   if (!rawEndpoint) throw new Error("SIEM_EXPORT_URL is required when SIEM export is enabled.");
 
   const endpoint = validatedEndpoint(rawEndpoint, env.NODE_ENV === "production");
-  if (!apiKey) throw new Error("SIEM_EXPORT_API_KEY is required when SIEM export is enabled.");
-  if (apiKey.length < 16 || apiKey.length > 4096) throw new Error("SIEM_EXPORT_API_KEY must be between 16 and 4096 characters.");
+  if (!apiKey && !encryptedApiKeyFile) throw new Error("SIEM export requires an API key source when enabled.");
+  if (apiKey && (apiKey.length < 16 || apiKey.length > 4096)) throw new Error("SIEM_EXPORT_API_KEY must be between 16 and 4096 characters.");
 
   return { enabled, endpoint, apiKey, timeoutMs };
 }
 
 @Injectable()
 export class SiemGatewayService {
+  constructor(private readonly secrets: ExternalSecretResolverService = new ExternalSecretResolverService()) {}
+
   assertProductionReady(): void {
     void siemGatewayConfiguration();
   }
 
   async send(payload: SiemAuditEventPayload): Promise<void> {
     const config = siemGatewayConfiguration();
-    if (!config.enabled || !config.endpoint || !config.apiKey) return;
+    if (!config.enabled || !config.endpoint) return;
+    const apiKey = await this.secrets.resolve("siem-export-api-key");
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), config.timeoutMs);
@@ -49,7 +54,7 @@ export class SiemGatewayService {
         headers: {
           "content-type": "application/json",
           "accept": "application/json",
-          "authorization": `Bearer ${config.apiKey}`,
+          "authorization": `Bearer ${apiKey}`,
           "idempotency-key": payload.eventRef,
           "x-carepoint-event-ref": payload.eventRef,
         },
