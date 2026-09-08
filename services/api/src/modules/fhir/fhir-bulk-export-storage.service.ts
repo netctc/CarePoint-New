@@ -62,8 +62,8 @@ export class FhirBulkExportStorageService {
     if (process.env.NODE_ENV === "production" && provider === "local") {
       throw new InternalServerErrorException("Local FHIR bulk export storage is forbidden in production.");
     }
-    if (process.env.NODE_ENV === "production" && process.env.BULK_EXPORT_STORAGE_LIFECYCLE_CONFIRMED !== "true") {
-      throw new InternalServerErrorException("BULK_EXPORT_STORAGE_LIFECYCLE_CONFIRMED=true is required in production so expired bulk-export objects are removed by storage lifecycle policy.");
+    if (process.env.NODE_ENV === "production" && process.env.AWS_ENDPOINT_URL_S3?.trim()) {
+      throw new InternalServerErrorException("Custom S3 endpoints are forbidden for production FHIR bulk export storage.");
     }
     return provider;
   }
