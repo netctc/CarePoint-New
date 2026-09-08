@@ -1,5 +1,6 @@
 import { BadGatewayException, BadRequestException, Injectable, InternalServerErrorException } from "@nestjs/common";
 import { createHash } from "node:crypto";
+import { ExternalSecretResolverService } from "../../infrastructure/secrets/external-secret-resolver.service";
 
 type ExternalNotificationChannel = "PUSH" | "EMAIL" | "SMS";
 
@@ -16,9 +17,10 @@ export interface NotificationGatewayInput {
 
 @Injectable()
 export class NotificationGatewayService {
+  constructor(private readonly secrets: ExternalSecretResolverService = new ExternalSecretResolverService()) {}
+
   assertProductionReady(): void {
     if (this.provider() !== "external") return;
-    this.apiKey();
     this.baseUrl();
     this.timeoutMs();
   }
@@ -51,7 +53,7 @@ export class NotificationGatewayService {
         method: "POST",
         headers: {
           accept: "application/json",
-          authorization: `Bearer ${this.apiKey()}`,
+          authorization: `Bearer ${await this.secrets.resolve("notification-gateway-api-key")}`,
           "content-type": "application/json",
           "idempotency-key": `${input.notificationId}:${input.channel}`,
         },
@@ -66,13 +68,6 @@ export class NotificationGatewayService {
       throw new BadGatewayException(`External notification delivery failed with HTTP ${response.status}.`);
     }
     return payload as Record<string, unknown>;
-  }
-
-  private apiKey(): string {
-    const apiKey = process.env.NOTIFICATION_GATEWAY_API_KEY?.trim();
-    if (!apiKey) throw new InternalServerErrorException("NOTIFICATION_GATEWAY_API_KEY is required for external notification delivery.");
-    if (apiKey.length > 4096 || /[\r\n]/.test(apiKey)) throw new InternalServerErrorException("NOTIFICATION_GATEWAY_API_KEY is invalid.");
-    return apiKey;
   }
 
   private timeoutMs(): number {
