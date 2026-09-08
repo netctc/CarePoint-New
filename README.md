@@ -54,15 +54,18 @@ docs/
 
 ## Local development
 
-Dependencies are intentionally bounded by major version. Generate and commit a lockfile before production release.
+Node workspaces target the repository-declared `npm@10.9.2`. CI resolves dependency locks without package scripts, verifies the approved canonical dependency graph, and only then performs `npm ci`. High/critical npm advisories fail the CI gate.
 
 ```bash
+npm install --global npm@10.9.2
 npm install
 npm run dev:api
 npm run dev:admin
 ```
 
+Dependency changes are intentional release changes: review the resolved graph and full regression suite before updating `.ci/npm-package-lock.canonical.sha256` or the Flutter lock digests. See `docs/phase-c2-dependency-supply-chain-hardening.md` for the acceptance procedure.
+
 API default: `http://localhost:4000`  
 Admin default: `http://localhost:3000`
 
-For mobile apps, use a Flutter 3.x toolchain and run each app from its own directory.
+Mobile CI is pinned to Flutter `3.47.2` and verifies the generated lock digests for the shared mobile package and all three apps before analyzer/test acceptance.
