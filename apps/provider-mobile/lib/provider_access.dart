@@ -53,11 +53,11 @@ class _OtherProviderAccessGateState extends State<OtherProviderAccessGate> {
       final nextState = _map(values[0]);
       final nextCategories = _list(values[1]);
       final onboarding = _map(nextState['onboarding']);
-      final category = _map(onboarding['providerCategory']);
+      final currentCategory = _map(onboarding['providerCategory']);
       setState(() {
         state = nextState;
         categories = nextCategories;
-        selectedCategoryId = category['id']?.toString() ??
+        selectedCategoryId = currentCategory['id']?.toString() ??
             (nextCategories.isEmpty ? null : nextCategories.first['id']?.toString());
       });
     } catch (value) {
@@ -89,6 +89,7 @@ class _OtherProviderAccessGateState extends State<OtherProviderAccessGate> {
     final canEdit = onboardingState == 'DRAFT' || onboardingState == 'REQUEST_CHANGES';
     final canStart = (onboarding.isEmpty || onboardingState == 'REJECTED') && providerStatus != 'SUSPENDED';
     final suspended = providerStatus == 'SUSPENDED';
+    final missingRequired = _missingRequired(category, credentials);
 
     return Scaffold(
       backgroundColor: widget.dark ? const Color(0xFF0F172A) : null,
@@ -112,7 +113,7 @@ class _OtherProviderAccessGateState extends State<OtherProviderAccessGate> {
             const SizedBox(height: 5),
             Text(_t('subtitle'), style: const TextStyle(color: Color(0xFF64748B))),
             if (error != null) ...[
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               _notice(Icons.error_outline, error!, const Color(0xFFDC2626)),
             ],
             const SizedBox(height: 16),
@@ -133,11 +134,17 @@ class _OtherProviderAccessGateState extends State<OtherProviderAccessGate> {
               const SizedBox(height: 12),
               _categoryCard(category),
               const SizedBox(height: 12),
-              _credentialsCard(onboarding, category, credentials, canEdit),
+              _credentialsCard(category, credentials, canEdit),
+              if (canEdit && missingRequired.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                _notice(Icons.rule_folder_outlined, '${_t('missingRequired')}: ${missingRequired.join(', ')}', const Color(0xFFF59E0B)),
+              ],
               if (canEdit) ...[
                 const SizedBox(height: 12),
                 FilledButton.icon(
-                  onPressed: credentials.isEmpty ? null : () => _submit(onboarding['id']?.toString() ?? ''),
+                  onPressed: credentials.isEmpty || missingRequired.isNotEmpty
+                      ? null
+                      : () => _submit(onboarding['id']?.toString() ?? ''),
                   icon: const Icon(Icons.send_outlined),
                   label: Text(_t('submitReview')),
                   style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(50), backgroundColor: widget.accent),
@@ -146,7 +153,7 @@ class _OtherProviderAccessGateState extends State<OtherProviderAccessGate> {
             ],
             if (onboardingState == 'PENDING_REVIEW') ...[
               const SizedBox(height: 12),
-              _notice(Icons.hourglass_top_rounded, _t('pendingHint'), const Color(0xFF0EA5E9)),
+              _notice(Icons.hourglass_top_rounded, _t('pendingHint'), const Color(0xFF0284C7)),
             ],
             if (onboardingState == 'APPROVED' && providerStatus != 'ACTIVE') ...[
               const SizedBox(height: 12),
@@ -177,7 +184,7 @@ class _OtherProviderAccessGateState extends State<OtherProviderAccessGate> {
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            _section(Icons.badge_outlined, _t('startApplication')),
+            _section(Icons.category_outlined, _t('startApplication')),
             const SizedBox(height: 8),
             Text(_t('startHint'), style: const TextStyle(color: Color(0xFF64748B))),
             const SizedBox(height: 12),
@@ -193,6 +200,8 @@ class _OtherProviderAccessGateState extends State<OtherProviderAccessGate> {
                 )).toList(),
                 onChanged: (value) => setState(() => selectedCategoryId = value),
               ),
+              const SizedBox(height: 10),
+              if (_selectedCategory().isNotEmpty) _categoryPreview(_selectedCategory()),
               const SizedBox(height: 12),
               FilledButton.icon(
                 onPressed: selectedCategoryId == null ? null : _start,
@@ -204,66 +213,68 @@ class _OtherProviderAccessGateState extends State<OtherProviderAccessGate> {
         ),
       );
 
-  Widget _categoryCard(Map<String, dynamic> category) {
+  Widget _categoryPreview(Map<String, dynamic> category) {
     final required = _strings(category['requiredCredentialTypes']);
-    final modalities = _strings(category['enabledModalities']);
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          _section(Icons.category_outlined, _t('category')),
-          const SizedBox(height: 10),
-          Text(_localized(category['labels'], category['slug']?.toString() ?? '—'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-          if (category['family'] != null) Text('${_t('family')}: ${category['family']}', style: const TextStyle(color: Color(0xFF64748B))),
-          const SizedBox(height: 10),
-          Text(_t('requiredCredentials'), style: const TextStyle(fontWeight: FontWeight.w800)),
-          const SizedBox(height: 6),
-          Text(required.isEmpty ? _t('credentialRequiredFallback') : required.join(' · ')),
-          if (modalities.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Text('${_t('modalities')}: ${modalities.join(' · ')}'),
-          ],
-        ]),
-      ),
-    );
+    final catalog = _catalogCategory(category['id']?.toString());
+    final capabilities = _map(category['capabilities']);
+    final modalities = _strings(category['enabledModalities']).isNotEmpty
+        ? _strings(category['enabledModalities'])
+        : _strings(catalog['enabledModalities']).isNotEmpty
+            ? _strings(catalog['enabledModalities'])
+            : _strings(capabilities['enabledModalities']);
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _kv(_t('family'), category['family'] ?? catalog['family'] ?? '—'),
+      _kv(_t('requiredCredentials'), required.isEmpty ? _t('atLeastOneCredential') : required.join(', ')),
+      _kv(_t('modalities'), modalities.isEmpty ? _t('notApplicable') : modalities.join(', ')),
+    ]);
   }
 
-  Widget _credentialsCard(Map<String, dynamic> onboarding, Map<String, dynamic> category, List<Map<String, dynamic>> credentials, bool canEdit) {
-    final types = _strings(category['requiredCredentialTypes']);
-    final options = types.isEmpty ? const ['professional-license'] : types;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Row(children: [
-            Expanded(child: _section(Icons.workspace_premium_outlined, _t('credentials'))),
-            if (canEdit) IconButton(onPressed: () => _addCredential(onboarding['id']?.toString() ?? '', options), tooltip: _t('addCredential'), icon: const Icon(Icons.add_circle_outline)),
+  Widget _categoryCard(Map<String, dynamic> category) => Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            _section(Icons.business_center_outlined, _t('professionalCategory')),
+            const SizedBox(height: 12),
+            Text(_localized(category['labels'], category['slug']?.toString() ?? '—'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+            const SizedBox(height: 10),
+            _categoryPreview(category),
           ]),
-          const SizedBox(height: 8),
-          if (credentials.isEmpty)
-            Text(_t('noCredentials'), style: const TextStyle(color: Color(0xFF64748B)))
-          else
-            ...credentials.map((item) => ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(_credentialIcon(item['state']?.toString()), color: _credentialColor(item['state']?.toString())),
-                  title: Text(item['type']?.toString() ?? _t('credential'), style: const TextStyle(fontWeight: FontWeight.w800)),
-                  subtitle: Text([
-                    if (item['number']?.toString().trim().isNotEmpty == true) '${_t('credentialNumber')}: ${item['number']}',
-                    if (item['issuer']?.toString().trim().isNotEmpty == true) '${_t('issuer')}: ${item['issuer']}',
-                    if (item['validUntil'] != null) '${_t('validUntil')}: ${_date(item['validUntil'])}',
-                    '${_t('reviewState')}: ${item['state'] ?? 'PENDING'}',
-                    if (item['reviewNote']?.toString().trim().isNotEmpty == true) '${_t('reviewNote')}: ${item['reviewNote']}',
-                  ].join('\n')),
-                  isThreeLine: true,
-                )),
-          if (canEdit) ...[
-            const Divider(),
-            OutlinedButton.icon(onPressed: () => _addCredential(onboarding['id']?.toString() ?? '', options), icon: const Icon(Icons.add), label: Text(_t('addCredential'))),
-          ],
-        ]),
-      ),
-    );
-  }
+        ),
+      );
+
+  Widget _credentialsCard(Map<String, dynamic> category, List<Map<String, dynamic>> credentials, bool canEdit) => Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Row(children: [
+              Expanded(child: _section(Icons.badge_outlined, _t('credentials'))),
+              if (canEdit)
+                IconButton(onPressed: () => _addCredential(category), tooltip: _t('addCredential'), icon: const Icon(Icons.add_circle_outline)),
+            ]),
+            const SizedBox(height: 8),
+            if (credentials.isEmpty)
+              Text(_t('noCredentials'), style: const TextStyle(color: Color(0xFF64748B)))
+            else
+              ...credentials.map((item) => ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(_credentialIcon(item['state']?.toString()), color: _credentialColor(item['state']?.toString())),
+                title: Text(_credentialTypeLabel(item['type']?.toString()), style: const TextStyle(fontWeight: FontWeight.w800)),
+                subtitle: Text([
+                  if (item['number']?.toString().trim().isNotEmpty == true) '${_t('credentialNumber')}: ${item['number']}',
+                  if (item['issuer']?.toString().trim().isNotEmpty == true) '${_t('issuer')}: ${item['issuer']}',
+                  if (item['validUntil'] != null) '${_t('validUntil')}: ${_date(item['validUntil'])}',
+                  '${_t('reviewState')}: ${item['state'] ?? 'PENDING'}',
+                  if (item['reviewNote']?.toString().trim().isNotEmpty == true) '${_t('reviewNote')}: ${item['reviewNote']}',
+                ].join('\n')),
+                isThreeLine: true,
+              )),
+            if (canEdit) ...[
+              const Divider(),
+              OutlinedButton.icon(onPressed: () => _addCredential(category), icon: const Icon(Icons.add), label: Text(_t('addCredential'))),
+            ],
+          ]),
+        ),
+      );
 
   Future<void> _openAccount() => Navigator.of(context).push(MaterialPageRoute(
         builder: (_) => Directionality(
@@ -284,12 +295,21 @@ class _OtherProviderAccessGateState extends State<OtherProviderAccessGate> {
     await _run(() => api.startOtherProviderOnboarding(categoryId), success: _t('applicationStarted'));
   }
 
-  Future<void> _addCredential(String onboardingId, List<String> types) async {
-    if (onboardingId.isEmpty) return;
-    String selectedType = types.first;
+  Future<void> _addCredential(Map<String, dynamic> category) async {
+    final onboarding = _map(state['onboarding']);
+    final id = onboarding['id']?.toString() ?? '';
+    if (id.isEmpty) return;
+
+    final credentials = _list(onboarding['credentials']);
+    final required = _strings(category['requiredCredentialTypes']);
+    final present = credentials.map((item) => item['type']?.toString().toLowerCase()).whereType<String>().toSet();
+    final missing = required.where((item) => !present.contains(item.toLowerCase())).toList();
+    final types = <String>{...required, ...credentials.map((item) => item['type']?.toString()).whereType<String>(), 'professional-credential'}.toList();
+    String type = missing.isNotEmpty ? missing.first : (types.isNotEmpty ? types.first : 'professional-credential');
     final number = TextEditingController();
     final issuer = TextEditingController();
     final validUntil = TextEditingController();
+
     final accepted = await showDialog<bool>(
       context: context,
       builder: (_) => StatefulBuilder(builder: (context, setModalState) => AlertDialog(
@@ -297,17 +317,21 @@ class _OtherProviderAccessGateState extends State<OtherProviderAccessGate> {
         content: SingleChildScrollView(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             DropdownButtonFormField<String>(
-              initialValue: selectedType,
+              initialValue: type,
               decoration: InputDecoration(labelText: _t('credentialType'), border: const OutlineInputBorder()),
-              items: types.map((type) => DropdownMenuItem(value: type, child: Text(type))).toList(),
-              onChanged: (value) => setModalState(() => selectedType = value ?? selectedType),
+              items: types.map((value) => DropdownMenuItem(value: value, child: Text(_credentialTypeLabel(value)))).toList(),
+              onChanged: (value) => setModalState(() => type = value ?? type),
             ),
             const SizedBox(height: 10),
-            TextField(controller: number, decoration: InputDecoration(labelText: _t('credentialNumber'), border: const OutlineInputBorder())),
+            TextField(controller: number, decoration: InputDecoration(labelText: _t('credentialNumberOptional'), border: const OutlineInputBorder())),
             const SizedBox(height: 10),
             TextField(controller: issuer, decoration: InputDecoration(labelText: _t('issuerOptional'), border: const OutlineInputBorder())),
             const SizedBox(height: 10),
-            TextField(controller: validUntil, keyboardType: TextInputType.datetime, decoration: InputDecoration(labelText: _t('validUntilOptional'), hintText: 'YYYY-MM-DD', border: const OutlineInputBorder())),
+            TextField(
+              controller: validUntil,
+              keyboardType: TextInputType.datetime,
+              decoration: InputDecoration(labelText: _t('validUntilOptional'), hintText: 'YYYY-MM-DD', border: const OutlineInputBorder()),
+            ),
           ]),
         ),
         actions: [
@@ -316,28 +340,30 @@ class _OtherProviderAccessGateState extends State<OtherProviderAccessGate> {
         ],
       )),
     );
+
     if (accepted != true) {
       number.dispose(); issuer.dispose(); validUntil.dispose();
       return;
     }
-    final credentialNumber = number.text.trim();
-    final credentialIssuer = issuer.text.trim();
+    final valueNumber = number.text.trim();
+    final valueIssuer = issuer.text.trim();
     final expiry = validUntil.text.trim();
     number.dispose(); issuer.dispose(); validUntil.dispose();
+
     await _run(
       () => api.addProviderOnboardingCredential(
-        onboardingId,
-        type: selectedType,
-        number: credentialNumber.isEmpty ? null : credentialNumber,
-        issuer: credentialIssuer.isEmpty ? null : credentialIssuer,
+        id,
+        type: type,
+        number: valueNumber.isEmpty ? null : valueNumber,
+        issuer: valueIssuer.isEmpty ? null : valueIssuer,
         validUntil: expiry.isEmpty ? null : expiry,
       ),
       success: _t('credentialAdded'),
     );
   }
 
-  Future<void> _submit(String onboardingId) async {
-    if (onboardingId.isEmpty) return;
+  Future<void> _submit(String id) async {
+    if (id.isEmpty) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
@@ -350,7 +376,7 @@ class _OtherProviderAccessGateState extends State<OtherProviderAccessGate> {
       ),
     );
     if (confirmed != true) return;
-    await _run(() => api.submitProviderOnboarding(onboardingId), success: _t('submittedSuccess'));
+    await _run(() => api.submitProviderOnboarding(id), success: _t('submittedSuccess'));
   }
 
   Future<void> _run(Future<dynamic> Function() operation, {required String success}) async {
@@ -365,25 +391,48 @@ class _OtherProviderAccessGateState extends State<OtherProviderAccessGate> {
     }
   }
 
+  Map<String, dynamic> _selectedCategory() {
+    final id = selectedCategoryId;
+    if (id == null) return const {};
+    for (final category in categories) {
+      if (category['id']?.toString() == id) return category;
+    }
+    return const {};
+  }
+
+  Map<String, dynamic> _catalogCategory(String? id) {
+    if (id == null || id.isEmpty) return const {};
+    for (final category in categories) {
+      if (category['id']?.toString() == id) return category;
+    }
+    return const {};
+  }
+
+  List<String> _missingRequired(Map<String, dynamic> category, List<Map<String, dynamic>> credentials) {
+    final required = _strings(category['requiredCredentialTypes']);
+    final present = credentials.map((item) => item['type']?.toString().toLowerCase()).whereType<String>().toSet();
+    return required.where((item) => !present.contains(item.toLowerCase())).toList(growable: false);
+  }
+
   Widget _section(IconData icon, String text) => Row(children: [
-        Icon(icon, color: widget.accent),
-        const SizedBox(width: 8),
-        Expanded(child: Text(text, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900))),
-      ]);
+    Icon(icon, color: widget.accent),
+    const SizedBox(width: 8),
+    Expanded(child: Text(text, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900))),
+  ]);
 
   Widget _kv(String label, dynamic value) => Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          SizedBox(width: 145, child: Text(label, style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF64748B)))),
-          Expanded(child: Text(value?.toString() ?? '—')),
-        ]),
-      );
+    padding: const EdgeInsets.only(bottom: 8),
+    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      SizedBox(width: 150, child: Text(label, style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF64748B)))),
+      Expanded(child: Text(value?.toString() ?? '—')),
+    ]),
+  );
 
   Widget _notice(IconData icon, String text, Color color) => Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: color.withValues(alpha: .10), border: Border.all(color: color.withValues(alpha: .45)), borderRadius: BorderRadius.circular(14)),
-        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Icon(icon, color: color), const SizedBox(width: 10), Expanded(child: Text(text))]),
-      );
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(color: color.withValues(alpha: .10), border: Border.all(color: color.withValues(alpha: .45)), borderRadius: BorderRadius.circular(14)),
+    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Icon(icon, color: color), const SizedBox(width: 10), Expanded(child: Text(text))]),
+  );
 
   String _localized(dynamic labels, String fallback) {
     final map = _map(labels);
@@ -391,8 +440,13 @@ class _OtherProviderAccessGateState extends State<OtherProviderAccessGate> {
     return value?.trim().isNotEmpty == true ? value! : fallback;
   }
 
-  IconData _credentialIcon(String? state) => state == 'VERIFIED' ? Icons.verified_outlined : state == 'REJECTED' ? Icons.cancel_outlined : Icons.hourglass_empty_rounded;
-  Color _credentialColor(String? state) => state == 'VERIFIED' ? const Color(0xFF10B981) : state == 'REJECTED' ? const Color(0xFFEF4444) : const Color(0xFFF59E0B);
+  String _credentialTypeLabel(String? type) {
+    if (type == null || type.trim().isEmpty) return _t('credential');
+    return type.split('-').map((part) => part.isEmpty ? part : '${part[0].toUpperCase()}${part.substring(1)}').join(' ');
+  }
+
+  IconData _credentialIcon(String? value) => value == 'VERIFIED' ? Icons.verified_outlined : value == 'REJECTED' ? Icons.cancel_outlined : Icons.hourglass_empty_rounded;
+  Color _credentialColor(String? value) => value == 'VERIFIED' ? const Color(0xFF059669) : value == 'REJECTED' ? const Color(0xFFDC2626) : const Color(0xFFF59E0B);
 
   String _date(dynamic raw) {
     final value = DateTime.tryParse(raw?.toString() ?? '')?.toLocal();
@@ -426,36 +480,48 @@ List<Map<String, dynamic>> _list(dynamic value) {
 
 List<String> _strings(dynamic value) {
   if (value is! List) return const [];
-  return value.map((item) => item?.toString() ?? '').where((item) => item.trim().isNotEmpty).toList(growable: false);
+  return value.map((item) => item?.toString()).whereType<String>().where((item) => item.trim().isNotEmpty).toList(growable: false);
 }
 
 const Map<String, Map<String, String>> _providerAccessText = {
   'en': {
-    'credentialing': 'Provider credentialing', 'title': 'Professional access', 'subtitle': 'Select your provider category and complete its required credentials before operational access is enabled.', 'refresh': 'Refresh', 'accountSecurity': 'Account & security',
+    'credentialing': 'Provider credentialing', 'title': 'Professional access', 'subtitle': 'Complete your category-specific credentials before CarePoint enables operational access.', 'refresh': 'Refresh', 'accountSecurity': 'Account & security',
     'accessStatus': 'Access status', 'providerStatus': 'Provider status', 'applicationStatus': 'Application status', 'notCreated': 'Not created', 'notStarted': 'Not started', 'submitted': 'Submitted', 'reviewed': 'Reviewed',
-    'startApplication': 'Start provider application', 'startHint': 'Choose the category that matches your professional service. Doctor specialties are not part of this taxonomy.', 'category': 'Provider category', 'family': 'Family', 'noCategories': 'No active provider categories are available.', 'applicationStarted': 'Provider application started.',
-    'requiredCredentials': 'Required credentials', 'credentialRequiredFallback': 'At least one professional credential is required.', 'modalities': 'Enabled modalities', 'credentials': 'Credentials', 'credential': 'Credential', 'noCredentials': 'Add the required professional credential(s) before submitting.', 'addCredential': 'Add credential', 'credentialType': 'Credential type', 'credentialNumber': 'Credential number', 'issuer': 'Issuer', 'issuerOptional': 'Issuer (optional)', 'validUntil': 'Valid until', 'validUntilOptional': 'Valid until (optional)', 'reviewState': 'Review state', 'reviewNote': 'Review note', 'credentialAdded': 'Credential added.',
-    'submitReview': 'Submit for review', 'submitHint': 'The review team must verify all required credential types before activation.', 'submittedSuccess': 'Application submitted for review.', 'pendingHint': 'Your application is under review. Operational access remains locked until approval.', 'suspendedHint': 'Your provider access is suspended. A new application cannot override a suspension.', 'approvedNotActiveHint': 'The application is approved but provider activation is not complete. Refresh or contact support.', 'cancel': 'Cancel', 'save': 'Save',
+    'startApplication': 'Start provider application', 'startHint': 'Select the category that matches your regulated activity. Doctor onboarding remains separate.', 'category': 'Provider category', 'noCategories': 'No active Other Provider categories are available.', 'applicationStarted': 'Provider application started.',
+    'professionalCategory': 'Professional category', 'family': 'Provider family', 'requiredCredentials': 'Required credentials', 'modalities': 'Enabled modalities', 'atLeastOneCredential': 'At least one credential', 'notApplicable': 'Not applicable',
+    'credentials': 'Credentials', 'credential': 'Credential', 'noCredentials': 'Add the required professional credentials before submitting.', 'addCredential': 'Add credential', 'credentialType': 'Credential type', 'credentialNumber': 'Credential number', 'credentialNumberOptional': 'Credential number (optional)', 'issuer': 'Issuer', 'issuerOptional': 'Issuer (optional)', 'validUntil': 'Valid until', 'validUntilOptional': 'Valid until (optional)', 'reviewState': 'Review state', 'reviewNote': 'Review note', 'credentialAdded': 'Credential added.', 'missingRequired': 'Missing required credentials',
+    'submitReview': 'Submit for review', 'submitHint': 'After submission, credentials are locked until governance requests changes.', 'submittedSuccess': 'Application submitted for review.', 'pendingHint': 'Your application is under governance review. Operational workspace access remains locked until approval.',
+    'suspendedHint': 'Your provider access is suspended. A new onboarding cannot override a suspension; contact CarePoint governance.', 'approvedNotActiveHint': 'The application is approved but provider activation is not complete. Refresh or contact support if this persists.',
+    'cancel': 'Cancel', 'save': 'Save',
   },
   'ar': {
-    'credentialing': 'اعتماد مقدم الخدمة', 'title': 'الوصول المهني', 'subtitle': 'اختر فئة مقدم الخدمة وأكمل الاعتمادات المطلوبة قبل تفعيل الوصول التشغيلي.', 'refresh': 'تحديث', 'accountSecurity': 'الحساب والأمان',
+    'credentialing': 'اعتماد مقدم الخدمة', 'title': 'الوصول المهني', 'subtitle': 'أكمل الاعتمادات المطلوبة لفئتك قبل تفعيل الوصول التشغيلي.', 'refresh': 'تحديث', 'accountSecurity': 'الحساب والأمان',
     'accessStatus': 'حالة الوصول', 'providerStatus': 'حالة مقدم الخدمة', 'applicationStatus': 'حالة الطلب', 'notCreated': 'غير منشأ', 'notStarted': 'لم يبدأ', 'submitted': 'تم الإرسال', 'reviewed': 'تمت المراجعة',
-    'startApplication': 'بدء طلب مقدم خدمة', 'startHint': 'اختر الفئة التي تطابق خدمتك المهنية. تخصصات الأطباء ليست ضمن هذا التصنيف.', 'category': 'فئة مقدم الخدمة', 'family': 'العائلة', 'noCategories': 'لا توجد فئات نشطة.', 'applicationStarted': 'تم بدء الطلب.',
-    'requiredCredentials': 'الاعتمادات المطلوبة', 'credentialRequiredFallback': 'مطلوب اعتماد مهني واحد على الأقل.', 'modalities': 'أنماط الخدمة المفعلة', 'credentials': 'الاعتمادات', 'credential': 'اعتماد', 'noCredentials': 'أضف الاعتمادات المهنية المطلوبة قبل الإرسال.', 'addCredential': 'إضافة اعتماد', 'credentialType': 'نوع الاعتماد', 'credentialNumber': 'رقم الاعتماد', 'issuer': 'جهة الإصدار', 'issuerOptional': 'جهة الإصدار (اختياري)', 'validUntil': 'صالح حتى', 'validUntilOptional': 'صالح حتى (اختياري)', 'reviewState': 'حالة المراجعة', 'reviewNote': 'ملاحظة المراجعة', 'credentialAdded': 'تمت إضافة الاعتماد.',
-    'submitReview': 'إرسال للمراجعة', 'submitHint': 'يجب على فريق المراجعة التحقق من جميع أنواع الاعتمادات المطلوبة قبل التفعيل.', 'submittedSuccess': 'تم إرسال الطلب للمراجعة.', 'pendingHint': 'طلبك قيد المراجعة. يبقى الوصول التشغيلي مقفلاً حتى الموافقة.', 'suspendedHint': 'وصول مقدم الخدمة موقوف. لا يمكن لطلب جديد تجاوز الإيقاف.', 'approvedNotActiveHint': 'تمت الموافقة على الطلب لكن التفعيل لم يكتمل. حدّث أو تواصل مع الدعم.', 'cancel': 'إلغاء', 'save': 'حفظ',
+    'startApplication': 'بدء طلب مقدم خدمة', 'startHint': 'اختر الفئة المطابقة لنشاطك المنظم. يبقى اعتماد الأطباء في مسار منفصل.', 'category': 'فئة مقدم الخدمة', 'noCategories': 'لا توجد فئات نشطة لمقدمي الخدمات الآخرين.', 'applicationStarted': 'تم بدء الطلب.',
+    'professionalCategory': 'الفئة المهنية', 'family': 'عائلة مقدم الخدمة', 'requiredCredentials': 'الاعتمادات المطلوبة', 'modalities': 'أنماط الخدمة المفعلة', 'atLeastOneCredential': 'اعتماد واحد على الأقل', 'notApplicable': 'غير مطبق',
+    'credentials': 'الاعتمادات', 'credential': 'اعتماد', 'noCredentials': 'أضف الاعتمادات المهنية المطلوبة قبل الإرسال.', 'addCredential': 'إضافة اعتماد', 'credentialType': 'نوع الاعتماد', 'credentialNumber': 'رقم الاعتماد', 'credentialNumberOptional': 'رقم الاعتماد (اختياري)', 'issuer': 'جهة الإصدار', 'issuerOptional': 'جهة الإصدار (اختياري)', 'validUntil': 'صالح حتى', 'validUntilOptional': 'صالح حتى (اختياري)', 'reviewState': 'حالة المراجعة', 'reviewNote': 'ملاحظة المراجعة', 'credentialAdded': 'تمت إضافة الاعتماد.', 'missingRequired': 'اعتمادات مطلوبة مفقودة',
+    'submitReview': 'إرسال للمراجعة', 'submitHint': 'بعد الإرسال تُقفل الاعتمادات حتى تطلب الحوكمة تغييرات.', 'submittedSuccess': 'تم إرسال الطلب للمراجعة.', 'pendingHint': 'طلبك قيد مراجعة الحوكمة. يبقى الوصول التشغيلي مقفلاً حتى الموافقة.',
+    'suspendedHint': 'وصول مقدم الخدمة موقوف. لا يمكن لطلب جديد تجاوز الإيقاف؛ تواصل مع حوكمة CarePoint.', 'approvedNotActiveHint': 'تمت الموافقة لكن التفعيل لم يكتمل. حدّث أو تواصل مع الدعم.',
+    'cancel': 'إلغاء', 'save': 'حفظ',
   },
   'fr': {
-    'credentialing': 'Accréditation fournisseur', 'title': 'Accès professionnel', 'subtitle': 'Choisissez votre catégorie et complétez les justificatifs requis avant l’activation opérationnelle.', 'refresh': 'Actualiser', 'accountSecurity': 'Compte et sécurité',
+    'credentialing': 'Accréditation fournisseur', 'title': 'Accès professionnel', 'subtitle': 'Complétez les justificatifs propres à votre catégorie avant l’activation de l’accès opérationnel.', 'refresh': 'Actualiser', 'accountSecurity': 'Compte et sécurité',
     'accessStatus': 'État d’accès', 'providerStatus': 'Statut fournisseur', 'applicationStatus': 'Statut du dossier', 'notCreated': 'Non créé', 'notStarted': 'Non démarré', 'submitted': 'Soumis', 'reviewed': 'Révisé',
-    'startApplication': 'Démarrer le dossier fournisseur', 'startHint': 'Choisissez la catégorie correspondant à votre service. Les spécialités médecins ne font pas partie de cette taxonomie.', 'category': 'Catégorie fournisseur', 'family': 'Famille', 'noCategories': 'Aucune catégorie active disponible.', 'applicationStarted': 'Dossier fournisseur démarré.',
-    'requiredCredentials': 'Justificatifs requis', 'credentialRequiredFallback': 'Au moins un justificatif professionnel est requis.', 'modalities': 'Modalités activées', 'credentials': 'Justificatifs', 'credential': 'Justificatif', 'noCredentials': 'Ajoutez les justificatifs requis avant de soumettre.', 'addCredential': 'Ajouter un justificatif', 'credentialType': 'Type de justificatif', 'credentialNumber': 'Numéro', 'issuer': 'Émetteur', 'issuerOptional': 'Émetteur (facultatif)', 'validUntil': 'Valide jusqu’au', 'validUntilOptional': 'Valide jusqu’au (facultatif)', 'reviewState': 'État de revue', 'reviewNote': 'Note de revue', 'credentialAdded': 'Justificatif ajouté.',
-    'submitReview': 'Soumettre pour revue', 'submitHint': 'Tous les types de justificatifs requis doivent être vérifiés avant activation.', 'submittedSuccess': 'Dossier soumis pour revue.', 'pendingHint': 'Votre dossier est en cours de revue. L’accès opérationnel reste verrouillé jusqu’à approbation.', 'suspendedHint': 'Votre accès fournisseur est suspendu. Un nouveau dossier ne peut pas contourner la suspension.', 'approvedNotActiveHint': 'Le dossier est approuvé mais l’activation n’est pas terminée. Actualisez ou contactez le support.', 'cancel': 'Annuler', 'save': 'Enregistrer',
+    'startApplication': 'Démarrer le dossier fournisseur', 'startHint': 'Choisissez la catégorie correspondant à votre activité réglementée. Le parcours médecin reste séparé.', 'category': 'Catégorie fournisseur', 'noCategories': 'Aucune catégorie active disponible.', 'applicationStarted': 'Dossier fournisseur démarré.',
+    'professionalCategory': 'Catégorie professionnelle', 'family': 'Famille fournisseur', 'requiredCredentials': 'Justificatifs requis', 'modalities': 'Modalités activées', 'atLeastOneCredential': 'Au moins un justificatif', 'notApplicable': 'Non applicable',
+    'credentials': 'Justificatifs', 'credential': 'Justificatif', 'noCredentials': 'Ajoutez les justificatifs professionnels requis avant de soumettre.', 'addCredential': 'Ajouter un justificatif', 'credentialType': 'Type de justificatif', 'credentialNumber': 'Numéro', 'credentialNumberOptional': 'Numéro (facultatif)', 'issuer': 'Émetteur', 'issuerOptional': 'Émetteur (facultatif)', 'validUntil': 'Valide jusqu’au', 'validUntilOptional': 'Valide jusqu’au (facultatif)', 'reviewState': 'État de revue', 'reviewNote': 'Note de revue', 'credentialAdded': 'Justificatif ajouté.', 'missingRequired': 'Justificatifs requis manquants',
+    'submitReview': 'Soumettre pour revue', 'submitHint': 'Après soumission, les justificatifs restent verrouillés jusqu’à une demande de modification.', 'submittedSuccess': 'Dossier soumis pour revue.', 'pendingHint': 'Votre dossier est en revue de gouvernance. L’accès opérationnel reste verrouillé jusqu’à approbation.',
+    'suspendedHint': 'Votre accès fournisseur est suspendu. Un nouveau dossier ne peut pas contourner la suspension ; contactez la gouvernance CarePoint.', 'approvedNotActiveHint': 'Le dossier est approuvé mais l’activation n’est pas terminée. Actualisez ou contactez le support.',
+    'cancel': 'Annuler', 'save': 'Enregistrer',
   },
   'es': {
-    'credentialing': 'Acreditación del proveedor', 'title': 'Acceso profesional', 'subtitle': 'Selecciona tu categoría de proveedor y completa sus credenciales requeridas antes de habilitar el acceso operativo.', 'refresh': 'Actualizar', 'accountSecurity': 'Cuenta y seguridad',
+    'credentialing': 'Acreditación de proveedor', 'title': 'Acceso profesional', 'subtitle': 'Completa las credenciales específicas de tu categoría antes de habilitar el acceso operativo.', 'refresh': 'Actualizar', 'accountSecurity': 'Cuenta y seguridad',
     'accessStatus': 'Estado de acceso', 'providerStatus': 'Estado del proveedor', 'applicationStatus': 'Estado de la solicitud', 'notCreated': 'No creado', 'notStarted': 'No iniciada', 'submitted': 'Enviada', 'reviewed': 'Revisada',
-    'startApplication': 'Iniciar solicitud de proveedor', 'startHint': 'Elige la categoría que corresponda a tu servicio profesional. Las especialidades médicas no forman parte de esta taxonomía.', 'category': 'Categoría del proveedor', 'family': 'Familia', 'noCategories': 'No hay categorías activas disponibles.', 'applicationStarted': 'Solicitud de proveedor iniciada.',
-    'requiredCredentials': 'Credenciales requeridas', 'credentialRequiredFallback': 'Se requiere al menos una credencial profesional.', 'modalities': 'Modalidades habilitadas', 'credentials': 'Credenciales', 'credential': 'Credencial', 'noCredentials': 'Añade las credenciales profesionales requeridas antes de enviar.', 'addCredential': 'Añadir credencial', 'credentialType': 'Tipo de credencial', 'credentialNumber': 'Número de credencial', 'issuer': 'Entidad emisora', 'issuerOptional': 'Entidad emisora (opcional)', 'validUntil': 'Válida hasta', 'validUntilOptional': 'Válida hasta (opcional)', 'reviewState': 'Estado de revisión', 'reviewNote': 'Nota de revisión', 'credentialAdded': 'Credencial añadida.',
-    'submitReview': 'Enviar a revisión', 'submitHint': 'El equipo de revisión debe verificar todos los tipos de credenciales requeridos antes de activar el acceso.', 'submittedSuccess': 'Solicitud enviada a revisión.', 'pendingHint': 'Tu solicitud está en revisión. El acceso operativo permanece bloqueado hasta la aprobación.', 'suspendedHint': 'Tu acceso como proveedor está suspendido. Una nueva solicitud no puede saltarse la suspensión.', 'approvedNotActiveHint': 'La solicitud está aprobada pero la activación no ha terminado. Actualiza o contacta con soporte.', 'cancel': 'Cancelar', 'save': 'Guardar',
+    'startApplication': 'Iniciar solicitud de proveedor', 'startHint': 'Selecciona la categoría que corresponde a tu actividad regulada. El onboarding de Doctor permanece separado.', 'category': 'Categoría de proveedor', 'noCategories': 'No hay categorías Other Provider activas.', 'applicationStarted': 'Solicitud de proveedor iniciada.',
+    'professionalCategory': 'Categoría profesional', 'family': 'Familia de proveedor', 'requiredCredentials': 'Credenciales requeridas', 'modalities': 'Modalidades habilitadas', 'atLeastOneCredential': 'Al menos una credencial', 'notApplicable': 'No aplica',
+    'credentials': 'Credenciales', 'credential': 'Credencial', 'noCredentials': 'Añade las credenciales profesionales requeridas antes de enviar.', 'addCredential': 'Añadir credencial', 'credentialType': 'Tipo de credencial', 'credentialNumber': 'Número de credencial', 'credentialNumberOptional': 'Número de credencial (opcional)', 'issuer': 'Entidad emisora', 'issuerOptional': 'Entidad emisora (opcional)', 'validUntil': 'Válida hasta', 'validUntilOptional': 'Válida hasta (opcional)', 'reviewState': 'Estado de revisión', 'reviewNote': 'Nota de revisión', 'credentialAdded': 'Credencial añadida.', 'missingRequired': 'Credenciales requeridas pendientes',
+    'submitReview': 'Enviar a revisión', 'submitHint': 'Después del envío, las credenciales quedan bloqueadas hasta que gobernanza solicite cambios.', 'submittedSuccess': 'Solicitud enviada a revisión.', 'pendingHint': 'Tu solicitud está en revisión de gobernanza. El acceso al workspace operativo permanece bloqueado hasta la aprobación.',
+    'suspendedHint': 'Tu acceso como proveedor está suspendido. Una nueva solicitud no puede saltarse la suspensión; contacta con gobernanza CarePoint.', 'approvedNotActiveHint': 'La solicitud está aprobada pero la activación no ha terminado. Actualiza o contacta con soporte si persiste.',
+    'cancel': 'Cancelar', 'save': 'Guardar',
   },
 };
