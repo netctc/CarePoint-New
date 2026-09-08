@@ -217,3 +217,4 @@ try {
 await import("./admin-b2-smoke.mjs");
 await import("./admin-b3-smoke.mjs");
 await import("./admin-b4-smoke.mjs");
+await import("./admin-b5-smoke.mjs");
