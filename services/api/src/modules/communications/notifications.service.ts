@@ -1,19 +1,31 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
+import type { Prisma } from "@prisma/client";
 import type { NotificationEventType, UpdateNotificationPreferencesInput, RegisterNotificationEndpointInput } from "@carepoint/contracts";
 import type { AuthPrincipal } from "@carepoint/identity";
 import { PrismaService } from "../../infrastructure/prisma/prisma.module";
 import { DatabaseAuditService } from "../../infrastructure/audit/audit.service";
-import { NotificationGatewayService } from "./notification-gateway.service";
+import { NotificationOutboxWorkerService } from "./notification-outbox-worker.service";
 
 const SUPPORTED_LOCALES = new Set(["en", "ar", "fr", "es"]);
 const SAFE_TEMPLATE_KEY = /^[a-z0-9._-]{3,120}$/i;
+const OUTBOX_CHANNELS = ["IN_APP", "PUSH", "EMAIL", "SMS"] as const;
+
+type NotificationInput = {
+  accountId: string;
+  dedupeKey: string;
+  type: NotificationEventType;
+  entityType: string;
+  entityId: string;
+  safeTitleKey: string;
+  safeBodyKey: string;
+};
 
 @Injectable()
 export class NotificationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: DatabaseAuditService,
-    private readonly gateway: NotificationGatewayService,
+    private readonly worker: NotificationOutboxWorkerService,
   ) {}
 
   async preferences(principal: AuthPrincipal) {
@@ -83,74 +95,47 @@ export class NotificationsService {
     return this.presentNotification(row);
   }
 
-  async notifyAccount(input: {
-    accountId: string;
-    dedupeKey: string;
-    type: NotificationEventType;
-    entityType: string;
-    entityId: string;
-    safeTitleKey: string;
-    safeBodyKey: string;
-  }) {
-    const dedupeKey = `${input.accountId}:${this.requiredText(input.dedupeKey, 3, 180, "dedupeKey")}`;
-    const safeTitleKey = this.safeTemplateKey(input.safeTitleKey, "safeTitleKey");
-    const safeBodyKey = this.safeTemplateKey(input.safeBodyKey, "safeBodyKey");
-    const entityType = this.requiredText(input.entityType, 2, 80, "entityType");
-    const entityId = this.requiredText(input.entityId, 1, 180, "entityId");
-    const notification = await this.prisma.notificationEvent.upsert({
-      where: { dedupeKey },
-      create: { accountId: input.accountId, dedupeKey, type: input.type, entityType, entityId, safeTitleKey, safeBodyKey },
-      update: {},
-      include: { deliveries: true },
+  async notifyAccount(input: NotificationInput) {
+    const notificationId = await this.prisma.$transaction(async (tx) => {
+      const notification = await this.enqueueAccountInTransaction(tx, input);
+      return notification.id;
     });
-    if (notification.deliveries.length > 0) return notification;
-    await this.deliver(notification.id, input.accountId, { safeTitleKey, safeBodyKey, entityType, entityId });
-    return this.prisma.notificationEvent.findUnique({ where: { id: notification.id }, include: { deliveries: true } });
+    this.worker.wake();
+    return this.prisma.notificationEvent.findUnique({ where: { id: notificationId }, include: { deliveries: true } });
   }
 
-  private async deliver(notificationId: string, accountId: string, safe: { safeTitleKey: string; safeBodyKey: string; entityType: string; entityId: string }) {
-    const preference = await this.ensurePreferences(accountId);
-    await this.persistDelivery(notificationId, "IN_APP", preference.inAppEnabled ? "SENT" : "SKIPPED");
-
-    const endpointRows = await this.prisma.notificationEndpoint.findMany({ where: { accountId, active: true } });
-    const endpointByChannel = new Map(endpointRows.map((item) => [item.channel, item.externalEndpointRef]));
-    const user = await this.prisma.user.findUnique({ where: { id: accountId }, select: { email: true } });
-    if (!user) throw new NotFoundException("Notification recipient account not found.");
-
-    const external: Array<{ channel: "PUSH" | "EMAIL" | "SMS"; enabled: boolean; destinationRef: string | undefined }> = [
-      { channel: "PUSH", enabled: preference.pushEnabled, destinationRef: endpointByChannel.get("PUSH") },
-      { channel: "EMAIL", enabled: preference.emailEnabled, destinationRef: user.email },
-      { channel: "SMS", enabled: preference.smsEnabled, destinationRef: endpointByChannel.get("SMS") },
-    ];
-
-    for (const item of external) {
-      if (!item.enabled || !item.destinationRef) {
-        await this.persistDelivery(notificationId, item.channel, "SKIPPED");
-        continue;
-      }
-      try {
-        const sent = await this.gateway.send({ notificationId, channel: item.channel, destinationRef: item.destinationRef, locale: preference.locale, ...safe });
-        await this.persistDelivery(notificationId, item.channel, "SENT", sent.reference);
-      } catch (error) {
-        const code = error instanceof Error ? error.constructor.name.slice(0, 80) : "DELIVERY_FAILED";
-        await this.persistDelivery(notificationId, item.channel, "FAILED", undefined, code);
-      }
-    }
-  }
-
-  private async persistDelivery(notificationId: string, channel: "IN_APP" | "PUSH" | "EMAIL" | "SMS", status: "SENT" | "FAILED" | "SKIPPED", providerRef?: string, lastErrorCode?: string) {
-    return this.prisma.notificationDelivery.upsert({
-      where: { notificationId_channel: { notificationId, channel } },
-      create: {
-        notificationId,
+  async enqueueAccountInTransaction(tx: Prisma.TransactionClient, input: NotificationInput) {
+    const normalized = this.normalizedNotification(input);
+    const notification = await tx.notificationEvent.upsert({
+      where: { dedupeKey: normalized.dedupeKey },
+      create: normalized,
+      update: {},
+    });
+    await tx.notificationDelivery.createMany({
+      data: OUTBOX_CHANNELS.map((channel) => ({
+        notificationId: notification.id,
         channel,
-        status,
-        attemptedAt: new Date(),
-        ...(providerRef ? { providerRef } : {}),
-        ...(lastErrorCode ? { lastErrorCode } : {}),
-      },
-      update: {},
+        status: "PENDING" as const,
+      })),
+      skipDuplicates: true,
     });
+    return notification;
+  }
+
+  wakeOutbox(): void {
+    this.worker.wake();
+  }
+
+  private normalizedNotification(input: NotificationInput) {
+    return {
+      accountId: input.accountId,
+      dedupeKey: `${input.accountId}:${this.requiredText(input.dedupeKey, 3, 180, "dedupeKey")}`,
+      type: input.type,
+      entityType: this.requiredText(input.entityType, 2, 80, "entityType"),
+      entityId: this.requiredText(input.entityId, 1, 180, "entityId"),
+      safeTitleKey: this.safeTemplateKey(input.safeTitleKey, "safeTitleKey"),
+      safeBodyKey: this.safeTemplateKey(input.safeBodyKey, "safeBodyKey"),
+    };
   }
 
   private async ensurePreferences(accountId: string) {
