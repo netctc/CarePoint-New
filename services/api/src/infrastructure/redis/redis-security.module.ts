@@ -1,6 +1,7 @@
 import { Global, HttpException, HttpStatus, Injectable, Module, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import { createHash } from "node:crypto";
 import Redis from "ioredis";
+import { redisRuntimeConnection } from "./redis-production-config";
 
 interface MemoryBucket {
   count: number;
@@ -25,17 +26,9 @@ export class RedisSecurityService implements OnModuleInit, OnModuleDestroy {
   private readonly ephemeral = new Map<string, MemoryEphemeralValue>();
 
   async onModuleInit(): Promise<void> {
-    const url = process.env.REDIS_URL?.trim();
-    if (!url) {
-      if (process.env.NODE_ENV === "production") throw new Error("REDIS_URL is required in production for distributed security controls.");
-      return;
-    }
-    this.client = new Redis(url, {
-      lazyConnect: true,
-      enableOfflineQueue: false,
-      maxRetriesPerRequest: 1,
-      connectTimeout: Number(process.env.REDIS_CONNECT_TIMEOUT_MS ?? 3000),
-    });
+    const connection = redisRuntimeConnection(process.env);
+    if (!connection) return;
+    this.client = new Redis(connection.url, connection.options);
     await this.client.connect();
     await this.client.ping();
   }
