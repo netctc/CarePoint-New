@@ -83,7 +83,7 @@ await expectConfigReject(/must not target a loopback host/, () => {
 await expectConfigReject(/must not embed credentials/, () => {
   process.env.OTEL_EXPORTER_OTLP_ENDPOINT = "https://user:password@otel.internal.example:4318";
 });
-await expectConfigReject(/must explicitly set to 'required' or 'best-effort'/, () => {
+await expectConfigReject(/must (?:be )?explicitly set to 'required' or 'best-effort'/, () => {
   delete process.env.CAREPOINT_OTEL_EXPORT_MODE;
 });
 await expectConfigReject(/must not override 'content-type'/, () => {
