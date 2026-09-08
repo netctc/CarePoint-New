@@ -146,7 +146,7 @@ export class NotificationOutboxWorkerService implements OnModuleInit, OnModuleDe
             objectType: "NOTIFICATION_DELIVERY",
             objectId: item.id,
             purpose: "SYSTEM_ACCESS",
-            result: "FAILURE",
+            result: "FAILED",
             metadata: { channel: item.channel, attemptCount: item.attemptCount, errorCode },
           }).catch(() => undefined);
         }
