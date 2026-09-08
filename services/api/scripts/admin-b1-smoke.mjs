@@ -209,5 +209,7 @@ try {
     logoutRevocation: true,
   }));
 } finally {
+  const admin = await prisma.user.findUnique({ where: { email: adminEmail }, select: { id: true } }).catch(() => null);
+  if (admin) await prisma.mfaEnrollment.deleteMany({ where: { userId: admin.id } }).catch(() => undefined);
   await prisma.$disconnect();
 }
