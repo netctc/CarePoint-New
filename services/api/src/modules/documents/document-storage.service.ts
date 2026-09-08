@@ -61,6 +61,9 @@ export class DocumentStorageService {
     const provider = process.env.DOCUMENT_STORAGE_PROVIDER ?? (process.env.NODE_ENV === "production" ? "s3" : "local");
     if (provider !== "local" && provider !== "s3") throw new InternalServerErrorException(`Unsupported document storage provider '${provider}'.`);
     if (process.env.NODE_ENV === "production" && provider === "local") throw new InternalServerErrorException("Local document storage is forbidden in production.");
+    if (process.env.NODE_ENV === "production" && process.env.AWS_ENDPOINT_URL_S3?.trim()) {
+      throw new InternalServerErrorException("Custom S3 endpoints are forbidden for production document storage.");
+    }
     return provider;
   }
 
