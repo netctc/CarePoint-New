@@ -78,8 +78,8 @@ await assertProductionKmsRotationReady(validOptions({
     return { creationDate: new Date(NOW.getTime() - 90 * 86_400_000) };
   },
 }));
-assert.equal(resolvedAliases.length, 8, "all production KMS references must resolve through aliases");
-assert.equal(automaticRotationTargets.length, 6, "all six symmetric encryption keys must have automatic rotation checked");
+assert.equal(resolvedAliases.length, 9, "all production KMS references must resolve through aliases");
+assert.equal(automaticRotationTargets.length, 7, "all seven symmetric encryption keys must have automatic rotation checked");
 assert.equal(hmacTargets.length, 2, "both HMAC signing keys must have manual rollover age checked");
 
 await expectReject(/AWS_REGION is required/, () => { delete process.env.AWS_REGION; });
