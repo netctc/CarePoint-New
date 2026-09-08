@@ -10,7 +10,6 @@ permissions:
 
 jobs:
   patch:
-    if: "github.event.head_commit.message == 'ci(c9): patch siem env example once'"
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -22,36 +21,22 @@ jobs:
           from pathlib import Path
           path = Path('services/api/.env.example')
           source = path.read_text()
-          old = '''NOTIFICATION_RETRY_BASE_SECONDS=5
-
-# One-time bootstrap. The script refuses to overwrite an existing admin account.
-'''
-          new = '''NOTIFICATION_RETRY_BASE_SECONDS=5
-
-# Phase C9 durable SIEM audit export. Development leaves export disabled by default.
-# Production requires SIEM_EXPORT_ENABLED=true, a non-loopback HTTPS endpoint and an API key
-# supplied by the runtime secret manager. Audit metadata and raw identifiers are never sent.
-SIEM_EXPORT_ENABLED=false
-SIEM_EXPORT_URL=
-SIEM_EXPORT_API_KEY=
-SIEM_EXPORT_TIMEOUT_MS=10000
-SIEM_WORKER_ENABLED=true
-SIEM_WORKER_POLL_MS=1000
-SIEM_WORKER_LEASE_SECONDS=60
-SIEM_WORKER_BATCH_SIZE=50
-SIEM_MAX_ATTEMPTS=10
-SIEM_RETRY_BASE_SECONDS=5
-
-# One-time bootstrap. The script refuses to overwrite an existing admin account.
-'''
+          marker = 'SIEM_EXPORT_ENABLED=false'
+          if marker in source:
+              raise SystemExit(0)
+          old = 'NOTIFICATION_RETRY_BASE_SECONDS=5\n\n# One-time bootstrap. The script refuses to overwrite an existing admin account.\n'
+          new = 'NOTIFICATION_RETRY_BASE_SECONDS=5\n\n# Phase C9 durable SIEM audit export. Development leaves export disabled by default.\n# Production requires SIEM_EXPORT_ENABLED=true, a non-loopback HTTPS endpoint and an API key\n# supplied by the runtime secret manager. Audit metadata and raw identifiers are never sent.\nSIEM_EXPORT_ENABLED=false\nSIEM_EXPORT_URL=\nSIEM_EXPORT_API_KEY=\nSIEM_EXPORT_TIMEOUT_MS=10000\nSIEM_WORKER_ENABLED=true\nSIEM_WORKER_POLL_MS=1000\nSIEM_WORKER_LEASE_SECONDS=60\nSIEM_WORKER_BATCH_SIZE=50\nSIEM_MAX_ATTEMPTS=10\nSIEM_RETRY_BASE_SECONDS=5\n\n# One-time bootstrap. The script refuses to overwrite an existing admin account.\n'
           if source.count(old) != 1:
               raise SystemExit(f'Expected one C7/bootstrap insertion point, found {source.count(old)}')
           path.write_text(source.replace(old, new, 1))
           PY
-      - name: Commit C9 environment reference
+      - name: Commit C9 environment reference when changed
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add services/api/.env.example
+          if git diff --cached --quiet; then
+            exit 0
+          fi
           git commit -m "docs(c9): expose durable SIEM export settings"
           git push origin HEAD:feature/phase-c9-durable-siem-audit-export
