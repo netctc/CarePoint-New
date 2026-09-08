@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   patch:
-    if: github.event.head_commit.message == 'ci(c9): patch prisma schema once'
+    if: "github.event.head_commit.message == 'ci(c9): fix prisma schema patch workflow'"
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
