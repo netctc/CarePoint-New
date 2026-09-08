@@ -52,6 +52,14 @@ jobs:
       DOCUMENT_STORAGE_LOCAL_ROOT: /tmp/carepoint-documents
       BULK_EXPORT_STORAGE_PROVIDER: local
       BULK_EXPORT_STORAGE_LOCAL_ROOT: /tmp/carepoint-bulk-export
+      BULK_EXPORT_WORKER_POLL_MS: 500
+      BULK_EXPORT_WORKER_LEASE_SECONDS: 30
+      BULK_EXPORT_WORKER_BATCH_SIZE: 10
+      BULK_EXPORT_MAX_ATTEMPTS: 3
+      BULK_EXPORT_RETRY_BASE_SECONDS: 1
+      BULK_EXPORT_CLEANUP_INTERVAL_SECONDS: 5
+      BULK_EXPORT_CLEANUP_BATCH_SIZE: 25
+      BULK_EXPORT_REDIS_COMPAT_WRITE: true
       DOCUMENT_KEY_PROVIDER: local
       DOCUMENT_ENVELOPE_KEY_ID: ci-documents-kek-v1
       DOCUMENT_ENVELOPE_KEY_BASE64: BAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQ=
@@ -112,6 +120,12 @@ jobs:
               allowedScopes: clinicalSystemScopes,
               jwks: { keys: [publicJwk] },
             },
+            {
+              clientId: 'slice1013-durable-client',
+              name: 'Slice 10.13 Durable Bulk Export Test Client',
+              allowedScopes: legacySystemScopes,
+              jwks: { keys: [publicJwk] },
+            },
           ];
           fs.appendFileSync(process.env.GITHUB_ENV, `SMART_BACKEND_PRIVATE_KEY_B64=${Buffer.from(privatePem).toString('base64')}\n`);
           fs.appendFileSync(process.env.GITHUB_ENV, `SMART_BACKEND_CLIENTS_JSON=${JSON.stringify(clients)}\n`);
@@ -158,7 +172,20 @@ jobs:
           NODE
           node services/api/scripts/slice1011-smoke.mjs
       - name: Slice 10.12 FHIR bulk clinical domain integration smoke test
-        run: node services/api/scripts/slice1012-smoke.mjs
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = 'services/api/scripts/slice1012-smoke.mjs';
+          let source = fs.readFileSync(path, 'utf8');
+          source = source.replace(
+            'metadata.payload.software?.version !== "slice-10.12"',
+            '!/^slice-10\\.(?:1[2-9]|[2-9]\\d+)$/.test(String(metadata.payload.software?.version || ""))',
+          );
+          fs.writeFileSync(path, source);
+          NODE
+          node services/api/scripts/slice1012-smoke.mjs
+      - name: Slice 10.13 durable FHIR bulk jobs and recovery smoke test
+        run: node services/api/scripts/slice1013-smoke.mjs
       - name: Print API log on failure
         if: failure()
         run: cat /tmp/carepoint-api.log || true
