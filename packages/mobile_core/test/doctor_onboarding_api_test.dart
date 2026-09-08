@@ -6,6 +6,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
+http.Response jsonResponse(Object body, int status) => http.Response(
+      jsonEncode(body),
+      status,
+      headers: const {'content-type': 'application/json; charset=utf-8'},
+    );
+
 void main() {
   test('doctor onboarding client preserves role boundary and credential normalization', () async {
     final requests = <http.Request>[];
@@ -14,25 +20,25 @@ void main() {
       final path = request.url.path;
       if (path.endsWith('/doctors/specialties')) {
         expect(request.headers.containsKey('authorization'), false);
-        return http.Response(jsonEncode({
+        return jsonResponse({
           'domain': 'DOCTORS_ALL_SPECIALTIES',
           'items': [
             {'id': 'spec-1', 'code': 'CARD', 'labels': {'en': 'Cardiology', 'ar': 'قلب', 'fr': 'Cardiologie', 'es': 'Cardiología'}, 'active': true}
           ]
-        }), 200);
+        }, 200);
       }
       expect(request.headers['authorization'], 'Bearer doctor-access');
       if (path.endsWith('/onboarding/me')) {
-        return http.Response(jsonEncode({
+        return jsonResponse({
           'kind': 'DOCTOR',
           'provider': {'id': 'provider-1', 'class': 'DOCTOR', 'status': 'DRAFT'},
           'onboarding': null,
           'accessReady': false
-        }), 200);
+        }, 200);
       }
       if (path.endsWith('/onboarding/doctors')) {
         expect((jsonDecode(request.body) as Map<String, dynamic>)['specialtyId'], 'spec-1');
-        return http.Response(jsonEncode({'id': 'onb-1', 'kind': 'DOCTOR', 'state': 'DRAFT'}), 201);
+        return jsonResponse({'id': 'onb-1', 'kind': 'DOCTOR', 'state': 'DRAFT'}, 201);
       }
       if (path.endsWith('/onboarding/onb-1/credentials')) {
         final body = jsonDecode(request.body) as Map<String, dynamic>;
@@ -41,12 +47,12 @@ void main() {
         expect(body['issuer'], 'MOH');
         expect(body['validUntil'], '2028-12-31');
         expect(body['documentId'], 'doc-1');
-        return http.Response(jsonEncode({'id': 'cred-1', 'type': 'medical-license', 'state': 'PENDING'}), 201);
+        return jsonResponse({'id': 'cred-1', 'type': 'medical-license', 'state': 'PENDING'}, 201);
       }
       if (path.endsWith('/onboarding/onb-1/submit')) {
-        return http.Response(jsonEncode({'id': 'onb-1', 'kind': 'DOCTOR', 'state': 'PENDING_REVIEW'}), 201);
+        return jsonResponse({'id': 'onb-1', 'kind': 'DOCTOR', 'state': 'PENDING_REVIEW'}, 201);
       }
-      return http.Response('{}', 404);
+      return jsonResponse(const <String, dynamic>{}, 404);
     });
 
     final api = CarePointApi(
