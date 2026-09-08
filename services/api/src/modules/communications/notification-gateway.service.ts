@@ -16,6 +16,13 @@ export interface NotificationGatewayInput {
 
 @Injectable()
 export class NotificationGatewayService {
+  assertProductionReady(): void {
+    if (this.provider() !== "external") return;
+    this.apiKey();
+    this.baseUrl();
+    this.timeoutMs();
+  }
+
   async send(input: NotificationGatewayInput): Promise<{ provider: string; reference: string }> {
     this.validateSafeInput(input);
     if (this.provider() === "mock") {
@@ -38,18 +45,22 @@ export class NotificationGatewayService {
   }
 
   private async externalRequest(input: NotificationGatewayInput): Promise<Record<string, unknown>> {
-    const apiKey = process.env.NOTIFICATION_GATEWAY_API_KEY?.trim();
-    if (!apiKey) throw new InternalServerErrorException("NOTIFICATION_GATEWAY_API_KEY is required for external notification delivery.");
-    const response = await fetch(new URL("v1/notifications", this.baseUrl()), {
-      method: "POST",
-      headers: {
-        accept: "application/json",
-        authorization: `Bearer ${apiKey}`,
-        "content-type": "application/json",
-        "idempotency-key": `${input.notificationId}:${input.channel}`,
-      },
-      body: JSON.stringify(input),
-    });
+    let response: Response;
+    try {
+      response = await fetch(new URL("v1/notifications", this.baseUrl()), {
+        method: "POST",
+        headers: {
+          accept: "application/json",
+          authorization: `Bearer ${this.apiKey()}`,
+          "content-type": "application/json",
+          "idempotency-key": `${input.notificationId}:${input.channel}`,
+        },
+        body: JSON.stringify(input),
+        signal: AbortSignal.timeout(this.timeoutMs()),
+      });
+    } catch {
+      throw new BadGatewayException("External notification delivery transport failed.");
+    }
     const payload = await response.json().catch(() => ({}));
     if (!response.ok || !payload || typeof payload !== "object" || Array.isArray(payload)) {
       throw new BadGatewayException(`External notification delivery failed with HTTP ${response.status}.`);
@@ -57,13 +68,37 @@ export class NotificationGatewayService {
     return payload as Record<string, unknown>;
   }
 
+  private apiKey(): string {
+    const apiKey = process.env.NOTIFICATION_GATEWAY_API_KEY?.trim();
+    if (!apiKey) throw new InternalServerErrorException("NOTIFICATION_GATEWAY_API_KEY is required for external notification delivery.");
+    if (apiKey.length > 4096 || /[\r\n]/.test(apiKey)) throw new InternalServerErrorException("NOTIFICATION_GATEWAY_API_KEY is invalid.");
+    return apiKey;
+  }
+
+  private timeoutMs(): number {
+    const raw = process.env.NOTIFICATION_GATEWAY_TIMEOUT_MS?.trim() || "10000";
+    if (!/^\d+$/.test(raw)) throw new InternalServerErrorException("NOTIFICATION_GATEWAY_TIMEOUT_MS must be an integer.");
+    const value = Number(raw);
+    if (!Number.isSafeInteger(value) || value < 100 || value > 30_000) {
+      throw new InternalServerErrorException("NOTIFICATION_GATEWAY_TIMEOUT_MS must be between 100 and 30000.");
+    }
+    return value;
+  }
+
   private baseUrl(): string {
     const value = process.env.NOTIFICATION_GATEWAY_BASE_URL?.trim();
     if (!value) throw new InternalServerErrorException("NOTIFICATION_GATEWAY_BASE_URL is required for external notification delivery.");
     let url: URL;
     try { url = new URL(value.endsWith("/") ? value : `${value}/`); } catch { throw new InternalServerErrorException("NOTIFICATION_GATEWAY_BASE_URL is invalid."); }
-    if (process.env.NODE_ENV === "production" && url.protocol !== "https:") throw new InternalServerErrorException("Production notification gateways require HTTPS.");
     if (url.protocol !== "https:" && url.protocol !== "http:") throw new BadRequestException("Unsupported notification gateway URL protocol.");
+    if (url.username || url.password) throw new InternalServerErrorException("Notification gateway URLs must not embed credentials.");
+    if (process.env.NODE_ENV === "production") {
+      if (url.protocol !== "https:") throw new InternalServerErrorException("Production notification gateways require HTTPS.");
+      const host = url.hostname.toLowerCase();
+      if (host === "localhost" || host === "127.0.0.1" || host === "::1") {
+        throw new InternalServerErrorException("Production notification gateways must not target loopback hosts.");
+      }
+    }
     return url.toString();
   }
 
