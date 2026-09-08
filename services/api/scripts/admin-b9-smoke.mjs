@@ -17,7 +17,8 @@ if (process.env.NODE_ENV === "test" && process.env.REDIS_URL) {
 }
 
 // The repository workflow contains protected CI literals and cannot be rewritten
-// by automation. Keep Patient P1 gated by the existing cumulative acceptance step.
+// by automation. Keep mobile Phase B gates inside the existing cumulative acceptance step.
 if (process.env.NODE_ENV === "test") {
   await import("./patient-p1-smoke.mjs");
+  await import("./doctor-d1-smoke.mjs");
 }
