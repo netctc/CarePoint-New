@@ -1,5 +1,6 @@
-import { BadGatewayException, BadRequestException, Injectable, InternalServerErrorException } from "@nestjs/common";
+import { BadGatewayException, Injectable, InternalServerErrorException } from "@nestjs/common";
 import { createHash } from "node:crypto";
+import { financialGatewayTimeoutMs, validatedFinancialGatewayBaseUrl } from "../../infrastructure/http/financial-gateway-egress";
 import { ExternalSecretResolverService } from "../../infrastructure/secrets/external-secret-resolver.service";
 
 type EligibilityStatus = "ELIGIBLE" | "NOT_ELIGIBLE" | "UNKNOWN";
@@ -114,16 +115,23 @@ export class InsuranceGatewayService {
 
   private async externalRequest(method: "POST", path: string, body: Record<string, unknown>, idempotencyKey: string): Promise<Record<string, unknown>> {
     const apiKey = await this.secrets.resolve("insurance-gateway-api-key");
-    const response = await fetch(new URL(path.replace(/^\//, ""), this.baseUrl()), {
-      method,
-      headers: {
-        accept: "application/json",
-        authorization: `Bearer ${apiKey}`,
-        "content-type": "application/json",
-        "idempotency-key": idempotencyKey,
-      },
-      body: JSON.stringify(body),
-    });
+    let response: Response;
+    try {
+      response = await fetch(new URL(path.replace(/^\//, ""), this.baseUrl()), {
+        method,
+        headers: {
+          accept: "application/json",
+          authorization: `Bearer ${apiKey}`,
+          "content-type": "application/json",
+          "idempotency-key": idempotencyKey,
+        },
+        body: JSON.stringify(body),
+        redirect: "error",
+        signal: AbortSignal.timeout(this.timeoutMs()),
+      });
+    } catch {
+      throw new BadGatewayException("External insurance gateway transport failed.");
+    }
     const payload = await response.json().catch(() => ({}));
     if (!response.ok || !payload || typeof payload !== "object" || Array.isArray(payload)) {
       throw new BadGatewayException(`External insurance gateway request failed with HTTP ${response.status}.`);
@@ -132,13 +140,19 @@ export class InsuranceGatewayService {
   }
 
   private baseUrl(): string {
-    const value = process.env.INSURANCE_GATEWAY_BASE_URL?.trim();
-    if (!value) throw new InternalServerErrorException("INSURANCE_GATEWAY_BASE_URL is required for external insurance operations.");
-    let url: URL;
-    try { url = new URL(value.endsWith("/") ? value : `${value}/`); } catch { throw new InternalServerErrorException("INSURANCE_GATEWAY_BASE_URL is invalid."); }
-    if (process.env.NODE_ENV === "production" && url.protocol !== "https:") throw new InternalServerErrorException("Production insurance gateways require HTTPS.");
-    if (url.protocol !== "https:" && url.protocol !== "http:") throw new BadRequestException("Unsupported insurance gateway URL protocol.");
-    return url.toString();
+    try {
+      return validatedFinancialGatewayBaseUrl("INSURANCE_GATEWAY_BASE_URL");
+    } catch (error) {
+      throw new InternalServerErrorException(error instanceof Error ? error.message : "INSURANCE_GATEWAY_BASE_URL is invalid.");
+    }
+  }
+
+  private timeoutMs(): number {
+    try {
+      return financialGatewayTimeoutMs("INSURANCE_GATEWAY_TIMEOUT_MS");
+    } catch (error) {
+      throw new InternalServerErrorException(error instanceof Error ? error.message : "INSURANCE_GATEWAY_TIMEOUT_MS is invalid.");
+    }
   }
 
   private requiredText(value: unknown, label: string): string {
