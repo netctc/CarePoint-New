@@ -1,10 +1,10 @@
-import { GenerateMacCommand, KMSClient, VerifyMacCommand } from "@aws-sdk/client-kms";
 import { Injectable, InternalServerErrorException } from "@nestjs/common";
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+import { AwsKmsHmacProvider } from "../../infrastructure/security/aws-kms-hmac-provider";
 
 @Injectable()
 export class DocumentsAttestationService {
-  private kms?: KMSClient;
+  private kmsHmac?: AwsKmsHmacProvider;
 
   digest(material: string): string { return createHash("sha256").update(material).digest("hex"); }
 
@@ -12,18 +12,12 @@ export class DocumentsAttestationService {
     const payloadDigest = this.digest(material);
     const provider = this.provider();
     if (provider === "aws-kms-hmac") {
-      const keyId = this.required("DOCUMENT_SIGNING_KMS_KEY_ID");
-      const result = await this.kmsClient().send(new GenerateMacCommand({
-        KeyId: keyId,
-        MacAlgorithm: "HMAC_SHA_256",
-        Message: Buffer.from(payloadDigest, "utf8"),
-      }));
-      if (!result.Mac) throw new InternalServerErrorException("AWS KMS did not return a diagnostic attestation MAC.");
+      const result = await this.kmsProvider().generate(Buffer.from(payloadDigest, "utf8"));
       return {
         payloadDigest,
         algorithm: "AWS-KMS-HMAC-SHA256" as const,
-        keyId: result.KeyId ?? keyId,
-        signature: Buffer.from(result.Mac).toString("base64"),
+        keyId: result.keyId,
+        signature: Buffer.from(result.mac).toString("base64"),
         signedAt: new Date(),
       };
     }
@@ -41,18 +35,11 @@ export class DocumentsAttestationService {
     const provider = this.providerForStoredSignature(algorithm);
     const payloadDigest = this.digest(material);
     if (provider === "aws-kms-hmac") {
-      const effectiveKeyId = keyId || this.required("DOCUMENT_SIGNING_KMS_KEY_ID");
-      try {
-        const result = await this.kmsClient().send(new VerifyMacCommand({
-          KeyId: effectiveKeyId,
-          MacAlgorithm: "HMAC_SHA_256",
-          Message: Buffer.from(payloadDigest, "utf8"),
-          Mac: Buffer.from(signature, "base64"),
-        }));
-        return result.MacValid === true;
-      } catch {
-        return false;
-      }
+      return this.kmsProvider().verify(
+        Buffer.from(payloadDigest, "utf8"),
+        Buffer.from(signature, "base64"),
+        keyId,
+      );
     }
     const expected = createHmac("sha256", this.localSecret()).update(payloadDigest).digest();
     const actual = Buffer.from(signature, "base64");
@@ -81,14 +68,15 @@ export class DocumentsAttestationService {
     return secret;
   }
 
-  private kmsClient(): KMSClient {
-    if (!this.kms) {
-      this.kms = new KMSClient({
-        ...(process.env.AWS_REGION ? { region: process.env.AWS_REGION } : {}),
-        ...(process.env.AWS_ENDPOINT_URL_KMS ? { endpoint: process.env.AWS_ENDPOINT_URL_KMS } : {}),
-      });
+  private kmsProvider(): AwsKmsHmacProvider {
+    if (!this.kmsHmac) {
+      this.kmsHmac = new AwsKmsHmacProvider(
+        this.required("DOCUMENT_SIGNING_KMS_KEY_ID"),
+        process.env.AWS_REGION,
+        process.env.AWS_ENDPOINT_URL_KMS,
+      );
     }
-    return this.kms;
+    return this.kmsHmac;
   }
 
   private required(name: string): string {

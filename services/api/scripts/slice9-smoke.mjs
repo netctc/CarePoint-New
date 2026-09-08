@@ -1,6 +1,8 @@
 import { execFileSync } from "node:child_process";
 import { PrismaClient } from "@prisma/client";
 
+await import("./phase-c1-kms-smoke.mjs");
+
 const prisma = new PrismaClient();
 const base = process.env.CAREPOINT_API_BASE ?? "http://127.0.0.1:4000/api/v1";
 
