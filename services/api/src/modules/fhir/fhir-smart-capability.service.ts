@@ -69,7 +69,7 @@ export class FhirSmartCapabilityService {
     const exportOperation = {
       name: "export",
       definition,
-      documentation: "Asynchronous FHIR Bulk Data system-level export for Patient, Appointment, Encounter, Observation, MedicationRequest, ServiceRequest and DiagnosticReport when every requested type is covered by the backend token's registered system scope. Patient and Appointment retain strict _typeFilter support. Jobs are durably persisted in PostgreSQL and recovered by lease-based workers after API restarts; output remains protected by client ownership, scope checks, retention, integrity and storage lifecycle controls.",
+      documentation: "Asynchronous FHIR Bulk Data system-level export for Patient, Appointment, Encounter, Observation, MedicationRequest, ServiceRequest and DiagnosticReport when every requested type is covered by the backend token's registered system scope. Patient and Appointment retain strict _typeFilter support. Clinical resources are materialized only through CarePoint domain encryption and attestation services; laboratory Observations and DiagnosticReports are exported only after their existing RELEASED gates. Clinical system scopes remain bulk-export-only for interactive access. Jobs are durably persisted in PostgreSQL and recovered by lease-based workers after API restarts; output remains protected by client ownership, scope checks, retention, integrity and storage lifecycle controls.",
     };
     if (this.isObject(existing)) Object.assign(existing, exportOperation);
     else operations.push(exportOperation);
