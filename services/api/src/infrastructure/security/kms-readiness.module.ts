@@ -18,8 +18,10 @@ const ENVELOPE_REQUIREMENTS = [
   ["telehealth session keys", "TELEHEALTH_KEY_PROVIDER", "TELEHEALTH_KMS_KEY_ID"],
 ] as const;
 
+// Order attestation remains on its legacy synchronous local adapter until C1.1.
+// Only KMS-backed signing paths that are actually wired in this runtime belong
+// in the startup readiness set.
 const HMAC_REQUIREMENTS = [
-  ["clinical order attestation", "ORDER_SIGNING_PROVIDER", "ORDER_SIGNING_KMS_KEY_ID"],
   ["clinical document attestation", "DOCUMENT_SIGNING_PROVIDER", "DOCUMENT_SIGNING_KMS_KEY_ID"],
 ] as const;
 
