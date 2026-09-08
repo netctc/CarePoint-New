@@ -58,7 +58,7 @@ export class OrdersService {
     const payload = type === "PRESCRIPTION" ? this.validatePrescription(input) : this.validateLaboratoryOrder(input);
     const encrypted = await this.envelope.encrypt({ schemaVersion: 1, type, ...payload });
     const material = this.orderAttestationMaterial(type, appointment.patientId, provider.id, appointment.id, encrypted);
-    const signature = this.attestation.attest(material);
+    const signature = await this.attestation.attest(material);
     const order = await this.prisma.clinicalOrder.create({
       data: {
         idempotencyKey,
@@ -180,7 +180,7 @@ export class OrdersService {
     if (order.providerId !== provider.id && !provider.capabilities.has("LAB_RESULT_VALIDATE")) throw new ForbiddenException("Provider is not authorized to validate this laboratory result.");
 
     const material = this.resultAttestationMaterial(order.id, this.resultEnvelope(order.labResult));
-    const signature = this.attestation.attest(material);
+    const signature = await this.attestation.attest(material);
     if (signature.payloadDigest !== order.labResult.payloadDigest) throw new ConflictException("Laboratory result integrity check failed before validation.");
     await this.prisma.laboratoryResult.update({
       where: { id: order.labResult.id },
@@ -217,7 +217,13 @@ export class OrdersService {
   private async presentOrder(order: ClinicalOrder & { labResult: LaboratoryResult | null }, basis: AccessBasis, patientView: boolean) {
     const encrypted = this.orderEnvelope(order);
     const material = this.orderAttestationMaterial(order.type as OrderType, order.patientId, order.providerId, order.encounterRef, encrypted);
-    if (!this.attestation.verify(material, { payloadDigest: order.payloadDigest, signature: order.signature, signedAt: order.signedAt })) {
+    if (!(await this.attestation.verify(material, {
+      payloadDigest: order.payloadDigest,
+      signature: order.signature,
+      signedAt: order.signedAt,
+      keyId: order.signatureKeyId,
+      algorithm: order.signatureAlgorithm,
+    }))) {
       throw new ConflictException("Clinical order attestation verification failed.");
     }
     const payload = await this.envelope.decrypt<JsonObject>(encrypted);
@@ -403,7 +409,13 @@ export class OrdersService {
   private async assertValidatedResultIntegrity(result: LaboratoryResult, orderId: string) {
     if (!result.validationDigest || !result.validationSignature || !result.validatedAt) throw new ConflictException("Validated laboratory result is missing its clinical attestation.");
     const material = this.resultAttestationMaterial(orderId, this.resultEnvelope(result));
-    if (!this.attestation.verify(material, { payloadDigest: result.validationDigest, signature: result.validationSignature, signedAt: result.validatedAt })) {
+    if (!(await this.attestation.verify(material, {
+      payloadDigest: result.validationDigest,
+      signature: result.validationSignature,
+      signedAt: result.validatedAt,
+      keyId: result.validationKeyId,
+      algorithm: result.validationAlgorithm,
+    }))) {
       throw new ConflictException("Laboratory result clinical attestation verification failed.");
     }
   }
