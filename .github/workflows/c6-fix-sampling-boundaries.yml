@@ -1,0 +1,66 @@
+name: C6 Fix Sampling Boundaries
+
+on:
+  push:
+    branches: [feature/phase-c6-opentelemetry-export]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: feature/phase-c6-opentelemetry-export
+      - name: Fix traceidratio sampling boundaries and tests
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          source_path = Path('services/api/src/infrastructure/observability/otlp-http-exporter.ts')
+          source = source_path.read_text()
+          old = '''  const high64 = BigInt(`0x${traceId.slice(0, 16)}`);
+  const threshold = BigInt(Math.floor(sampler.ratio * Number.MAX_SAFE_INTEGER));
+  const normalized = high64 >> 11n;
+  return normalized <= threshold;
+'''
+          new = '''  if (sampler.ratio <= 0) return false;
+  if (sampler.ratio >= 1) return true;
+  const high64 = BigInt(`0x${traceId.slice(0, 16)}`);
+  const normalized = high64 >> 11n;
+  const sampleSpace = 2 ** 53;
+  const threshold = BigInt(Math.floor(sampler.ratio * sampleSpace));
+  return normalized < threshold;
+'''
+          if old not in source:
+              raise SystemExit('Expected traceidratio sampling block not found')
+          source_path.write_text(source.replace(old, new, 1))
+
+          test_path = Path('services/api/scripts/c6-otel-preflight-smoke.mjs')
+          test = test_path.read_text()
+          marker = '''assert.equal(
+  shouldSampleTrace(validParent.traceId, { ...validParent, sampled: false, traceFlags: "00" }, config.sampler),
+  false,
+);
+'''
+          addition = marker + '''const ratioZeroSampler = { name: "traceidratio", ratio: 0 };
+const ratioOneSampler = { name: "traceidratio", ratio: 1 };
+const ratioHalfSampler = { name: "traceidratio", ratio: 0.5 };
+assert.equal(shouldSampleTrace("00000000000000000000000000000001", null, ratioZeroSampler), false);
+assert.equal(shouldSampleTrace("ffffffffffffffffffffffffffffffff", null, ratioOneSampler), true);
+assert.equal(shouldSampleTrace("00000000000000000000000000000001", null, ratioHalfSampler), true);
+assert.equal(shouldSampleTrace("ffffffffffffffffffffffffffffffff", null, ratioHalfSampler), false);
+'''
+          if marker not in test:
+              raise SystemExit('Expected sampler smoke marker not found')
+          test_path.write_text(test.replace(marker, addition, 1))
+          PY
+      - name: Commit sampling hardening
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add services/api/src/infrastructure/observability/otlp-http-exporter.ts services/api/scripts/c6-otel-preflight-smoke.mjs
+          git commit -m "fix(c6): make traceidratio boundaries exact"
+          git push origin HEAD:feature/phase-c6-opentelemetry-export
