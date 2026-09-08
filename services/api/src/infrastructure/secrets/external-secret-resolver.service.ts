@@ -65,10 +65,12 @@ export async function resolveExternalSecret(
   const config = definition(name);
   const legacy = env[config.legacyEnv]?.trim();
   const encryptedFile = env[config.fileEnv]?.trim();
+  const keyId = env.EXTERNAL_SECRET_KMS_KEY_ID?.trim();
 
   if (env.NODE_ENV === "production") {
     if (legacy) throw new Error(`${config.legacyEnv} plaintext environment configuration is forbidden in production.`);
     if (!encryptedFile) throw new Error(`${config.fileEnv} is required in production.`);
+    if (!keyId) throw new Error("EXTERNAL_SECRET_KMS_KEY_ID is required in production.");
   } else if (!encryptedFile) {
     if (!legacy) throw new Error(`${config.legacyEnv} or ${config.fileEnv} is required.`);
     validatePlaintextSecret(legacy);
@@ -92,6 +94,7 @@ export async function resolveExternalSecret(
   if (cached?.ciphertextDigest === ciphertextDigest) return cached.value;
 
   const result = await client.send(new DecryptCommand({
+    ...(keyId ? { KeyId: keyId } : {}),
     CiphertextBlob: ciphertext,
     EncryptionAlgorithm: "SYMMETRIC_DEFAULT",
     EncryptionContext: {
