@@ -26,6 +26,7 @@ export const PRODUCTION_KMS_REQUIREMENTS: readonly ProductionKmsKeyRequirement[]
   { domain: "clinical document attestation", providerEnv: "DOCUMENT_SIGNING_PROVIDER", expectedProvider: "aws-kms-hmac", keyEnv: "DOCUMENT_SIGNING_KMS_KEY_ID", keyUsage: "GENERATE_VERIFY_MAC", keySpec: "HMAC_256" },
   { domain: "secure messaging", providerEnv: "MESSAGING_KEY_PROVIDER", expectedProvider: "aws-kms", keyEnv: "MESSAGING_KMS_KEY_ID", keyUsage: "ENCRYPT_DECRYPT", keySpec: "SYMMETRIC_DEFAULT" },
   { domain: "telehealth session keys", providerEnv: "TELEHEALTH_KEY_PROVIDER", expectedProvider: "aws-kms", keyEnv: "TELEHEALTH_KMS_KEY_ID", keyUsage: "ENCRYPT_DECRYPT", keySpec: "SYMMETRIC_DEFAULT" },
+  { domain: "external integration secrets", providerEnv: "EXTERNAL_SECRET_KEY_PROVIDER", expectedProvider: "aws-kms", keyEnv: "EXTERNAL_SECRET_KMS_KEY_ID", keyUsage: "ENCRYPT_DECRYPT", keySpec: "SYMMETRIC_DEFAULT" },
 ];
 
 export async function assertProductionKmsReady(options: ProductionKmsPreflightOptions = {}): Promise<void> {
