@@ -1,0 +1,54 @@
+name: C2 Materialize Lock
+
+on:
+  push:
+    branches: [feature/phase-c2-dependency-supply-chain-hardening]
+
+permissions:
+  contents: write
+
+jobs:
+  materialize-lock:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: feature/phase-c2-dependency-supply-chain-hardening
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - name: Use repository npm toolchain
+        run: |
+          npm install --global npm@10.9.2
+          test "$(npm --version)" = "10.9.2"
+      - name: Materialize lock without package scripts
+        run: npm install --package-lock-only --ignore-scripts
+      - name: Reject high-severity dependency findings
+        run: npm audit --package-lock-only --audit-level=high
+      - name: Pin canonical dependency graph digest
+        run: |
+          node <<'NODE'
+          const { createHash } = require('node:crypto');
+          const fs = require('node:fs');
+          const lock = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'));
+          function sortRecursively(value) {
+            if (Array.isArray(value)) return value.map(sortRecursively);
+            if (!value || typeof value !== 'object') return value;
+            return Object.fromEntries(Object.keys(value).sort().map((key) => [key, sortRecursively(value[key])]));
+          }
+          const digest = createHash('sha256').update(JSON.stringify(sortRecursively(lock))).digest('hex');
+          fs.writeFileSync('.ci/npm-package-lock.canonical.sha256', `${digest}\n`);
+          console.log(`Approved canonical npm dependency graph: ${digest}`);
+          NODE
+      - name: Commit reviewed lock to C2 branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json .ci/npm-package-lock.canonical.sha256
+          if git diff --cached --quiet; then
+            echo "Dependency lock is already materialized."
+            exit 0
+          fi
+          git commit -m "chore(c2): version reviewed npm dependency lock"
+          git push origin HEAD:feature/phase-c2-dependency-supply-chain-hardening
