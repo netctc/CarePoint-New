@@ -1,5 +1,6 @@
 import { BadGatewayException, BadRequestException, Injectable, InternalServerErrorException } from "@nestjs/common";
 import { createHash } from "node:crypto";
+import { ExternalSecretResolverService } from "../../infrastructure/secrets/external-secret-resolver.service";
 
 type EligibilityStatus = "ELIGIBLE" | "NOT_ELIGIBLE" | "UNKNOWN";
 type PriorAuthorizationStatus = "NOT_REQUIRED" | "PENDING" | "APPROVED" | "DENIED" | "EXPIRED" | "CANCELLED";
@@ -23,6 +24,8 @@ export interface GatewayPriorAuthorizationResult {
 
 @Injectable()
 export class InsuranceGatewayService {
+  constructor(private readonly secrets: ExternalSecretResolverService = new ExternalSecretResolverService()) {}
+
   name(): string {
     return this.provider() === "mock" ? "MOCK_INSURANCE" : "EXTERNAL_INSURANCE";
   }
@@ -110,8 +113,7 @@ export class InsuranceGatewayService {
   }
 
   private async externalRequest(method: "POST", path: string, body: Record<string, unknown>, idempotencyKey: string): Promise<Record<string, unknown>> {
-    const apiKey = process.env.INSURANCE_GATEWAY_API_KEY?.trim();
-    if (!apiKey) throw new InternalServerErrorException("INSURANCE_GATEWAY_API_KEY is required for external insurance operations.");
+    const apiKey = await this.secrets.resolve("insurance-gateway-api-key");
     const response = await fetch(new URL(path.replace(/^\//, ""), this.baseUrl()), {
       method,
       headers: {
