@@ -38,12 +38,13 @@ export class AwsKmsHmacProvider {
 
   async validateReady(): Promise<ValidatedKmsKey> {
     if (!this.validation) {
+      const accountId = this.options.expectedAccountId ?? process.env.AWS_KMS_ACCOUNT_ID;
       this.validation = this.client
         .send(new DescribeKeyCommand({ KeyId: this.keyId }))
         .then((result) => validateKmsKeyMetadata((result as DescribeKeyCommandOutput).KeyMetadata, {
           kind: "hmac-sha256",
-          region: this.region,
-          accountId: this.options.expectedAccountId ?? process.env.AWS_KMS_ACCOUNT_ID,
+          ...(this.region?.trim() ? { region: this.region.trim() } : {}),
+          ...(accountId?.trim() ? { accountId: accountId.trim() } : {}),
         }));
     }
     return this.validation;
