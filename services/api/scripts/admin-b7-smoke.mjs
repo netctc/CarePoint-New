@@ -16,6 +16,11 @@ class Jar {
 }
 
 function assert(ok,message){ if(!ok) throw new Error(message); }
+function assertNoBearerMaterial(payload,label){
+  const text=JSON.stringify(payload);
+  assert(!/"(?:accessToken|refreshToken|access_token|refresh_token|accessTokenHash|refreshTokenHash)"\s*:/i.test(text),`${label} leaked bearer token fields.`);
+  assert(!/"authorization"\s*:\s*"Bearer\s+/i.test(text),`${label} leaked bearer authorization material.`);
+}
 async function api(path,init={}){ const response=await fetch(apiBase+path,{...init,headers:{accept:"application/json",...(init.body?{"content-type":"application/json"}:{}),...(init.headers||{})}}); const text=await response.text(); let payload={}; try{payload=text?JSON.parse(text):{};}catch{payload={raw:text};} return {response,payload,text}; }
 async function web(path,jar,init={}){ const headers={accept:"application/json",cookie:jar.header(),...(init.body?{"content-type":"application/json"}:{}),...(init.headers||{})}; if(init.method&&init.method!=="GET"&&!headers.origin) headers.origin=adminBase; const response=await fetch(adminBase+path,{...init,headers,redirect:"manual"}); jar.capture(response); const text=await response.text(); let payload={}; try{payload=text?JSON.parse(text):{};}catch{payload={raw:text};} return {response,payload,text}; }
 
@@ -56,7 +61,7 @@ try{
   const jar=new Jar();
   const adminLogin=await web("/api/admin/auth/login",jar,{method:"POST",body:JSON.stringify({email:adminEmail,password:adminPassword})});
   assert(adminLogin.response.status===200&&adminLogin.payload.authenticated===true,"B7 admin login failed.");
-  assert(!/accessToken|refreshToken|access_token|refresh_token/i.test(JSON.stringify(adminLogin.payload)),"B7 admin login leaked bearer material.");
+  assertNoBearerMaterial(adminLogin.payload,"B7 admin login");
 
   const snapshot=await web("/api/admin/security/workspace",jar);
   assert(snapshot.response.status===200,`B7 security workspace failed: ${snapshot.text}`);
@@ -80,7 +85,7 @@ try{
   assert(!snapshotText.includes(targetEmail),"B7 workspace leaked target email.");
   assert(!snapshotText.includes(targetUser.id),"B7 workspace leaked raw target account ID.");
   assert(!snapshotText.includes(rawUserAgent),"B7 workspace leaked raw user-agent fingerprint.");
-  assert(!/accessToken|refreshToken|access_token|refresh_token/i.test(snapshotText),"B7 workspace leaked bearer material.");
+  assertNoBearerMaterial(snapshot.payload,"B7 workspace");
 
   const forged=await web("/api/admin/security/actions",jar,{method:"POST",headers:{origin:"https://evil.example"},body:JSON.stringify({action:"REVOKE_SESSION",sessionId:login2.payload.sessionId})});
   assert(forged.response.status===403,`B7 forged session revocation should be 403, got ${forged.response.status}.`);
@@ -104,7 +109,7 @@ try{
   for(const result of [revokeOne.payload,revokeAll.payload]){
     const text=JSON.stringify(result);
     assert(!text.includes(targetEmail)&&!text.includes(targetUser.id),"B7 action response leaked target identity.");
-    assert(!/accessToken|refreshToken|access_token|refresh_token/i.test(text),"B7 action response leaked bearer material.");
+    assertNoBearerMaterial(result,"B7 action response");
   }
 
   const admin=await prisma.user.findUnique({where:{email:adminEmail},select:{id:true}});
@@ -114,6 +119,7 @@ try{
 
   const after=await web("/api/admin/security/workspace",jar);
   assert(after.response.ok&&!after.payload.queues.sessions.some(x=>x.sessionId===login2.payload.sessionId||x.sessionId===rotated.payload.sessionId),"B7 revoked sessions remain in the active response queue.");
+  assertNoBearerMaterial(after.payload,"B7 post-response workspace");
   const page=await fetch(adminBase+"/security",{headers:{cookie:jar.header()},redirect:"manual"});
   assert(page.status===200,"B7 authenticated security page failed.");
 
