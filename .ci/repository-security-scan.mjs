@@ -48,11 +48,11 @@ const RUNTIME_SECURITY_RULES = [
   },
   {
     id: "DYNAMIC_CODE_EXECUTION",
-    pattern: /(?:\beval\s*\(|\bnew\s+Function\s*\()/g,
+    pattern: /(?:(?<![.$A-Za-z0-9_])eval\s*\(|\bnew\s+Function\s*\()/g,
   },
   {
     id: "WEAK_CRYPTO_HASH",
-    pattern: /(?:createHash|createHmac)\s*\(\s*["'](?:md5|sha1)["']/gi,
+    pattern: /(?:createHash\s*\(\s*["'](?:md5|sha1)["']|createHmac\s*\(\s*["']md5["'])/gi,
   },
   {
     id: "EMBEDDED_CREDENTIAL_URL",
@@ -184,7 +184,7 @@ function selfTest() {
   }
   const safe = scanText(
     "services/api/src/security/c10-safe-test.ts",
-    "const token = process.env.PAYMENT_GATEWAY_API_KEY;\nconst digest = createHash('sha256').update(value);\n",
+    "const token = process.env.PAYMENT_GATEWAY_API_KEY;\nconst digest = createHash('sha256').update(value);\nconst otp = createHmac('sha1', key).update(counter);\nawait redis.eval(script, 1, key);\n",
   );
   if (safe.length !== 0) throw new Error(`C10 scanner self-test produced ${safe.length} false-positive finding(s) for the safe fixture.`);
   console.log("Phase C10 repository security scanner self-test passed");
