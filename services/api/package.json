@@ -16,8 +16,8 @@
     "c1:kms-preflight": "node scripts/c1-kms-preflight-smoke.mjs"
   },
   "dependencies": {
-    "@aws-sdk/client-kms": ">=3 <4",
-    "@aws-sdk/client-s3": ">=3 <4",
+    "@aws-sdk/client-kms": "3.1128.0",
+    "@aws-sdk/client-s3": "3.1128.0",
     "@carepoint/contracts": "0.1.0",
     "@carepoint/identity": "0.1.0",
     "@carepoint/security": "0.1.0",
