@@ -62,7 +62,7 @@ class AdminReschedulingService {
         modality: appointment.modality,
         status: "OPEN",
         startsAt: { gte: from, lt: to, gt: now },
-        id: appointment.slotId ? { not: appointment.slotId } : undefined,
+        ...(appointment.slotId ? { id: { not: appointment.slotId } } : {}),
         provider: { status: "ACTIVE" },
         service: { active: true },
       },
