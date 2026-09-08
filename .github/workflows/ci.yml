@@ -3,7 +3,7 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, feature/phase-c1-production-kms-preflight]
 
 jobs:
   node:
