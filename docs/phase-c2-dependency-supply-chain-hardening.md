@@ -26,27 +26,51 @@ The vulnerable range is affected by stack exhaustion when maliciously recursive 
 }
 ```
 
-The validated dependency graph resolves `deepmerge-ts` 8.0.2 while retaining the current Prisma major version. This avoids an unsafe forced Prisma downgrade.
+The validated dependency graph resolves `deepmerge-ts` 8.0.2 while retaining Prisma 6.19.3. This avoids an unsafe forced Prisma downgrade.
 
 ### Removal condition
 
 The override is temporary technical debt. Remove it only after the repository's supported Prisma / `@prisma/config` release natively requires a non-vulnerable `deepmerge-ts >= 8.0.0`, and only after the complete Node, database, C1 and FHIR regression gates pass without the override.
 
-## 2. npm toolchain pin
+## 2. npm toolchain and reviewed direct dependency pins
 
-The root project already declares:
+The root project declares:
 
 ```text
 packageManager = npm@10.9.2
 ```
 
-CI now installs and verifies exactly npm `10.9.2` before dependency resolution instead of accepting the npm version bundled implicitly with the hosted runner.
+CI installs and verifies exactly npm `10.9.2` before dependency resolution instead of accepting the npm version bundled implicitly with the hosted runner.
 
-This avoids lock resolution changing merely because GitHub updates the runner image.
+During C2 acceptance, an otherwise clean re-resolution exposed registry drift limited to the two direct AWS SDK clients: both moved from `3.1127.0` to `3.1128.0` while the total graph remained 442 packages and `npm audit` remained at zero vulnerabilities. The drift was reviewed explicitly rather than accepted by changing a hash blindly.
 
-## 3. Canonical Node dependency-graph gate
+The API now pins the reviewed direct versions:
 
-The repository does not currently version the full generated `package-lock.json`. Phase C2 therefore uses a fail-closed graph-verification boundary before dependency package scripts are allowed to execute.
+```text
+@aws-sdk/client-kms = 3.1128.0
+@aws-sdk/client-s3  = 3.1128.0
+```
+
+## 3. Versioned and canonical Node dependency lock
+
+`package-lock.json` is now a first-class versioned source artifact. The lock was generated with npm 10.9.2 using `--package-lock-only --ignore-scripts`, audited before commit, and its complete canonical structure is pinned by:
+
+```text
+.ci/npm-package-lock.canonical.sha256
+```
+
+Current approved canonical SHA-256:
+
+```text
+274af65084df20d0727b91f1a1f4472d3a5115b65e8d1cb24535f1501007af8a
+```
+
+CI retains a no-script re-resolution step as an explicit **drift detector**, not as an approval mechanism. `.ci/verify-npm-lock.mjs` now requires that:
+
+- `package-lock.json` is tracked by git;
+- candidate no-script resolution leaves the committed lock byte-for-byte unchanged;
+- the recursively canonicalized lock matches the approved SHA-256;
+- the graph therefore remains the exact graph reviewed in source control before `npm ci` is allowed.
 
 Sequence:
 
@@ -60,12 +84,15 @@ install exact npm 10.9.2
 npm install --package-lock-only --ignore-scripts
     |
     v
+assert committed package-lock.json is unchanged
+    |
+    v
 canonicalize complete package-lock JSON
     |
     v
 SHA-256 must match .ci/npm-package-lock.canonical.sha256
     |
-    +--> mismatch: stop; do not install dependency graph
+    +--> any drift/mismatch: stop; do not install dependency graph
     |
     v
 npm ci
@@ -77,19 +104,13 @@ npm audit --audit-level=high
 build / tests / database / application smoke suites
 ```
 
-`.ci/verify-npm-lock.mjs` recursively sorts JSON object keys and hashes the complete semantic lock structure. This keeps the gate sensitive to versions, resolved artifacts, integrity data and dependency structure while avoiding false failures caused only by JSON key serialization order.
+The canonical verifier remains sensitive to versions, resolved artifacts, integrity data and dependency structure while avoiding false failures caused only by JSON object key ordering.
 
-The current validated canonical SHA-256 is stored in:
+### Why scripts are disabled during drift detection
 
-```text
-.ci/npm-package-lock.canonical.sha256
-```
+`--package-lock-only --ignore-scripts` checks whether current dependency metadata would alter the reviewed lock without executing package lifecycle scripts. Any difference from the committed lock is rejected before `npm ci` executes dependency installation scripts.
 
-Changing any dependency range or override therefore requires an explicit review and regeneration of the validated canonical digest.
-
-### Why scripts are disabled during candidate resolution
-
-`--package-lock-only --ignore-scripts` resolves the candidate graph without executing package lifecycle scripts. A graph that does not match the approved digest is rejected before `npm ci` executes dependency installation scripts.
+This is intentionally stricter than silently refreshing a lock in CI: registry movement requires an explicit source change and review.
 
 ## 4. npm vulnerability gate
 
@@ -122,9 +143,7 @@ Covered projects:
 - `apps/doctor-mobile`;
 - `apps/provider-mobile`.
 
-The current validated graph includes the shared mobile security/runtime dependencies plus the patient geolocation dependency. A change in any resolved lock causes CI to stop before analyzer/test acceptance.
-
-The shared `mobile_core` acceptance currently runs analyzer plus its full test suite; Patient, Doctor and Other Provider applications are separately analyzed against the same fixed Flutter SDK.
+The shared `mobile_core` acceptance runs analyzer plus its full test suite; Patient, Doctor and Other Provider applications are separately analyzed against the same fixed Flutter SDK.
 
 ## 6. GitHub Action source pinning
 
@@ -162,11 +181,11 @@ C2 is not complete if supply-chain gates pass but any prior functional/security 
 A dependency update must be intentional rather than an automatic drift event.
 
 1. Change the relevant `package.json`, `pubspec.yaml` or npm override.
-2. Resolve with the pinned npm / Flutter toolchain.
-3. Review the resulting dependency changes and current advisories.
-4. Run the complete build and regression suite.
-5. Only after acceptance, update the corresponding approved canonical/hash file.
-6. Commit the dependency declaration and approved digest change together.
+2. Resolve with the pinned npm / Flutter toolchain and with package scripts disabled during initial Node resolution.
+3. Review package additions/removals/version changes, resolved artifacts, integrity changes and current advisories.
+4. For Node, commit the reviewed `package-lock.json` together with the manifest change.
+5. Recalculate `.ci/npm-package-lock.canonical.sha256` from that exact committed lock; for Flutter, update only the affected approved lock hashes.
+6. Run the complete build and regression suite.
 7. Record the reason for the graph change in the commit/PR.
 
 Updating an approved digest merely to make CI green, without reviewing the changed graph, defeats this control and is not an acceptable release procedure.
@@ -175,7 +194,7 @@ Updating an approved digest merely to make CI green, without reviewing the chang
 
 Phase C2 does not claim that all software-supply-chain controls are complete. Remaining production hardening includes:
 
-- versioning the full generated Node and Dart lockfiles when the repository release process adopts them as first-class source artifacts; the current digest gates provide fail-closed graph validation in the meantime;
+- adopting the generated Dart `pubspec.lock` files as first-class versioned release artifacts in addition to their current fail-closed digest gate;
 - pinning PostgreSQL and Redis CI service images by immutable OCI digest rather than major/minor tags;
 - reviewing nested actions used internally by pinned third-party composite actions, because a pinned parent action can still invoke mutable downstream action references if its implementation does so;
 - dependency update automation with explicit review policy (for example, Dependabot/Renovate with controlled grouping and required checks);
