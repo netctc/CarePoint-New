@@ -115,15 +115,26 @@ await expectReject(
   validInspection({ rdbLastBgsaveStatus: "err" }),
 );
 
-await expectReject(
-  /could not verify Redis readiness: Connection refused/,
-  () => {},
-  validInspection(),
-).catch(() => undefined);
 configureProduction();
 await assert.rejects(
   () => assertProductionRedisReady({ inspectRedis: async () => { throw new Error("Connection refused"); } }),
   /could not verify Redis readiness: Connection refused/,
 );
+
+configureProduction();
+let redactedError;
+try {
+  await assertProductionRedisReady({
+    inspectRedis: async () => {
+      throw new Error(`dial ${process.env.REDIS_URL} password=carepoint-test-password`);
+    },
+  });
+} catch (error) {
+  redactedError = error;
+}
+assert.ok(redactedError instanceof Error);
+assert.doesNotMatch(redactedError.message, /carepoint-test-password/);
+assert.doesNotMatch(redactedError.message, /rediss:\/\//);
+assert.match(redactedError.message, /<redis-url>/);
 
 console.log("Phase C4 production Redis readiness acceptance passed");
