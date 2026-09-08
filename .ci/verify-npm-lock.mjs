@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 
@@ -8,6 +9,8 @@ const [rawLock, rawExpected] = await Promise.all([
   readFile(lockPath, "utf8"),
   readFile(expectedPath, "utf8"),
 ]);
+
+assertCommittedLockUnchanged();
 
 const lock = JSON.parse(rawLock);
 const canonicalDigest = sha256(JSON.stringify(sortRecursively(lock)));
@@ -32,7 +35,20 @@ if (!/^[a-f0-9]{64}$/.test(expected)) throw new Error(`${expectedPath} does not 
 if (canonicalDigest !== expected) {
   throw new Error(`Canonical npm dependency graph digest mismatch: expected ${expected}, got ${canonicalDigest}.`);
 }
-console.log("Phase C2 canonical npm dependency graph verified.");
+console.log("Phase C2 committed canonical npm dependency graph verified.");
+
+function assertCommittedLockUnchanged() {
+  try {
+    execFileSync("git", ["ls-files", "--error-unmatch", lockPath], { stdio: "ignore" });
+  } catch {
+    throw new Error(`${lockPath} must be versioned in git before dependency installation.`);
+  }
+  try {
+    execFileSync("git", ["diff", "--quiet", "--", lockPath], { stdio: "ignore" });
+  } catch {
+    throw new Error(`${lockPath} changed during dependency resolution. Review and commit the dependency drift before installation.`);
+  }
+}
 
 function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
