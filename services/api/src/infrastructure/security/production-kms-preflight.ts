@@ -1,6 +1,6 @@
 import { DescribeKeyCommand, KMSClient, type KeyMetadata } from "@aws-sdk/client-kms";
 
-type KeyRequirement = {
+export type ProductionKmsKeyRequirement = {
   domain: string;
   providerEnv: string;
   expectedProvider: string;
@@ -17,7 +17,7 @@ export interface ProductionKmsPreflightOptions {
   describeKey?: DescribeProductionKmsKey;
 }
 
-const REQUIREMENTS: KeyRequirement[] = [
+export const PRODUCTION_KMS_REQUIREMENTS: readonly ProductionKmsKeyRequirement[] = [
   { domain: "MFA secrets", providerEnv: "MFA_KEY_PROVIDER", expectedProvider: "aws-kms", keyEnv: "MFA_KMS_KEY_ID", keyUsage: "ENCRYPT_DECRYPT", keySpec: "SYMMETRIC_DEFAULT" },
   { domain: "clinical records", providerEnv: "CLINICAL_KEY_PROVIDER", expectedProvider: "aws-kms", keyEnv: "CLINICAL_KMS_KEY_ID", keyUsage: "ENCRYPT_DECRYPT", keySpec: "SYMMETRIC_DEFAULT" },
   { domain: "clinical orders/results", providerEnv: "ORDER_KEY_PROVIDER", expectedProvider: "aws-kms", keyEnv: "ORDER_KMS_KEY_ID", keyUsage: "ENCRYPT_DECRYPT", keySpec: "SYMMETRIC_DEFAULT" },
@@ -38,7 +38,7 @@ export async function assertProductionKmsReady(options: ProductionKmsPreflightOp
 
   const describeKey = options.describeKey ?? liveDescribeKey(region);
 
-  for (const requirement of REQUIREMENTS) {
+  for (const requirement of PRODUCTION_KMS_REQUIREMENTS) {
     const configuredProvider = (process.env[requirement.providerEnv] ?? requirement.expectedProvider).trim();
     if (configuredProvider !== requirement.expectedProvider) {
       throw new Error(`${requirement.providerEnv} must be '${requirement.expectedProvider}' in production (${requirement.domain}).`);
@@ -56,7 +56,7 @@ export async function assertProductionKmsReady(options: ProductionKmsPreflightOp
   }
 }
 
-function validateMetadata(requirement: KeyRequirement, metadata: KeyMetadata | undefined, region: string, accountId?: string): void {
+function validateMetadata(requirement: ProductionKmsKeyRequirement, metadata: KeyMetadata | undefined, region: string, accountId?: string): void {
   if (!metadata) throw new Error(`Production KMS preflight returned no metadata for ${requirement.keyEnv} (${requirement.domain}).`);
   if (!metadata.KeyId?.trim() || !metadata.Arn?.trim()) {
     throw new Error(`${requirement.keyEnv} metadata must include KeyId and Arn (${requirement.domain}).`);
