@@ -36,6 +36,8 @@ jobs:
       DATABASE_URL: postgresql://carepoint:carepoint@127.0.0.1:5432/carepoint?schema=public
       REDIS_URL: redis://127.0.0.1:6379
       ALLOWED_ORIGINS: http://localhost:3000
+      CAREPOINT_API_URL: http://127.0.0.1:4000/api/v1
+      CAREPOINT_ADMIN_URL: http://127.0.0.1:3000
       MFA_KEY_PROVIDER: local
       MFA_ENVELOPE_KEY_ID: ci-mfa-kek-v1
       MFA_ENVELOPE_KEY_BASE64: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
@@ -113,6 +115,18 @@ jobs:
           const denied = await fetch(base + '/iam/accounts/me');
           if (denied.status !== 401) throw new Error(`expected 401 without bearer token, got ${denied.status}`);
           NODE
+      - name: Start Admin Web
+        run: |
+          npm --workspace @carepoint/admin run start > /tmp/carepoint-admin.log 2>&1 &
+          echo $! > /tmp/carepoint-admin.pid
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:3000/login > /dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/carepoint-admin.log
+          exit 1
+      - name: Phase B1 Admin authentication smoke test
+        run: node services/api/scripts/admin-b1-smoke.mjs
       - name: Slice 2 scheduling and concurrency smoke test
         run: node services/api/scripts/slice2-smoke.mjs
       - name: Slice 3 secure telemedicine smoke test
@@ -133,9 +147,11 @@ jobs:
         run: node services/api/scripts/slice8-smoke.mjs
       - name: Slice 9 production security resilience and observability smoke test
         run: node services/api/scripts/slice9-smoke.mjs
-      - name: Print API log on failure
+      - name: Print API and Admin logs on failure
         if: failure()
-        run: cat /tmp/carepoint-api.log || true
+        run: |
+          cat /tmp/carepoint-api.log || true
+          cat /tmp/carepoint-admin.log || true
 
   flutter:
     runs-on: ubuntu-latest
