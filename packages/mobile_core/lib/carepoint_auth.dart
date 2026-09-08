@@ -89,7 +89,7 @@ class _CarePointLoginGateState extends State<CarePointLoginGate> {
   }
 
   Future<void> signOut() async {
-    await api.logout();
+    await api.signOutCurrentSession();
     if (mounted) setState(() { session = null; challengeId = null; mfa.clear(); });
   }
 
