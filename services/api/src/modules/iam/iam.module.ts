@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Module, Param, Post, Req } from "@nestjs/common";
+import { Body, ConflictException, Controller, Delete, Get, Module, Param, Post, Req } from "@nestjs/common";
 import type { AuthPrincipal, IdentityRole } from "@carepoint/identity";
 import { PrismaService } from "../../infrastructure/prisma/prisma.module";
 import { DistributedRateLimitService } from "../../infrastructure/redis/redis-security.module";
@@ -84,8 +84,28 @@ class IamController {
     return this.auth.getAccount(principal, accountId);
   }
 
+  @Get("mfa/status")
+  async mfaStatus(@CurrentPrincipal() principal: AuthPrincipal) {
+    const enrollment = await this.prisma.mfaEnrollment.findUnique({
+      where: { userId: principal.accountId },
+      select: { enabledAt: true, createdAt: true, updatedAt: true },
+    });
+    return {
+      enabled: Boolean(enrollment?.enabledAt),
+      enrollmentStarted: Boolean(enrollment),
+      enabledAt: enrollment?.enabledAt?.toISOString() ?? null,
+      createdAt: enrollment?.createdAt.toISOString() ?? null,
+      updatedAt: enrollment?.updatedAt.toISOString() ?? null,
+    };
+  }
+
   @Post("mfa/enroll")
-  enrollMfa(@CurrentPrincipal() principal: AuthPrincipal) {
+  async enrollMfa(@CurrentPrincipal() principal: AuthPrincipal) {
+    const enrollment = await this.prisma.mfaEnrollment.findUnique({
+      where: { userId: principal.accountId },
+      select: { enabledAt: true },
+    });
+    if (enrollment?.enabledAt) throw new ConflictException("MFA is already enabled. Re-enrollment requires a dedicated recovery flow.");
     return this.auth.beginMfa(principal);
   }
 

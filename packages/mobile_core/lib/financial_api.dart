@@ -182,7 +182,7 @@ extension CarePointCommunicationsApi on CarePointApi {
   Future<Map<String, dynamic>> registerNotificationEndpoint({required String channel, required String externalEndpointRef}) async =>
       _asMap(await _send('POST', '/notifications/endpoints', body: {
         'channel': channel,
-        'externalEndpointRef': externalEndpointRef,
+        'externalEndpointRef': externalEndpointRef.trim(),
       }));
 
   Future<Map<String, dynamic>> deactivateNotificationEndpoint(String endpointId) async =>

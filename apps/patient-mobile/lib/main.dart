@@ -9,6 +9,7 @@ import 'package:carepoint_mobile_core/transport_localization.dart';
 import 'package:flutter/material.dart';
 
 import 'clinical_timeline.dart';
+import 'patient_account.dart';
 import 'patient_transport.dart';
 
 void main() => runApp(const CarePointPatientApp());
@@ -85,6 +86,7 @@ class _PatientShellState extends State<PatientShell> {
             PatientAppointmentsPage(key: ValueKey(visitsVersion), session: widget.session, locale: widget.locale),
             PatientClinicalTimelinePage(session: widget.session, locale: widget.locale),
             PatientFinancialWorkspace(key: ValueKey('finance-$visitsVersion'), session: widget.session, locale: widget.locale),
+            PatientAccountPage(session: widget.session, locale: widget.locale, onSignOut: widget.onSignOut),
           ],
         ),
         bottomNavigationBar: NavigationBar(
@@ -95,6 +97,7 @@ class _PatientShellState extends State<PatientShell> {
             NavigationDestination(icon: const Icon(Icons.event_note_outlined), selectedIcon: const Icon(Icons.event_note), label: cpText(widget.locale, 'patient.myVisits')),
             NavigationDestination(icon: const Icon(Icons.health_and_safety_outlined), selectedIcon: const Icon(Icons.health_and_safety), label: clinicalText(widget.locale, 'healthRecord')),
             NavigationDestination(icon: const Icon(Icons.account_balance_wallet_outlined), selectedIcon: const Icon(Icons.account_balance_wallet), label: financeText(widget.locale, 'finance')),
+            NavigationDestination(icon: const Icon(Icons.manage_accounts_outlined), selectedIcon: const Icon(Icons.manage_accounts), label: _accountLabel(widget.locale)),
           ],
         ),
       );
@@ -416,3 +419,4 @@ IconData _modalityIcon(String? value) => switch (value) { 'TELEMEDICINE' => Icon
 String _money(dynamic minor, dynamic currency) => '${((minor is num ? minor.toInt() : int.tryParse(minor?.toString() ?? '') ?? 0) / 100).toStringAsFixed(2)} ${currency ?? ''}';
 String _dateTime(DateTime? value) => value == null ? '—' : '${value.year.toString().padLeft(4, '0')}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')} ${_time(value)}';
 String _time(DateTime? value) => value == null ? '—' : '${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
+String _accountLabel(CarePointLocale locale) => switch (locale) { CarePointLocale.ar => 'الحساب', CarePointLocale.fr => 'Compte', CarePointLocale.es => 'Cuenta', _ => 'Account' };
