@@ -46,6 +46,7 @@ export const config = {
     "/providers/:path*",
     "/doctors/:path*",
     "/appointments/:path*",
+    "/telehealth/:path*",
     "/security/:path*",
   ],
 };
