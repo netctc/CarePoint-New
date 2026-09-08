@@ -161,9 +161,16 @@ model NotificationDelivery {
   status         NotificationDeliveryStatus @default(PENDING)
   providerRef    String?
   attemptedAt    DateTime?
+  sentAt         DateTime?
   lastErrorCode  String?
+  attemptCount   Int                        @default(0)
+  availableAt    DateTime                   @default(now())
+  leaseOwner     String?
+  leaseUntil     DateTime?
   notification   NotificationEvent          @relation(fields: [notificationId], references: [id], onDelete: Cascade)
 
   @@unique([notificationId, channel])
   @@index([status, attemptedAt])
+  @@index([status, availableAt])
+  @@index([leaseUntil])
 }
