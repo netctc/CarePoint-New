@@ -12,7 +12,8 @@
     "db:migrate": "prisma migrate dev --schema prisma",
     "db:deploy": "prisma migrate deploy --schema prisma",
     "db:bootstrap": "node dist/scripts/bootstrap-platform.js",
-    "auth:cleanup": "node dist/scripts/cleanup-auth-artifacts.js"
+    "auth:cleanup": "node dist/scripts/cleanup-auth-artifacts.js",
+    "c1:kms-preflight": "node scripts/c1-kms-preflight-smoke.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-kms": ">=3 <4",
