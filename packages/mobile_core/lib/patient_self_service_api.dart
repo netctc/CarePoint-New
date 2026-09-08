@@ -27,45 +27,6 @@ extension CarePointSelfServiceApi on CarePointApi {
   Future<Map<String, dynamic>> revokePatientConsent(String consentId) async =>
       _asMap(await _send('POST', '/consents/$consentId/revoke', body: const {}));
 
-  Future<Map<String, dynamic>> notificationPreferences() async =>
-      _asMap(await _send('GET', '/notifications/preferences'));
-
-  Future<Map<String, dynamic>> updateNotificationPreferences({
-    String? locale,
-    bool? inAppEnabled,
-    bool? pushEnabled,
-    bool? emailEnabled,
-    bool? smsEnabled,
-  }) async =>
-      _asMap(await _send('PATCH', '/notifications/preferences', body: {
-        if (locale != null) 'locale': locale,
-        if (inAppEnabled != null) 'inAppEnabled': inAppEnabled,
-        if (pushEnabled != null) 'pushEnabled': pushEnabled,
-        if (emailEnabled != null) 'emailEnabled': emailEnabled,
-        if (smsEnabled != null) 'smsEnabled': smsEnabled,
-      }));
-
-  Future<List<Map<String, dynamic>>> notificationEndpoints() async =>
-      _asList(await _send('GET', '/notifications/endpoints'));
-
-  Future<Map<String, dynamic>> registerNotificationEndpoint({
-    required String channel,
-    required String externalEndpointRef,
-  }) async =>
-      _asMap(await _send('POST', '/notifications/endpoints', body: {
-        'channel': channel,
-        'externalEndpointRef': externalEndpointRef.trim(),
-      }));
-
-  Future<Map<String, dynamic>> deactivateNotificationEndpoint(String endpointId) async =>
-      _asMap(await _send('POST', '/notifications/endpoints/$endpointId/deactivate', body: const {}));
-
-  Future<List<Map<String, dynamic>>> notifications() async =>
-      _asList(await _send('GET', '/notifications'));
-
-  Future<Map<String, dynamic>> markNotificationRead(String notificationId) async =>
-      _asMap(await _send('POST', '/notifications/$notificationId/read', body: const {}));
-
   /// Revokes the current server-side session whenever possible and always
   /// removes local session material. Network/auth failures never prevent a
   /// local sign-out from completing.
