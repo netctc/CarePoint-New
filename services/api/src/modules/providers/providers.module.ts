@@ -3,6 +3,7 @@ import { AppointmentModalities, OtherProviderFamilies, type AppointmentModality,
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../../infrastructure/prisma/prisma.module";
 import { Public, RequirePermissions } from "../../security/api-security.module";
+import { ProviderCategoryCapabilityService } from "./provider-category-capability.service";
 
 interface CreateSpecialtyInput { code: string; labels: LocalizedText; parentId?: string | null; }
 interface CreateOtherProviderCategoryInput {
@@ -119,5 +120,9 @@ class OtherProviderCategoriesController {
   }
 }
 
-@Module({ controllers: [DoctorSpecialtiesController, OtherProviderCategoriesController], providers: [ProviderCatalogService] })
+@Module({
+  controllers: [DoctorSpecialtiesController, OtherProviderCategoriesController],
+  providers: [ProviderCatalogService, ProviderCategoryCapabilityService],
+  exports: [ProviderCategoryCapabilityService],
+})
 export class ProvidersModule {}
