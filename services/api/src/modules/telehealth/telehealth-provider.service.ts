@@ -27,7 +27,7 @@ export class TelehealthProviderService {
     const mode = this.mode();
     const expiresAt = new Date(Date.now() + input.ttlSeconds * 1000);
     if (mode === "mock") {
-      const secret = process.env.TELEHEALTH_MOCK_SIGNING_SECRET ?? "carepoint-ci-telehealth-mock-secret";
+      const secret = this.mockSigningSecret();
       const payload = `${input.roomName}.${input.participantIdentity}.${expiresAt.getTime()}`;
       const signature = createHmac("sha256", secret).update(payload).digest("base64url");
       return {
@@ -82,6 +82,14 @@ export class TelehealthProviderService {
     if (configured === "livekit") return "livekit";
     if (configured === "mock" && process.env.NODE_ENV !== "production") return "mock";
     throw new InternalServerErrorException("Production telehealth requires TELEHEALTH_PROVIDER=livekit and server-side LiveKit credentials.");
+  }
+
+  private mockSigningSecret(): string {
+    const secret = process.env.TELEHEALTH_MOCK_SIGNING_SECRET?.trim();
+    if (!secret || secret.length < 32) {
+      throw new InternalServerErrorException("TELEHEALTH_MOCK_SIGNING_SECRET must contain at least 32 characters when the mock telehealth provider is enabled.");
+    }
+    return secret;
   }
 
   private liveKitConfiguration(): { url: string; apiKey: string; apiSecret: string } {
