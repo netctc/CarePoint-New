@@ -1,0 +1,4 @@
+b01ee529bdc887cf8aed92bf3b6753e94e95afba6b73e5661d88a19fb69ca9db  packages/mobile_core/pubspec.lock
+00af6cf0fec79e81301bd5415b94beea6a6ef1990b8f02604006c1f547f4116d  apps/patient-mobile/pubspec.lock
+94a3d7649293e9ba2a2a7734fd9aaccecc5d063f195856342b58bd4ddf049765  apps/doctor-mobile/pubspec.lock
+94a3d7649293e9ba2a2a7734fd9aaccecc5d063f195856342b58bd4ddf049765  apps/provider-mobile/pubspec.lock
