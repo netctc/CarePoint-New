@@ -2,6 +2,7 @@ import { Body, Controller, Get, Module, Param, Post } from "@nestjs/common";
 import type { AuthPrincipal } from "@carepoint/identity";
 import { CurrentPrincipal, RequirePermissions } from "../../security/api-security.module";
 import { PersistentOnboardingService } from "./persistent-onboarding.service";
+import { ProviderSelfOnboardingService } from "./provider-self-onboarding.service";
 
 interface DoctorOnboardingBody { specialtyId: string; }
 interface OtherProviderOnboardingBody { providerCategoryId: string; }
@@ -11,7 +12,16 @@ interface GovernanceDecisionBody { note: string; }
 
 @Controller("onboarding")
 class OnboardingController {
-  constructor(private readonly onboarding: PersistentOnboardingService) {}
+  constructor(
+    private readonly onboarding: PersistentOnboardingService,
+    private readonly selfOnboarding: ProviderSelfOnboardingService,
+  ) {}
+
+  @RequirePermissions("PROVIDER_SELF_ONBOARD")
+  @Get("me")
+  mine(@CurrentPrincipal() principal: AuthPrincipal) {
+    return this.selfOnboarding.state(principal);
+  }
 
   @RequirePermissions("PROVIDER_REVIEW")
   @Get()
@@ -21,13 +31,15 @@ class OnboardingController {
 
   @RequirePermissions("PROVIDER_SELF_ONBOARD")
   @Post("doctors")
-  startDoctor(@CurrentPrincipal() principal: AuthPrincipal, @Body() body: DoctorOnboardingBody) {
+  async startDoctor(@CurrentPrincipal() principal: AuthPrincipal, @Body() body: DoctorOnboardingBody) {
+    await this.selfOnboarding.assertCanStart(principal);
     return this.onboarding.startDoctor(principal, body.specialtyId);
   }
 
   @RequirePermissions("PROVIDER_SELF_ONBOARD")
   @Post("other-providers")
-  startOtherProvider(@CurrentPrincipal() principal: AuthPrincipal, @Body() body: OtherProviderOnboardingBody) {
+  async startOtherProvider(@CurrentPrincipal() principal: AuthPrincipal, @Body() body: OtherProviderOnboardingBody) {
+    await this.selfOnboarding.assertCanStart(principal);
     return this.onboarding.startOtherProvider(principal, body.providerCategoryId);
   }
 
@@ -95,6 +107,6 @@ class OnboardingController {
 
 @Module({
   controllers: [OnboardingController],
-  providers: [PersistentOnboardingService],
+  providers: [PersistentOnboardingService, ProviderSelfOnboardingService],
 })
 export class OnboardingModule {}

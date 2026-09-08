@@ -52,3 +52,35 @@ extension CarePointSelfServiceApi on CarePointApi {
     }
   }
 }
+
+extension CarePointProviderOnboardingApi on CarePointApi {
+  Future<Map<String, dynamic>> providerOnboardingState() async =>
+      _asMap(await _send('GET', '/onboarding/me'));
+
+  Future<List<Map<String, dynamic>>> doctorSpecialties() async {
+    final response = _asMap(await _send('GET', '/doctors/specialties', authenticated: false));
+    return _asList(response['items']);
+  }
+
+  Future<Map<String, dynamic>> startDoctorOnboarding(String specialtyId) async =>
+      _asMap(await _send('POST', '/onboarding/doctors', body: {'specialtyId': specialtyId}));
+
+  Future<Map<String, dynamic>> addProviderOnboardingCredential(
+    String onboardingId, {
+    required String type,
+    String? number,
+    String? issuer,
+    String? validUntil,
+    String? documentId,
+  }) async =>
+      _asMap(await _send('POST', '/onboarding/$onboardingId/credentials', body: {
+        'type': type.trim(),
+        if (number?.trim().isNotEmpty == true) 'number': number!.trim(),
+        if (issuer?.trim().isNotEmpty == true) 'issuer': issuer!.trim(),
+        if (validUntil?.trim().isNotEmpty == true) 'validUntil': validUntil!.trim(),
+        if (documentId?.trim().isNotEmpty == true) 'documentId': documentId!.trim(),
+      }));
+
+  Future<Map<String, dynamic>> submitProviderOnboarding(String onboardingId) async =>
+      _asMap(await _send('POST', '/onboarding/$onboardingId/submit', body: const {}));
+}

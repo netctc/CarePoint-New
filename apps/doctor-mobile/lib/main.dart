@@ -7,6 +7,8 @@ import 'package:carepoint_mobile_core/financial_workspace.dart';
 import 'package:carepoint_mobile_core/revenue_cycle_workspace.dart';
 import 'package:flutter/material.dart';
 
+import 'doctor_access.dart';
+
 void main() => runApp(const DoctorApp());
 
 class DoctorApp extends StatefulWidget {
@@ -38,53 +40,60 @@ class _DoctorAppState extends State<DoctorApp> {
                 title: cpText(locale, 'doctor.title'),
                 accent: const Color(0xFF22D3EE),
                 dark: true,
-                builder: (gateContext, session, signOut) => Stack(children: [
-                  ProviderWorkspaceWithRevenueCycle(
-                    session: session,
-                    locale: locale,
-                    title: cpText(locale, 'doctor.title'),
-                    accent: const Color(0xFF22D3EE),
-                    dark: true,
-                    onSignOut: signOut,
-                  ),
-                  PositionedDirectional(
-                    start: 16,
-                    bottom: 90,
-                    child: SafeArea(
-                      child: FloatingActionButton.small(
-                        heroTag: 'doctor-finance',
-                        tooltip: financeText(locale, 'finance'),
-                        onPressed: () => Navigator.of(gateContext).push(MaterialPageRoute(
-                          builder: (_) => Directionality(
-                            textDirection: locale.textDirection,
-                            child: Scaffold(
-                              appBar: AppBar(title: Text(financeText(locale, 'finance'))),
-                              body: ProviderFinancialWorkspace(session: session, locale: locale, accent: const Color(0xFF22D3EE)),
+                builder: (gateContext, session, signOut) => DoctorAccessGate(
+                  session: session,
+                  locale: locale,
+                  onSignOut: signOut,
+                  accent: const Color(0xFF22D3EE),
+                  dark: true,
+                  activeBuilder: (accessContext) => Stack(children: [
+                    ProviderWorkspaceWithRevenueCycle(
+                      session: session,
+                      locale: locale,
+                      title: cpText(locale, 'doctor.title'),
+                      accent: const Color(0xFF22D3EE),
+                      dark: true,
+                      onSignOut: signOut,
+                    ),
+                    PositionedDirectional(
+                      start: 16,
+                      bottom: 90,
+                      child: SafeArea(
+                        child: FloatingActionButton.small(
+                          heroTag: 'doctor-finance',
+                          tooltip: financeText(locale, 'finance'),
+                          onPressed: () => Navigator.of(accessContext).push(MaterialPageRoute(
+                            builder: (_) => Directionality(
+                              textDirection: locale.textDirection,
+                              child: Scaffold(
+                                appBar: AppBar(title: Text(financeText(locale, 'finance'))),
+                                body: ProviderFinancialWorkspace(session: session, locale: locale, accent: const Color(0xFF22D3EE)),
+                              ),
                             ),
-                          ),
-                        )),
-                        child: const Icon(Icons.account_balance_wallet_outlined),
+                          )),
+                          child: const Icon(Icons.account_balance_wallet_outlined),
+                        ),
                       ),
                     ),
-                  ),
-                  PositionedDirectional(
-                    start: 16,
-                    bottom: 150,
-                    child: SafeArea(
-                      child: FloatingActionButton.small(
-                        heroTag: 'doctor-communications',
-                        tooltip: communicationsText(locale, 'title'),
-                        onPressed: () => Navigator.of(gateContext).push(MaterialPageRoute(
-                          builder: (_) => Directionality(
-                            textDirection: locale.textDirection,
-                            child: CommunicationsWorkspace(session: session, locale: locale, accent: const Color(0xFF22D3EE), isProvider: true),
-                          ),
-                        )),
-                        child: const Icon(Icons.forum_outlined),
+                    PositionedDirectional(
+                      start: 16,
+                      bottom: 150,
+                      child: SafeArea(
+                        child: FloatingActionButton.small(
+                          heroTag: 'doctor-communications',
+                          tooltip: communicationsText(locale, 'title'),
+                          onPressed: () => Navigator.of(accessContext).push(MaterialPageRoute(
+                            builder: (_) => Directionality(
+                              textDirection: locale.textDirection,
+                              child: CommunicationsWorkspace(session: session, locale: locale, accent: const Color(0xFF22D3EE), isProvider: true),
+                            ),
+                          )),
+                          child: const Icon(Icons.forum_outlined),
+                        ),
                       ),
                     ),
-                  ),
-                ]),
+                  ]),
+                ),
               ),
               PositionedDirectional(
                 top: 10,
