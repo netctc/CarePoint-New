@@ -86,7 +86,7 @@ try {
         fr: "Prestataire paramédical O1",
         es: "Proveedor sanitario aliado O1",
       },
-      family: "ALLIED_HEALTH",
+      family: "NON_DOCTOR_HEALTHCARE",
       active: true,
       requiredCredentialTypes: requiredTypes,
       capabilities: {
