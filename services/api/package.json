@@ -7,13 +7,15 @@
     "prebuild": "prisma generate --schema prisma",
     "build": "nest build",
     "start": "node dist/main.js",
+    "test": "npm run c3:object-storage-preflight",
     "typecheck": "prisma generate --schema prisma && tsc -p tsconfig.json --noEmit",
     "db:generate": "prisma generate --schema prisma",
     "db:migrate": "prisma migrate dev --schema prisma",
     "db:deploy": "prisma migrate deploy --schema prisma",
     "db:bootstrap": "node dist/scripts/bootstrap-platform.js",
     "auth:cleanup": "node dist/scripts/cleanup-auth-artifacts.js",
-    "c1:kms-preflight": "node scripts/c1-kms-preflight-smoke.mjs"
+    "c1:kms-preflight": "node scripts/c1-kms-preflight-smoke.mjs",
+    "c3:object-storage-preflight": "node scripts/c3-object-storage-preflight-smoke.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-kms": "3.1128.0",
