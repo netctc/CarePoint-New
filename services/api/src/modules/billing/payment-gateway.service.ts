@@ -1,5 +1,6 @@
-import { BadGatewayException, BadRequestException, Injectable, InternalServerErrorException } from "@nestjs/common";
+import { BadGatewayException, Injectable, InternalServerErrorException } from "@nestjs/common";
 import { createHash } from "node:crypto";
+import { financialGatewayTimeoutMs, validatedFinancialGatewayBaseUrl } from "../../infrastructure/http/financial-gateway-egress";
 import { ExternalSecretResolverService } from "../../infrastructure/secrets/external-secret-resolver.service";
 
 type PaymentStatus = "REQUIRES_ACTION" | "PROCESSING" | "SUCCEEDED" | "FAILED" | "CANCELLED";
@@ -141,16 +142,23 @@ export class PaymentGatewayService {
   private async externalRequest(method: "GET" | "POST", path: string, body?: Record<string, unknown>, idempotencyKey?: string): Promise<Record<string, unknown>> {
     const base = this.baseUrl();
     const apiKey = await this.secrets.resolve("payment-gateway-api-key");
-    const response = await fetch(new URL(path.replace(/^\//, ""), base), {
-      method,
-      headers: {
-        accept: "application/json",
-        authorization: `Bearer ${apiKey}`,
-        ...(body ? { "content-type": "application/json" } : {}),
-        ...(idempotencyKey ? { "idempotency-key": idempotencyKey } : {}),
-      },
-      ...(body ? { body: JSON.stringify(body) } : {}),
-    });
+    let response: Response;
+    try {
+      response = await fetch(new URL(path.replace(/^\//, ""), base), {
+        method,
+        headers: {
+          accept: "application/json",
+          authorization: `Bearer ${apiKey}`,
+          ...(body ? { "content-type": "application/json" } : {}),
+          ...(idempotencyKey ? { "idempotency-key": idempotencyKey } : {}),
+        },
+        ...(body ? { body: JSON.stringify(body) } : {}),
+        redirect: "error",
+        signal: AbortSignal.timeout(this.timeoutMs()),
+      });
+    } catch {
+      throw new BadGatewayException("External payment gateway transport failed.");
+    }
     const payload = await response.json().catch(() => ({}));
     if (!response.ok || !payload || typeof payload !== "object" || Array.isArray(payload)) {
       throw new BadGatewayException(`External payment gateway request failed with HTTP ${response.status}.`);
@@ -159,13 +167,19 @@ export class PaymentGatewayService {
   }
 
   private baseUrl(): string {
-    const value = process.env.PAYMENT_GATEWAY_BASE_URL?.trim();
-    if (!value) throw new InternalServerErrorException("PAYMENT_GATEWAY_BASE_URL is required for external payments.");
-    let url: URL;
-    try { url = new URL(value.endsWith("/") ? value : `${value}/`); } catch { throw new InternalServerErrorException("PAYMENT_GATEWAY_BASE_URL is invalid."); }
-    if (process.env.NODE_ENV === "production" && url.protocol !== "https:") throw new InternalServerErrorException("Production payment gateways require HTTPS.");
-    if (url.protocol !== "https:" && url.protocol !== "http:") throw new BadRequestException("Unsupported payment gateway URL protocol.");
-    return url.toString();
+    try {
+      return validatedFinancialGatewayBaseUrl("PAYMENT_GATEWAY_BASE_URL");
+    } catch (error) {
+      throw new InternalServerErrorException(error instanceof Error ? error.message : "PAYMENT_GATEWAY_BASE_URL is invalid.");
+    }
+  }
+
+  private timeoutMs(): number {
+    try {
+      return financialGatewayTimeoutMs("PAYMENT_GATEWAY_TIMEOUT_MS");
+    } catch (error) {
+      throw new InternalServerErrorException(error instanceof Error ? error.message : "PAYMENT_GATEWAY_TIMEOUT_MS is invalid.");
+    }
   }
 
   private requiredText(value: unknown, label: string): string {
