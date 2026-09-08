@@ -16,15 +16,23 @@ export class PersistentOnboardingService {
 
   async list(principal: AuthPrincipal) {
     this.requireReviewPermission(principal);
-    return this.prisma.providerOnboarding.findMany({
+    const records = await this.prisma.providerOnboarding.findMany({
       include: {
-        credentials: true,
+        credentials: { orderBy: { createdAt: "asc" } },
         specialty: true,
         providerCategory: true,
         user: { select: { id: true, email: true, role: true, status: true } },
       },
       orderBy: { updatedAt: "desc" },
     });
+    if (records.length === 0) return [];
+
+    const providers = await this.prisma.provider.findMany({
+      where: { userId: { in: records.map((record) => record.userId) } },
+      select: { id: true, userId: true, class: true, displayName: true, legalName: true, status: true, updatedAt: true },
+    });
+    const providerByUser = new Map(providers.filter((provider) => provider.userId).map((provider) => [provider.userId as string, provider]));
+    return records.map((record) => ({ ...record, provider: providerByUser.get(record.userId) || null }));
   }
 
   async startDoctor(principal: AuthPrincipal, specialtyId: string) {
@@ -169,6 +177,8 @@ export class PersistentOnboardingService {
     if (record.state !== "PENDING_REVIEW" && record.state !== "REQUEST_CHANGES") throw new ConflictException("Onboarding is not under review.");
     const credential = await this.prisma.onboardingCredential.findFirst({ where: { id: credentialId, onboardingId } });
     if (!credential) throw new NotFoundException("Credential not found.");
+    if (state !== "VERIFIED" && state !== "REJECTED") throw new BadRequestException("Credential review state is invalid.");
+    if (state === "REJECTED" && !note?.trim()) throw new BadRequestException("A review note is required when rejecting a credential.");
 
     const result = await this.prisma.$transaction(async (tx) => {
       const reviewed = await tx.onboardingCredential.update({
@@ -183,7 +193,12 @@ export class PersistentOnboardingService {
       if (state === "REJECTED") {
         await tx.providerOnboarding.update({
           where: { id: onboardingId },
-          data: { state: "REQUEST_CHANGES", reviewNote: note?.trim() || "Credential changes required." },
+          data: {
+            state: "REQUEST_CHANGES",
+            reviewNote: note?.trim() || "Credential changes required.",
+            reviewerActorId: principal.accountId,
+            reviewedAt: new Date(),
+          },
         });
         const provider = await tx.provider.findUnique({ where: { userId: record.userId } });
         if (provider) await tx.provider.update({ where: { id: provider.id }, data: { status: "DRAFT" } });
@@ -197,7 +212,78 @@ export class PersistentOnboardingService {
       objectType: "PROVIDER_CREDENTIAL",
       objectId: credentialId,
       result: "SUCCESS",
-      metadata: { onboardingId, state },
+      metadata: { onboardingId, state, noteProvided: Boolean(note?.trim()) },
+    });
+    return result;
+  }
+
+  async requestChanges(principal: AuthPrincipal, onboardingId: string, note?: string) {
+    this.requireReviewPermission(principal);
+    const reviewNote = note?.trim();
+    if (!reviewNote) throw new BadRequestException("A review note is required when requesting changes.");
+    const record = await this.prisma.providerOnboarding.findUnique({ where: { id: onboardingId } });
+    if (!record) throw new NotFoundException("Onboarding not found.");
+    if (record.state !== "PENDING_REVIEW") throw new ConflictException("Only pending onboarding can be returned for changes.");
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const provider = await tx.provider.findUnique({ where: { userId: record.userId } });
+      if (provider) await tx.provider.update({ where: { id: provider.id }, data: { status: "DRAFT" } });
+      return tx.providerOnboarding.update({
+        where: { id: onboardingId },
+        data: {
+          state: "REQUEST_CHANGES",
+          reviewNote,
+          reviewerActorId: principal.accountId,
+          reviewedAt: new Date(),
+        },
+        include: { credentials: true, specialty: true, providerCategory: true },
+      });
+    });
+
+    await this.audit.write({
+      actorId: principal.accountId,
+      action: "ONBOARDING_CHANGES_REQUESTED",
+      objectType: "PROVIDER_ONBOARDING",
+      objectId: onboardingId,
+      result: "SUCCESS",
+      metadata: { kind: record.kind, note: reviewNote },
+    });
+    return result;
+  }
+
+  async reject(principal: AuthPrincipal, onboardingId: string, note?: string) {
+    this.requireReviewPermission(principal);
+    const reviewNote = note?.trim();
+    if (!reviewNote) throw new BadRequestException("A rejection note is required.");
+    const record = await this.prisma.providerOnboarding.findUnique({ where: { id: onboardingId } });
+    if (!record) throw new NotFoundException("Onboarding not found.");
+    if (record.state !== "PENDING_REVIEW" && record.state !== "REQUEST_CHANGES") {
+      throw new ConflictException("Only onboarding under review can be rejected.");
+    }
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const provider = await tx.provider.findUnique({ where: { userId: record.userId } });
+      if (provider) await tx.provider.update({ where: { id: provider.id }, data: { status: "REJECTED" } });
+      return tx.providerOnboarding.update({
+        where: { id: onboardingId },
+        data: {
+          state: "REJECTED",
+          reviewNote,
+          reviewerActorId: principal.accountId,
+          reviewedAt: new Date(),
+        },
+        include: { credentials: true, specialty: true, providerCategory: true },
+      });
+    });
+
+    await this.auth.revokeAll(principal, record.userId);
+    await this.audit.write({
+      actorId: principal.accountId,
+      action: "ONBOARDING_REJECTED",
+      objectType: "PROVIDER_ONBOARDING",
+      objectId: onboardingId,
+      result: "SUCCESS",
+      metadata: { kind: record.kind, accountId: record.userId, note: reviewNote },
     });
     return result;
   }
@@ -210,8 +296,19 @@ export class PersistentOnboardingService {
     });
     if (!record) throw new NotFoundException("Onboarding not found.");
     if (record.state !== "PENDING_REVIEW") throw new ConflictException("Onboarding must be pending review before approval.");
-    if (record.credentials.length === 0 || record.credentials.some((item) => item.state !== "VERIFIED")) {
-      throw new BadRequestException("All credentials must be verified before approval.");
+    if (record.credentials.length === 0) throw new BadRequestException("At least one credential is required before approval.");
+    if (record.credentials.some((item) => item.state === "PENDING")) {
+      throw new BadRequestException("Every pending credential must be reviewed before approval.");
+    }
+
+    const requiredTypes = record.kind === "DOCTOR"
+      ? ["medical-license"]
+      : this.jsonStringArray(record.providerCategory?.requiredCredentialTypes);
+    const verifiedCredentials = record.credentials.filter((item) => item.state === "VERIFIED");
+    const verifiedTypes = new Set(verifiedCredentials.map((item) => item.type.toLowerCase()));
+    const missingVerified = requiredTypes.filter((item) => !verifiedTypes.has(item.toLowerCase()));
+    if (missingVerified.length > 0) {
+      throw new BadRequestException(`Missing verified credential types: ${missingVerified.join(", ")}`);
     }
 
     const provider = await this.prisma.provider.findUnique({ where: { userId: record.userId } });
@@ -220,7 +317,9 @@ export class PersistentOnboardingService {
     const result = await this.prisma.$transaction(async (tx) => {
       if (record.kind === "DOCTOR") {
         if (!record.specialtyId) throw new BadRequestException("Doctor specialty is missing.");
-        const license = record.credentials.find((item) => item.type === "medical-license");
+        const license = [...verifiedCredentials]
+          .filter((item) => item.type === "medical-license")
+          .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())[0];
         if (!license?.number) throw new BadRequestException("Verified medical-license number is required for doctor activation.");
         const doctor = await tx.doctorProfile.upsert({
           where: { providerId: provider.id },
@@ -241,6 +340,39 @@ export class PersistentOnboardingService {
         });
       }
 
+      for (const credential of verifiedCredentials) {
+        const existing = credential.documentId
+          ? await tx.providerCredential.findFirst({ where: { providerId: provider.id, documentId: credential.documentId } })
+          : credential.number
+            ? await tx.providerCredential.findFirst({ where: { providerId: provider.id, type: credential.type, number: credential.number } })
+            : null;
+        if (existing) {
+          await tx.providerCredential.update({
+            where: { id: existing.id },
+            data: {
+              type: credential.type,
+              issuer: credential.issuer,
+              number: credential.number,
+              validUntil: credential.validUntil,
+              documentId: credential.documentId,
+              status: "VERIFIED",
+            },
+          });
+        } else {
+          await tx.providerCredential.create({
+            data: {
+              providerId: provider.id,
+              type: credential.type,
+              issuer: credential.issuer,
+              number: credential.number,
+              validUntil: credential.validUntil,
+              documentId: credential.documentId,
+              status: "VERIFIED",
+            },
+          });
+        }
+      }
+
       await tx.provider.update({ where: { id: provider.id }, data: { status: "ACTIVE" } });
       return tx.providerOnboarding.update({
         where: { id: onboardingId },
@@ -255,7 +387,7 @@ export class PersistentOnboardingService {
       objectType: "PROVIDER_ONBOARDING",
       objectId: onboardingId,
       result: "SUCCESS",
-      metadata: { kind: record.kind, providerId: provider.id },
+      metadata: { kind: record.kind, providerId: provider.id, promotedCredentials: verifiedCredentials.length },
     });
     return result;
   }
