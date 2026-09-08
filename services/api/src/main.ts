@@ -5,9 +5,11 @@ import { NestExpressApplication } from "@nestjs/platform-express";
 import helmet from "helmet";
 import { AppModule } from "./app.module";
 import { assertProductionKmsReady } from "./infrastructure/security/production-kms-preflight";
+import { assertProductionObjectStorageReady } from "./infrastructure/security/production-object-storage-preflight";
 
 async function bootstrap(): Promise<void> {
   await assertProductionKmsReady();
+  await assertProductionObjectStorageReady();
 
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { cors: false, rawBody: true });
   const configuredOrigins = process.env.ALLOWED_ORIGINS?.trim();
