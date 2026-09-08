@@ -73,11 +73,20 @@ jobs:
       CLAIMS_GATEWAY_PROVIDER: mock
       NOTIFICATION_GATEWAY_PROVIDER: mock
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
-      - run: npm install
+      - name: Use repository npm toolchain
+        run: |
+          npm install --global npm@10.9.2
+          test "$(npm --version)" = "10.9.2"
+      - name: Resolve candidate dependency lock without package scripts
+        run: npm install --package-lock-only --ignore-scripts
+      - name: Phase C2 verify dependency lock digest
+        run: sha256sum --check --strict .ci/npm-package-lock.sha256
+      - name: Install verified dependency graph
+        run: npm ci
       - run: npm run build
       - run: npm run db:deploy
       - name: Configure Slice 10.9+ SMART backend test clients
