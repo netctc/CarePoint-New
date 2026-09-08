@@ -28,8 +28,30 @@ export class ProviderSelfOnboardingService {
       this.prisma.providerOnboarding.findFirst({
         where: { userId: principal.accountId, kind },
         orderBy: { updatedAt: "desc" },
-        include: {
-          credentials: { orderBy: { createdAt: "desc" } },
+        select: {
+          id: true,
+          kind: true,
+          state: true,
+          submittedAt: true,
+          reviewedAt: true,
+          reviewNote: true,
+          createdAt: true,
+          updatedAt: true,
+          credentials: {
+            orderBy: { createdAt: "desc" },
+            select: {
+              id: true,
+              type: true,
+              number: true,
+              issuer: true,
+              validUntil: true,
+              state: true,
+              reviewNote: true,
+              reviewedAt: true,
+              createdAt: true,
+              updatedAt: true,
+            },
+          },
           specialty: {
             select: { id: true, code: true, labels: true, active: true },
           },
