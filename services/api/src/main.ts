@@ -8,10 +8,12 @@ import { assertProductionOtlpReady } from "./infrastructure/observability/produc
 import { assertProductionDatabaseReady } from "./infrastructure/prisma/production-database-preflight";
 import { assertProductionRedisReady } from "./infrastructure/redis/production-redis-preflight";
 import { assertProductionKmsReady } from "./infrastructure/security/production-kms-preflight";
+import { assertProductionKmsRotationReady } from "./infrastructure/security/production-kms-rotation-preflight";
 import { assertProductionObjectStorageReady } from "./infrastructure/security/production-object-storage-preflight";
 
 async function bootstrap(): Promise<void> {
   await assertProductionKmsReady();
+  await assertProductionKmsRotationReady();
   await assertProductionObjectStorageReady();
   await assertProductionDatabaseReady();
   await assertProductionRedisReady();
