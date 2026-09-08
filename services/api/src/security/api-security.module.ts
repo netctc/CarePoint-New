@@ -14,6 +14,7 @@ import { principalHasAnyPermission, type AuthPrincipal, type Permission } from "
 import { PrismaModule } from "../infrastructure/prisma/prisma.module";
 import { PrismaKnownRequestFilter } from "../infrastructure/prisma/prisma-conflict.filter";
 import { DatabaseAuditService } from "../infrastructure/audit/audit.service";
+import { KmsReadinessService } from "../infrastructure/security/kms-readiness.service";
 import { MfaEnvelopeService } from "../infrastructure/security/mfa-envelope.service";
 import { PersistentAuthService } from "./persistent-auth.service";
 import { SmartConfigurationService } from "./smart-configuration.service";
@@ -119,6 +120,7 @@ class ApiAccessGuard implements CanActivate {
   imports: [PrismaModule],
   providers: [
     DatabaseAuditService,
+    KmsReadinessService,
     MfaEnvelopeService,
     PersistentAuthService,
     SmartConfigurationService,
@@ -126,6 +128,6 @@ class ApiAccessGuard implements CanActivate {
     { provide: APP_GUARD, useClass: ApiAccessGuard },
     { provide: APP_FILTER, useClass: PrismaKnownRequestFilter },
   ],
-  exports: [DatabaseAuditService, MfaEnvelopeService, PersistentAuthService, SmartConfigurationService, SmartTokenService],
+  exports: [DatabaseAuditService, KmsReadinessService, MfaEnvelopeService, PersistentAuthService, SmartConfigurationService, SmartTokenService],
 })
 export class ApiSecurityModule {}
