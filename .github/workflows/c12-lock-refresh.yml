@@ -39,12 +39,7 @@ jobs:
           await writeFile('.ci/npm-package-lock.canonical.sha256', `${digest}\n`);
           console.log(`C12 refreshed canonical digest: ${digest}`);
           NODE
-      - name: Verify patched install and high-severity audit
-        run: |
-          npm ci
-          npm audit --audit-level=high
-          node .ci/verify-npm-lock.mjs
-      - name: Commit canonical security refresh
+      - name: Prepare canonical lock commit locally
         run: |
           git config user.name "carepoint-ci"
           git config user.email "carepoint-ci@users.noreply.github.com"
@@ -53,5 +48,17 @@ jobs:
             echo "Canonical lock already current."
           else
             git commit -m "C12 refresh canonical lock for multer 2.3.0 [skip ci]"
-            git push origin HEAD:feature/phase-c12-external-secret-rotation
           fi
+      - name: Verify patched install and high-severity audit
+        run: |
+          npm ci
+          npm audit --audit-level=high
+          node .ci/verify-npm-lock.mjs
+      - name: Push verified canonical security refresh
+        run: |
+          if git status --porcelain | grep -q .; then
+            echo "Unexpected working tree changes after verification."
+            git status --short
+            exit 1
+          fi
+          git push origin HEAD:feature/phase-c12-external-secret-rotation
