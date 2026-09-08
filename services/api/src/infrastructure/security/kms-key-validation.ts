@@ -84,5 +84,6 @@ export function kmsKeyMatches(value: string | undefined | null, configuredKeyId:
 
 function parseKmsKeyArn(value: string): { region: string; accountId: string } | null {
   const match = /^arn:[^:]+:kms:([^:]+):([0-9]{12}):key\/.+$/.exec(value.trim());
-  return match ? { region: match[1], accountId: match[2] } : null;
+  if (!match || !match[1] || !match[2]) return null;
+  return { region: match[1], accountId: match[2] };
 }
