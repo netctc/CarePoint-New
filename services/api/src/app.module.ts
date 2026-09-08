@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { ObservabilityModule } from "./infrastructure/observability/observability.module";
 import { RedisSecurityModule } from "./infrastructure/redis/redis-security.module";
 import { ApiSecurityModule } from "./security/api-security.module";
+import { AdminOperationsModule } from "./modules/admin-operations/admin-operations.module";
 import { AuditModule } from "./modules/audit/audit.module";
 import { BillingModule } from "./modules/billing/billing.module";
 import { ClaimsModule } from "./modules/claims/claims.module";
@@ -27,6 +28,7 @@ import { TransportModule } from "./modules/transport/transport.module";
     RedisSecurityModule,
     ApiSecurityModule,
     HealthModule,
+    AdminOperationsModule,
     ProvidersModule,
     EmergencyModule,
     TransportModule,
