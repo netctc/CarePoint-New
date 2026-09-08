@@ -489,7 +489,14 @@ class AdminOperationsController {
     @Query("providerId") providerId?: string,
     @Query("tzOffsetMinutes") timezoneOffsetMinutes?: string,
   ) {
-    return this.operations.appointments(principal, { from, to, modality, status, providerId, tzOffsetMinutes: timezoneOffsetMinutes });
+    return this.operations.appointments(principal, {
+      ...(from ? { from } : {}),
+      ...(to ? { to } : {}),
+      ...(modality ? { modality } : {}),
+      ...(status ? { status } : {}),
+      ...(providerId ? { providerId } : {}),
+      ...(timezoneOffsetMinutes ? { tzOffsetMinutes: timezoneOffsetMinutes } : {}),
+    });
   }
 
   @RequirePermissions("APPOINTMENT_OPERATE")
