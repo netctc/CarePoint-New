@@ -4,6 +4,7 @@ import { NestFactory } from "@nestjs/core";
 import { NestExpressApplication } from "@nestjs/platform-express";
 import helmet from "helmet";
 import { AppModule } from "./app.module";
+import { assertProductionOtlpReady } from "./infrastructure/observability/production-otel-preflight";
 import { assertProductionDatabaseReady } from "./infrastructure/prisma/production-database-preflight";
 import { assertProductionRedisReady } from "./infrastructure/redis/production-redis-preflight";
 import { assertProductionKmsReady } from "./infrastructure/security/production-kms-preflight";
@@ -14,6 +15,7 @@ async function bootstrap(): Promise<void> {
   await assertProductionObjectStorageReady();
   await assertProductionDatabaseReady();
   await assertProductionRedisReady();
+  await assertProductionOtlpReady();
 
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { cors: false, rawBody: true });
   const configuredOrigins = process.env.ALLOWED_ORIGINS?.trim();
@@ -39,7 +41,7 @@ async function bootstrap(): Promise<void> {
     origin: origins,
     credentials: true,
     methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Authorization", "Content-Type", "Idempotency-Key", "X-Request-Id"],
+    allowedHeaders: ["Authorization", "Content-Type", "Idempotency-Key", "X-Request-Id", "traceparent"],
   });
   app.setGlobalPrefix("api/v1");
   const port = Number(process.env.PORT ?? 4000);
