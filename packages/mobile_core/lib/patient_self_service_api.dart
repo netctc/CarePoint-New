@@ -62,8 +62,16 @@ extension CarePointProviderOnboardingApi on CarePointApi {
     return _asList(response['items']);
   }
 
+  Future<List<Map<String, dynamic>>> otherProviderCategories() async {
+    final response = _asMap(await _send('GET', '/other-provider-categories', authenticated: false));
+    return _asList(response['items']);
+  }
+
   Future<Map<String, dynamic>> startDoctorOnboarding(String specialtyId) async =>
       _asMap(await _send('POST', '/onboarding/doctors', body: {'specialtyId': specialtyId}));
+
+  Future<Map<String, dynamic>> startOtherProviderOnboarding(String providerCategoryId) async =>
+      _asMap(await _send('POST', '/onboarding/other-providers', body: {'providerCategoryId': providerCategoryId}));
 
   Future<Map<String, dynamic>> addProviderOnboardingCredential(
     String onboardingId, {
