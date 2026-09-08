@@ -1,5 +1,19 @@
 "use client";
+
 import { AppShell } from "@/components/AppShell";
+import { ProviderGovernanceQueue } from "@/components/ProviderGovernanceQueue";
 import { useI18n } from "@/lib/i18n";
-const specialties=[["Cardiology","42","7"],["Neurology","28","5"],["Pediatrics","35","9"],["Dermatology","22","4"],["General Medicine","54","0"],["Surgery","31","12"]];
-export default function DoctorsPage(){const{t}=useI18n();return <AppShell active="03" eyebrowKey="doctors.eyebrow" titleKey="doctors.title"><section className="doctor-hero"><div><span>{t("doctors.allBranches")}</span><h2>{t("doctors.heroTitle")}</h2><p>{t("doctors.heroText")}</p></div><div className="doctor-metric"><strong>212</strong><span>{t("doctors.activeDoctors")}</span><small>{t("doctors.credentialReady")}</small></div></section><section className="specialty-grid">{specialties.map(([name,count,subs],i)=><article className="specialty-card" key={name}><div className="specialty-icon">{String(i+1).padStart(2,"0")}</div><div><strong>{name}</strong><span>{count} {t("doctors.activeDoctors")}</span><small>{subs==="0"?"Core specialty":`${subs} sub-specialties`}</small></div><button>{t("common.open")} →</button></article>)}</section><section className="panel"><div className="panel-heading"><div><span>{t("doctors.credentialGovernance")}</span><h3>{t("doctors.activationReadiness")}</h3></div></div><div className="progress-row"><span>{t("doctors.licenseVerified")}</span><b>198 / 212</b><i><u style={{width:"93%"}}/></i></div><div className="progress-row"><span>{t("doctors.specialtyAssigned")}</span><b>212 / 212</b><i><u style={{width:"100%"}}/></i></div><div className="progress-row"><span>{t("doctors.mfaEnrolled")}</span><b>204 / 212</b><i><u style={{width:"96%"}}/></i></div></section></AppShell>}
+
+export default function DoctorsPage() {
+  const { t } = useI18n();
+  return <AppShell active="03" eyebrowKey="doctors.eyebrow" titleKey="doctors.title">
+    <section className="doctor-hero">
+      <div>
+        <span>{t("doctors.allBranches")}</span>
+        <h2>{t("doctors.heroTitle")}</h2>
+        <p>{t("doctors.heroText")}</p>
+      </div>
+    </section>
+    <ProviderGovernanceQueue kind="DOCTOR" />
+  </AppShell>;
+}

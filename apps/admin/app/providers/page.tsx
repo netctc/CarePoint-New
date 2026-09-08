@@ -1,5 +1,19 @@
 "use client";
+
 import { AppShell } from "@/components/AppShell";
+import { ProviderGovernanceQueue } from "@/components/ProviderGovernanceQueue";
 import { useI18n } from "@/lib/i18n";
-const providers=[["RapidCare EMS","Emergency Ambulance","Verified","24/7","Beirut"],["Noura Khoury","Nursing / ATS","Verified","Home visit","Mount Lebanon"],["MoveWell Rehab","Physiotherapy","Review","Clinic · Home","Beirut"],["Cedars AirMed","Air Medical Transport","Verified","On request","National"],["Nutrition Forward","Nutrition","Verified","Clinic · Online","Beirut"]];
-export default function ProvidersPage(){const{t}=useI18n();const categories=[[t("providers.nonDoctorHealthcare"),t("providers.nonDoctorHealthcareText")],[t("providers.groundTransport"),t("providers.groundTransportText")],[t("providers.airTransport"),t("providers.airTransportText")],[t("providers.emergencyAmbulance"),t("providers.emergencyAmbulanceText")]];return <AppShell active="02" eyebrowKey="providers.eyebrow" titleKey="providers.title"><section className="notice-card"><div><span>{t("providers.domainRule")}</span><h3>{t("providers.ruleTitle")}</h3><p>{t("providers.ruleText")}</p></div><button className="primary-button">{t("providers.newCategory")}</button></section><section className="panel"><div className="toolbar"><div className="search">⌕ {t("providers.search")}</div><div><button>{t("providers.allStatus")}</button><button>{t("providers.allFamilies")}</button></div></div><div className="data-table"><div className="table-row table-head"><span>{t("providers.provider")}</span><span>{t("providers.category")}</span><span>{t("providers.status")}</span><span>{t("providers.mode")}</span><span>{t("providers.coverage")}</span></div>{providers.map(p=><div className="table-row" key={p[0]}><span><b>{p[0]}</b><small>{t("common.independentEntity")}</small></span><span>{p[1]}</span><span><em className={p[2]==="Verified"?"ok":"warn"}>{p[2]==="Verified"?t("common.verified"):t("common.review")}</em></span><span>{p[3]}</span><span>{p[4]}</span></div>)}</div></section><section className="category-grid">{categories.map(([title,desc])=><article className="category-card" key={title}><span>{title}</span><p>{desc}</p><button>{t("providers.configureSchema")}</button></article>)}</section></AppShell>}
+
+export default function ProvidersPage() {
+  const { t } = useI18n();
+  return <AppShell active="02" eyebrowKey="providers.eyebrow" titleKey="providers.title">
+    <section className="notice-card">
+      <div>
+        <span>{t("providers.domainRule")}</span>
+        <h3>{t("providers.ruleTitle")}</h3>
+        <p>{t("providers.ruleText")}</p>
+      </div>
+    </section>
+    <ProviderGovernanceQueue kind="OTHER_PROVIDER" />
+  </AppShell>;
+}

@@ -7,6 +7,7 @@ interface DoctorOnboardingBody { specialtyId: string; }
 interface OtherProviderOnboardingBody { providerCategoryId: string; }
 interface CredentialBody { type: string; number?: string; issuer?: string; validUntil?: string; documentId?: string; }
 interface ReviewCredentialBody { state: "VERIFIED" | "REJECTED"; note?: string; }
+interface GovernanceDecisionBody { note: string; }
 
 @Controller("onboarding")
 class OnboardingController {
@@ -51,6 +52,26 @@ class OnboardingController {
     @Body() body: ReviewCredentialBody,
   ) {
     return this.onboarding.reviewCredential(principal, onboardingId, credentialId, body.state, body.note);
+  }
+
+  @RequirePermissions("PROVIDER_REVIEW")
+  @Post(":onboardingId/request-changes")
+  requestChanges(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Param("onboardingId") onboardingId: string,
+    @Body() body: GovernanceDecisionBody,
+  ) {
+    return this.onboarding.requestChanges(principal, onboardingId, body.note);
+  }
+
+  @RequirePermissions("PROVIDER_REVIEW")
+  @Post(":onboardingId/reject")
+  reject(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Param("onboardingId") onboardingId: string,
+    @Body() body: GovernanceDecisionBody,
+  ) {
+    return this.onboarding.reject(principal, onboardingId, body.note);
   }
 
   @RequirePermissions("PROVIDER_REVIEW")
