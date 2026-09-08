@@ -112,6 +112,13 @@ try {
   const loginPage = await web("/login");
   assert(loginPage.status === 200, `Admin login page failed with ${loginPage.status}.`);
 
+  const patient = await prisma.user.findUnique({ where: { email: patientEmail } });
+  assert(patient, "CI patient account was not found.");
+  const patientSessionsBefore = new Set((await prisma.authSession.findMany({
+    where: { userId: patient.id },
+    select: { id: true },
+  })).map((session) => session.id));
+
   const patientJar = new CookieJar();
   const patientAttempt = await webJson("/api/admin/auth/login", {
     method: "POST",
@@ -120,10 +127,10 @@ try {
   assert(patientAttempt.response.status === 403, `Patient admin login should be denied with 403, got ${patientAttempt.response.status}.`);
   assertNoBearerMaterial(patientAttempt.payload, "Patient-role denial");
   assert(!patientJar.has(ACCESS_COOKIE) && !patientJar.has(REFRESH_COOKIE), "Patient-role denial wrote admin auth cookies.");
-  const patient = await prisma.user.findUnique({ where: { email: patientEmail } });
-  assert(patient, "CI patient account was not found.");
-  const patientNewestSession = await prisma.authSession.findFirst({ where: { userId: patient.id }, orderBy: { createdAt: "desc" } });
-  assert(patientNewestSession?.revokedAt, "Non-admin session issued during Admin Web login was not revoked.");
+  const patientSessionsAfter = await prisma.authSession.findMany({ where: { userId: patient.id } });
+  const portalPatientSessions = patientSessionsAfter.filter((session) => !patientSessionsBefore.has(session.id));
+  assert(portalPatientSessions.length === 1, `Expected exactly one portal-issued Patient session, got ${portalPatientSessions.length}.`);
+  assert(portalPatientSessions[0].revokedAt, "Non-admin session issued during Admin Web login was not revoked.");
 
   const jar = new CookieJar();
   const adminLogin = await webJson("/api/admin/auth/login", {
