@@ -1,6 +1,7 @@
 import { BadGatewayException, Injectable, InternalServerErrorException } from "@nestjs/common";
 import { createHash } from "node:crypto";
 import type { InsuranceClaimStatus } from "@carepoint/contracts";
+import { discardProviderResponseBody, readBoundedProviderJsonObject } from "../../infrastructure/http/bounded-provider-response";
 import { financialGatewayTimeoutMs, validatedFinancialGatewayBaseUrl } from "../../infrastructure/http/financial-gateway-egress";
 import { ExternalSecretResolverService } from "../../infrastructure/secrets/external-secret-resolver.service";
 
@@ -169,11 +170,15 @@ export class ClaimsGatewayService {
     } catch {
       throw new BadGatewayException("External claims gateway transport failed.");
     }
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok || !payload || typeof payload !== "object" || Array.isArray(payload)) {
+    if (!response.ok) {
+      await discardProviderResponseBody(response);
       throw new BadGatewayException(`External claims gateway request failed with HTTP ${response.status}.`);
     }
-    return payload as Record<string, unknown>;
+    try {
+      return await readBoundedProviderJsonObject(response);
+    } catch {
+      throw new BadGatewayException("External claims gateway returned an invalid response.");
+    }
   }
 
   private provider(): "mock" | "external" {
