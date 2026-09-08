@@ -43,10 +43,10 @@ export class FhirDurableBulkExportService extends FhirBulkExportService implemen
 
   onModuleInit(): void {
     if (process.env.BULK_EXPORT_WORKER_ENABLED === "false") return;
-    const pollMs = this.integerEnv("BULK_EXPORT_WORKER_POLL_MS", DEFAULT_WORKER_POLL_MS, 250, 60_000);
+    const pollMs = this.workerIntegerEnv("BULK_EXPORT_WORKER_POLL_MS", DEFAULT_WORKER_POLL_MS, 250, 60_000);
     this.workerTimer = setInterval(() => void this.tick(), pollMs);
     this.workerTimer.unref?.();
-    const cleanupMs = this.integerEnv(
+    const cleanupMs = this.workerIntegerEnv(
       "BULK_EXPORT_CLEANUP_INTERVAL_SECONDS",
       DEFAULT_CLEANUP_INTERVAL_SECONDS,
       5,
@@ -103,7 +103,7 @@ export class FhirDurableBulkExportService extends FhirBulkExportService implemen
     if (this.ticking) return;
     this.ticking = true;
     try {
-      const batchSize = this.integerEnv("BULK_EXPORT_WORKER_BATCH_SIZE", DEFAULT_BATCH_SIZE, 1, 100);
+      const batchSize = this.workerIntegerEnv("BULK_EXPORT_WORKER_BATCH_SIZE", DEFAULT_BATCH_SIZE, 1, 100);
       await this.scheduleRetries(batchSize);
       const candidates = await this.jobs.recoverable(batchSize);
       for (const candidate of candidates) await this.recover(candidate);
@@ -115,7 +115,7 @@ export class FhirDurableBulkExportService extends FhirBulkExportService implemen
   }
 
   private async recover(candidate: DurableBulkJobRecord): Promise<void> {
-    const leaseSeconds = this.integerEnv("BULK_EXPORT_WORKER_LEASE_SECONDS", DEFAULT_LEASE_SECONDS, 30, 1_800);
+    const leaseSeconds = this.workerIntegerEnv("BULK_EXPORT_WORKER_LEASE_SECONDS", DEFAULT_LEASE_SECONDS, 30, 1_800);
     const claimed = await this.jobs.claim(candidate.id, this.workerId, leaseSeconds);
     if (!claimed) return;
     try {
@@ -136,8 +136,8 @@ export class FhirDurableBulkExportService extends FhirBulkExportService implemen
   }
 
   private async scheduleRetries(limit: number): Promise<void> {
-    const maxAttempts = this.integerEnv("BULK_EXPORT_MAX_ATTEMPTS", DEFAULT_MAX_ATTEMPTS, 1, 10);
-    const baseSeconds = this.integerEnv("BULK_EXPORT_RETRY_BASE_SECONDS", DEFAULT_RETRY_BASE_SECONDS, 1, 300);
+    const maxAttempts = this.workerIntegerEnv("BULK_EXPORT_MAX_ATTEMPTS", DEFAULT_MAX_ATTEMPTS, 1, 10);
+    const baseSeconds = this.workerIntegerEnv("BULK_EXPORT_RETRY_BASE_SECONDS", DEFAULT_RETRY_BASE_SECONDS, 1, 300);
     const failures = await this.jobs.retryableFailures(limit, maxAttempts);
     for (const failure of failures) {
       const exponent = Math.max(0, failure.attemptCount);
@@ -164,7 +164,7 @@ export class FhirDurableBulkExportService extends FhirBulkExportService implemen
     if (this.cleaning) return;
     this.cleaning = true;
     try {
-      const batchSize = this.integerEnv("BULK_EXPORT_CLEANUP_BATCH_SIZE", 25, 1, 200);
+      const batchSize = this.workerIntegerEnv("BULK_EXPORT_CLEANUP_BATCH_SIZE", 25, 1, 200);
       const expired = await this.jobs.expired(batchSize);
       for (const record of expired) {
         for (const objectKey of this.artifactKeys(record.payload)) {
@@ -247,7 +247,7 @@ export class FhirDurableBulkExportService extends FhirBulkExportService implemen
     return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
   }
 
-  private integerEnv(name: string, fallback: number, min: number, max: number): number {
+  private workerIntegerEnv(name: string, fallback: number, min: number, max: number): number {
     const raw = process.env[name]?.trim();
     if (!raw) return fallback;
     if (!/^\d+$/.test(raw)) throw new Error(`${name} must be an integer.`);
