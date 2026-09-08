@@ -30,14 +30,22 @@ export async function POST(request: NextRequest) {
   if (!action) return noStore(NextResponse.json({ message: "Unsupported finance action." }, { status: 400 }));
 
   const outbound: ActionBody = { action };
-  if (body.resourceId !== undefined) outbound.resourceId = cleanText(body.resourceId, 128) ?? undefined;
-  if (body.idempotencyKey !== undefined) outbound.idempotencyKey = cleanText(body.idempotencyKey, 500) ?? undefined;
-  if (body.reason !== undefined) outbound.reason = cleanText(body.reason, 500) ?? undefined;
-  if (body.reasonCode !== undefined) outbound.reasonCode = cleanText(body.reasonCode, 128) ?? undefined;
-  if (body.providerId !== undefined) outbound.providerId = cleanText(body.providerId, 128) ?? undefined;
-  if (body.currency !== undefined) outbound.currency = cleanText(body.currency, 3)?.toUpperCase();
-  if (body.periodStart !== undefined) outbound.periodStart = cleanText(body.periodStart, 64) ?? undefined;
-  if (body.periodEnd !== undefined) outbound.periodEnd = cleanText(body.periodEnd, 64) ?? undefined;
+  const resourceId = cleanText(body.resourceId, 128);
+  const idempotencyKey = cleanText(body.idempotencyKey, 500);
+  const reason = cleanText(body.reason, 500);
+  const reasonCode = cleanText(body.reasonCode, 128);
+  const providerId = cleanText(body.providerId, 128);
+  const currency = cleanText(body.currency, 3);
+  const periodStart = cleanText(body.periodStart, 64);
+  const periodEnd = cleanText(body.periodEnd, 64);
+  if (resourceId) outbound.resourceId = resourceId;
+  if (idempotencyKey) outbound.idempotencyKey = idempotencyKey;
+  if (reason) outbound.reason = reason;
+  if (reasonCode) outbound.reasonCode = reasonCode;
+  if (providerId) outbound.providerId = providerId;
+  if (currency) outbound.currency = currency.toUpperCase();
+  if (periodStart) outbound.periodStart = periodStart;
+  if (periodEnd) outbound.periodEnd = periodEnd;
   if (body.amountMinor !== undefined) {
     if (!Number.isInteger(body.amountMinor) || body.amountMinor <= 0) return noStore(NextResponse.json({ message: "amountMinor must be a positive integer." }, { status: 400 }));
     outbound.amountMinor = body.amountMinor;
