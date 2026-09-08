@@ -12,6 +12,8 @@ import { CareMembershipAccessService } from "./care-membership-access.service";
 import { CommunicationsService } from "./communications.service";
 import { MessagingEnvelopeService } from "./messaging-envelope.service";
 import { NotificationGatewayService } from "./notification-gateway.service";
+import { NotificationOutboxStoreService } from "./notification-outbox-store.service";
+import { NotificationOutboxWorkerService } from "./notification-outbox-worker.service";
 import { NotificationsService } from "./notifications.service";
 
 @Controller("communications")
@@ -138,6 +140,8 @@ class NotificationsController {
     MessagingEnvelopeService,
     NotificationsService,
     NotificationGatewayService,
+    NotificationOutboxStoreService,
+    NotificationOutboxWorkerService,
   ],
   exports: [NotificationsService],
 })
