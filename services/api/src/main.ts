@@ -10,6 +10,7 @@ import { assertProductionRedisReady } from "./infrastructure/redis/production-re
 import { assertProductionKmsReady } from "./infrastructure/security/production-kms-preflight";
 import { assertProductionKmsRotationReady } from "./infrastructure/security/production-kms-rotation-preflight";
 import { assertProductionObjectStorageReady } from "./infrastructure/security/production-object-storage-preflight";
+import { assertProductionSiemReady } from "./infrastructure/siem/production-siem-preflight";
 
 async function bootstrap(): Promise<void> {
   await assertProductionKmsReady();
@@ -18,6 +19,7 @@ async function bootstrap(): Promise<void> {
   await assertProductionDatabaseReady();
   await assertProductionRedisReady();
   await assertProductionOtlpReady();
+  assertProductionSiemReady();
 
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { cors: false, rawBody: true });
   const configuredOrigins = process.env.ALLOWED_ORIGINS?.trim();
