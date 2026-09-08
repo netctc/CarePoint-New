@@ -82,6 +82,8 @@ jobs:
           node-version: 22
       - run: npm install
       - run: npm run build
+      - name: Phase C1 production KMS preflight acceptance
+        run: npm --workspace @carepoint/api run c1:kms-preflight
       - run: npm run test
       - run: npm run db:deploy
       - run: npm run db:bootstrap
