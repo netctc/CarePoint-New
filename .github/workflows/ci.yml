@@ -86,8 +86,8 @@ jobs:
           test "$(npm --version)" = "10.9.2"
       - name: Resolve candidate dependency lock without package scripts
         run: npm install --package-lock-only --ignore-scripts
-      - name: Phase C2 verify dependency lock digest
-        run: sha256sum --check --strict .ci/npm-package-lock.sha256
+      - name: Phase C2 verify canonical dependency graph
+        run: node .ci/verify-npm-lock.mjs
       - name: Install verified dependency graph
         run: npm ci
       - name: Phase C2 high-severity dependency audit
@@ -188,12 +188,8 @@ jobs:
           (cd apps/patient-mobile && flutter pub get)
           (cd apps/doctor-mobile && flutter pub get)
           (cd apps/provider-mobile && flutter pub get)
-      - name: Phase C2 report mobile lock digests
-        run: |
-          sha256sum packages/mobile_core/pubspec.lock
-          sha256sum apps/patient-mobile/pubspec.lock
-          sha256sum apps/doctor-mobile/pubspec.lock
-          sha256sum apps/provider-mobile/pubspec.lock
+      - name: Phase C2 verify mobile dependency locks
+        run: sha256sum --check --strict .ci/flutter-pubspec-locks.sha256
       - name: Test shared mobile client
         working-directory: packages/mobile_core
         run: flutter analyze && flutter test
