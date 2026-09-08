@@ -1,0 +1,57 @@
+name: C12 Canonical Lock Refresh
+
+on:
+  push:
+    branches:
+      - feature/phase-c12-external-secret-rotation
+
+permissions:
+  contents: write
+
+jobs:
+  refresh-lock:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: feature/phase-c12-external-secret-rotation
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Use repository npm toolchain
+        run: |
+          npm install --global npm@10.9.2
+          test "$(npm --version)" = "10.9.2"
+      - name: Refresh package lock for security override
+        run: npm install --package-lock-only --ignore-scripts
+      - name: Refresh C2 canonical digest
+        run: |
+          node --input-type=module <<'NODE'
+          import { createHash } from 'node:crypto';
+          import { readFile, writeFile } from 'node:fs/promises';
+          const lock = JSON.parse(await readFile('package-lock.json', 'utf8'));
+          const sort = (value) => Array.isArray(value)
+            ? value.map(sort)
+            : (!value || typeof value !== 'object')
+              ? value
+              : Object.fromEntries(Object.keys(value).sort().map((key) => [key, sort(value[key])]));
+          const digest = createHash('sha256').update(JSON.stringify(sort(lock))).digest('hex');
+          await writeFile('.ci/npm-package-lock.canonical.sha256', `${digest}\n`);
+          console.log(`C12 refreshed canonical digest: ${digest}`);
+          NODE
+      - name: Verify patched install and high-severity audit
+        run: |
+          npm ci
+          npm audit --audit-level=high
+          node .ci/verify-npm-lock.mjs
+      - name: Commit canonical security refresh
+        run: |
+          git config user.name "carepoint-ci"
+          git config user.email "carepoint-ci@users.noreply.github.com"
+          git add package-lock.json .ci/npm-package-lock.canonical.sha256
+          if git diff --cached --quiet; then
+            echo "Canonical lock already current."
+          else
+            git commit -m "C12 refresh canonical lock for multer 2.3.0 [skip ci]"
+            git push origin HEAD:feature/phase-c12-external-secret-rotation
+          fi
