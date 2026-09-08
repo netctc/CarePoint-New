@@ -1,12 +1,13 @@
+import { randomUUID } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 const apiBase = process.env.CAREPOINT_API_URL || "http://127.0.0.1:4000/api/v1";
 const adminBase = process.env.CAREPOINT_ADMIN_URL || "http://localhost:3000";
 const adminEmail = process.env.BOOTSTRAP_ADMIN_EMAIL || "admin-ci@carepoint.test";
-const adminPassword = process.env.BOOTSTRAP_ADMIN_PASSWORD || "CarePoint-CI-Admin#2026";
+const adminPassword = process.env.BOOTSTRAP_ADMIN_PASSWORD;
 const targetEmail = "b8-telehealth-patient-ci@carepoint.test";
-const targetPassword = "CarePoint-B8-Patient#2026";
+const targetPassword = process.env.B8_PATIENT_PASSWORD || `${randomUUID()}aA1!`;
 const roomPrefix = "cp_b8_secret_room_";
 
 class Jar {
@@ -18,7 +19,7 @@ class Jar {
 function assert(ok,message){ if(!ok) throw new Error(message); }
 async function api(path,init={}){ const response=await fetch(apiBase+path,{...init,headers:{accept:"application/json",...(init.body?{"content-type":"application/json"}:{}),...(init.headers||{})}}); const text=await response.text(); let payload={}; try{payload=text?JSON.parse(text):{};}catch{payload={raw:text};} return {response,payload,text}; }
 async function web(path,jar,init={}){ const headers={accept:"application/json",cookie:jar.header(),...(init.body?{"content-type":"application/json"}:{}),...(init.headers||{})}; if(init.method&&init.method!=="GET"&&!headers.origin) headers.origin=adminBase; const response=await fetch(adminBase+path,{...init,headers,redirect:"manual"}); jar.capture(response); const text=await response.text(); let payload={}; try{payload=text?JSON.parse(text):{};}catch{payload={raw:text};} return {response,payload,text}; }
-async function login(email,password){ const result=await api("/iam/login",{method:"POST",body:JSON.stringify({email,password})}); assert(result.response.ok&&result.payload.accessToken,`Login failed for ${email}: ${result.text}`); return result.payload.accessToken; }
+async function login(email,password){ assert(password,`Password fixture missing for ${email}`); const result=await api("/iam/login",{method:"POST",body:JSON.stringify({email,password})}); assert(result.response.ok&&result.payload.accessToken,`Login failed for ${email}: ${result.text}`); return result.payload.accessToken; }
 
 async function cleanup(){
   const patient=await prisma.user.findUnique({where:{email:targetEmail},select:{id:true,patientProfile:{select:{id:true}}}}).catch(()=>null);
@@ -31,9 +32,26 @@ async function cleanup(){
   if(sessionIds.length||ids.length){
     await prisma.auditEvent.deleteMany({where:{OR:[...(sessionIds.length?[{objectId:{in:sessionIds}}]:[]),...(ids.length?[{objectId:{in:ids}}]:[])]}}).catch(()=>{});
   }
-  if(ids.length) await prisma.appointment.deleteMany({where:{id:{in:ids}}}).catch(()=>{});
+  if(ids.length){
+    await prisma.insuranceClaim.deleteMany({where:{appointmentId:{in:ids}}}).catch(()=>{});
+    const invoiceIds=(await prisma.invoice.findMany({where:{appointmentId:{in:ids}},select:{id:true}}).catch(()=>[])).map(x=>x.id);
+    if(invoiceIds.length){
+      const paymentIntentIds=(await prisma.paymentIntent.findMany({where:{invoiceId:{in:invoiceIds}},select:{id:true}}).catch(()=>[])).map(x=>x.id);
+      if(paymentIntentIds.length) await prisma.paymentRefund.deleteMany({where:{paymentIntentId:{in:paymentIntentIds}}}).catch(()=>{});
+      await prisma.paymentReceipt.deleteMany({where:{invoiceId:{in:invoiceIds}}}).catch(()=>{});
+      await prisma.providerLedgerEntry.deleteMany({where:{invoiceId:{in:invoiceIds}}}).catch(()=>{});
+      await prisma.paymentIntent.deleteMany({where:{invoiceId:{in:invoiceIds}}}).catch(()=>{});
+    }
+    await prisma.invoice.deleteMany({where:{appointmentId:{in:ids}}}).catch(()=>{});
+    await prisma.pricingSnapshot.deleteMany({where:{appointmentId:{in:ids}}}).catch(()=>{});
+    await prisma.telehealthSession.deleteMany({where:{appointmentId:{in:ids}}}).catch(()=>{});
+    await prisma.appointment.deleteMany({where:{id:{in:ids}}}).catch(()=>{});
+  }
   if(consentIds.length) await prisma.consent.deleteMany({where:{id:{in:consentIds}}}).catch(()=>{});
-  if(provider) await prisma.provider.delete({where:{id:provider.id}}).catch(()=>{});
+  if(provider){
+    await prisma.service.deleteMany({where:{providerId:provider.id}}).catch(()=>{});
+    await prisma.provider.delete({where:{id:provider.id}}).catch(()=>{});
+  }
   if(patient) await prisma.user.delete({where:{id:patient.id}}).catch(()=>{});
 }
 
@@ -56,14 +74,14 @@ try {
   await prisma.serviceModality.create({data:{serviceId:service.id,modality:"TELEMEDICINE",durationMinutes:30,priceMinor:5000,active:true}});
 
   const now=Date.now();
-  const resetAppointment=await prisma.appointment.create({data:{patientId:patient.patientProfile.id,providerId:provider.id,serviceId:service.id,modality:"TELEMEDICINE",status:"CONFIRMED",startsAt:new Date(now+5*60_000),endsAt:new Date(now+35*60_000)}});
-  const activeAppointment=await prisma.appointment.create({data:{patientId:patient.patientProfile.id,providerId:provider.id,serviceId:service.id,modality:"TELEMEDICINE",status:"CONFIRMED",startsAt:new Date(now-20*60_000),endsAt:new Date(now+10*60_000)}});
-  const missingSessionAppointment=await prisma.appointment.create({data:{patientId:patient.patientProfile.id,providerId:provider.id,serviceId:service.id,modality:"TELEMEDICINE",status:"CONFIRMED",startsAt:new Date(now+7*60_000),endsAt:new Date(now+37*60_000)}});
+  const activeAppointment=await prisma.appointment.create({data:{patientId:patient.patientProfile.id,providerId:provider.id,serviceId:service.id,modality:"TELEMEDICINE",status:"CONFIRMED",startsAt:new Date(now-50*60_000),endsAt:new Date(now-20*60_000)}});
+  const missingSessionAppointment=await prisma.appointment.create({data:{patientId:patient.patientProfile.id,providerId:provider.id,serviceId:service.id,modality:"TELEMEDICINE",status:"CONFIRMED",startsAt:new Date(now+5*60_000),endsAt:new Date(now+35*60_000)}});
+  const resetAppointment=await prisma.appointment.create({data:{patientId:patient.patientProfile.id,providerId:provider.id,serviceId:service.id,modality:"TELEMEDICINE",status:"CONFIRMED",startsAt:new Date(now+40*60_000),endsAt:new Date(now+70*60_000)}});
 
   const resetConsent=await prisma.consent.create({data:{patientId:patient.patientProfile.id,providerId:provider.id,scope:"TELEMEDICINE_SESSION",version:"telemedicine-v1",state:"GRANTED"}});
   const activeConsent=await prisma.consent.create({data:{patientId:patient.patientProfile.id,providerId:provider.id,scope:"TELEMEDICINE_SESSION",version:"telemedicine-v1",state:"GRANTED"}});
   const resetSession=await prisma.telehealthSession.create({data:{appointmentId:resetAppointment.id,roomName:`${roomPrefix}reset`,status:"READY",consentId:resetConsent.id,consentVersion:"telemedicine-v1",patientReadyAt:new Date(),providerReadyAt:new Date(),patientReadiness:{camera:true,microphone:true,network:true,checkedAt:new Date().toISOString()},providerReadiness:{camera:true,microphone:true,network:true,checkedAt:new Date().toISOString()},e2eeKeyId:"b8-hidden-key",e2eeWrappedKey:"b8-hidden-wrapped-key",e2eeIv:"b8-hidden-iv",e2eeCiphertext:"b8-hidden-ciphertext"}});
-  const activeSession=await prisma.telehealthSession.create({data:{appointmentId:activeAppointment.id,roomName:`${roomPrefix}active`,status:"ACTIVE",consentId:activeConsent.id,consentVersion:"telemedicine-v1",patientReadyAt:new Date(now-25*60_000),providerReadyAt:new Date(now-25*60_000),patientReadiness:{camera:true,microphone:true,network:true},providerReadiness:{camera:true,microphone:true,network:true},startedAt:new Date(now-18*60_000),e2eeKeyId:"b8-active-hidden-key",e2eeWrappedKey:"b8-active-hidden-wrapped-key",e2eeIv:"b8-active-hidden-iv",e2eeCiphertext:"b8-active-hidden-ciphertext"}});
+  const activeSession=await prisma.telehealthSession.create({data:{appointmentId:activeAppointment.id,roomName:`${roomPrefix}active`,status:"ACTIVE",consentId:activeConsent.id,consentVersion:"telemedicine-v1",patientReadyAt:new Date(now-50*60_000),providerReadyAt:new Date(now-50*60_000),patientReadiness:{camera:true,microphone:true,network:true},providerReadiness:{camera:true,microphone:true,network:true},startedAt:new Date(now-48*60_000),e2eeKeyId:"b8-active-hidden-key",e2eeWrappedKey:"b8-active-hidden-wrapped-key",e2eeIv:"b8-active-hidden-iv",e2eeCiphertext:"b8-active-hidden-ciphertext"}});
 
   stage="role-isolation";
   console.log(`B8 stage: ${stage}`);
