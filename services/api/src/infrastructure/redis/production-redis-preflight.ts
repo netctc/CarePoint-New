@@ -35,7 +35,7 @@ export async function assertProductionRedisReady(options: ProductionRedisPreflig
   try {
     inspection = await inspectRedis(connection);
   } catch (error) {
-    throw new Error(`Production Redis preflight could not verify Redis readiness: ${errorMessage(error)}`);
+    throw new Error(`Production Redis preflight could not verify Redis readiness: ${safeErrorMessage(error)}`);
   }
 
   if (inspection.ping !== "PONG") throw new Error("Production Redis preflight requires a successful PING response.");
@@ -149,7 +149,27 @@ function nonNegativeInteger(value: string, name: string): number {
   return parsed;
 }
 
-function errorMessage(error: unknown): string {
-  if (error instanceof Error && error.message) return error.message;
-  return String(error);
+function safeErrorMessage(error: unknown): string {
+  const source = error instanceof Error && error.message ? error.message : String(error);
+  let sanitized = source;
+  const rawUrl = process.env.REDIS_URL?.trim();
+  if (rawUrl) {
+    sanitized = sanitized.split(rawUrl).join("<redis-url>");
+    try {
+      const parsed = new URL(rawUrl);
+      const encodedPassword = parsed.password;
+      if (encodedPassword) {
+        sanitized = sanitized.split(encodedPassword).join("<redis-password>");
+        try {
+          const decodedPassword = decodeURIComponent(encodedPassword);
+          if (decodedPassword) sanitized = sanitized.split(decodedPassword).join("<redis-password>");
+        } catch {
+          // Keep the encoded secret redaction above.
+        }
+      }
+    } catch {
+      // REDIS_URL validation happens before live inspection.
+    }
+  }
+  return sanitized.slice(0, 500);
 }
