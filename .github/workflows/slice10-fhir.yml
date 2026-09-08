@@ -83,8 +83,8 @@ jobs:
           test "$(npm --version)" = "10.9.2"
       - name: Resolve candidate dependency lock without package scripts
         run: npm install --package-lock-only --ignore-scripts
-      - name: Phase C2 verify dependency lock digest
-        run: sha256sum --check --strict .ci/npm-package-lock.sha256
+      - name: Phase C2 verify canonical dependency graph
+        run: node .ci/verify-npm-lock.mjs
       - name: Install verified dependency graph
         run: npm ci
       - run: npm run build
