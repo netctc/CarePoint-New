@@ -163,7 +163,7 @@ class AdminAnalyticsService {
     const telehealthByStatus = Object.fromEntries(TELEHEALTH_STATUSES.map((status) => [status, 0])) as Record<string, number>;
     for (const item of telehealthStatusCounts) telehealthByStatus[item.status] = item.count;
     const initializedSessions = Object.values(telehealthByStatus).reduce((sum, value) => sum + value, 0);
-    const telemedicineAppointments = appointments.byModality.TELEMEDICINE;
+    const telemedicineAppointments = appointments.byModality.TELEMEDICINE ?? 0;
 
     return {
       appointments,
@@ -218,9 +218,9 @@ class AdminAnalyticsService {
       total,
       byStatus,
       byModality,
-      completionRate: this.rate(byStatus.COMPLETED, total),
-      cancellationRate: this.rate(byStatus.CANCELLED, total),
-      noShowRate: this.rate(byStatus.NO_SHOW, total),
+      completionRate: this.rate(byStatus.COMPLETED ?? 0, total),
+      cancellationRate: this.rate(byStatus.CANCELLED ?? 0, total),
+      noShowRate: this.rate(byStatus.NO_SHOW ?? 0, total),
     };
   }
 
@@ -272,7 +272,7 @@ class AdminAnalyticsService {
       total,
       byStatus,
       reviewRequired,
-      denialRate: this.rate(byStatus.DENIED, total),
+      denialRate: this.rate(byStatus.DENIED ?? 0, total),
     };
   }
 
