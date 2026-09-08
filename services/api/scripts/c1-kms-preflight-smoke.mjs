@@ -16,6 +16,7 @@ const providerEnv = {
   DOCUMENT_SIGNING_PROVIDER: "aws-kms-hmac",
   MESSAGING_KEY_PROVIDER: "aws-kms",
   TELEHEALTH_KEY_PROVIDER: "aws-kms",
+  EXTERNAL_SECRET_KEY_PROVIDER: "aws-kms",
 };
 
 const keyEnv = {
@@ -27,6 +28,7 @@ const keyEnv = {
   DOCUMENT_SIGNING_KMS_KEY_ID: "c1-documents-signing",
   MESSAGING_KMS_KEY_ID: "c1-messaging",
   TELEHEALTH_KMS_KEY_ID: "c1-telehealth",
+  EXTERNAL_SECRET_KMS_KEY_ID: "c1-external-secrets",
 };
 
 const signingKeys = new Set([keyEnv.ORDER_SIGNING_KMS_KEY_ID, keyEnv.DOCUMENT_SIGNING_KMS_KEY_ID]);
@@ -75,14 +77,15 @@ await assertProductionKmsReady({
     return validMetadata(keyId);
   },
 });
-assert.equal(described.length, 8, "all C1 production KMS keys must be described");
-assert.equal(new Set(described).size, 8, "C1 production KMS keys must be checked individually");
+assert.equal(described.length, 9, "all C1/C12 production KMS keys must be described");
+assert.equal(new Set(described).size, 9, "production KMS keys must be checked individually");
 
 await expectReject(/AWS_REGION is required/, () => { delete process.env.AWS_REGION; });
 await expectReject(/AWS_ENDPOINT_URL_KMS is development\/test-only/, () => { process.env.AWS_ENDPOINT_URL_KMS = "http://localhost:4566"; });
 await expectReject(/AWS_KMS_ACCOUNT_ID must contain exactly 12 digits/, () => { process.env.AWS_KMS_ACCOUNT_ID = "123"; });
 await expectReject(/ORDER_KEY_PROVIDER must be 'aws-kms'/, () => { process.env.ORDER_KEY_PROVIDER = "local"; });
 await expectReject(/TELEHEALTH_KMS_KEY_ID is required/, () => { delete process.env.TELEHEALTH_KMS_KEY_ID; });
+await expectReject(/EXTERNAL_SECRET_KMS_KEY_ID is required/, () => { delete process.env.EXTERNAL_SECRET_KMS_KEY_ID; });
 
 await expectReject(
   /CLINICAL_KMS_KEY_ID is not enabled/,
