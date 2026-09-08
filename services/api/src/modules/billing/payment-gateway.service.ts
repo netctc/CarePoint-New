@@ -1,5 +1,6 @@
 import { BadGatewayException, BadRequestException, Injectable, InternalServerErrorException } from "@nestjs/common";
 import { createHash } from "node:crypto";
+import { ExternalSecretResolverService } from "../../infrastructure/secrets/external-secret-resolver.service";
 
 type PaymentStatus = "REQUIRES_ACTION" | "PROCESSING" | "SUCCEEDED" | "FAILED" | "CANCELLED";
 type RefundGatewayStatus = "PENDING" | "SUCCEEDED" | "FAILED";
@@ -27,6 +28,8 @@ export interface GatewayPayoutResult {
 
 @Injectable()
 export class PaymentGatewayService {
+  constructor(private readonly secrets: ExternalSecretResolverService = new ExternalSecretResolverService()) {}
+
   name(): string {
     return this.provider() === "mock" ? "MOCK_PSP" : "EXTERNAL_PSP";
   }
@@ -137,8 +140,7 @@ export class PaymentGatewayService {
 
   private async externalRequest(method: "GET" | "POST", path: string, body?: Record<string, unknown>, idempotencyKey?: string): Promise<Record<string, unknown>> {
     const base = this.baseUrl();
-    const apiKey = process.env.PAYMENT_GATEWAY_API_KEY?.trim();
-    if (!apiKey) throw new InternalServerErrorException("PAYMENT_GATEWAY_API_KEY is required for external payments.");
+    const apiKey = await this.secrets.resolve("payment-gateway-api-key");
     const response = await fetch(new URL(path.replace(/^\//, ""), base), {
       method,
       headers: {
