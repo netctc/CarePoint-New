@@ -6,18 +6,18 @@ type KeyRequirement = {
   expectedProvider: string;
   keyEnv: string;
   keyUsage: "ENCRYPT_DECRYPT" | "GENERATE_VERIFY_MAC";
-  keySpec?: string;
+  keySpec: "SYMMETRIC_DEFAULT" | "HMAC_256";
 };
 
 const REQUIREMENTS: KeyRequirement[] = [
-  { domain: "MFA secrets", providerEnv: "MFA_KEY_PROVIDER", expectedProvider: "aws-kms", keyEnv: "MFA_KMS_KEY_ID", keyUsage: "ENCRYPT_DECRYPT" },
-  { domain: "clinical records", providerEnv: "CLINICAL_KEY_PROVIDER", expectedProvider: "aws-kms", keyEnv: "CLINICAL_KMS_KEY_ID", keyUsage: "ENCRYPT_DECRYPT" },
-  { domain: "clinical orders/results", providerEnv: "ORDER_KEY_PROVIDER", expectedProvider: "aws-kms", keyEnv: "ORDER_KMS_KEY_ID", keyUsage: "ENCRYPT_DECRYPT" },
+  { domain: "MFA secrets", providerEnv: "MFA_KEY_PROVIDER", expectedProvider: "aws-kms", keyEnv: "MFA_KMS_KEY_ID", keyUsage: "ENCRYPT_DECRYPT", keySpec: "SYMMETRIC_DEFAULT" },
+  { domain: "clinical records", providerEnv: "CLINICAL_KEY_PROVIDER", expectedProvider: "aws-kms", keyEnv: "CLINICAL_KMS_KEY_ID", keyUsage: "ENCRYPT_DECRYPT", keySpec: "SYMMETRIC_DEFAULT" },
+  { domain: "clinical orders/results", providerEnv: "ORDER_KEY_PROVIDER", expectedProvider: "aws-kms", keyEnv: "ORDER_KMS_KEY_ID", keyUsage: "ENCRYPT_DECRYPT", keySpec: "SYMMETRIC_DEFAULT" },
   { domain: "clinical order attestation", providerEnv: "ORDER_SIGNING_PROVIDER", expectedProvider: "aws-kms-hmac", keyEnv: "ORDER_SIGNING_KMS_KEY_ID", keyUsage: "GENERATE_VERIFY_MAC", keySpec: "HMAC_256" },
-  { domain: "clinical documents", providerEnv: "DOCUMENT_KEY_PROVIDER", expectedProvider: "aws-kms", keyEnv: "DOCUMENT_KMS_KEY_ID", keyUsage: "ENCRYPT_DECRYPT" },
+  { domain: "clinical documents", providerEnv: "DOCUMENT_KEY_PROVIDER", expectedProvider: "aws-kms", keyEnv: "DOCUMENT_KMS_KEY_ID", keyUsage: "ENCRYPT_DECRYPT", keySpec: "SYMMETRIC_DEFAULT" },
   { domain: "clinical document attestation", providerEnv: "DOCUMENT_SIGNING_PROVIDER", expectedProvider: "aws-kms-hmac", keyEnv: "DOCUMENT_SIGNING_KMS_KEY_ID", keyUsage: "GENERATE_VERIFY_MAC", keySpec: "HMAC_256" },
-  { domain: "secure messaging", providerEnv: "MESSAGING_KEY_PROVIDER", expectedProvider: "aws-kms", keyEnv: "MESSAGING_KMS_KEY_ID", keyUsage: "ENCRYPT_DECRYPT" },
-  { domain: "telehealth session keys", providerEnv: "TELEHEALTH_KEY_PROVIDER", expectedProvider: "aws-kms", keyEnv: "TELEHEALTH_KMS_KEY_ID", keyUsage: "ENCRYPT_DECRYPT" },
+  { domain: "secure messaging", providerEnv: "MESSAGING_KEY_PROVIDER", expectedProvider: "aws-kms", keyEnv: "MESSAGING_KMS_KEY_ID", keyUsage: "ENCRYPT_DECRYPT", keySpec: "SYMMETRIC_DEFAULT" },
+  { domain: "telehealth session keys", providerEnv: "TELEHEALTH_KEY_PROVIDER", expectedProvider: "aws-kms", keyEnv: "TELEHEALTH_KMS_KEY_ID", keyUsage: "ENCRYPT_DECRYPT", keySpec: "SYMMETRIC_DEFAULT" },
 ];
 
 export async function assertProductionKmsReady(): Promise<void> {
@@ -49,7 +49,7 @@ export async function assertProductionKmsReady(): Promise<void> {
     if (metadata.KeyUsage !== requirement.keyUsage) {
       throw new Error(`${requirement.keyEnv} must use ${requirement.keyUsage}, got '${metadata.KeyUsage ?? "unknown"}' (${requirement.domain}).`);
     }
-    if (requirement.keySpec && metadata.KeySpec !== requirement.keySpec) {
+    if (metadata.KeySpec !== requirement.keySpec) {
       throw new Error(`${requirement.keyEnv} must use ${requirement.keySpec}, got '${metadata.KeySpec ?? "unknown"}' (${requirement.domain}).`);
     }
   }
