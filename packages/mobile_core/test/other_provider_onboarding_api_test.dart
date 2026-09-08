@@ -27,7 +27,7 @@ void main() {
               'id': 'cat-1',
               'slug': 'physiotherapy',
               'labels': {'en': 'Physiotherapy', 'ar': 'العلاج الطبيعي', 'fr': 'Physiothérapie', 'es': 'Fisioterapia'},
-              'family': 'ALLIED_HEALTH',
+              'family': 'NON_DOCTOR_HEALTHCARE',
               'requiredCredentialTypes': ['professional-license'],
               'enabledModalities': ['CLINIC', 'HOME_VISIT']
             }
