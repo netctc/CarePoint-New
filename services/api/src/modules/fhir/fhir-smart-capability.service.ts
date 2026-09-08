@@ -30,7 +30,7 @@ export class FhirSmartCapabilityService {
         display: "SMART-on-FHIR",
       }],
     }];
-    security.description = "CarePoint supports patient-mediated SMART authorization plus pre-registered asymmetric backend-services clients. Backend clients use private_key_jwt and narrowly registered system scopes; clinical system scopes introduced in Slice 10.12 authorize protected Bulk Data export only and do not enable interactive system reads of clinical resources.";
+    security.description = "CarePoint supports patient-mediated SMART authorization plus pre-registered asymmetric backend-services clients. Backend clients use private_key_jwt and narrowly registered system scopes; clinical system scopes authorize protected Bulk Data export only and do not enable interactive system reads of clinical resources.";
     server.security = security;
     server.resource = this.augmentResources(server.resource);
     server.operation = this.augmentOperations(server.operation);
@@ -41,10 +41,10 @@ export class FhirSmartCapabilityService {
     const implementation = this.isObject(statement.implementation) ? statement.implementation : {};
     return {
       ...statement,
-      software: { ...software, version: "slice-10.12" },
+      software: { ...software, version: "slice-10.13" },
       implementation: {
         ...implementation,
-        description: "CarePoint FHIR R4 read-only facade with patient-scoped SMART browser authorization, rotating offline refresh families, asymmetric private_key_jwt backend services, and hardened asynchronous Bulk Data $export. Slice 10.12 extends backend export through CarePoint's encrypted clinical, order and diagnostic domain boundaries for Encounter, Observation, MedicationRequest, ServiceRequest and released DiagnosticReport resources without exposing raw envelopes, binary documents or PACS references.",
+        description: "CarePoint FHIR R4 read-only facade with patient-scoped SMART browser authorization, asymmetric backend services and hardened Bulk Data $export. Slice 10.13 makes Bulk Data jobs durable in PostgreSQL, adds multi-instance lease-based recovery, bounded retry/backoff and automatic expired-artifact cleanup while retaining Redis for distributed security controls and rolling-deployment compatibility.",
       },
       rest,
     };
@@ -69,7 +69,7 @@ export class FhirSmartCapabilityService {
     const exportOperation = {
       name: "export",
       definition,
-      documentation: "Asynchronous FHIR Bulk Data system-level export for Patient, Appointment, Encounter, Observation, MedicationRequest, ServiceRequest and DiagnosticReport when every requested type is covered by the backend token's registered system scope. Patient/Appointment retain strict _typeFilter support. Clinical resources are materialized only through CarePoint domain encryption and attestation services; laboratory Observations and DiagnosticReports are exported only after their existing RELEASED gates. Clinical system scopes remain bulk-export-only in Slice 10.12.",
+      documentation: "Asynchronous FHIR Bulk Data system-level export for Patient, Appointment, Encounter, Observation, MedicationRequest, ServiceRequest and DiagnosticReport when every requested type is covered by the backend token's registered system scope. Jobs are durably persisted in PostgreSQL and recovered by lease-based workers after API restarts; output remains protected by client ownership, scope checks, retention, integrity and storage lifecycle controls.",
     };
     if (this.isObject(existing)) Object.assign(existing, exportOperation);
     else operations.push(exportOperation);
