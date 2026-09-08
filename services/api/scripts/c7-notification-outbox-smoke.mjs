@@ -184,9 +184,9 @@ try {
   process.env.NOTIFICATION_GATEWAY_PROVIDER = "external";
   delete process.env.NOTIFICATION_GATEWAY_BASE_URL;
   delete process.env.NOTIFICATION_GATEWAY_API_KEY;
-  assert.throws(() => gateway.assertProductionReady(), /API_KEY is required/);
+  delete process.env.NOTIFICATION_GATEWAY_API_KEY_KMS_FILE;
+  assert.throws(() => gateway.assertProductionReady(), /BASE_URL is required/);
 
-  process.env.NOTIFICATION_GATEWAY_API_KEY = "c7-placeholder-runtime-secret";
   process.env.NOTIFICATION_GATEWAY_BASE_URL = "http://notification.example.test";
   assert.throws(() => gateway.assertProductionReady(), /require HTTPS/);
 
