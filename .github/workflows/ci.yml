@@ -125,8 +125,10 @@ jobs:
           done
           cat /tmp/carepoint-admin.log
           exit 1
-      - name: Phase B1 Admin authentication smoke test
+      - name: Phase B1-B5 Admin acceptance
         run: node services/api/scripts/admin-b1-smoke.mjs
+      - name: Phase B6 Admin revenue cycle and finance acceptance
+        run: node services/api/scripts/admin-b6-smoke.mjs
       - name: Slice 2 scheduling and concurrency smoke test
         run: node services/api/scripts/slice2-smoke.mjs
       - name: Slice 3 secure telemedicine smoke test
