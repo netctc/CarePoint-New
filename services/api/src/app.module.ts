@@ -6,6 +6,7 @@ import { AdminFinanceModule } from "./modules/admin-finance/admin-finance.module
 import { AdminOperationsModule } from "./modules/admin-operations/admin-operations.module";
 import { AdminReschedulingModule } from "./modules/admin-rescheduling/admin-rescheduling.module";
 import { AdminSecurityModule } from "./modules/admin-security/admin-security.module";
+import { AdminTelehealthModule } from "./modules/admin-telehealth/admin-telehealth.module";
 import { AuditModule } from "./modules/audit/audit.module";
 import { BillingModule } from "./modules/billing/billing.module";
 import { ClaimsModule } from "./modules/claims/claims.module";
@@ -35,6 +36,7 @@ import { TransportModule } from "./modules/transport/transport.module";
     AdminOperationsModule,
     AdminReschedulingModule,
     AdminSecurityModule,
+    AdminTelehealthModule,
     ProvidersModule,
     EmergencyModule,
     TransportModule,
