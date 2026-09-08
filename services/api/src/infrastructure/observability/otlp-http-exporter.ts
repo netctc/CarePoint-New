@@ -300,7 +300,8 @@ export class CarePointOtlpExporter implements OnModuleDestroy {
     if (existing) {
       existing.count += 1;
       existing.durationSumMs += input.durationMs;
-      existing.bucketCounts[bucketIndex(input.durationMs)] += 1;
+      const bucket = bucketIndex(input.durationMs);
+      existing.bucketCounts[bucket] = (existing.bucketCounts[bucket] ?? 0) + 1;
       existing.minMs = Math.min(existing.minMs, input.durationMs);
       existing.maxMs = Math.max(existing.maxMs, input.durationMs);
       existing.timeUnixNano = now;
