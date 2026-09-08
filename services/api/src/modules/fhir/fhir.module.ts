@@ -33,10 +33,12 @@ import type { SmartAccessContext } from "../../security/smart-token.service";
 import { ClinicalModule } from "../clinical/clinical.module";
 import { DocumentsModule } from "../documents/documents.module";
 import { OrdersModule } from "../orders/orders.module";
+import { FhirBulkExportJobStoreService } from "./fhir-bulk-export-job-store.service";
 import { FhirBulkExportService } from "./fhir-bulk-export.service";
 import { FhirBulkExportStorageService } from "./fhir-bulk-export-storage.service";
 import { FhirClinicalBulkService } from "./fhir-clinical-bulk.service";
 import { FhirDocumentsService } from "./fhir-documents.service";
+import { FhirDurableBulkExportService } from "./fhir-durable-bulk-export.service";
 import { FhirSearchService } from "./fhir-search.service";
 import { FhirSearchSupportService, type FhirSearchQuery } from "./fhir-search-support.service";
 import { FhirSmartCapabilityService } from "./fhir-smart-capability.service";
@@ -344,8 +346,10 @@ class FhirController {
     FhirSmartCapabilityService,
     FhirClinicalBulkService,
     FhirSystemService,
-    FhirBulkExportService,
+    FhirBulkExportJobStoreService,
     FhirBulkExportStorageService,
+    FhirDurableBulkExportService,
+    { provide: FhirBulkExportService, useExisting: FhirDurableBulkExportService },
     FhirNoStoreInterceptor,
   ],
 })
