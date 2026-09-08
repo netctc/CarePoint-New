@@ -122,7 +122,6 @@ class AdminFinanceService {
           patientResponsibilityMinor: true,
           adjustmentMinor: true,
           denialCode: true,
-          denialPublicMessage: true,
           reworkReasonCode: true,
           submittedAt: true,
           adjudicatedAt: true,
@@ -258,7 +257,6 @@ class AdminFinanceService {
           patientResponsibilityMinor: claim.patientResponsibilityMinor,
           adjustmentMinor: claim.adjustmentMinor,
           denialCode: claim.denialCode,
-          denialPublicMessage: claim.denialPublicMessage,
           reworkReasonCode: claim.reworkReasonCode,
           submittedAt: claim.submittedAt.toISOString(),
           adjudicatedAt: claim.adjudicatedAt?.toISOString() ?? null,
@@ -334,10 +332,20 @@ class AdminFinanceService {
       ...(body.periodStart?.trim() ? { periodStart: body.periodStart.trim() } : {}),
       ...(body.periodEnd?.trim() ? { periodEnd: body.periodEnd.trim() } : {}),
     };
+    const availableForPayout = await this.payoutCapacityFor(input.providerId, input.currency);
+    if (input.amountMinor > availableForPayout) throw new BadRequestException("Payout exceeds the provider balance available after pending commitments.");
     const payout = await this.billing.createProviderPayout(principal, input);
     const row = await this.prisma.providerPayout.findUniqueOrThrow({ where: { id: payout.id }, select: { id: true, providerId: true, amountMinor: true, currency: true, status: true, paidAt: true } });
     await this.adminAudit(principal, action, "PROVIDER_PAYOUT", row.id, { providerId: row.providerId, amountMinor: row.amountMinor, currency: row.currency, status: row.status });
     return { action, payoutId: row.id, providerId: row.providerId, amountMinor: row.amountMinor, currency: row.currency, status: row.status, paidAt: row.paidAt?.toISOString() ?? null };
+  }
+
+  private async payoutCapacityFor(providerId: string, currency: string): Promise<number> {
+    const [ledger, committed] = await Promise.all([
+      this.prisma.providerLedgerEntry.aggregate({ where: { providerId, currency }, _sum: { amountMinor: true } }),
+      this.prisma.providerPayout.aggregate({ where: { providerId, currency, status: { in: [...ACTIVE_PAYOUT_STATUSES] } }, _sum: { amountMinor: true } }),
+    ]);
+    return Math.max(0, (ledger._sum.amountMinor ?? 0) - (committed._sum.amountMinor ?? 0));
   }
 
   private async safeClaim(claimId: string) {
