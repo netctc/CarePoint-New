@@ -7,10 +7,14 @@ import styles from "./AnalyticsIntelligence.module.css";
 type Days = 7 | 30 | 90;
 type Direction = "UP" | "DOWN" | "STABLE" | "NEW";
 type Trend = { current: number; previous: number; direction: Direction; deltaPercent: number | null; favorable: boolean | null };
+type AppointmentStatusCounts = { REQUESTED: number; CONFIRMED: number; CANCELLED: number; COMPLETED: number; NO_SHOW: number };
+type ModalityCounts = { CLINIC: number; TELEMEDICINE: number; HOME_VISIT: number };
+type TelehealthStatusCounts = { WAITING: number; READY: number; ACTIVE: number; ENDED: number; CANCELLED: number };
+type ClaimStatusCounts = { SUBMITTED: number; ACCEPTED: number; PENDING: number; ADJUDICATED: number; DENIED: number; PAID: number; VOID: number };
 type AppointmentAnalytics = {
   total: number;
-  byStatus: Record<string, number>;
-  byModality: Record<string, number>;
+  byStatus: AppointmentStatusCounts;
+  byModality: ModalityCounts;
   completionRate: number;
   cancellationRate: number;
   noShowRate: number;
@@ -24,9 +28,9 @@ type FinanceRow = {
 };
 type PeriodSnapshot = {
   appointments: AppointmentAnalytics;
-  telehealth: { appointments: number; initializedSessions: number; initializationRate: number; byStatus: Record<string, number> };
+  telehealth: { appointments: number; initializedSessions: number; initializationRate: number; byStatus: TelehealthStatusCounts };
   finance: FinanceRow[];
-  claims: { total: number; byStatus: Record<string, number>; reviewRequired: number; denialRate: number };
+  claims: { total: number; byStatus: ClaimStatusCounts; reviewRequired: number; denialRate: number };
   security: { events: number; denied: number; replayDenied: number };
   mobility: { emergencyRequests: number; scheduledTransport: { ground: number; air: number } };
 };
