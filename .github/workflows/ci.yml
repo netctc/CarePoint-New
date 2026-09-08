@@ -81,6 +81,8 @@ jobs:
         with:
           node-version: 22
       - run: npm install
+      - name: Phase C2 high-severity dependency audit
+        run: npm audit --audit-level=high
       - run: npm run build
       - name: Phase C1 production KMS preflight acceptance
         run: npm --workspace @carepoint/api run c1:kms-preflight
