@@ -291,7 +291,7 @@ class AdminTelehealthService {
       startedAt: session?.startedAt?.toISOString() ?? null,
       endedAt: session?.endedAt?.toISOString() ?? null,
       recordingEnabled: session?.recordingEnabled ?? false,
-      severity,
+      severity: severity as Severity,
       attentionReasons: reasons,
       actions: {
         canResetReadiness: Boolean(session) && (session?.status === "WAITING" || session?.status === "READY") && (row.status === "CONFIRMED" || row.status === "REQUESTED"),
