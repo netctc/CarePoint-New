@@ -21,4 +21,5 @@ if (process.env.NODE_ENV === "test" && process.env.REDIS_URL) {
 if (process.env.NODE_ENV === "test") {
   await import("./patient-p1-smoke.mjs");
   await import("./doctor-d1-smoke.mjs");
+  await import("./doctor-d2-smoke.mjs");
 }
