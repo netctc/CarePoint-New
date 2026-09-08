@@ -1,6 +1,7 @@
 import { BadGatewayException, BadRequestException, Injectable, InternalServerErrorException } from "@nestjs/common";
 import { createHash } from "node:crypto";
 import type { InsuranceClaimStatus } from "@carepoint/contracts";
+import { ExternalSecretResolverService } from "../../infrastructure/secrets/external-secret-resolver.service";
 
 export interface GatewayClaimResult {
   gateway: string;
@@ -18,6 +19,8 @@ export interface GatewayClaimResult {
 
 @Injectable()
 export class ClaimsGatewayService {
+  constructor(private readonly secrets: ExternalSecretResolverService = new ExternalSecretResolverService()) {}
+
   name(): string {
     return this.provider() === "mock" ? "MOCK_CLAIMS" : "EXTERNAL_CLAIMS";
   }
@@ -147,8 +150,7 @@ export class ClaimsGatewayService {
   }
 
   private async externalRequest(path: string, body: Record<string, unknown>, idempotencyKey: string): Promise<Record<string, unknown>> {
-    const apiKey = process.env.CLAIMS_GATEWAY_API_KEY?.trim();
-    if (!apiKey) throw new InternalServerErrorException("CLAIMS_GATEWAY_API_KEY is required for external claim operations.");
+    const apiKey = await this.secrets.resolve("claims-gateway-api-key");
     const response = await fetch(new URL(path.replace(/^\//, ""), this.baseUrl()), {
       method: "POST",
       headers: {
