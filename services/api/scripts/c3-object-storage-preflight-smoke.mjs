@@ -13,6 +13,7 @@ const keyArn = `arn:aws:kms:${region}:${accountId}:key/${keyId}`;
 function configureProduction() {
   process.env.NODE_ENV = "production";
   process.env.AWS_REGION = region;
+  process.env.AWS_KMS_ACCOUNT_ID = accountId;
   delete process.env.AWS_ENDPOINT_URL_S3;
   process.env.DOCUMENT_STORAGE_PROVIDER = "s3";
   process.env.DOCUMENT_S3_BUCKET = bucket;
@@ -148,6 +149,11 @@ await expectReject(
   /KMS key 'c3-storage-key' is in region 'eu-west-1'/,
   () => {},
   inspectors({ kmsInspection: { ...validKms(), arn: `arn:aws:kms:eu-west-1:${accountId}:key/${keyId}` } }),
+);
+await expectReject(
+  /belongs to account '999999999999', expected '123456789012'/,
+  () => {},
+  inspectors({ kmsInspection: { ...validKms(), arn: `arn:aws:kms:${region}:999999999999:key/${keyId}` } }),
 );
 
 await expectReject(
