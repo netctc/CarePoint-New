@@ -213,3 +213,5 @@ try {
   if (admin) await prisma.mfaEnrollment.deleteMany({ where: { userId: admin.id } }).catch(() => undefined);
   await prisma.$disconnect();
 }
+
+await import("./admin-b2-smoke.mjs");
