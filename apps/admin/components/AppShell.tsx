@@ -12,7 +12,7 @@ const nav = [
   ["04", "nav.appointments", "/appointments"],
   ["05", "nav.patientWorkspaces", "/finance"],
   ["06", "nav.telehealth", "/telehealth"],
-  ["07", "nav.analytics", "#"],
+  ["07", "nav.analytics", "/analytics"],
   ["08", "nav.security", "/security"],
 ] as const;
 
