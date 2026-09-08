@@ -11,7 +11,7 @@ const nav = [
   ["03", "nav.doctors", "/doctors"],
   ["04", "nav.appointments", "/appointments"],
   ["05", "nav.patientWorkspaces", "/finance"],
-  ["06", "nav.telehealth", "#"],
+  ["06", "nav.telehealth", "/telehealth"],
   ["07", "nav.analytics", "#"],
   ["08", "nav.security", "/security"],
 ] as const;
