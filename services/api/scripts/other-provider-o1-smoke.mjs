@@ -10,11 +10,14 @@ const stamp = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 const providerEmail = `provider-o1-${stamp}@carepoint.test`;
 const adminEmail = `provider-o1-admin-${stamp}@carepoint.test`;
 const patientEmail = `provider-o1-patient-${stamp}@carepoint.test`;
-const fixtureEmails = [providerEmail, adminEmail, patientEmail];
+const doctorEmail = `provider-o1-doctor-${stamp}@carepoint.test`;
+const fixtureEmails = [providerEmail, adminEmail, patientEmail, doctorEmail];
+const categorySlug = `o1-allied-health-${stamp}`;
+const requiredTypes = ["professional-license", "facility-permit"];
 let fixtureUserIds = [];
+let fixtureCategoryId;
 
 function assert(ok, message) { if (!ok) throw new Error(message); }
-function strings(value) { return Array.isArray(value) ? value.map((item) => String(item)).filter(Boolean) : []; }
 
 async function call(path, { method = "GET", token, body, expected } = {}) {
   const response = await fetch(base + path, {
@@ -51,9 +54,15 @@ function assertSelfStateSanitized(payload, label) {
 async function cleanup() {
   const users = await prisma.user.findMany({ where: { email: { in: fixtureEmails } }, select: { id: true } });
   const ids = users.map((item) => item.id);
-  if (ids.length === 0) return;
-  await prisma.provider.deleteMany({ where: { userId: { in: ids } } });
-  await prisma.user.deleteMany({ where: { id: { in: ids } } });
+  if (ids.length > 0) {
+    await prisma.provider.deleteMany({ where: { userId: { in: ids } } });
+    await prisma.user.deleteMany({ where: { id: { in: ids } } });
+  }
+  if (fixtureCategoryId) {
+    await prisma.providerCategory.deleteMany({ where: { id: fixtureCategoryId } });
+  } else {
+    await prisma.providerCategory.deleteMany({ where: { slug: categorySlug } });
+  }
 }
 
 try {
@@ -63,13 +72,35 @@ try {
     prisma.user.create({ data: { email: providerEmail, passwordHash, role: "OTHER_PROVIDER" }, select: { id: true } }),
     prisma.user.create({ data: { email: adminEmail, passwordHash, role: "ADMIN" }, select: { id: true } }),
     prisma.user.create({ data: { email: patientEmail, passwordHash, role: "PATIENT" }, select: { id: true } }),
+    prisma.user.create({ data: { email: doctorEmail, passwordHash, role: "DOCTOR" }, select: { id: true } }),
   ]);
   fixtureUserIds = created.map((item) => item.id);
   const [providerUserId] = fixtureUserIds;
 
+  const categoryFixture = await prisma.providerCategory.create({
+    data: {
+      slug: categorySlug,
+      labels: {
+        en: "O1 Allied Health Provider",
+        ar: "مقدم رعاية صحية مساندة O1",
+        fr: "Prestataire paramédical O1",
+        es: "Proveedor sanitario aliado O1",
+      },
+      family: "ALLIED_HEALTH",
+      active: true,
+      requiredCredentialTypes: requiredTypes,
+      capabilities: {
+        enabledModalities: ["CLINIC", "HOME_VISIT"],
+        clinicalOrderCapabilities: [],
+      },
+    },
+  });
+  fixtureCategoryId = categoryFixture.id;
+
   let providerToken = await login(providerEmail);
   const adminToken = await login(adminEmail);
   const patientToken = await login(patientEmail);
+  const doctorToken = await login(doctorEmail);
 
   const fresh = (await call("/onboarding/me", { token: providerToken, expected: 200 })).payload;
   assert(fresh.kind === "OTHER_PROVIDER" && fresh.provider === null && fresh.onboarding === null && fresh.accessReady === false,
@@ -79,10 +110,30 @@ try {
 
   const catalog = (await call("/other-provider-categories", { expected: 200 })).payload;
   assert(catalog.excludesDoctors === true && Array.isArray(catalog.items), "O1 Other Provider taxonomy boundary is missing.");
-  const category = catalog.items.find((item) => item?.active !== false && item?.id);
-  assert(category, "O1 requires at least one active Other Provider category.");
-  const requiredTypes = strings(category.requiredCredentialTypes);
-  const credentialTypes = requiredTypes.length > 0 ? requiredTypes : ["professional-license"];
+  const category = catalog.items.find((item) => item?.id === fixtureCategoryId);
+  assert(category, "O1 deterministic provider category is missing from the public taxonomy.");
+  assert(Array.isArray(category.requiredCredentialTypes) && category.requiredCredentialTypes.length === 2,
+    "O1 deterministic category did not expose both required credential types.");
+  assert(category.requiredCredentialTypes.includes(requiredTypes[0]) && category.requiredCredentialTypes.includes(requiredTypes[1]),
+    "O1 public taxonomy lost required credential types.");
+
+  const doctorBoundary = await call("/onboarding/other-providers", {
+    method: "POST",
+    token: doctorToken,
+    body: { providerCategoryId: category.id },
+    expected: 403,
+  });
+  assert(/other provider onboarding requires an other_provider account/i.test(doctorBoundary.text),
+    "O1 Doctor account was not excluded from Other Provider onboarding.");
+
+  const providerDoctorBoundary = await call("/onboarding/doctors", {
+    method: "POST",
+    token: providerToken,
+    body: { specialtyId: "not-used-for-role-boundary" },
+    expected: 403,
+  });
+  assert(/doctor onboarding requires a doctor account/i.test(providerDoctorBoundary.text),
+    "O1 Other Provider account was not excluded from Doctor onboarding.");
 
   const onboarding = (await call("/onboarding/other-providers", {
     method: "POST",
@@ -98,27 +149,50 @@ try {
   assertSelfStateSanitized(state, "O1 draft self-state");
 
   const credentials = [];
-  for (let index = 0; index < credentialTypes.length; index += 1) {
-    const type = credentialTypes[index];
-    const value = (await call(`/onboarding/${onboarding.id}/credentials`, {
-      method: "POST",
-      token: providerToken,
-      body: {
-        type,
-        number: `O1-${index + 1}-${stamp}`,
-        issuer: "CarePoint O1 Credential Authority",
-        validUntil: "2032-12-31",
-      },
-      expected: 201,
-    })).payload;
-    assert(value.id && value.type === type.toLowerCase(), `O1 credential ${type} was not persisted.`);
-    credentials.push(value);
-  }
+  const firstCredential = (await call(`/onboarding/${onboarding.id}/credentials`, {
+    method: "POST",
+    token: providerToken,
+    body: {
+      type: requiredTypes[0],
+      number: `O1-LICENSE-${stamp}`,
+      issuer: "CarePoint O1 Credential Authority",
+      validUntil: "2032-12-31",
+    },
+    expected: 201,
+  })).payload;
+  assert(firstCredential.id && firstCredential.type === requiredTypes[0], "O1 first required credential was not persisted.");
+  credentials.push(firstCredential);
+
+  const incompleteSubmit = await call(`/onboarding/${onboarding.id}/submit`, {
+    method: "POST",
+    token: providerToken,
+    body: {},
+    expected: 400,
+  });
+  assert(incompleteSubmit.text.includes(requiredTypes[1]), "O1 incomplete submit did not identify the missing required credential.");
+  state = (await call("/onboarding/me", { token: providerToken, expected: 200 })).payload;
+  assert(state.provider?.status === "DRAFT" && state.onboarding?.state === "DRAFT",
+    "O1 rejected incomplete submit mutated the onboarding lifecycle.");
+
+  const secondCredential = (await call(`/onboarding/${onboarding.id}/credentials`, {
+    method: "POST",
+    token: providerToken,
+    body: {
+      type: requiredTypes[1],
+      number: `O1-PERMIT-${stamp}`,
+      issuer: "CarePoint O1 Facility Authority",
+      validUntil: "2032-12-31",
+    },
+    expected: 201,
+  })).payload;
+  assert(secondCredential.id && secondCredential.type === requiredTypes[1], "O1 second required credential was not persisted.");
+  credentials.push(secondCredential);
 
   await call(`/onboarding/${onboarding.id}/submit`, { method: "POST", token: providerToken, body: {}, expected: 201 });
   state = (await call("/onboarding/me", { token: providerToken, expected: 200 })).payload;
   assert(state.provider?.status === "PENDING_REVIEW" && state.onboarding?.state === "PENDING_REVIEW" && state.accessReady === false,
     "O1 pending review state did not round-trip.");
+  assertSelfStateSanitized(state, "O1 pending self-state");
 
   for (const credential of credentials) {
     await call(`/onboarding/${onboarding.id}/credentials/${credential.id}/review`, {
@@ -138,6 +212,9 @@ try {
 
   const profile = await prisma.otherProviderProfile.findFirst({ where: { provider: { userId: providerUserId } }, include: { category: true } });
   assert(profile?.categoryId === category.id, "O1 approval did not promote the Other Provider profile category.");
+  const promotedCredentials = await prisma.providerCredential.findMany({ where: { provider: { userId: providerUserId }, status: "VERIFIED" } });
+  const promotedTypes = new Set(promotedCredentials.map((item) => item.type));
+  for (const type of requiredTypes) assert(promotedTypes.has(type), `O1 approval did not promote verified credential ${type}.`);
 
   const activeRestart = await call("/onboarding/other-providers", {
     method: "POST",
@@ -153,6 +230,7 @@ try {
   state = (await call("/onboarding/me", { token: providerToken, expected: 200 })).payload;
   assert(state.provider?.status === "SUSPENDED" && state.accessReady === false && state.onboarding?.state === "APPROVED",
     "O1 suspended provider self-state is incorrect.");
+  assertSelfStateSanitized(state, "O1 suspended self-state");
 
   const suspendedRestart = await call("/onboarding/other-providers", {
     method: "POST",
@@ -180,13 +258,18 @@ try {
     status: "passed",
     phase: "Other-Provider-O1",
     isolatedFixtureAccounts: true,
+    deterministicCategoryFixture: true,
     categoryTaxonomyExcludesDoctors: true,
+    doctorOtherProviderBoundary: true,
+    otherProviderDoctorBoundary: true,
     providerSelfState: true,
     roleIsolation: true,
     selfStateMinimized: true,
-    requiredCredentialTypesHonored: true,
+    multipleRequiredCredentialTypes: true,
+    incompleteSubmitRejectedWithoutMutation: true,
     pendingReviewGate: true,
     adminApprovalToActive: true,
+    verifiedCredentialsPromoted: true,
     otherProviderProfilePromotion: true,
     activeWorkspaceGate: true,
     activeRestartProtected: true,
