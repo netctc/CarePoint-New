@@ -50,7 +50,7 @@ export function notificationWorkerConfiguration(env: NodeJS.ProcessEnv = process
 export class NotificationOutboxWorkerService implements OnModuleInit, OnModuleDestroy {
   private readonly workerId = `notification-${process.pid}-${randomBytes(8).toString("hex")}`;
   private timer?: ReturnType<typeof setInterval>;
-  private wakeTimer?: ReturnType<typeof setTimeout>;
+  private wakeTimer: ReturnType<typeof setTimeout> | undefined;
   private running = false;
 
   constructor(
