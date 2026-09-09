@@ -9,6 +9,10 @@ import { browserOrigins } from "./infrastructure/http/browser-origin-readiness";
 import { assertProductionFinancialGatewayEgressReady } from "./infrastructure/http/financial-gateway-egress";
 import { assertProductionInboundBodyLimitsReady, inboundBodyLimits } from "./infrastructure/http/inbound-body-limits";
 import { assertProductionTelehealthReady } from "./infrastructure/http/livekit-endpoint";
+import {
+  createLiveKitWebhookRawBodyMiddleware,
+  LIVEKIT_WEBHOOK_PATH,
+} from "./infrastructure/http/livekit-webhook-raw-body";
 import { assertProductionNotificationGatewayEgressReady } from "./infrastructure/http/notification-gateway-egress";
 import { assertProductionPaymentActionPolicyReady } from "./infrastructure/http/payment-action-url-policy";
 import { assertProductionOtlpReady } from "./infrastructure/observability/production-otel-preflight";
@@ -40,7 +44,7 @@ async function bootstrap(): Promise<void> {
   await assertProductionOtlpReady();
   assertProductionSiemReady();
 
-  const app = await NestFactory.create<NestExpressApplication>(AppModule, { cors: false });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { cors: false, bodyParser: false });
 
   app.disable("x-powered-by");
   if (process.env.TRUST_PROXY === "true") app.set("trust proxy", 1);
@@ -50,6 +54,7 @@ async function bootstrap(): Promise<void> {
       : false,
     referrerPolicy: { policy: "no-referrer" },
   }));
+  app.use(LIVEKIT_WEBHOOK_PATH, createLiveKitWebhookRawBodyMiddleware());
   app.useBodyParser("json", { limit: bodyLimits.jsonBytes });
   app.useBodyParser("urlencoded", { limit: bodyLimits.formBytes, extended: true });
   app.enableCors({

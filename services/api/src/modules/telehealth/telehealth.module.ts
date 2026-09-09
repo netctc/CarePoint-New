@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, HttpCode, Module, Param, Post, Req } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Get, Headers, HttpCode, Module, Param, Post, Req } from "@nestjs/common";
 import type { TelehealthReadinessInput } from "@carepoint/contracts";
 import type { AuthPrincipal } from "@carepoint/identity";
 import { PrismaModule } from "../../infrastructure/prisma/prisma.module";
@@ -48,9 +48,11 @@ class TelehealthController {
     @Req() request: { rawBody?: Buffer },
     @Headers("authorization") authorization?: string,
   ): Promise<void> {
-    const raw = request.rawBody?.toString("utf8");
-    if (!raw) return;
-    await this.telehealth.webhook(raw, authorization);
+    const rawBody = request.rawBody;
+    if (!rawBody || rawBody.length === 0) {
+      throw new BadRequestException("LiveKit webhook raw body is required.");
+    }
+    await this.telehealth.webhook(rawBody.toString("utf8"), authorization);
   }
 }
 
