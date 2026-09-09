@@ -4,6 +4,7 @@ import { NestFactory } from "@nestjs/core";
 import { NestExpressApplication } from "@nestjs/platform-express";
 import helmet from "helmet";
 import { AppModule } from "./app.module";
+import { assertProductionProviderResponsePolicyReady } from "./infrastructure/http/bounded-provider-response";
 import { assertProductionFinancialGatewayEgressReady } from "./infrastructure/http/financial-gateway-egress";
 import { assertProductionOtlpReady } from "./infrastructure/observability/production-otel-preflight";
 import { assertProductionDatabaseReady } from "./infrastructure/prisma/production-database-preflight";
@@ -19,6 +20,7 @@ async function bootstrap(): Promise<void> {
   await assertProductionKmsRotationReady();
   await assertProductionExternalSecretsReady();
   assertProductionFinancialGatewayEgressReady();
+  assertProductionProviderResponsePolicyReady();
   await assertProductionObjectStorageReady();
   await assertProductionDatabaseReady();
   await assertProductionRedisReady();
