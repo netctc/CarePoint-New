@@ -26,6 +26,7 @@ export class NotificationGatewayService {
   constructor(private readonly secrets: ExternalSecretResolverService = new ExternalSecretResolverService()) {}
 
   assertProductionReady(): void {
+    if (this.provider() !== "external") return;
     assertProductionNotificationGatewayEgressReady();
   }
 
