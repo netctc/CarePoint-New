@@ -7,7 +7,7 @@
     "prebuild": "prisma generate --schema prisma",
     "build": "nest build",
     "start": "node dist/main.js",
-    "test": "npm run c3:object-storage-preflight && npm run c4:redis-preflight && npm run c5:postgres-preflight && npm run c6:otel-preflight && npm run c7:notification-outbox && npm run c8:kms-rotation-preflight && npm run c9:siem-audit-export && npm run c10:static-security && npm run c11:postgres-recovery && npm run c12:external-secret-rotation && npm run c13:financial-gateway-egress && npm run c14:bounded-provider-responses && npm run c15:nonfinancial-http-egress && npm run c17:livekit-endpoint-readiness && npm run c18:smart-public-endpoint-readiness",
+    "test": "npm run c3:object-storage-preflight && npm run c4:redis-preflight && npm run c5:postgres-preflight && npm run c6:otel-preflight && npm run c7:notification-outbox && npm run c8:kms-rotation-preflight && npm run c9:siem-audit-export && npm run c10:static-security && npm run c11:postgres-recovery && npm run c12:external-secret-rotation && npm run c13:financial-gateway-egress && npm run c14:bounded-provider-responses && npm run c15:nonfinancial-http-egress && npm run c17:livekit-endpoint-readiness && npm run c18:smart-public-endpoint-readiness && npm run c19:browser-origin-readiness",
     "typecheck": "prisma generate --schema prisma && tsc -p tsconfig.json --noEmit",
     "db:generate": "prisma generate --schema prisma",
     "db:migrate": "prisma migrate dev --schema prisma",
@@ -29,7 +29,8 @@
     "c14:bounded-provider-responses": "node scripts/c14-bounded-provider-responses-smoke.mjs",
     "c15:nonfinancial-http-egress": "node scripts/c15-nonfinancial-http-egress-smoke.mjs",
     "c17:livekit-endpoint-readiness": "node scripts/c17-livekit-endpoint-readiness-smoke.mjs",
-    "c18:smart-public-endpoint-readiness": "node scripts/c18-smart-public-endpoint-readiness-smoke.mjs"
+    "c18:smart-public-endpoint-readiness": "node scripts/c18-smart-public-endpoint-readiness-smoke.mjs",
+    "c19:browser-origin-readiness": "node scripts/c19-browser-origin-readiness-smoke.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-kms": "3.1128.0",
