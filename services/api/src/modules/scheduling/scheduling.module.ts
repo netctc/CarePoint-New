@@ -2,11 +2,16 @@ import { Body, Controller, Get, Module, Param, Patch, Post, Query } from "@nestj
 import type { CreateAvailabilityRuleInput, CreateBookingInput, CreateProviderServiceInput } from "@carepoint/contracts";
 import type { AuthPrincipal } from "@carepoint/identity";
 import { CurrentPrincipal, Public, RequirePermissions } from "../../security/api-security.module";
+import { ProviderCategoryCapabilityService } from "../providers/provider-category-capability.service";
+import { ProvidersModule } from "../providers/providers.module";
 import { SchedulingService } from "./scheduling.service";
 
 @Controller("provider/services")
 class ProviderServicesController {
-  constructor(private readonly scheduling: SchedulingService) {}
+  constructor(
+    private readonly scheduling: SchedulingService,
+    private readonly capabilities: ProviderCategoryCapabilityService,
+  ) {}
 
   @RequirePermissions("PROVIDER_MANAGE_SERVICES")
   @Get()
@@ -16,20 +21,28 @@ class ProviderServicesController {
 
   @RequirePermissions("PROVIDER_MANAGE_SERVICES")
   @Post()
-  create(@CurrentPrincipal() principal: AuthPrincipal, @Body() body: CreateProviderServiceInput) {
+  async create(@CurrentPrincipal() principal: AuthPrincipal, @Body() body: CreateProviderServiceInput) {
+    if (Array.isArray(body.modalities)) {
+      await this.capabilities.assertServiceModalities(principal, body.modalities.map((item) => item.modality));
+    }
     return this.scheduling.createProviderService(principal, body);
   }
 
   @RequirePermissions("PROVIDER_MANAGE_SERVICES")
   @Patch(":serviceId/status")
-  setStatus(@CurrentPrincipal() principal: AuthPrincipal, @Param("serviceId") serviceId: string, @Body() body: { active: boolean }) {
-    return this.scheduling.setServiceActive(principal, serviceId, body.active === true);
+  async setStatus(@CurrentPrincipal() principal: AuthPrincipal, @Param("serviceId") serviceId: string, @Body() body: { active: boolean }) {
+    const active = body.active === true;
+    if (active) await this.capabilities.assertServiceActivation(principal, serviceId);
+    return this.scheduling.setServiceActive(principal, serviceId, active);
   }
 }
 
 @Controller("provider/availability")
 class ProviderAvailabilityController {
-  constructor(private readonly scheduling: SchedulingService) {}
+  constructor(
+    private readonly scheduling: SchedulingService,
+    private readonly capabilities: ProviderCategoryCapabilityService,
+  ) {}
 
   @RequirePermissions("PROVIDER_MANAGE_AVAILABILITY")
   @Get("rules")
@@ -39,13 +52,15 @@ class ProviderAvailabilityController {
 
   @RequirePermissions("PROVIDER_MANAGE_AVAILABILITY")
   @Post("rules")
-  createRule(@CurrentPrincipal() principal: AuthPrincipal, @Body() body: CreateAvailabilityRuleInput) {
+  async createRule(@CurrentPrincipal() principal: AuthPrincipal, @Body() body: CreateAvailabilityRuleInput) {
+    await this.capabilities.assertAvailabilityModality(principal, body.modality);
     return this.scheduling.createAvailabilityRule(principal, body);
   }
 
   @RequirePermissions("PROVIDER_MANAGE_AVAILABILITY")
   @Post("generate")
-  generate(@CurrentPrincipal() principal: AuthPrincipal, @Body() body: { fromDate: string; toDate: string; ruleId?: string }) {
+  async generate(@CurrentPrincipal() principal: AuthPrincipal, @Body() body: { fromDate: string; toDate: string; ruleId?: string }) {
+    await this.capabilities.assertAvailabilityGeneration(principal, body.ruleId);
     return this.scheduling.generateAvailability(principal, body);
   }
 
@@ -129,6 +144,7 @@ class BookingController {
 }
 
 @Module({
+  imports: [ProvidersModule],
   controllers: [
     ProviderServicesController,
     ProviderAvailabilityController,

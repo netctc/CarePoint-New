@@ -6,13 +6,25 @@ import 'clinical_record.dart';
 import 'telehealth_room.dart';
 
 class ProviderWorkspace extends StatefulWidget {
-  const ProviderWorkspace({super.key, required this.session, required this.locale, required this.title, required this.accent, required this.onSignOut, this.dark = false});
+  const ProviderWorkspace({
+    super.key,
+    required this.session,
+    required this.locale,
+    required this.title,
+    required this.accent,
+    required this.onSignOut,
+    this.dark = false,
+    this.allowedServiceModalities,
+    this.clinicalOrderCapabilities,
+  });
   final CarePointSession session;
   final CarePointLocale locale;
   final String title;
   final Color accent;
   final VoidCallback onSignOut;
   final bool dark;
+  final Set<String>? allowedServiceModalities;
+  final Set<String>? clinicalOrderCapabilities;
   @override
   State<ProviderWorkspace> createState() => _ProviderWorkspaceState();
 }
@@ -26,6 +38,21 @@ class _ProviderWorkspaceState extends State<ProviderWorkspace> {
   List<Map<String, dynamic>> rules = const [];
   CarePointApi get api => widget.session.api;
   CarePointLocale get locale => widget.locale;
+
+  List<String> get _allowedServiceModalities {
+    final allowed = widget.allowedServiceModalities;
+    return allowed == null ? List<String>.from(_modalities) : _modalities.where(allowed.contains).toList(growable: false);
+  }
+
+  List<Map<String, dynamic>> get _eligibleRuleServices => services
+      .where((service) => _allowedModalitiesForService(service).isNotEmpty)
+      .toList(growable: false);
+
+  List<Map<String, dynamic>> get _eligibleRules {
+    final allowed = widget.allowedServiceModalities;
+    if (allowed == null) return rules;
+    return rules.where((rule) => allowed.contains(rule['modality']?.toString())).toList(growable: false);
+  }
 
   @override
   void initState() { super.initState(); refreshAll(); }
@@ -58,7 +85,11 @@ class _ProviderWorkspaceState extends State<ProviderWorkspace> {
       NavigationDestination(icon: const Icon(Icons.medical_services_outlined), selectedIcon: const Icon(Icons.medical_services), label: cpText(locale, 'workspace.services')),
       NavigationDestination(icon: const Icon(Icons.schedule_outlined), selectedIcon: const Icon(Icons.schedule), label: cpText(locale, 'workspace.availability')),
     ]),
-    floatingActionButton: tab == 1 ? FloatingActionButton.extended(onPressed: _createService, icon: const Icon(Icons.add), label: Text(cpText(locale, 'workspace.newService'))) : tab == 2 ? FloatingActionButton.extended(onPressed: services.isEmpty ? null : _createRule, icon: const Icon(Icons.add), label: Text(cpText(locale, 'workspace.newRule'))) : null,
+    floatingActionButton: tab == 1
+        ? FloatingActionButton.extended(onPressed: _allowedServiceModalities.isEmpty ? null : _createService, icon: const Icon(Icons.add), label: Text(cpText(locale, 'workspace.newService')))
+        : tab == 2
+            ? FloatingActionButton.extended(onPressed: _eligibleRuleServices.isEmpty ? null : _createRule, icon: const Icon(Icons.add), label: Text(cpText(locale, 'workspace.newRule')))
+            : null,
   );
 
   Widget _agenda() {
@@ -83,7 +114,12 @@ class _ProviderWorkspaceState extends State<ProviderWorkspace> {
         ),
         if (clinical) Padding(
           padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
-          child: ClinicalActionButton(session: widget.session, locale: locale, appointment: item),
+          child: ClinicalActionButton(
+            session: widget.session,
+            locale: locale,
+            appointment: item,
+            clinicalOrderCapabilities: widget.clinicalOrderCapabilities,
+          ),
         ),
       ])));
     }));
@@ -106,7 +142,7 @@ class _ProviderWorkspaceState extends State<ProviderWorkspace> {
     Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Text(cpText(locale, 'workspace.activeOnly'), style: const TextStyle(color: Color(0xFF64748B))),
       const SizedBox(height: 12),
-      FilledButton.icon(onPressed: rules.isEmpty ? null : _generate, icon: const Icon(Icons.auto_awesome_outlined), label: Text(cpText(locale, 'workspace.generate'))),
+      FilledButton.icon(onPressed: _eligibleRules.isEmpty ? null : _generate, icon: const Icon(Icons.auto_awesome_outlined), label: Text(cpText(locale, 'workspace.generate'))),
     ]))),
     const SizedBox(height: 10),
     if (rules.isEmpty) _empty(cpText(locale, 'workspace.noRules'), Icons.schedule_outlined, embedded: true),
@@ -117,16 +153,18 @@ class _ProviderWorkspaceState extends State<ProviderWorkspace> {
   ]));
 
   Future<void> _createService() async {
+    final availableModalities = _allowedServiceModalities;
+    if (availableModalities.isEmpty) return;
     final name = TextEditingController();
     final duration = TextEditingController(text: '30');
     final price = TextEditingController(text: '5000');
     final currency = TextEditingController(text: 'USD');
-    String modality = 'CLINIC';
+    String modality = availableModalities.first;
     final accepted = await showDialog<bool>(context: context, builder: (context) => StatefulBuilder(builder: (context, setModalState) => AlertDialog(
       title: Text(cpText(locale, 'workspace.newService')),
       content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
         TextField(controller: name, decoration: InputDecoration(labelText: cpText(locale, 'workspace.serviceName'))),
-        DropdownButtonFormField<String>(initialValue: modality, decoration: InputDecoration(labelText: cpText(locale, 'workspace.modality')), items: _modalities.map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(), onChanged: (v) => setModalState(() => modality = v ?? modality)),
+        DropdownButtonFormField<String>(initialValue: modality, decoration: InputDecoration(labelText: cpText(locale, 'workspace.modality')), items: availableModalities.map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(), onChanged: (v) => setModalState(() => modality = v ?? modality)),
         TextField(controller: duration, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: cpText(locale, 'workspace.duration'))),
         TextField(controller: price, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: cpText(locale, 'workspace.priceMinor'))),
         TextField(controller: currency, textCapitalization: TextCapitalization.characters, decoration: InputDecoration(labelText: cpText(locale, 'workspace.currency'))),
@@ -139,21 +177,23 @@ class _ProviderWorkspaceState extends State<ProviderWorkspace> {
   }
 
   Future<void> _createRule() async {
-    String serviceId = services.first['id'].toString();
-    String modality = _firstModality(services.first);
+    final eligibleServices = _eligibleRuleServices;
+    if (eligibleServices.isEmpty) return;
+    String serviceId = eligibleServices.first['id'].toString();
+    String modality = _allowedModalitiesForService(eligibleServices.first).first;
     int weekday = DateTime.now().weekday % 7;
     final start = TextEditingController(text: '09:00');
     final end = TextEditingController(text: '17:00');
     final interval = TextEditingController(text: '30');
     final tz = TextEditingController(text: const String.fromEnvironment('CAREPOINT_TIMEZONE', defaultValue: 'Asia/Beirut'));
     final accepted = await showDialog<bool>(context: context, builder: (context) => StatefulBuilder(builder: (context, setModalState) {
-      final selected = services.firstWhere((s) => s['id'].toString() == serviceId, orElse: () => services.first);
-      final availableModalities = _list(selected['modalities']).map((m) => m['modality'].toString()).toList();
+      final selected = eligibleServices.firstWhere((s) => s['id'].toString() == serviceId, orElse: () => eligibleServices.first);
+      final availableModalities = _allowedModalitiesForService(selected);
       if (!availableModalities.contains(modality)) modality = availableModalities.first;
       return AlertDialog(
         title: Text(cpText(locale, 'workspace.newRule')),
         content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
-          DropdownButtonFormField<String>(initialValue: serviceId, items: services.map((s) => DropdownMenuItem(value: s['id'].toString(), child: Text(s['name']?.toString() ?? 'Service'))).toList(), onChanged: (v) => setModalState(() { serviceId = v ?? serviceId; modality = _firstModality(services.firstWhere((s) => s['id'].toString() == serviceId)); })),
+          DropdownButtonFormField<String>(initialValue: serviceId, items: eligibleServices.map((s) => DropdownMenuItem(value: s['id'].toString(), child: Text(s['name']?.toString() ?? 'Service'))).toList(), onChanged: (v) => setModalState(() { serviceId = v ?? serviceId; modality = _allowedModalitiesForService(eligibleServices.firstWhere((s) => s['id'].toString() == serviceId)).first; })),
           DropdownButtonFormField<String>(key: ValueKey(serviceId), initialValue: modality, decoration: InputDecoration(labelText: cpText(locale, 'workspace.modality')), items: availableModalities.map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(), onChanged: (v) => setModalState(() => modality = v ?? modality)),
           TextField(controller: tz, decoration: InputDecoration(labelText: cpText(locale, 'workspace.timezone'))),
           DropdownButtonFormField<int>(initialValue: weekday, decoration: InputDecoration(labelText: cpText(locale, 'workspace.weekday')), items: List.generate(7, (i) => DropdownMenuItem(value: i, child: Text('$i'))), onChanged: (v) => setModalState(() => weekday = v ?? weekday)),
@@ -174,16 +214,30 @@ class _ProviderWorkspaceState extends State<ProviderWorkspace> {
   Future<void> _generate() async {
     final now = DateTime.now();
     try {
-      final result = await api.generateAvailability(fromDate: _date(now), toDate: _date(now.add(const Duration(days: 29))));
+      var createdCount = 0;
+      for (final rule in _eligibleRules) {
+        final id = rule['id']?.toString();
+        if (id == null || id.isEmpty) continue;
+        final result = await api.generateAvailability(fromDate: _date(now), toDate: _date(now.add(const Duration(days: 29))), ruleId: id);
+        createdCount += int.tryParse(result['createdCount']?.toString() ?? '') ?? 0;
+      }
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${cpText(locale, 'workspace.generated')}: ${result['createdCount'] ?? 0}')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${cpText(locale, 'workspace.generated')}: $createdCount')));
     } catch (value) { _showError(value); }
+  }
+
+  List<String> _allowedModalitiesForService(Map<String, dynamic> service) {
+    final allowed = widget.allowedServiceModalities;
+    final values = _list(service['modalities'])
+        .where((item) => item['active'] != false)
+        .map((item) => item['modality']?.toString())
+        .whereType<String>();
+    return values.where((value) => allowed == null || allowed.contains(value)).toList(growable: false);
   }
 
   Widget _empty(String text, IconData icon, {bool embedded = false}) => Center(child: Padding(padding: EdgeInsets.all(embedded ? 28 : 48), child: Column(mainAxisSize: MainAxisSize.min, children: [Icon(icon, size: 46, color: const Color(0xFF94A3B8)), const SizedBox(height: 12), Text(text, textAlign: TextAlign.center, style: const TextStyle(color: Color(0xFF64748B)))])));
   void _showError(Object value) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value.toString()))); }
   String _localized(dynamic labels, String fallback) { final map = _map(labels); return map[locale.name]?.toString().trim().isNotEmpty == true ? map[locale.name].toString() : fallback; }
-  String _firstModality(Map<String, dynamic> service) { final items = _list(service['modalities']); return items.isEmpty ? 'CLINIC' : items.first['modality'].toString(); }
   int _parseTime(String text) { final parts = text.trim().split(':'); if (parts.length != 2) throw const CarePointApiException('Time must use HH:MM.'); final h = int.parse(parts[0]); final m = int.parse(parts[1]); if (h < 0 || h > 23 || m < 0 || m > 59) throw const CarePointApiException('Invalid time.'); return h * 60 + m; }
   String _minutes(dynamic value) { final total = value is int ? value : int.tryParse(value?.toString() ?? '') ?? 0; return '${(total ~/ 60).toString().padLeft(2, '0')}:${(total % 60).toString().padLeft(2, '0')}'; }
   String _date(DateTime value) => '${value.year.toString().padLeft(4, '0')}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';

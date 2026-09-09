@@ -1,6 +1,8 @@
 import { Body, Controller, Get, Module, Param, Post } from "@nestjs/common";
 import type { AuthPrincipal } from "@carepoint/identity";
 import { CurrentPrincipal, RequirePermissions } from "../../security/api-security.module";
+import { ProviderCategoryCapabilityService } from "../providers/provider-category-capability.service";
+import { ProvidersModule } from "../providers/providers.module";
 import { OrdersService } from "./orders.service";
 import { OrdersEnvelopeService } from "./orders-envelope.service";
 import { OrdersAttestationService } from "./orders-attestation.service";
@@ -8,25 +10,30 @@ import { OrdersSystemExportService } from "./orders-system-export.service";
 
 @Controller("clinical-orders")
 class OrdersController {
-  constructor(private readonly orders: OrdersService) {}
+  constructor(
+    private readonly orders: OrdersService,
+    private readonly capabilities: ProviderCategoryCapabilityService,
+  ) {}
 
   @RequirePermissions("CLINICAL_ORDER_WRITE")
   @Post("appointments/:appointmentId/prescriptions")
-  prescription(
+  async prescription(
     @CurrentPrincipal() principal: AuthPrincipal,
     @Param("appointmentId") appointmentId: string,
     @Body() body: Record<string, unknown>,
   ) {
+    await this.capabilities.assertClinicalOrderCapability(principal, "PRESCRIPTION");
     return this.orders.createOrder(principal, appointmentId, "PRESCRIPTION", body);
   }
 
   @RequirePermissions("CLINICAL_ORDER_WRITE")
   @Post("appointments/:appointmentId/laboratory")
-  laboratory(
+  async laboratory(
     @CurrentPrincipal() principal: AuthPrincipal,
     @Param("appointmentId") appointmentId: string,
     @Body() body: Record<string, unknown>,
   ) {
+    await this.capabilities.assertClinicalOrderCapability(principal, "LABORATORY");
     return this.orders.createOrder(principal, appointmentId, "LABORATORY", body);
   }
 
@@ -56,17 +63,19 @@ class OrdersController {
 
   @RequirePermissions("LAB_RESULT_ENTER")
   @Post(":orderId/lab-result")
-  enterResult(
+  async enterResult(
     @CurrentPrincipal() principal: AuthPrincipal,
     @Param("orderId") orderId: string,
     @Body() body: Record<string, unknown>,
   ) {
+    await this.capabilities.assertClinicalOrderCapability(principal, "LAB_RESULT_ENTRY");
     return this.orders.enterLabResult(principal, orderId, body);
   }
 
   @RequirePermissions("LAB_RESULT_VALIDATE")
   @Post(":orderId/lab-result/validate")
-  validateResult(@CurrentPrincipal() principal: AuthPrincipal, @Param("orderId") orderId: string) {
+  async validateResult(@CurrentPrincipal() principal: AuthPrincipal, @Param("orderId") orderId: string) {
+    await this.capabilities.assertClinicalOrderCapability(principal, "LAB_RESULT_VALIDATE");
     return this.orders.validateLabResult(principal, orderId);
   }
 
@@ -78,6 +87,7 @@ class OrdersController {
 }
 
 @Module({
+  imports: [ProvidersModule],
   controllers: [OrdersController],
   providers: [OrdersService, OrdersEnvelopeService, OrdersAttestationService, OrdersSystemExportService],
   exports: [OrdersService, OrdersSystemExportService],

@@ -7,24 +7,46 @@ import 'clinical_localization.dart';
 import 'clinical_orders.dart';
 
 class ClinicalActionButton extends StatelessWidget {
-  const ClinicalActionButton({super.key, required this.session, required this.locale, required this.appointment});
+  const ClinicalActionButton({
+    super.key,
+    required this.session,
+    required this.locale,
+    required this.appointment,
+    this.clinicalOrderCapabilities,
+  });
   final CarePointSession session;
   final CarePointLocale locale;
   final Map<String, dynamic> appointment;
+  final Set<String>? clinicalOrderCapabilities;
 
   @override
   Widget build(BuildContext context) => OutlinedButton.icon(
-        onPressed: () => Navigator.push<void>(context, MaterialPageRoute(builder: (_) => Directionality(textDirection: locale.textDirection, child: ClinicalRecordPage(session: session, locale: locale, appointment: appointment)))),
+        onPressed: () => Navigator.push<void>(context, MaterialPageRoute(builder: (_) => Directionality(
+          textDirection: locale.textDirection,
+          child: ClinicalRecordPage(
+            session: session,
+            locale: locale,
+            appointment: appointment,
+            clinicalOrderCapabilities: clinicalOrderCapabilities,
+          ),
+        ))),
         icon: const Icon(Icons.medical_services_outlined),
         label: Text(clinicalText(locale, 'clinicalChart')),
       );
 }
 
 class ClinicalRecordPage extends StatefulWidget {
-  const ClinicalRecordPage({super.key, required this.session, required this.locale, required this.appointment});
+  const ClinicalRecordPage({
+    super.key,
+    required this.session,
+    required this.locale,
+    required this.appointment,
+    this.clinicalOrderCapabilities,
+  });
   final CarePointSession session;
   final CarePointLocale locale;
   final Map<String, dynamic> appointment;
+  final Set<String>? clinicalOrderCapabilities;
   @override State<ClinicalRecordPage> createState() => _ClinicalRecordPageState();
 }
 
@@ -56,7 +78,12 @@ class _ClinicalRecordPageState extends State<ClinicalRecordPage> {
       if (!finalized) FilledButton.icon(onPressed: saving ? null : save, icon: const Icon(Icons.lock_outline), label: Text(clinicalText(locale, 'saveRevision'))), if (!finalized) const SizedBox(height: 10),
       if (!finalized) OutlinedButton.icon(onPressed: saving ? null : finalize, icon: const Icon(Icons.task_alt), label: Text(clinicalText(locale, 'finalize'))), const SizedBox(height: 10),
       OutlinedButton.icon(onPressed: showPatientHistory, icon: const Icon(Icons.history), label: Text(clinicalText(locale, 'patientHistory'))), const SizedBox(height: 10),
-      ClinicalOrdersActionButton(session: widget.session, locale: locale, appointment: widget.appointment), const SizedBox(height: 10),
+      ClinicalOrdersActionButton(
+        session: widget.session,
+        locale: locale,
+        appointment: widget.appointment,
+        clinicalOrderCapabilities: widget.clinicalOrderCapabilities,
+      ), const SizedBox(height: 10),
       ClinicalDocumentsActionButton(session: widget.session, locale: locale, appointment: widget.appointment),
     ]),
   );

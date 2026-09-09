@@ -57,16 +57,28 @@ const _orderStrings = <String, Map<String, String>>{
 };
 
 class ClinicalOrdersActionButton extends StatelessWidget {
-  const ClinicalOrdersActionButton({super.key, required this.session, required this.locale, required this.appointment});
+  const ClinicalOrdersActionButton({
+    super.key,
+    required this.session,
+    required this.locale,
+    required this.appointment,
+    this.clinicalOrderCapabilities,
+  });
   final CarePointSession session;
   final CarePointLocale locale;
   final Map<String, dynamic> appointment;
+  final Set<String>? clinicalOrderCapabilities;
 
   @override
   Widget build(BuildContext context) => OutlinedButton.icon(
         onPressed: () => Navigator.push<void>(context, MaterialPageRoute(builder: (_) => Directionality(
           textDirection: locale.textDirection,
-          child: ProviderClinicalOrdersPage(session: session, locale: locale, appointment: appointment),
+          child: ProviderClinicalOrdersPage(
+            session: session,
+            locale: locale,
+            appointment: appointment,
+            clinicalOrderCapabilities: clinicalOrderCapabilities,
+          ),
         ))),
         icon: const Icon(Icons.receipt_long_outlined),
         label: Text(orderText(locale, 'title')),
@@ -74,10 +86,17 @@ class ClinicalOrdersActionButton extends StatelessWidget {
 }
 
 class ProviderClinicalOrdersPage extends StatefulWidget {
-  const ProviderClinicalOrdersPage({super.key, required this.session, required this.locale, required this.appointment});
+  const ProviderClinicalOrdersPage({
+    super.key,
+    required this.session,
+    required this.locale,
+    required this.appointment,
+    this.clinicalOrderCapabilities,
+  });
   final CarePointSession session;
   final CarePointLocale locale;
   final Map<String, dynamic> appointment;
+  final Set<String>? clinicalOrderCapabilities;
 
   @override
   State<ProviderClinicalOrdersPage> createState() => _ProviderClinicalOrdersPageState();
@@ -92,6 +111,7 @@ class _ProviderClinicalOrdersPageState extends State<ProviderClinicalOrdersPage>
   CarePointLocale get locale => widget.locale;
   String get appointmentId => widget.appointment['id'].toString();
   String? get patientId => _map(widget.appointment['patient'])['id']?.toString();
+  bool _can(String capability) => widget.clinicalOrderCapabilities == null || widget.clinicalOrderCapabilities!.contains(capability);
 
   @override
   void initState() { super.initState(); load(); }
@@ -108,26 +128,32 @@ class _ProviderClinicalOrdersPageState extends State<ProviderClinicalOrdersPage>
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(title: Text(orderText(locale, 'title')), actions: [IconButton(onPressed: load, icon: const Icon(Icons.refresh), tooltip: orderText(locale, 'refresh'))]),
-        body: busy
-            ? const Center(child: CircularProgressIndicator())
-            : error != null
-                ? Center(child: Padding(padding: const EdgeInsets.all(24), child: Text(error!, textAlign: TextAlign.center)))
-                : RefreshIndicator(onRefresh: load, child: ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 100), children: [
-                    if (accessBasis != null) Padding(padding: const EdgeInsets.only(bottom: 10), child: Text('${orderText(locale, 'accessBasis')}: $accessBasis', style: const TextStyle(color: Color(0xFF64748B)))),
-                    if (items.isEmpty) Padding(padding: const EdgeInsets.all(32), child: Center(child: Text(orderText(locale, 'noOrders')))),
-                    ...items.map(_orderCard),
-                  ])),
-        floatingActionButton: PopupMenuButton<String>(
-          onSelected: (value) => value == 'rx' ? _createPrescription() : _createLabOrder(),
-          itemBuilder: (_) => [
-            PopupMenuItem(value: 'rx', child: ListTile(leading: const Icon(Icons.medication_outlined), title: Text(orderText(locale, 'newPrescription')))),
-            PopupMenuItem(value: 'lab', child: ListTile(leading: const Icon(Icons.science_outlined), title: Text(orderText(locale, 'newLab')))),
-          ],
-          child: FloatingActionButton(onPressed: null, child: const Icon(Icons.add)),
-        ),
-      );
+  Widget build(BuildContext context) {
+    final canCreatePrescription = _can('PRESCRIPTION');
+    final canCreateLab = _can('LABORATORY');
+    return Scaffold(
+      appBar: AppBar(title: Text(orderText(locale, 'title')), actions: [IconButton(onPressed: load, icon: const Icon(Icons.refresh), tooltip: orderText(locale, 'refresh'))]),
+      body: busy
+          ? const Center(child: CircularProgressIndicator())
+          : error != null
+              ? Center(child: Padding(padding: const EdgeInsets.all(24), child: Text(error!, textAlign: TextAlign.center)))
+              : RefreshIndicator(onRefresh: load, child: ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 100), children: [
+                  if (accessBasis != null) Padding(padding: const EdgeInsets.only(bottom: 10), child: Text('${orderText(locale, 'accessBasis')}: $accessBasis', style: const TextStyle(color: Color(0xFF64748B)))),
+                  if (items.isEmpty) Padding(padding: const EdgeInsets.all(32), child: Center(child: Text(orderText(locale, 'noOrders')))),
+                  ...items.map(_orderCard),
+                ])),
+      floatingActionButton: canCreatePrescription || canCreateLab
+          ? PopupMenuButton<String>(
+              onSelected: (value) => value == 'rx' ? _createPrescription() : _createLabOrder(),
+              itemBuilder: (_) => [
+                if (canCreatePrescription) PopupMenuItem(value: 'rx', child: ListTile(leading: const Icon(Icons.medication_outlined), title: Text(orderText(locale, 'newPrescription')))),
+                if (canCreateLab) PopupMenuItem(value: 'lab', child: ListTile(leading: const Icon(Icons.science_outlined), title: Text(orderText(locale, 'newLab')))),
+              ],
+              child: FloatingActionButton(onPressed: null, child: const Icon(Icons.add)),
+            )
+          : null,
+    );
+  }
 
   Widget _orderCard(Map<String, dynamic> order) {
     final data = _map(order['data']);
@@ -148,8 +174,8 @@ class _ProviderClinicalOrdersPageState extends State<ProviderClinicalOrdersPage>
         if (!prescription && result['data'] != null) _labResultData(_map(result['data'])),
         const SizedBox(height: 8),
         Wrap(spacing: 8, runSpacing: 8, children: [
-          if (order['status'] == 'SIGNED' && result.isEmpty && !prescription) OutlinedButton.icon(onPressed: () => _enterResult(order), icon: const Icon(Icons.add_chart_outlined), label: Text(orderText(locale, 'enterResult'))),
-          if (!prescription && result['status'] == 'ENTERED') FilledButton.tonalIcon(onPressed: () => _confirmAction(orderText(locale, 'confirmValidate'), () => api.validateLaboratoryResult(order['id'].toString())), icon: const Icon(Icons.verified_outlined), label: Text(orderText(locale, 'validate'))),
+          if (order['status'] == 'SIGNED' && result.isEmpty && !prescription && _can('LAB_RESULT_ENTRY')) OutlinedButton.icon(onPressed: () => _enterResult(order), icon: const Icon(Icons.add_chart_outlined), label: Text(orderText(locale, 'enterResult'))),
+          if (!prescription && result['status'] == 'ENTERED' && _can('LAB_RESULT_VALIDATE')) FilledButton.tonalIcon(onPressed: () => _confirmAction(orderText(locale, 'confirmValidate'), () => api.validateLaboratoryResult(order['id'].toString())), icon: const Icon(Icons.verified_outlined), label: Text(orderText(locale, 'validate'))),
           if (!prescription && result['status'] == 'VALIDATED') FilledButton.icon(onPressed: () => _confirmAction(orderText(locale, 'confirmRelease'), () => api.releaseLaboratoryResult(order['id'].toString())), icon: const Icon(Icons.send_outlined), label: Text(orderText(locale, 'release'))),
           if (order['status'] == 'SIGNED' && result.isEmpty) TextButton.icon(onPressed: () => _confirmAction(orderText(locale, 'confirmCancel'), () => api.cancelClinicalOrder(order['id'].toString())), icon: const Icon(Icons.cancel_outlined), label: Text(orderText(locale, 'cancel'))),
         ]),
