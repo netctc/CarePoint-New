@@ -6,6 +6,7 @@ import helmet from "helmet";
 import { AppModule } from "./app.module";
 import { assertProductionProviderResponsePolicyReady } from "./infrastructure/http/bounded-provider-response";
 import { assertProductionFinancialGatewayEgressReady } from "./infrastructure/http/financial-gateway-egress";
+import { assertProductionInboundBodyLimitsReady, inboundBodyLimits } from "./infrastructure/http/inbound-body-limits";
 import { assertProductionNotificationGatewayEgressReady } from "./infrastructure/http/notification-gateway-egress";
 import { assertProductionPaymentActionPolicyReady } from "./infrastructure/http/payment-action-url-policy";
 import { assertProductionOtlpReady } from "./infrastructure/observability/production-otel-preflight";
@@ -25,6 +26,8 @@ async function bootstrap(): Promise<void> {
   assertProductionProviderResponsePolicyReady();
   assertProductionNotificationGatewayEgressReady();
   assertProductionPaymentActionPolicyReady();
+  assertProductionInboundBodyLimitsReady();
+  const bodyLimits = inboundBodyLimits();
   await assertProductionObjectStorageReady();
   await assertProductionDatabaseReady();
   await assertProductionRedisReady();
@@ -49,8 +52,8 @@ async function bootstrap(): Promise<void> {
       : false,
     referrerPolicy: { policy: "no-referrer" },
   }));
-  app.useBodyParser("json", { limit: Number(process.env.JSON_BODY_LIMIT_BYTES ?? 1_048_576) });
-  app.useBodyParser("urlencoded", { limit: Number(process.env.FORM_BODY_LIMIT_BYTES ?? 131_072), extended: true });
+  app.useBodyParser("json", { limit: bodyLimits.jsonBytes });
+  app.useBodyParser("urlencoded", { limit: bodyLimits.formBytes, extended: true });
   app.enableCors({
     origin: origins,
     credentials: true,
