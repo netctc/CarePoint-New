@@ -1,0 +1,103 @@
+name: Release Candidate Evidence
+
+on:
+  pull_request:
+    paths:
+      - ".ci/generate-rc-evidence.mjs"
+      - ".github/workflows/release-candidate-evidence.yml"
+      - "package.json"
+      - "package-lock.json"
+      - ".ci/npm-package-lock.canonical.sha256"
+      - ".ci/flutter-pubspec-locks.sha256"
+      - "services/api/**"
+      - "apps/admin/**"
+      - "apps/*-mobile/**"
+      - "packages/mobile_core/**"
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: "Approved Release Candidate version (for example 1.0.0-rc.1)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  evidence:
+    runs-on: ubuntu-24.04
+    env:
+      CAREPOINT_RELEASE_VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.release_version || '0.0.0-ci' }}
+      CAREPOINT_RELEASE_SHA: ${{ github.sha }}
+      CAREPOINT_RELEASE_SOURCE_REF: ${{ github.ref }}
+      CAREPOINT_RELEASE_BUILD_ID: github-${{ github.run_id }}-${{ github.run_attempt }}
+      CAREPOINT_RELEASE_EVIDENCE_PURPOSE: ${{ github.event_name == 'workflow_dispatch' && 'candidate' || 'validation' }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - name: Use repository npm toolchain
+        run: |
+          npm install --global npm@10.9.2
+          test "$(npm --version)" = "10.9.2"
+      - name: Resolve candidate dependency lock without package scripts
+        run: npm install --package-lock-only --ignore-scripts
+      - name: Verify canonical npm dependency graph
+        run: node .ci/verify-npm-lock.mjs
+      - name: Install verified dependency graph
+        run: npm ci
+      - name: Build Node workspaces
+        run: npm run build
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: "3.47.2"
+          channel: stable
+      - name: Resolve and verify mobile dependency locks
+        run: |
+          (cd packages/mobile_core && flutter pub get)
+          (cd apps/patient-mobile && flutter pub get)
+          (cd apps/doctor-mobile && flutter pub get)
+          (cd apps/provider-mobile && flutter pub get)
+          sha256sum --check --strict .ci/flutter-pubspec-locks.sha256
+      - name: Generate dependency and SBOM evidence
+        run: |
+          mkdir -p rc-evidence
+          npm sbom --omit=dev --sbom-format=cyclonedx --sbom-type=application > rc-evidence/node-sbom.cdx.json
+          (cd packages/mobile_core && flutter pub deps --json) > rc-evidence/mobile-core-deps.json
+          (cd apps/patient-mobile && flutter pub deps --json) > rc-evidence/patient-mobile-deps.json
+          (cd apps/doctor-mobile && flutter pub deps --json) > rc-evidence/doctor-mobile-deps.json
+          (cd apps/provider-mobile && flutter pub deps --json) > rc-evidence/provider-mobile-deps.json
+          flutter --version > rc-evidence/flutter-version.txt
+      - name: Create deterministic build snapshots
+        run: |
+          tar --sort=name --mtime='@0' --owner=0 --group=0 --numeric-owner \
+            -cf - package.json package-lock.json services/api/package.json services/api/dist services/api/prisma \
+            | gzip -n > rc-evidence/api-build-snapshot.tar.gz
+          tar --sort=name --mtime='@0' --owner=0 --group=0 --numeric-owner \
+            --exclude='apps/admin/.next/cache' --exclude='apps/admin/.next/trace' \
+            -cf - package.json package-lock.json apps/admin/package.json apps/admin/.next \
+            | gzip -n > rc-evidence/admin-build-snapshot.tar.gz
+      - name: Generate exact-SHA RC evidence manifest
+        run: node .ci/generate-rc-evidence.mjs rc-evidence
+      - name: Verify RC evidence checksums
+        run: (cd rc-evidence && sha256sum --check --strict SHA256SUMS)
+      - name: Upload immutable RC evidence bundle
+        id: upload
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: carepoint-rc-evidence-${{ github.sha }}
+          path: rc-evidence
+          if-no-files-found: error
+      - name: Publish sanitized evidence summary
+        run: |
+          {
+            echo "### Release Candidate evidence"
+            echo "- Version: \`$CAREPOINT_RELEASE_VERSION\`"
+            echo "- Source SHA: \`$CAREPOINT_RELEASE_SHA\`"
+            echo "- Purpose: \`$CAREPOINT_RELEASE_EVIDENCE_PURPOSE\`"
+            echo "- GitHub immutable artifact digest: \`${{ steps.upload.outputs.artifact-digest }}\`"
+            echo "- This bundle is release evidence/build snapshots, not the final production deployment artifact."
+          } >> "$GITHUB_STEP_SUMMARY"

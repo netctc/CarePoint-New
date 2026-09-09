@@ -15,7 +15,8 @@
     "test": "npm run test --workspaces --if-present",
     "security:check": "npm --workspace @carepoint/security run test",
     "db:deploy": "npm --workspace @carepoint/api run db:deploy",
-    "db:bootstrap": "npm --workspace @carepoint/api run db:bootstrap"
+    "db:bootstrap": "npm --workspace @carepoint/api run db:bootstrap",
+    "release:rc-evidence": "node .ci/generate-rc-evidence.mjs rc-evidence"
   },
   "overrides": {
     "deepmerge-ts": "^8.0.1",
