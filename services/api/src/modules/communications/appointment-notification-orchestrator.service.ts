@@ -54,7 +54,7 @@ export function appointmentNotificationConfiguration(env: NodeJS.ProcessEnv = pr
 export class AppointmentNotificationOrchestratorService implements OnModuleInit, OnModuleDestroy {
   private readonly config = appointmentNotificationConfiguration();
   private timer?: ReturnType<typeof setInterval>;
-  private wakeTimer?: ReturnType<typeof setTimeout>;
+  private wakeTimer: ReturnType<typeof setTimeout> | undefined;
   private running = false;
 
   constructor(
