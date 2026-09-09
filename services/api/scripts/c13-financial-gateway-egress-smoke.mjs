@@ -18,6 +18,7 @@ const originalFetch = globalThis.fetch;
 function productionEnv(overrides = {}) {
   return {
     NODE_ENV: "production",
+    EXTERNAL_PROVIDER_MAX_RESPONSE_BYTES: "65536",
     PAYMENT_GATEWAY_PROVIDER: "external",
     PAYMENT_GATEWAY_BASE_URL: "https://payments.example.test/api/",
     PAYMENT_GATEWAY_TIMEOUT_MS: "5000",
