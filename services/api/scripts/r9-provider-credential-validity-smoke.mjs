@@ -18,6 +18,7 @@ assert.equal(credentialIsCurrent({ type: "medical-license", validUntil: new Date
 assert.equal(credentialIsCurrent({ type: "medical-license", validUntil: new Date("2026-09-09T20:00:00.000Z") }, now), false, "Expiry at the decision instant must not count as current.");
 assert.equal(credentialIsCurrent({ type: "medical-license", validUntil: new Date("2026-09-08T00:00:00.000Z") }, now), false);
 assert.equal(credentialIsCurrent({ type: "medical-license", validFrom: new Date("2026-09-10T00:00:00.000Z") }, now), false);
+assert.deepEqual(missingCurrentCredentialTypes(["medical-license"], [], now), ["medical-license"], "Production semantics must treat a missing required credential as missing.");
 
 assert.deepEqual(
   missingCurrentCredentialTypes(
@@ -34,6 +35,8 @@ assert.deepEqual(
 assert.match(operationalSource, /PROVIDER_OPERATIONAL_ACCESS_DENIED/);
 assert.match(operationalSource, /provider\.status !== "ACTIVE"/);
 assert.match(operationalSource, /missingCurrentCredentialTypes\(requiredTypes, verified\)/);
+assert.match(operationalSource, /process\.env\.NODE_ENV === "test" && provider\.credentials\.length === 0/);
+assert.doesNotMatch(operationalSource, /NODE_ENV !== "production" && provider\.credentials\.length === 0/);
 assert.match(operationalSource, /PROVIDER_SELF_ONBOARD/);
 assert.match(operationalSource, /SELF_SESSION_MANAGE/);
 assert.match(governanceSource, /PROVIDER_APPROVAL_DENIED_CREDENTIAL_VALIDITY/);
