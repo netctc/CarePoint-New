@@ -6,6 +6,7 @@ import helmet from "helmet";
 import { AppModule } from "./app.module";
 import { assertProductionProviderResponsePolicyReady } from "./infrastructure/http/bounded-provider-response";
 import { assertProductionFinancialGatewayEgressReady } from "./infrastructure/http/financial-gateway-egress";
+import { assertProductionTelehealthReady } from "./infrastructure/http/livekit-endpoint";
 import { assertProductionNotificationGatewayEgressReady } from "./infrastructure/http/notification-gateway-egress";
 import { assertProductionOtlpReady } from "./infrastructure/observability/production-otel-preflight";
 import { assertProductionDatabaseReady } from "./infrastructure/prisma/production-database-preflight";
@@ -23,6 +24,7 @@ async function bootstrap(): Promise<void> {
   assertProductionFinancialGatewayEgressReady();
   assertProductionProviderResponsePolicyReady();
   assertProductionNotificationGatewayEgressReady();
+  assertProductionTelehealthReady();
   await assertProductionObjectStorageReady();
   await assertProductionDatabaseReady();
   await assertProductionRedisReady();
