@@ -22,12 +22,14 @@ import type { EncryptedEnvelope } from "@carepoint/security";
 import { PrismaService } from "../infrastructure/prisma/prisma.module";
 import { DatabaseAuditService } from "../infrastructure/audit/audit.service";
 import { MfaEnvelopeService } from "../infrastructure/security/mfa-envelope.service";
+import { isMfaAssuredSessionId, isMfaRequiredForRole } from "./privileged-mfa-policy";
 
 const ACCESS_TTL_MS = 15 * 60 * 1000;
 const REFRESH_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const MFA_CHALLENGE_TTL_MS = 5 * 60 * 1000;
 const LOCKOUT_TTL_MS = 15 * 60 * 1000;
 const MAX_FAILED_LOGINS = 5;
+const MFA_ENROLLMENT_CHALLENGE_PREFIX = "mfaenroll_";
 
 export interface SessionTokens {
   sessionId: string;
@@ -35,6 +37,12 @@ export interface SessionTokens {
   refreshToken: string;
   expiresAt: string;
   refreshExpiresAt: string;
+}
+
+export interface MfaChallengeResult {
+  requiresMfa: true;
+  challengeId: string;
+  expiresAt: string;
 }
 
 @Injectable()
@@ -85,7 +93,7 @@ export class PersistentAuthService {
     return this.safeAccount(user);
   }
 
-  async login(emailInput: string, password: string): Promise<SessionTokens | { requiresMfa: true; challengeId: string; expiresAt: string }> {
+  async login(emailInput: string, password: string): Promise<SessionTokens | MfaChallengeResult> {
     const email = this.normalizeEmail(emailInput);
     const user = await this.prisma.user.findUnique({ where: { email }, include: { mfaEnrollment: true } });
     if (!user) throw new UnauthorizedException("Invalid credentials.");
@@ -109,14 +117,69 @@ export class PersistentAuthService {
     await this.prisma.user.update({ where: { id: user.id }, data: { failedLoginCount: 0, lockedUntil: null } });
 
     if (user.mfaEnrollment?.enabledAt) {
-      const challengeId = randomId("mfa");
-      const expiresAt = new Date(Date.now() + MFA_CHALLENGE_TTL_MS);
-      await this.prisma.authChallenge.create({ data: { id: challengeId, userId: user.id, type: "MFA_LOGIN", expiresAt } });
-      await this.audit.write({ actorId: user.id, action: "MFA_CHALLENGE_ISSUED", objectType: "AUTH_CHALLENGE", objectId: challengeId, result: "SUCCESS" });
-      return { requiresMfa: true, challengeId, expiresAt: expiresAt.toISOString() };
+      return this.issueMfaChallenge(user.id, false);
     }
 
-    return this.issueSession(user.id);
+    if (isMfaRequiredForRole(user.role as IdentityRole)) {
+      await this.audit.write({
+        actorId: user.id,
+        action: "MFA_POLICY_ENROLLMENT_REQUIRED",
+        objectType: "ACCOUNT",
+        objectId: user.id,
+        result: "DENIED",
+        metadata: { role: user.role },
+      });
+      return this.issueMfaChallenge(user.id, true);
+    }
+
+    return this.issueSession(user.id, false);
+  }
+
+  async beginRequiredMfaEnrollment(challengeId: string): Promise<{ secret: string; otpauthUri: string }> {
+    const challenge = await this.prisma.authChallenge.findUnique({
+      where: { id: challengeId },
+      include: { user: { include: { mfaEnrollment: true } } },
+    });
+    if (!challenge || !this.isEnrollmentChallenge(challenge.id) || challenge.type !== "MFA_LOGIN" || challenge.consumedAt || challenge.expiresAt.getTime() <= Date.now()) {
+      throw new UnauthorizedException("MFA enrollment challenge expired or invalid.");
+    }
+    if (challenge.user.status !== "ACTIVE" || !isMfaRequiredForRole(challenge.user.role as IdentityRole)) {
+      throw new UnauthorizedException("MFA enrollment challenge is not valid for this account.");
+    }
+    if (challenge.user.mfaEnrollment?.enabledAt) {
+      throw new ConflictException("MFA is already enabled. Sign in again to continue.");
+    }
+
+    let secret: string;
+    if (challenge.user.mfaEnrollment) {
+      secret = await this.mfaEnvelope.decryptSecret(this.toEnvelope(challenge.user.mfaEnrollment));
+    } else {
+      secret = generateTotpSecret();
+      const envelope = await this.mfaEnvelope.encryptSecret(secret);
+      await this.prisma.mfaEnrollment.create({
+        data: {
+          userId: challenge.userId,
+          version: envelope.version,
+          algorithm: envelope.algorithm,
+          keyId: envelope.keyId,
+          wrappedKey: envelope.wrappedKey,
+          iv: envelope.iv,
+          secretCiphertext: envelope.ciphertext,
+        },
+      });
+    }
+
+    await this.prisma.authSession.updateMany({ where: { userId: challenge.userId, revokedAt: null }, data: { revokedAt: new Date() } });
+    const label = encodeURIComponent(`CarePoint:${challenge.user.email}`);
+    await this.audit.write({
+      actorId: challenge.userId,
+      action: "MFA_REQUIRED_ENROLLMENT_STARTED",
+      objectType: "AUTH_CHALLENGE",
+      objectId: challenge.id,
+      result: "SUCCESS",
+      metadata: { role: challenge.user.role },
+    });
+    return { secret, otpauthUri: `otpauth://totp/${label}?secret=${secret}&issuer=CarePoint&algorithm=SHA1&digits=6&period=30` };
   }
 
   async beginMfa(principal: AuthPrincipal): Promise<{ secret: string; otpauthUri: string }> {
@@ -164,12 +227,23 @@ export class PersistentAuthService {
     if (!challenge || challenge.type !== "MFA_LOGIN" || challenge.consumedAt || challenge.expiresAt.getTime() <= Date.now()) {
       throw new UnauthorizedException("MFA challenge expired or invalid.");
     }
+    if (challenge.user.status !== "ACTIVE") throw new UnauthorizedException("Account is not active.");
+
     const enrollment = challenge.user.mfaEnrollment;
-    if (!enrollment?.enabledAt) throw new UnauthorizedException("MFA is not enabled.");
+    if (!enrollment) throw new UnauthorizedException("MFA enrollment is not available.");
+    const enrollmentChallenge = this.isEnrollmentChallenge(challenge.id);
+    if (enrollmentChallenge) {
+      if (!isMfaRequiredForRole(challenge.user.role as IdentityRole) || enrollment.enabledAt) {
+        throw new UnauthorizedException("MFA enrollment challenge is no longer valid.");
+      }
+    } else if (!enrollment.enabledAt) {
+      throw new UnauthorizedException("MFA is not enabled.");
+    }
+
     const secret = await this.mfaEnvelope.decryptSecret(this.toEnvelope(enrollment));
     if (!verifyTotp(secret, code)) throw new UnauthorizedException("Invalid MFA code.");
 
-    const material = this.newSession(challenge.userId);
+    const material = this.newSession(challenge.userId, true);
     const claimed = await this.prisma.$transaction(async (tx) => {
       const now = new Date();
       const consumed = await tx.authChallenge.updateMany({
@@ -177,6 +251,14 @@ export class PersistentAuthService {
         data: { consumedAt: now },
       });
       if (consumed.count !== 1) return false;
+      if (enrollmentChallenge) {
+        const enabled = await tx.mfaEnrollment.updateMany({
+          where: { userId: challenge.userId, enabledAt: null },
+          data: { enabledAt: now },
+        });
+        if (enabled.count !== 1) return false;
+        await tx.authSession.updateMany({ where: { userId: challenge.userId, revokedAt: null }, data: { revokedAt: now } });
+      }
       await tx.authSession.create({ data: material.data });
       return true;
     });
@@ -184,22 +266,30 @@ export class PersistentAuthService {
       await this.audit.write({ actorId: challenge.userId, action: "MFA_CHALLENGE_REPLAY_DENIED", objectType: "AUTH_CHALLENGE", objectId: challenge.id, result: "DENIED" });
       throw new UnauthorizedException("MFA challenge expired, invalid, or already used.");
     }
-    await this.audit.write({ actorId: challenge.userId, action: "MFA_CHALLENGE_VERIFIED", objectType: "AUTH_CHALLENGE", objectId: challenge.id, result: "SUCCESS" });
+    if (enrollmentChallenge) {
+      await this.audit.write({ actorId: challenge.userId, action: "MFA_ENABLED", objectType: "ACCOUNT", objectId: challenge.userId, result: "SUCCESS", metadata: { requiredByPolicy: true } });
+    }
+    await this.audit.write({ actorId: challenge.userId, action: "MFA_CHALLENGE_VERIFIED", objectType: "AUTH_CHALLENGE", objectId: challenge.id, result: "SUCCESS", metadata: { enrollmentChallenge } });
     await this.audit.write({ actorId: challenge.userId, action: "LOGIN_SUCCEEDED", objectType: "SESSION", objectId: material.tokens.sessionId, result: "SUCCESS", metadata: { mfa: true } });
     return material.tokens;
   }
 
   async refresh(refreshToken: string): Promise<SessionTokens> {
     const refreshTokenHash = tokenHash(refreshToken);
-    const current = await this.prisma.authSession.findUnique({ where: { refreshTokenHash }, include: { user: true } });
+    const current = await this.prisma.authSession.findUnique({
+      where: { refreshTokenHash },
+      include: { user: { include: { mfaEnrollment: true } } },
+    });
     if (!current || current.revokedAt || current.refreshExpiresAt.getTime() <= Date.now() || current.user.status !== "ACTIVE") {
       if (current) {
         await this.audit.write({ actorId: current.userId, action: "REFRESH_TOKEN_REPLAY_DENIED", objectType: "SESSION", objectId: current.id, result: "DENIED", metadata: { replaced: Boolean(current.replacedBySessionId) } });
       }
       throw new UnauthorizedException("Refresh token is invalid or expired.");
     }
+    await this.assertSessionMfaPolicy(current, "REFRESH");
 
-    const material = this.newSession(current.userId);
+    const mfaAssured = isMfaAssuredSessionId(current.id);
+    const material = this.newSession(current.userId, mfaAssured);
     const claimed = await this.prisma.$transaction(async (tx) => {
       const now = new Date();
       const rotated = await tx.authSession.updateMany({
@@ -220,15 +310,19 @@ export class PersistentAuthService {
       await this.audit.write({ actorId: current.userId, action: "REFRESH_TOKEN_REPLAY_DENIED", objectType: "SESSION", objectId: current.id, result: "DENIED", metadata: { concurrentReplay: true } });
       throw new UnauthorizedException("Refresh token is invalid, expired, or already used.");
     }
-    await this.audit.write({ actorId: current.userId, action: "SESSION_ROTATED", objectType: "SESSION", objectId: current.id, result: "SUCCESS", metadata: { replacementSessionId: material.tokens.sessionId } });
+    await this.audit.write({ actorId: current.userId, action: "SESSION_ROTATED", objectType: "SESSION", objectId: current.id, result: "SUCCESS", metadata: { replacementSessionId: material.tokens.sessionId, mfa: mfaAssured } });
     return material.tokens;
   }
 
   async validateAccessToken(accessToken: string): Promise<AuthPrincipal> {
-    const session = await this.prisma.authSession.findUnique({ where: { accessTokenHash: tokenHash(accessToken) }, include: { user: true } });
+    const session = await this.prisma.authSession.findUnique({
+      where: { accessTokenHash: tokenHash(accessToken) },
+      include: { user: { include: { mfaEnrollment: true } } },
+    });
     if (!session || session.revokedAt || session.expiresAt.getTime() <= Date.now() || session.user.status !== "ACTIVE") {
       throw new UnauthorizedException("Access token is invalid or expired.");
     }
+    await this.assertSessionMfaPolicy(session, "ACCESS");
     return { accountId: session.userId, role: session.user.role as IdentityRole, sessionId: session.id };
   }
 
@@ -263,16 +357,36 @@ export class PersistentAuthService {
     return { ...this.safeAccount(user), status: "SUSPENDED" };
   }
 
-  private async issueSession(accountId: string): Promise<SessionTokens> {
-    const material = this.newSession(accountId);
+  private async issueMfaChallenge(accountId: string, enrollmentRequired: boolean): Promise<MfaChallengeResult> {
+    const challengeId = randomId(enrollmentRequired ? "mfaenroll" : "mfa");
+    const expiresAt = new Date(Date.now() + MFA_CHALLENGE_TTL_MS);
+    if (enrollmentRequired) {
+      await this.prisma.authChallenge.updateMany({
+        where: { userId: accountId, type: "MFA_LOGIN", consumedAt: null },
+        data: { consumedAt: new Date() },
+      });
+    }
+    await this.prisma.authChallenge.create({ data: { id: challengeId, userId: accountId, type: "MFA_LOGIN", expiresAt } });
+    await this.audit.write({
+      actorId: accountId,
+      action: enrollmentRequired ? "MFA_ENROLLMENT_CHALLENGE_ISSUED" : "MFA_CHALLENGE_ISSUED",
+      objectType: "AUTH_CHALLENGE",
+      objectId: challengeId,
+      result: "SUCCESS",
+    });
+    return { requiresMfa: true, challengeId, expiresAt: expiresAt.toISOString() };
+  }
+
+  private async issueSession(accountId: string, mfaAssured: boolean): Promise<SessionTokens> {
+    const material = this.newSession(accountId, mfaAssured);
     await this.prisma.authSession.create({ data: material.data });
-    await this.audit.write({ actorId: accountId, action: "LOGIN_SUCCEEDED", objectType: "SESSION", objectId: material.tokens.sessionId, result: "SUCCESS", metadata: { mfa: false } });
+    await this.audit.write({ actorId: accountId, action: "LOGIN_SUCCEEDED", objectType: "SESSION", objectId: material.tokens.sessionId, result: "SUCCESS", metadata: { mfa: mfaAssured } });
     return material.tokens;
   }
 
-  private newSession(accountId: string) {
+  private newSession(accountId: string, mfaAssured: boolean) {
     const now = Date.now();
-    const id = randomId("ses");
+    const id = randomId(mfaAssured ? "sesmfa" : "ses");
     const accessToken = randomToken();
     const refreshToken = randomToken(48);
     const expiresAt = new Date(now + ACCESS_TTL_MS);
@@ -294,6 +408,32 @@ export class PersistentAuthService {
         refreshExpiresAt: refreshExpiresAt.toISOString(),
       } satisfies SessionTokens,
     };
+  }
+
+  private async assertSessionMfaPolicy(session: {
+    id: string;
+    userId: string;
+    revokedAt: Date | null;
+    user: { role: string; mfaEnrollment: { enabledAt: Date | null } | null };
+  }, operation: "ACCESS" | "REFRESH"): Promise<void> {
+    const role = session.user.role as IdentityRole;
+    if (!isMfaRequiredForRole(role)) return;
+    if (isMfaAssuredSessionId(session.id) && session.user.mfaEnrollment?.enabledAt) return;
+
+    await this.prisma.authSession.updateMany({ where: { id: session.id, revokedAt: null }, data: { revokedAt: new Date() } });
+    await this.audit.write({
+      actorId: session.userId,
+      action: "MFA_POLICY_SESSION_DENIED",
+      objectType: "SESSION",
+      objectId: session.id,
+      result: "DENIED",
+      metadata: { role, operation, enrollmentEnabled: Boolean(session.user.mfaEnrollment?.enabledAt), mfaAssuredSession: isMfaAssuredSessionId(session.id) },
+    });
+    throw new UnauthorizedException("MFA is required for this account. Sign in again and complete MFA.");
+  }
+
+  private isEnrollmentChallenge(challengeId: string): boolean {
+    return challengeId.startsWith(MFA_ENROLLMENT_CHALLENGE_PREFIX);
   }
 
   private normalizeEmail(value: string): string {

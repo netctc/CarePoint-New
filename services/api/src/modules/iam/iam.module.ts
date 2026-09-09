@@ -10,6 +10,7 @@ interface ManagedAccountBody { email: string; password: string; role: IdentityRo
 interface LoginBody { email: string; password: string; }
 interface ConfirmMfaBody { code: string; }
 interface CompleteMfaBody { challengeId: string; code: string; }
+interface BeginRequiredMfaBody { challengeId: string; }
 interface RefreshBody { refreshToken: string; }
 interface RequestIdentity { ip?: string; socket?: { remoteAddress?: string }; headers?: Record<string, string | string[] | undefined>; }
 
@@ -41,6 +42,16 @@ class IamController {
     const result = await this.auth.login(body.email, body.password);
     if ("sessionId" in result) await this.captureSessionContext(result.sessionId, request);
     return result;
+  }
+
+  @Public()
+  @Post("mfa/enrollment/start")
+  async beginRequiredMfa(@Req() request: RequestIdentity, @Body() body: BeginRequiredMfaBody) {
+    await Promise.all([
+      this.rateLimits.assertAllowed({ namespace: "iam:mfa-enroll:ip", identity: this.clientIp(request), limit: 50, windowSeconds: 300 }),
+      this.rateLimits.assertAllowed({ namespace: "iam:mfa-enroll:challenge", identity: body.challengeId || "missing", limit: 5, windowSeconds: 300 }),
+    ]);
+    return this.auth.beginRequiredMfaEnrollment(body.challengeId);
   }
 
   @Public()

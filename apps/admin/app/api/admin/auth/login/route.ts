@@ -35,6 +35,11 @@ export async function POST(request: NextRequest) {
         requiresMfa: true,
         challengeId: result.challengeId,
         expiresAt: result.expiresAt,
+        ...(result.enrollmentRequired ? {
+          enrollmentRequired: true,
+          enrollmentSecret: result.enrollmentSecret,
+          otpauthUri: result.otpauthUri,
+        } : {}),
       }));
     }
 

@@ -128,6 +128,22 @@ jobs:
           const denied = await fetch(base + '/iam/accounts/me');
           if (denied.status !== 401) throw new Error(`expected 401 without bearer token, got ${denied.status}`);
           NODE
+      - name: R6 privileged MFA production-policy acceptance
+        run: |
+          set -e
+          PORT=4001 CAREPOINT_TEST_ENFORCE_PRIVILEGED_MFA=true npm --workspace @carepoint/api run start > /tmp/carepoint-api-mfa-policy.log 2>&1 &
+          MFA_PID=$!
+          trap 'kill $MFA_PID 2>/dev/null || true' EXIT
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:4001/api/v1/health > /dev/null; then break; fi
+            if ! kill -0 "$MFA_PID" 2>/dev/null; then
+              cat /tmp/carepoint-api-mfa-policy.log
+              exit 1
+            fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:4001/api/v1/health > /dev/null || { cat /tmp/carepoint-api-mfa-policy.log; exit 1; }
+          CAREPOINT_MFA_POLICY_URL=http://127.0.0.1:4001/api/v1 node services/api/scripts/r6-privileged-mfa-policy-smoke.mjs || { cat /tmp/carepoint-api-mfa-policy.log; exit 1; }
       - name: Start Admin Web
         run: |
           npm --workspace @carepoint/admin run start > /tmp/carepoint-admin.log 2>&1 &
@@ -176,6 +192,7 @@ jobs:
         if: failure()
         run: |
           cat /tmp/carepoint-api.log || true
+          cat /tmp/carepoint-api-mfa-policy.log || true
           cat /tmp/carepoint-admin.log || true
 
   flutter:

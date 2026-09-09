@@ -30,6 +30,9 @@ export interface AdminMfaChallenge {
   requiresMfa: true;
   challengeId: string;
   expiresAt: string;
+  enrollmentRequired?: boolean;
+  enrollmentSecret?: string;
+  otpauthUri?: string;
 }
 
 export class AdminAuthError extends Error {
@@ -61,10 +64,35 @@ export async function loginWithCarePoint(email: string, password: string): Promi
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ email, password }),
   });
-  if (isMfaChallenge(result)) return result;
+  if (isMfaChallenge(result)) {
+    if (result.challengeId.startsWith("mfaenroll_")) {
+      const enrollment = await beginCarePointRequiredMfaEnrollment(result.challengeId);
+      return {
+        ...result,
+        enrollmentRequired: true,
+        enrollmentSecret: enrollment.secret,
+        otpauthUri: enrollment.otpauthUri,
+      };
+    }
+    return result;
+  }
   const tokens = sessionTokens(result);
   const account = await verifyIssuedAdminSession(tokens);
   return { account, tokens };
+}
+
+export async function beginCarePointRequiredMfaEnrollment(challengeId: string): Promise<{ secret: string; otpauthUri: string }> {
+  const result = await apiJson<unknown>("/iam/mfa/enrollment/start", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ challengeId }),
+  });
+  if (!result || typeof result !== "object" || Array.isArray(result)) throw new AdminAuthError(502, "Invalid MFA enrollment response.");
+  const row = result as Record<string, unknown>;
+  if (typeof row.secret !== "string" || row.secret.length < 16 || typeof row.otpauthUri !== "string" || !row.otpauthUri.startsWith("otpauth://")) {
+    throw new AdminAuthError(502, "Invalid MFA enrollment response.");
+  }
+  return { secret: row.secret, otpauthUri: row.otpauthUri };
 }
 
 export async function completeCarePointMfa(challengeId: string, code: string): Promise<{ account: AdminAccount; tokens: AdminSessionTokens }> {
@@ -152,6 +180,7 @@ export function publicAuthError(error: unknown): { status: number; message: stri
   if (status === 400) return { status, message: "The authentication request is invalid." };
   if (status === 401) return { status, message: "Authentication failed. Check your credentials or verification code." };
   if (status === 403) return { status, message: "Administrator access is required." };
+  if (status === 409) return { status, message: "MFA enrollment state changed. Sign in again." };
   if (status === 429) return { status, message: "Too many authentication attempts. Try again later." };
   if (status >= 500) return { status: 503, message: "CarePoint authentication is temporarily unavailable." };
   return { status, message: "Authentication could not be completed." };
