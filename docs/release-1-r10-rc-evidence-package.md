@@ -19,7 +19,7 @@ Workflow:
 
 The workflow has two modes:
 
-- pull-request mode validates the evidence-generation mechanism using the exact workflow checkout SHA and a non-release `0.0.0-ci` version;
+- pull-request mode explicitly checks out and validates the PR **head SHA**, not GitHub's synthetic merge SHA, using a non-release `0.0.0-ci` version;
 - manual `workflow_dispatch` mode generates a candidate evidence bundle for the exact ref selected by the authorized operator and requires an explicit RC version input.
 
 The workflow uses pinned source-control/setup actions already consistent with the repository's CI model and a pinned `actions/upload-artifact` release. The uploaded GitHub Actions artifact is immutable within the workflow run and exposes an artifact digest that can be referenced by the final release evidence record.
@@ -33,7 +33,7 @@ The workflow uses pinned source-control/setup actions already consistent with th
 - the checked-out `git rev-parse HEAD` to equal that SHA exactly;
 - an evidence purpose of `validation` or `candidate`.
 
-A mismatched source SHA fails the workflow. This prevents an evidence package from being labelled as one candidate while being built from another checkout.
+A mismatched source SHA fails the workflow. This prevents an evidence package from being labelled as one candidate while being built from another checkout. For pull-request validation the workflow deliberately supplies `github.event.pull_request.head.sha` and checks out that same commit so the evidence corresponds to the canonical release-branch source, not to the temporary GitHub PR merge commit.
 
 ## 4. Dependency evidence
 
@@ -41,12 +41,16 @@ The workflow:
 
 - fixes npm to the repository package-manager version (`10.9.2`);
 - resolves the candidate lock without package scripts;
-- reuses `.ci/verify-npm-lock.mjs` to prove `package-lock.json` equals the canonical npm lock contract;
+- executes the existing `.ci/verify-npm-lock.mjs` Phase C2 canonical dependency-graph verifier;
 - runs `npm ci` from the verified lock;
 - resolves Flutter dependencies using the same pinned Flutter version as normal CI;
 - verifies every generated mobile `pubspec.lock` against `.ci/flutter-pubspec-locks.sha256`;
-- records the actual lock hashes in `rc-manifest.json`;
+- records the raw `package-lock.json` SHA-256, the canonical-contract file SHA-256 and the canonical-verifier SHA-256 separately in `rc-manifest.json`;
+- re-runs the existing canonical npm verifier from the evidence generator and records a digest of its success output rather than incorrectly treating the normalized canonical graph digest as a raw file-byte digest;
+- records the actual Flutter lock hashes in `rc-manifest.json`;
 - captures Flutter dependency inventories for `mobile_core`, Patient, Doctor and Other Provider applications.
+
+The canonical npm dependency digest and the raw `package-lock.json` byte digest serve different purposes and are intentionally not compared directly. Phase C2 canonicalization remains owned by `.ci/verify-npm-lock.mjs`; the RC manifest fingerprints the raw lock and verifier/contract independently for evidence correlation.
 
 The mobile dependency inventories are source-side evidence only. They do not replace native signed-artifact/SBOM/store evidence required by #81.
 
@@ -89,6 +93,7 @@ The manifest hashes the principal source contracts that determine the candidate'
 
 - root/API/Admin package definitions;
 - npm and Flutter canonical lock contracts;
+- the canonical npm verifier itself;
 - API `.env.example` configuration contract;
 - Admin `next.config.ts`;
 - CI, Security Analysis, PostgreSQL Recovery, Slice 10 FHIR and RC-evidence workflow definitions.
@@ -97,7 +102,7 @@ No environment secret values are captured.
 
 ## 9. Output bundle
 
-The workflow uploads a bundle named with the exact checkout SHA. It contains:
+The workflow uploads a bundle named with the exact validated source SHA. It contains:
 
 - `rc-manifest.json`;
 - `SHA256SUMS`;
@@ -110,7 +115,7 @@ The workflow uploads a bundle named with the exact checkout SHA. It contains:
 
 ## 10. What this closes and what remains open
 
-This source-side pipeline materially advances #97 by providing exact-SHA evidence generation, canonical dependency-lock proof, a Node SBOM, migration-set hashing, deterministic build snapshots and an immutable workflow artifact digest.
+This source-side pipeline materially advances #97 by providing exact-head-SHA evidence generation, canonical dependency-graph verification, raw lock fingerprinting, a Node SBOM, migration-set hashing, deterministic build snapshots and an immutable workflow artifact digest.
 
 It does **not** close #97. The following still require the real selected release platform/environment:
 

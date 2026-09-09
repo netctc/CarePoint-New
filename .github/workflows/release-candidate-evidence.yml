@@ -8,6 +8,7 @@ on:
       - "package.json"
       - "package-lock.json"
       - ".ci/npm-package-lock.canonical.sha256"
+      - ".ci/verify-npm-lock.mjs"
       - ".ci/flutter-pubspec-locks.sha256"
       - "services/api/**"
       - "apps/admin/**"
@@ -28,14 +29,15 @@ jobs:
     runs-on: ubuntu-24.04
     env:
       CAREPOINT_RELEASE_VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.release_version || '0.0.0-ci' }}
-      CAREPOINT_RELEASE_SHA: ${{ github.sha }}
-      CAREPOINT_RELEASE_SOURCE_REF: ${{ github.ref }}
+      CAREPOINT_RELEASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+      CAREPOINT_RELEASE_SOURCE_REF: ${{ github.event_name == 'pull_request' && github.head_ref || github.ref }}
       CAREPOINT_RELEASE_BUILD_ID: github-${{ github.run_id }}-${{ github.run_attempt }}
       CAREPOINT_RELEASE_EVIDENCE_PURPOSE: ${{ github.event_name == 'workflow_dispatch' && 'candidate' || 'validation' }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
@@ -88,7 +90,7 @@ jobs:
         id: upload
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: carepoint-rc-evidence-${{ github.sha }}
+          name: carepoint-rc-evidence-${{ env.CAREPOINT_RELEASE_SHA }}
           path: rc-evidence
           if-no-files-found: error
       - name: Publish sanitized evidence summary

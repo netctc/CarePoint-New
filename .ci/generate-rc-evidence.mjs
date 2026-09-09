@@ -108,6 +108,7 @@ const sourceFiles = [
   "package.json",
   "package-lock.json",
   ".ci/npm-package-lock.canonical.sha256",
+  ".ci/verify-npm-lock.mjs",
   ".ci/flutter-pubspec-locks.sha256",
   "services/api/package.json",
   "services/api/.env.example",
@@ -124,10 +125,18 @@ const sourceContracts = [];
 for (const relativePath of sourceFiles) sourceContracts.push(await fileEvidence(repoRoot, relativePath));
 
 const packageLock = sourceContracts.find((item) => item.path === "package-lock.json");
-const canonicalNpmLock = await readFile(path.join(repoRoot, ".ci/npm-package-lock.canonical.sha256"), "utf8");
-const canonicalNpmSha = canonicalNpmLock.trim().split(/\s+/)[0]?.toLowerCase();
-if (!packageLock || !/^[0-9a-f]{64}$/.test(canonicalNpmSha || "") || packageLock.sha256 !== canonicalNpmSha) {
-  throw new Error("package-lock.json does not match .ci/npm-package-lock.canonical.sha256.");
+const canonicalNpmContract = sourceContracts.find((item) => item.path === ".ci/npm-package-lock.canonical.sha256");
+const canonicalNpmVerifier = sourceContracts.find((item) => item.path === ".ci/verify-npm-lock.mjs");
+if (!packageLock || !canonicalNpmContract || !canonicalNpmVerifier) {
+  throw new Error("Required npm lock evidence files are missing from the Release Candidate source contracts.");
+}
+
+// Reuse the repository's canonical Phase C2 verifier instead of interpreting its
+// normalized digest as a raw package-lock.json byte hash. The raw lock SHA is
+// fingerprinted separately in the manifest for artifact correlation.
+const canonicalVerificationOutput = command(process.execPath, [".ci/verify-npm-lock.mjs"]);
+if (!canonicalVerificationOutput.includes("committed canonical npm dependency graph verified")) {
+  throw new Error("Canonical npm dependency verification did not report a successful Phase C2 result.");
 }
 
 const artifacts = [];
@@ -164,6 +173,14 @@ const manifest = {
   },
   dependencyEvidence: {
     npmPackageLock: packageLock,
+    npmCanonicalVerification: {
+      verified: true,
+      performedBy: canonicalNpmVerifier.path,
+      verifier: canonicalNpmVerifier,
+      canonicalContract: canonicalNpmContract,
+      verifierOutputSha256: sha256Buffer(canonicalVerificationOutput),
+      note: "Phase C2 canonicalization is verified by the repository verifier; package-lock.json raw bytes are fingerprinted independently.",
+    },
     mobile: await mobileLockEvidence(repoRoot),
   },
   migrationEvidence: await migrationEvidence(repoRoot),
