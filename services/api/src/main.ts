@@ -34,7 +34,7 @@ async function bootstrap(): Promise<void> {
   await assertProductionOtlpReady();
   assertProductionSiemReady();
 
-  const app = await NestFactory.create<NestExpressApplication>(AppModule, { cors: false, rawBody: true });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { cors: false });
   const configuredOrigins = process.env.ALLOWED_ORIGINS?.trim();
   if (process.env.NODE_ENV === "production" && !configuredOrigins) {
     throw new Error("ALLOWED_ORIGINS is required in production.");
