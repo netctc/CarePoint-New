@@ -31,13 +31,20 @@ export class ProviderOperationalCredentialService {
       },
     });
 
+    if (!provider) {
+      await this.deny(principal, route, null, "PROVIDER_NOT_FOUND", []);
+      return;
+    }
+
     const expectedClass = principal.role === "DOCTOR" ? "DOCTOR" : "OTHER_PROVIDER";
-    if (!provider || provider.class !== expectedClass || provider.status !== "ACTIVE") {
-      await this.deny(principal, route, provider?.id ?? null, "PROVIDER_NOT_ACTIVE", []);
+    if (provider.class !== expectedClass || provider.status !== "ACTIVE") {
+      await this.deny(principal, route, provider.id, "PROVIDER_NOT_ACTIVE", []);
+      return;
     }
 
     if (principal.role === "OTHER_PROVIDER" && !provider.otherProviderProfile?.category?.active) {
       await this.deny(principal, route, provider.id, "PROVIDER_CATEGORY_NOT_ACTIVE", []);
+      return;
     }
 
     const requiredTypes = principal.role === "DOCTOR"
@@ -56,7 +63,7 @@ export class ProviderOperationalCredentialService {
     providerId: string | null,
     reason: string,
     missingCredentialTypes: readonly string[],
-  ): Promise<never> {
+  ): Promise<void> {
     await this.audit.write({
       actorId: principal.accountId,
       action: "PROVIDER_OPERATIONAL_ACCESS_DENIED",
