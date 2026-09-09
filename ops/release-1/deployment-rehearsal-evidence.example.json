@@ -1,0 +1,67 @@
+{
+  "schema": "carepoint.release-rehearsal/v1",
+  "sensitiveDataIncluded": false,
+  "environment": {
+    "id": "<SANITIZED_ENVIRONMENT_ID>",
+    "classification": "production-equivalent",
+    "evidenceRef": "<RESTRICTED_ENVIRONMENT_EVIDENCE_REFERENCE>"
+  },
+  "release": {
+    "version": "<APPROVED_RC_VERSION>",
+    "sourceSha": "<FULL_40_HEX_FINAL_RC_SHA>",
+    "migrationSetSha256": "<64_HEX_MIGRATION_SET_SHA256_FROM_INVENTORY>",
+    "apiArtifactDigest": "sha256:<64_HEX_API_ARTIFACT_DIGEST>",
+    "adminArtifactDigest": "sha256:<64_HEX_ADMIN_ARTIFACT_DIGEST>",
+    "previous": {
+      "version": "<PREVIOUS_APPROVED_VERSION>",
+      "sourceSha": "<FULL_40_HEX_PREVIOUS_APPROVED_SHA>",
+      "apiArtifactDigest": "sha256:<64_HEX_PREVIOUS_API_ARTIFACT_DIGEST>",
+      "adminArtifactDigest": "sha256:<64_HEX_PREVIOUS_ADMIN_ARTIFACT_DIGEST>"
+    }
+  },
+  "predeploy": {
+    "pitrReady": false,
+    "backupPitrEvidenceRef": "<RESTRICTED_BACKUP_PITR_EVIDENCE_REFERENCE>",
+    "configReady": false,
+    "providerReadinessRef": "<RESTRICTED_PROVIDER_READINESS_REFERENCE>",
+    "migrationReviewRef": "<RESTRICTED_MIGRATION_REVIEW_REFERENCE>"
+  },
+  "deployment": {
+    "strategy": "<rolling|canary|blue-green|platform-approved-other>",
+    "strategyRef": "<REQUIRED_IF_PLATFORM_APPROVED_OTHER>",
+    "startedAt": "<ISO_8601_TIMESTAMP>",
+    "readyAt": "<ISO_8601_TIMESTAMP>",
+    "runtimeObservedSourceSha": "<FULL_40_HEX_FINAL_RC_SHA_OBSERVED_FROM_RUNTIME>",
+    "healthEvidenceRef": "<RESTRICTED_HEALTH_READINESS_REFERENCE>",
+    "smokeEvidenceRef": "<RESTRICTED_P0_SMOKE_REFERENCE>",
+    "safetySignalsPass": false
+  },
+  "rollback": {
+    "executed": false,
+    "triggerRef": "<APPROVED_CONTROLLED_ROLLBACK_TRIGGER_REFERENCE>",
+    "startedAt": "<ISO_8601_TIMESTAMP>",
+    "completedAt": "<ISO_8601_TIMESTAMP>",
+    "runtimeObservedSourceSha": "<FULL_40_HEX_PREVIOUS_APPROVED_SHA_OBSERVED_AFTER_ROLLBACK>",
+    "healthEvidenceRef": "<RESTRICTED_POST_ROLLBACK_HEALTH_REFERENCE>",
+    "smokeEvidenceRef": "<RESTRICTED_POST_ROLLBACK_SMOKE_REFERENCE>",
+    "sideEffectsReconciled": false
+  },
+  "recovery": {
+    "pitrRehearsed": false,
+    "rpoMinutes": 999,
+    "rtoMinutes": 999,
+    "evidenceRef": "<RESTRICTED_PITR_RECOVERY_EVIDENCE_REFERENCE>"
+  },
+  "approvals": {
+    "release": false,
+    "operations": false,
+    "sre": false,
+    "security": false,
+    "database": false,
+    "product": false,
+    "clinicalRequired": true,
+    "clinical": false,
+    "rehearsalAccepted": false,
+    "approvalRef": "<RESTRICTED_RELEASE_CAB_APPROVAL_REFERENCE>"
+  }
+}
