@@ -5,6 +5,7 @@ import { NestExpressApplication } from "@nestjs/platform-express";
 import helmet from "helmet";
 import { AppModule } from "./app.module";
 import { assertProductionProviderResponsePolicyReady } from "./infrastructure/http/bounded-provider-response";
+import { browserOrigins } from "./infrastructure/http/browser-origin-readiness";
 import { assertProductionFinancialGatewayEgressReady } from "./infrastructure/http/financial-gateway-egress";
 import { assertProductionTelehealthReady } from "./infrastructure/http/livekit-endpoint";
 import { assertProductionNotificationGatewayEgressReady } from "./infrastructure/http/notification-gateway-egress";
@@ -27,6 +28,7 @@ async function bootstrap(): Promise<void> {
   assertProductionNotificationGatewayEgressReady();
   assertProductionTelehealthReady();
   assertProductionSmartPublicEndpointsReady();
+  const origins = browserOrigins(process.env);
   await assertProductionObjectStorageReady();
   await assertProductionDatabaseReady();
   await assertProductionRedisReady();
@@ -34,14 +36,6 @@ async function bootstrap(): Promise<void> {
   assertProductionSiemReady();
 
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { cors: false, rawBody: true });
-  const configuredOrigins = process.env.ALLOWED_ORIGINS?.trim();
-  if (process.env.NODE_ENV === "production" && !configuredOrigins) {
-    throw new Error("ALLOWED_ORIGINS is required in production.");
-  }
-  const origins = (configuredOrigins || "http://localhost:3000")
-    .split(",")
-    .map((value) => value.trim())
-    .filter(Boolean);
 
   app.disable("x-powered-by");
   if (process.env.TRUST_PROXY === "true") app.set("trust proxy", 1);
