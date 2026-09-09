@@ -7,8 +7,10 @@ import { AppModule } from "./app.module";
 import { assertProductionProviderResponsePolicyReady } from "./infrastructure/http/bounded-provider-response";
 import { browserOrigins } from "./infrastructure/http/browser-origin-readiness";
 import { assertProductionFinancialGatewayEgressReady } from "./infrastructure/http/financial-gateway-egress";
+import { assertProductionInboundBodyLimitsReady, inboundBodyLimits } from "./infrastructure/http/inbound-body-limits";
 import { assertProductionTelehealthReady } from "./infrastructure/http/livekit-endpoint";
 import { assertProductionNotificationGatewayEgressReady } from "./infrastructure/http/notification-gateway-egress";
+import { assertProductionPaymentActionPolicyReady } from "./infrastructure/http/payment-action-url-policy";
 import { assertProductionOtlpReady } from "./infrastructure/observability/production-otel-preflight";
 import { assertProductionDatabaseReady } from "./infrastructure/prisma/production-database-preflight";
 import { assertProductionRedisReady } from "./infrastructure/redis/production-redis-preflight";
@@ -26,6 +28,9 @@ async function bootstrap(): Promise<void> {
   assertProductionFinancialGatewayEgressReady();
   assertProductionProviderResponsePolicyReady();
   assertProductionNotificationGatewayEgressReady();
+  assertProductionPaymentActionPolicyReady();
+  assertProductionInboundBodyLimitsReady();
+  const bodyLimits = inboundBodyLimits();
   assertProductionTelehealthReady();
   assertProductionSmartPublicEndpointsReady();
   const origins = browserOrigins(process.env);
@@ -35,7 +40,7 @@ async function bootstrap(): Promise<void> {
   await assertProductionOtlpReady();
   assertProductionSiemReady();
 
-  const app = await NestFactory.create<NestExpressApplication>(AppModule, { cors: false, rawBody: true });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { cors: false });
 
   app.disable("x-powered-by");
   if (process.env.TRUST_PROXY === "true") app.set("trust proxy", 1);
@@ -45,8 +50,8 @@ async function bootstrap(): Promise<void> {
       : false,
     referrerPolicy: { policy: "no-referrer" },
   }));
-  app.useBodyParser("json", { limit: Number(process.env.JSON_BODY_LIMIT_BYTES ?? 1_048_576) });
-  app.useBodyParser("urlencoded", { limit: Number(process.env.FORM_BODY_LIMIT_BYTES ?? 131_072), extended: true });
+  app.useBodyParser("json", { limit: bodyLimits.jsonBytes });
+  app.useBodyParser("urlencoded", { limit: bodyLimits.formBytes, extended: true });
   app.enableCors({
     origin: origins,
     credentials: true,
