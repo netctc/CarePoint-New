@@ -52,8 +52,8 @@ try {
   assert.equal(validatedLiveKitUrl(production()), "wss://telehealth.example.test");
   assert.equal(
     validatedLiveKitUrl(production({ LIVEKIT_URL: "wss://telehealth.example.test/livekit/" })),
-    "wss://telehealth.example.test/livekit",
-    "reverse-proxy paths remain supported",
+    "wss://telehealth.example.test/livekit/",
+    "validated reverse-proxy paths must be returned exactly as configured",
   );
   assert.equal(
     validatedLiveKitUrl({ NODE_ENV: "test", LIVEKIT_URL: "ws://127.0.0.1:7880" }),
@@ -127,7 +127,7 @@ try {
     participantRole: "PATIENT",
     ttlSeconds: 900,
   });
-  assert.equal(join.serverUrl, "wss://telehealth.example.test/livekit");
+  assert.equal(join.serverUrl, "wss://telehealth.example.test/livekit/");
   assert.equal(join.participantToken.split(".").length, 3, "LiveKit join material must still contain a compact JWT");
   assert.ok(join.expiresAt.getTime() > Date.now());
 
