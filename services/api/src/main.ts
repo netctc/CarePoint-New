@@ -16,6 +16,7 @@ import { assertProductionKmsReady } from "./infrastructure/security/production-k
 import { assertProductionKmsRotationReady } from "./infrastructure/security/production-kms-rotation-preflight";
 import { assertProductionObjectStorageReady } from "./infrastructure/security/production-object-storage-preflight";
 import { assertProductionSiemReady } from "./infrastructure/siem/production-siem-preflight";
+import { assertProductionSmartPublicEndpointsReady } from "./security/production-smart-public-endpoints-preflight";
 
 async function bootstrap(): Promise<void> {
   await assertProductionKmsReady();
@@ -25,6 +26,7 @@ async function bootstrap(): Promise<void> {
   assertProductionProviderResponsePolicyReady();
   assertProductionNotificationGatewayEgressReady();
   assertProductionTelehealthReady();
+  assertProductionSmartPublicEndpointsReady();
   await assertProductionObjectStorageReady();
   await assertProductionDatabaseReady();
   await assertProductionRedisReady();
