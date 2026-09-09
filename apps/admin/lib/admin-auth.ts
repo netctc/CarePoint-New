@@ -1,10 +1,13 @@
 import type { NextRequest, NextResponse } from "next/server";
+import {
+  adminApiBaseUrl,
+  adminBackendFetch,
+  readBoundedAdminBackendText,
+} from "./admin-backend-policy.js";
 
 export const ADMIN_ACCESS_COOKIE = "carepoint_admin_access";
 export const ADMIN_REFRESH_COOKIE = "carepoint_admin_refresh";
 export const ADMIN_SESSION_COOKIE = "carepoint_admin_session";
-
-const DEFAULT_API_BASE_URL = "http://127.0.0.1:4000/api/v1";
 
 export interface AdminAccount {
   id: string;
@@ -39,7 +42,7 @@ export class AdminAuthError extends Error {
 }
 
 export function apiBaseUrl(): string {
-  return (process.env.CAREPOINT_API_URL?.trim() || DEFAULT_API_BASE_URL).replace(/\/$/, "");
+  return adminApiBaseUrl();
 }
 
 export function isTrustedSameOrigin(request: NextRequest): boolean {
@@ -166,15 +169,21 @@ async function verifyIssuedAdminSession(tokens: AdminSessionTokens): Promise<Adm
 async function apiJson<T>(path: string, init: RequestInit = {}): Promise<T> {
   let response: Response;
   try {
-    response = await fetch(`${apiBaseUrl()}${path}`, {
+    response = await adminBackendFetch(path, {
       ...init,
-      cache: "no-store",
       headers: { accept: "application/json", ...(init.headers || {}) },
     });
   } catch {
     throw new AdminAuthError(503, "CarePoint API is unavailable.");
   }
-  const text = await response.text();
+
+  let text: string;
+  try {
+    text = await readBoundedAdminBackendText(response);
+  } catch {
+    throw new AdminAuthError(502, "Invalid CarePoint API response.");
+  }
+
   let payload: unknown = {};
   if (text) {
     try {
