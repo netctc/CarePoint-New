@@ -139,6 +139,6 @@ class DiagnosticReportsController {
     DocumentsImagingInteropService,
     DocumentsSystemExportService,
   ],
-  exports: [DocumentsService, DocumentsImagingInteropService, DocumentsSystemExportService],
+  exports: [DocumentsService, DocumentStorageService, DocumentsImagingInteropService, DocumentsSystemExportService],
 })
 export class DocumentsModule {}

@@ -16,6 +16,7 @@ import { ClaimsModule } from "./modules/claims/claims.module";
 import { ClinicalModule } from "./modules/clinical/clinical.module";
 import { CommunicationsModule } from "./modules/communications/communications.module";
 import { ConsentModule } from "./modules/consent/consent.module";
+import { DataGovernanceModule } from "./modules/data-governance/data-governance.module";
 import { DocumentsModule } from "./modules/documents/documents.module";
 import { emergencyAmbulanceModuleEnabled } from "./modules/emergency/emergency-launch-policy";
 import { EmergencyModule } from "./modules/emergency/emergency.module";
@@ -44,6 +45,7 @@ import { TransportModule } from "./modules/transport/transport.module";
     AdminReschedulingModule,
     AdminSecurityModule,
     AdminTelehealthModule,
+    DataGovernanceModule,
     ProvidersModule,
     ...(emergencyAmbulanceModuleEnabled(process.env) ? [EmergencyModule] : []),
     TransportModule,

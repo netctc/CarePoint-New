@@ -9,6 +9,7 @@ export interface AuthPrincipal {
 export const Permissions = [
   "IAM_MANAGE_ACCOUNTS",
   "IAM_READ_AUDIT",
+  "DATA_GOVERNANCE_MANAGE",
   "PROVIDER_REVIEW",
   "PROVIDER_SELF_ONBOARD",
   "PROVIDER_MANAGE_SERVICES",
@@ -63,6 +64,7 @@ const grants: Record<IdentityRole, readonly Permission[]> = {
   ADMIN: [
     "IAM_MANAGE_ACCOUNTS",
     "IAM_READ_AUDIT",
+    "DATA_GOVERNANCE_MANAGE",
     "PROVIDER_REVIEW",
     "SELF_NOTIFICATION_MANAGE",
     "NOTIFICATION_OPERATE",
