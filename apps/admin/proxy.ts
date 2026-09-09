@@ -8,8 +8,52 @@ import {
   validateCarePointAdmin,
   writeAdminCookies,
 } from "@/lib/admin-auth";
+import {
+  clearClinicalCookies,
+  noStoreClinical,
+  readClinicalCookies,
+  refreshCarePointClinical,
+  validateCarePointClinical,
+  writeClinicalCookies,
+} from "@/lib/clinical-auth";
 
 export async function proxy(request: NextRequest) {
+  if (request.nextUrl.pathname === "/clinical/login") return noStoreClinical(NextResponse.next());
+  if (request.nextUrl.pathname === "/clinical" || request.nextUrl.pathname.startsWith("/clinical/")) {
+    return clinicalProxy(request);
+  }
+  return adminProxy(request);
+}
+
+async function clinicalProxy(request: NextRequest) {
+  const { accessToken, refreshToken } = readClinicalCookies(request);
+  if (accessToken) {
+    try {
+      await validateCarePointClinical(accessToken);
+      return noStoreClinical(NextResponse.next());
+    } catch {
+      // Short-lived access may have expired; server-side refresh rotation may recover below.
+    }
+  }
+
+  if (refreshToken) {
+    try {
+      const result = await refreshCarePointClinical(refreshToken);
+      const response = NextResponse.next();
+      writeClinicalCookies(response, result.tokens);
+      return noStoreClinical(response);
+    } catch {
+      // Invalid, replayed, expired or ineligible clinical sessions are cleared before redirect.
+    }
+  }
+
+  const loginUrl = new URL("/clinical/login", request.url);
+  const response = NextResponse.redirect(loginUrl);
+  clearClinicalCookies(response);
+  return noStoreClinical(response);
+}
+
+async function adminProxy(request: NextRequest) {
   const { accessToken, refreshToken } = readAdminCookies(request);
 
   if (accessToken) {
@@ -49,5 +93,6 @@ export const config = {
     "/telehealth/:path*",
     "/analytics/:path*",
     "/security/:path*",
+    "/clinical/:path*",
   ],
 };

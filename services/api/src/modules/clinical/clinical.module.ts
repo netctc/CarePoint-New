@@ -1,18 +1,36 @@
 import { Body, Controller, Get, Module, Param, Post } from "@nestjs/common";
 import type { AuthPrincipal } from "@carepoint/identity";
 import { CurrentPrincipal, RequirePermissions } from "../../security/api-security.module";
+import { DocumentsModule } from "../documents/documents.module";
+import { OrdersModule } from "../orders/orders.module";
 import { ClinicalEnvelopeService } from "./clinical-envelope.service";
 import { ClinicalService } from "./clinical.service";
 import { ClinicalSystemExportService } from "./clinical-system-export.service";
+import { ClinicalWorkspaceService } from "./clinical-workspace.service";
 
 @Controller("clinical")
 class ClinicalController {
-  constructor(private readonly clinical: ClinicalService) {}
+  constructor(
+    private readonly clinical: ClinicalService,
+    private readonly workspace: ClinicalWorkspaceService,
+  ) {}
 
   @RequirePermissions("PATIENT_READ_CLINICAL_RECORD")
   @Get("timeline")
   timeline(@CurrentPrincipal() principal: AuthPrincipal) {
     return this.clinical.patientTimeline(principal);
+  }
+
+  @RequirePermissions("CLINICAL_RECORD_READ")
+  @Get("patients/roster")
+  providerRoster(@CurrentPrincipal() principal: AuthPrincipal) {
+    return this.workspace.providerRoster(principal);
+  }
+
+  @RequirePermissions("CLINICAL_RECORD_READ")
+  @Get("patients/:patientId/workspace")
+  providerWorkspace(@CurrentPrincipal() principal: AuthPrincipal, @Param("patientId") patientId: string) {
+    return this.workspace.providerWorkspace(principal, patientId);
   }
 
   @RequirePermissions("CLINICAL_RECORD_READ")
@@ -45,8 +63,9 @@ class ClinicalController {
 }
 
 @Module({
+  imports: [OrdersModule, DocumentsModule],
   controllers: [ClinicalController],
-  providers: [ClinicalService, ClinicalEnvelopeService, ClinicalSystemExportService],
+  providers: [ClinicalService, ClinicalEnvelopeService, ClinicalSystemExportService, ClinicalWorkspaceService],
   exports: [ClinicalService, ClinicalSystemExportService],
 })
 export class ClinicalModule {}
