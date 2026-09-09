@@ -1,5 +1,6 @@
 import { BadGatewayException, BadRequestException, Injectable, InternalServerErrorException } from "@nestjs/common";
 import { createHash } from "node:crypto";
+import { discardProviderResponseBody, readBoundedProviderJsonObject } from "../../infrastructure/http/bounded-provider-response";
 import { ExternalSecretResolverService } from "../../infrastructure/secrets/external-secret-resolver.service";
 
 type ExternalNotificationChannel = "PUSH" | "EMAIL" | "SMS";
@@ -63,11 +64,15 @@ export class NotificationGatewayService {
     } catch {
       throw new BadGatewayException("External notification delivery transport failed.");
     }
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok || !payload || typeof payload !== "object" || Array.isArray(payload)) {
+    if (!response.ok) {
+      await discardProviderResponseBody(response);
       throw new BadGatewayException(`External notification delivery failed with HTTP ${response.status}.`);
     }
-    return payload as Record<string, unknown>;
+    try {
+      return await readBoundedProviderJsonObject(response);
+    } catch {
+      throw new BadGatewayException("External notification provider returned an invalid response.");
+    }
   }
 
   private timeoutMs(): number {
