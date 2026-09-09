@@ -148,6 +148,10 @@ jobs:
         run: node services/api/scripts/admin-b8-smoke.mjs
       - name: Phase B9 Admin analytics and operational intelligence acceptance
         run: node services/api/scripts/admin-b9-smoke.mjs
+      - name: Other Provider O1 access foundation acceptance
+        run: node services/api/scripts/other-provider-o1-smoke.mjs
+      - name: Other Provider O2 capability enforcement acceptance
+        run: node services/api/scripts/other-provider-o2-smoke.mjs
       - name: Slice 2 scheduling and concurrency smoke test
         run: node services/api/scripts/slice2-smoke.mjs
       - name: Slice 3 secure telemedicine smoke test
