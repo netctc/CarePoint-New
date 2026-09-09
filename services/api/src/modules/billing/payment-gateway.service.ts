@@ -2,6 +2,7 @@ import { BadGatewayException, Injectable, InternalServerErrorException } from "@
 import { createHash } from "node:crypto";
 import { discardProviderResponseBody, readBoundedProviderJsonObject } from "../../infrastructure/http/bounded-provider-response";
 import { financialGatewayTimeoutMs, validatedFinancialGatewayBaseUrl } from "../../infrastructure/http/financial-gateway-egress";
+import { validatedPaymentActionUrl } from "../../infrastructure/http/payment-action-url-policy";
 import { ExternalSecretResolverService } from "../../infrastructure/secrets/external-secret-resolver.service";
 
 type PaymentStatus = "REQUIRES_ACTION" | "PROCESSING" | "SUCCEEDED" | "FAILED" | "CANCELLED";
@@ -123,11 +124,14 @@ export class PaymentGatewayService {
     if (status !== "REQUIRES_ACTION" && status !== "PROCESSING" && status !== "SUCCEEDED" && status !== "FAILED" && status !== "CANCELLED") {
       throw new BadGatewayException("Payment gateway returned an unsupported payment status.");
     }
-    const actionUrl = typeof payload.actionUrl === "string" && payload.actionUrl.trim() ? payload.actionUrl.trim() : undefined;
-    if (actionUrl && process.env.NODE_ENV === "production") {
-      let url: URL;
-      try { url = new URL(actionUrl); } catch { throw new BadGatewayException("Payment gateway returned an invalid hosted action URL."); }
-      if (url.protocol !== "https:") throw new BadGatewayException("Production hosted payment actions require HTTPS.");
+    const rawActionUrl = typeof payload.actionUrl === "string" && payload.actionUrl.trim() ? payload.actionUrl.trim() : undefined;
+    let actionUrl: string | undefined;
+    if (rawActionUrl) {
+      try {
+        actionUrl = validatedPaymentActionUrl(rawActionUrl);
+      } catch {
+        throw new BadGatewayException("Payment gateway returned an untrusted hosted action URL.");
+      }
     }
     const failureCode = typeof payload.failureCode === "string" ? payload.failureCode.slice(0, 120) : undefined;
     return { gateway: "EXTERNAL_PSP", reference, status, ...(actionUrl ? { actionUrl } : {}), ...(failureCode ? { failureCode } : {}) };
