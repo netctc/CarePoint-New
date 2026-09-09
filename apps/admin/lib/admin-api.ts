@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { adminBackendFetch, readBoundedAdminBackendText } from "@/lib/admin-backend-policy.js";
 import {
-  apiBaseUrl,
   clearAdminCookies,
   isTrustedSameOrigin,
   noStore,
@@ -31,9 +31,8 @@ export async function forwardAdminJson(request: NextRequest, path: string, optio
 
   let backend: Response;
   try {
-    backend = await fetch(`${apiBaseUrl()}${path}`, {
+    backend = await adminBackendFetch(path, {
       method: options.method || "GET",
-      cache: "no-store",
       headers: {
         accept: "application/json",
         authorization: `Bearer ${auth.accessToken}`,
@@ -45,7 +44,16 @@ export async function forwardAdminJson(request: NextRequest, path: string, optio
     return noStore(NextResponse.json({ message: "CarePoint API is temporarily unavailable." }, { status: 503 }));
   }
 
-  const text = await backend.text();
+  let text: string;
+  try {
+    text = await readBoundedAdminBackendText(backend);
+  } catch {
+    const response = NextResponse.json({ message: "Invalid CarePoint API response." }, { status: 502 });
+    if (auth.rotatedTokens) writeAdminCookies(response, auth.rotatedTokens);
+    if (backend.status === 401) clearAdminCookies(response);
+    return noStore(response);
+  }
+
   let payload: unknown = {};
   if (text) {
     try {
