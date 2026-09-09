@@ -2,6 +2,7 @@ import { Body, Controller, Get, Module, Param, Post } from "@nestjs/common";
 import type { AuthPrincipal } from "@carepoint/identity";
 import { CurrentPrincipal, RequirePermissions } from "../../security/api-security.module";
 import { PersistentOnboardingService } from "./persistent-onboarding.service";
+import { ProviderCredentialGovernanceService } from "./provider-credential-governance.service";
 import { ProviderSelfOnboardingService } from "./provider-self-onboarding.service";
 
 interface DoctorOnboardingBody { specialtyId: string; }
@@ -15,6 +16,7 @@ class OnboardingController {
   constructor(
     private readonly onboarding: PersistentOnboardingService,
     private readonly selfOnboarding: ProviderSelfOnboardingService,
+    private readonly credentialGovernance: ProviderCredentialGovernanceService,
   ) {}
 
   @RequirePermissions("PROVIDER_SELF_ONBOARD")
@@ -88,7 +90,8 @@ class OnboardingController {
 
   @RequirePermissions("PROVIDER_REVIEW")
   @Post(":onboardingId/approve")
-  approve(@CurrentPrincipal() principal: AuthPrincipal, @Param("onboardingId") onboardingId: string) {
+  async approve(@CurrentPrincipal() principal: AuthPrincipal, @Param("onboardingId") onboardingId: string) {
+    await this.credentialGovernance.assertApprovable(principal, onboardingId);
     return this.onboarding.approve(principal, onboardingId);
   }
 
@@ -107,6 +110,6 @@ class OnboardingController {
 
 @Module({
   controllers: [OnboardingController],
-  providers: [PersistentOnboardingService, ProviderSelfOnboardingService],
+  providers: [PersistentOnboardingService, ProviderCredentialGovernanceService, ProviderSelfOnboardingService],
 })
 export class OnboardingModule {}

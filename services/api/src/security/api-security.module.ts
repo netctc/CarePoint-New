@@ -16,6 +16,7 @@ import { PrismaKnownRequestFilter } from "../infrastructure/prisma/prisma-confli
 import { DatabaseAuditService } from "../infrastructure/audit/audit.service";
 import { MfaEnvelopeService } from "../infrastructure/security/mfa-envelope.service";
 import { PersistentAuthService } from "./persistent-auth.service";
+import { ProviderOperationalCredentialService } from "./provider-operational-credential.service";
 import { SmartConfigurationService } from "./smart-configuration.service";
 import { SmartTokenService, type SmartAccessContext, type SmartFhirInteraction, type SmartFhirRequirement } from "./smart-token.service";
 
@@ -48,6 +49,7 @@ class ApiAccessGuard implements CanActivate {
     private readonly auth: PersistentAuthService,
     private readonly smart: SmartTokenService,
     private readonly audit: DatabaseAuditService,
+    private readonly providerCredentials: ProviderOperationalCredentialService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -110,6 +112,8 @@ class ApiAccessGuard implements CanActivate {
       });
       throw new ForbiddenException("Authorization denied.");
     }
+
+    await this.providerCredentials.assertAccess(principal, permissions, request.url ?? null);
     return true;
   }
 }
@@ -121,11 +125,12 @@ class ApiAccessGuard implements CanActivate {
     DatabaseAuditService,
     MfaEnvelopeService,
     PersistentAuthService,
+    ProviderOperationalCredentialService,
     SmartConfigurationService,
     SmartTokenService,
     { provide: APP_GUARD, useClass: ApiAccessGuard },
     { provide: APP_FILTER, useClass: PrismaKnownRequestFilter },
   ],
-  exports: [DatabaseAuditService, MfaEnvelopeService, PersistentAuthService, SmartConfigurationService, SmartTokenService],
+  exports: [DatabaseAuditService, MfaEnvelopeService, PersistentAuthService, ProviderOperationalCredentialService, SmartConfigurationService, SmartTokenService],
 })
 export class ApiSecurityModule {}
