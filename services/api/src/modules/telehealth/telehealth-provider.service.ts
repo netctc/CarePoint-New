@@ -1,6 +1,7 @@
 import { Injectable, InternalServerErrorException } from "@nestjs/common";
 import { AccessToken, WebhookReceiver } from "livekit-server-sdk";
 import { createHmac } from "node:crypto";
+import { telehealthProvider, validatedLiveKitUrl } from "../../infrastructure/http/livekit-endpoint";
 import { ExternalSecretResolverService } from "../../infrastructure/secrets/external-secret-resolver.service";
 
 export interface TelehealthJoinTokenInput {
@@ -81,9 +82,14 @@ export class TelehealthProviderService {
   }
 
   private mode(): "livekit" | "mock" {
-    const configured = (process.env.TELEHEALTH_PROVIDER ?? (process.env.NODE_ENV === "production" ? "" : "mock")).trim().toLowerCase();
+    let configured: "livekit" | "mock";
+    try {
+      configured = telehealthProvider(process.env);
+    } catch {
+      throw new InternalServerErrorException("TELEHEALTH_PROVIDER must be either livekit or mock.");
+    }
     if (configured === "livekit") return "livekit";
-    if (configured === "mock" && process.env.NODE_ENV !== "production") return "mock";
+    if (process.env.NODE_ENV !== "production") return "mock";
     throw new InternalServerErrorException("Production telehealth requires TELEHEALTH_PROVIDER=livekit and server-side LiveKit credentials.");
   }
 
@@ -96,8 +102,13 @@ export class TelehealthProviderService {
   }
 
   private async liveKitConfiguration(): Promise<{ url: string; apiKey: string; apiSecret: string }> {
-    const url = process.env.LIVEKIT_URL?.trim();
-    if (!url) throw new InternalServerErrorException("LiveKit server URL is missing.");
+    let url: string;
+    try {
+      url = validatedLiveKitUrl(process.env);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "LiveKit server URL is invalid.";
+      throw new InternalServerErrorException(message);
+    }
     const apiKey = await this.secrets.resolve("livekit-api-key");
     const apiSecret = await this.secrets.resolve("livekit-api-secret");
     return { url, apiKey, apiSecret };
