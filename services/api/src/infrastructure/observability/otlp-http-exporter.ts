@@ -110,7 +110,13 @@ export function otlpHttpConfiguration(env: NodeJS.ProcessEnv = process.env): Otl
   validateUserHeaders(metricsHeaders);
 
   const exportMode = exportModeFromEnv(env.CAREPOINT_OTEL_EXPORT_MODE, production);
-  const commonTimeout = positiveInteger(env.OTEL_EXPORTER_OTLP_TIMEOUT ?? "10000", "OTEL_EXPORTER_OTLP_TIMEOUT");
+  const commonTimeoutRaw = env.OTEL_EXPORTER_OTLP_TIMEOUT?.trim();
+  const tracesTimeoutRaw = env.OTEL_EXPORTER_OTLP_TRACES_TIMEOUT?.trim();
+  const metricsTimeoutRaw = env.OTEL_EXPORTER_OTLP_METRICS_TIMEOUT?.trim();
+  if (production && !commonTimeoutRaw && (!tracesTimeoutRaw || !metricsTimeoutRaw)) {
+    throw new Error("Production OpenTelemetry requires OTEL_EXPORTER_OTLP_TIMEOUT or both signal-specific OTLP timeouts.");
+  }
+  const commonTimeout = boundedOtlpTimeout(commonTimeoutRaw || "10000", "OTEL_EXPORTER_OTLP_TIMEOUT");
   const serviceName = sanitizeResourceValue(env.OTEL_SERVICE_NAME ?? "carepoint-api", "OTEL_SERVICE_NAME", 120, true);
   const serviceNamespace = optionalResourceValue(env.OTEL_SERVICE_NAMESPACE, "OTEL_SERVICE_NAMESPACE", 120);
   const serviceVersion = optionalResourceValue(env.OTEL_SERVICE_VERSION, "OTEL_SERVICE_VERSION", 80);
@@ -128,8 +134,8 @@ export function otlpHttpConfiguration(env: NodeJS.ProcessEnv = process.env): Otl
     metricsEndpoint,
     tracesHeaders,
     metricsHeaders,
-    tracesTimeoutMs: positiveInteger(env.OTEL_EXPORTER_OTLP_TRACES_TIMEOUT ?? String(commonTimeout), "OTEL_EXPORTER_OTLP_TRACES_TIMEOUT"),
-    metricsTimeoutMs: positiveInteger(env.OTEL_EXPORTER_OTLP_METRICS_TIMEOUT ?? String(commonTimeout), "OTEL_EXPORTER_OTLP_METRICS_TIMEOUT"),
+    tracesTimeoutMs: boundedOtlpTimeout(tracesTimeoutRaw || String(commonTimeout), "OTEL_EXPORTER_OTLP_TRACES_TIMEOUT"),
+    metricsTimeoutMs: boundedOtlpTimeout(metricsTimeoutRaw || String(commonTimeout), "OTEL_EXPORTER_OTLP_METRICS_TIMEOUT"),
     serviceName,
     serviceNamespace,
     serviceVersion,
@@ -203,8 +209,14 @@ export async function sendOtlpJson(
         accept: "application/json",
       },
       body: JSON.stringify(payload),
+      redirect: "error",
       signal: controller.signal,
     });
+    try {
+      await response.body?.cancel();
+    } catch {
+      // The OTLP response body is intentionally ignored; cancellation is best-effort cleanup.
+    }
     if (!response.ok) throw new Error(`OTLP collector returned HTTP ${response.status}.`);
   } finally {
     clearTimeout(timer);
@@ -471,6 +483,7 @@ function validatedOtlpEndpoint(value: string | undefined, production: boolean, s
     throw new Error(`OTLP ${signal} endpoint must use http:// or https://.`);
   }
   if (url.username || url.password) throw new Error(`OTLP ${signal} endpoint must not embed credentials in the URL.`);
+  if (url.hash) throw new Error(`OTLP ${signal} endpoint must not contain a URL fragment.`);
   if (production && url.protocol !== "https:") throw new Error(`Production OTLP ${signal} endpoint must use https://.`);
   if (production && isLocalHost(url.hostname)) throw new Error(`Production OTLP ${signal} endpoint must not target a loopback host.`);
   return url.toString();
@@ -553,6 +566,12 @@ function sanitizeResourceValue(value: string, name: string, maxLength: number, r
 function positiveInteger(value: string, name: string): number {
   const parsed = Number(value);
   if (!Number.isInteger(parsed) || parsed < 1) throw new Error(`${name} must be a positive integer.`);
+  return parsed;
+}
+
+function boundedOtlpTimeout(value: string, name: string): number {
+  const parsed = positiveInteger(value, name);
+  if (parsed < 100 || parsed > 30_000) throw new Error(`${name} must be between 100 and 30000.`);
   return parsed;
 }
 
