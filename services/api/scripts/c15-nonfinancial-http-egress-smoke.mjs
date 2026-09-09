@@ -66,11 +66,11 @@ try {
   );
   assert.throws(
     () => validatedNotificationGatewayBaseUrl(notificationProduction({ NOTIFICATION_GATEWAY_BASE_URL: "http://notifications.example.test" })),
-    /must use HTTPS in production/,
+    /require.*HTTPS/,
   );
   assert.throws(
     () => validatedNotificationGatewayBaseUrl(notificationProduction({ NOTIFICATION_GATEWAY_BASE_URL: "https://user:secret@notifications.example.test" })),
-    /must not contain embedded credentials/,
+    /must not embed credentials/,
   );
   assert.throws(
     () => validatedNotificationGatewayBaseUrl(notificationProduction({ NOTIFICATION_GATEWAY_BASE_URL: "https://notifications.example.test/api/#hidden" })),
