@@ -193,7 +193,8 @@ function scanSensitiveData(value, trail = "evidence") {
   }
 }
 
-async function validateEvidence(evidence, inventory = await migrationInventory()) {
+async function validateEvidence(evidence, providedInventory) {
+  const inventory = providedInventory ?? await migrationInventory();
   const root = requiredObject(evidence, "evidence");
   scanSensitiveData(root);
   if (root.schema !== "carepoint.release-rehearsal/v1") throw new Error("Unsupported rehearsal evidence schema.");
