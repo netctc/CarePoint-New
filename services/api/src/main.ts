@@ -23,6 +23,7 @@ import { assertProductionKmsReady } from "./infrastructure/security/production-k
 import { assertProductionKmsRotationReady } from "./infrastructure/security/production-kms-rotation-preflight";
 import { assertProductionObjectStorageReady } from "./infrastructure/security/production-object-storage-preflight";
 import { assertProductionSiemReady } from "./infrastructure/siem/production-siem-preflight";
+import { assertProductionEmergencyAmbulanceReady } from "./modules/emergency/emergency-launch-policy";
 import { assertProductionSmartPublicEndpointsReady } from "./security/production-smart-public-endpoints-preflight";
 
 async function bootstrap(): Promise<void> {
@@ -36,6 +37,7 @@ async function bootstrap(): Promise<void> {
   assertProductionInboundBodyLimitsReady();
   const bodyLimits = inboundBodyLimits();
   assertProductionTelehealthReady();
+  assertProductionEmergencyAmbulanceReady();
   assertProductionSmartPublicEndpointsReady();
   const origins = browserOrigins(process.env);
   await assertProductionObjectStorageReady();
