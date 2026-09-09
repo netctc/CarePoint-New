@@ -1,6 +1,11 @@
 import { BadGatewayException, BadRequestException, Injectable, InternalServerErrorException } from "@nestjs/common";
 import { createHash } from "node:crypto";
 import { discardProviderResponseBody, readBoundedProviderJsonObject } from "../../infrastructure/http/bounded-provider-response";
+import {
+  assertProductionNotificationGatewayEgressReady,
+  notificationGatewayTimeoutMs,
+  validatedNotificationGatewayBaseUrl,
+} from "../../infrastructure/http/notification-gateway-egress";
 import { ExternalSecretResolverService } from "../../infrastructure/secrets/external-secret-resolver.service";
 
 type ExternalNotificationChannel = "PUSH" | "EMAIL" | "SMS";
@@ -21,9 +26,7 @@ export class NotificationGatewayService {
   constructor(private readonly secrets: ExternalSecretResolverService = new ExternalSecretResolverService()) {}
 
   assertProductionReady(): void {
-    if (this.provider() !== "external") return;
-    this.baseUrl();
-    this.timeoutMs();
+    assertProductionNotificationGatewayEgressReady();
   }
 
   async send(input: NotificationGatewayInput): Promise<{ provider: string; reference: string }> {
@@ -59,6 +62,7 @@ export class NotificationGatewayService {
           "idempotency-key": `${input.notificationId}:${input.channel}`,
         },
         body: JSON.stringify(input),
+        redirect: "error",
         signal: AbortSignal.timeout(this.timeoutMs()),
       });
     } catch {
@@ -76,30 +80,19 @@ export class NotificationGatewayService {
   }
 
   private timeoutMs(): number {
-    const raw = process.env.NOTIFICATION_GATEWAY_TIMEOUT_MS?.trim() || "10000";
-    if (!/^\d+$/.test(raw)) throw new InternalServerErrorException("NOTIFICATION_GATEWAY_TIMEOUT_MS must be an integer.");
-    const value = Number(raw);
-    if (!Number.isSafeInteger(value) || value < 100 || value > 30_000) {
-      throw new InternalServerErrorException("NOTIFICATION_GATEWAY_TIMEOUT_MS must be between 100 and 30000.");
+    try {
+      return notificationGatewayTimeoutMs();
+    } catch (error) {
+      throw new InternalServerErrorException(error instanceof Error ? error.message : "NOTIFICATION_GATEWAY_TIMEOUT_MS is invalid.");
     }
-    return value;
   }
 
   private baseUrl(): string {
-    const value = process.env.NOTIFICATION_GATEWAY_BASE_URL?.trim();
-    if (!value) throw new InternalServerErrorException("NOTIFICATION_GATEWAY_BASE_URL is required for external notification delivery.");
-    let url: URL;
-    try { url = new URL(value.endsWith("/") ? value : `${value}/`); } catch { throw new InternalServerErrorException("NOTIFICATION_GATEWAY_BASE_URL is invalid."); }
-    if (url.protocol !== "https:" && url.protocol !== "http:") throw new BadRequestException("Unsupported notification gateway URL protocol.");
-    if (url.username || url.password) throw new InternalServerErrorException("Notification gateway URLs must not embed credentials.");
-    if (process.env.NODE_ENV === "production") {
-      if (url.protocol !== "https:") throw new InternalServerErrorException("Production notification gateways require HTTPS.");
-      const host = url.hostname.toLowerCase();
-      if (host === "localhost" || host === "127.0.0.1" || host === "::1") {
-        throw new InternalServerErrorException("Production notification gateways must not target loopback hosts.");
-      }
+    try {
+      return validatedNotificationGatewayBaseUrl();
+    } catch (error) {
+      throw new InternalServerErrorException(error instanceof Error ? error.message : "NOTIFICATION_GATEWAY_BASE_URL is invalid.");
     }
-    return url.toString();
   }
 
   private validateSafeInput(input: NotificationGatewayInput): void {
