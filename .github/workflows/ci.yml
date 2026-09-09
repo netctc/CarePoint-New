@@ -71,6 +71,10 @@ jobs:
       MESSAGING_ENVELOPE_KEY_ID: ci-messaging-kek-v1
       MESSAGING_ENVELOPE_KEY_BASE64: BgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgY=
       NOTIFICATION_GATEWAY_PROVIDER: mock
+      APPOINTMENT_NOTIFICATION_WORKER_ENABLED: "true"
+      APPOINTMENT_NOTIFICATION_POLL_MS: "200"
+      APPOINTMENT_NOTIFICATION_BATCH_SIZE: "100"
+      APPOINTMENT_REMINDER_OFFSETS_MINUTES: "60"
       SLICE6_DOCTOR_PASSWORD: CarePoint-Doctor#2026
       SLICE6_PATIENT_PASSWORD: CarePoint-Patient#2026
       BOOTSTRAP_ADMIN_EMAIL: admin-ci@carepoint.test
@@ -144,6 +148,8 @@ jobs:
           done
           curl -fsS http://127.0.0.1:4001/api/v1/health > /dev/null || { cat /tmp/carepoint-api-mfa-policy.log; exit 1; }
           CAREPOINT_MFA_POLICY_URL=http://127.0.0.1:4001/api/v1 node services/api/scripts/r6-privileged-mfa-policy-smoke.mjs || { cat /tmp/carepoint-api-mfa-policy.log; exit 1; }
+      - name: Release 1 booking/status reminder orchestration acceptance
+        run: node services/api/scripts/release1-appointment-reminders-smoke.mjs
       - name: Start Admin Web
         run: |
           npm --workspace @carepoint/admin run start > /tmp/carepoint-admin.log 2>&1 &

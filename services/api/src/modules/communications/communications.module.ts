@@ -8,6 +8,7 @@ import type {
 } from "@carepoint/contracts";
 import type { AuthPrincipal } from "@carepoint/identity";
 import { CurrentPrincipal, RequirePermissions } from "../../security/api-security.module";
+import { AppointmentNotificationOrchestratorService } from "./appointment-notification-orchestrator.service";
 import { CareMembershipAccessService } from "./care-membership-access.service";
 import { CommunicationsService } from "./communications.service";
 import { MessagingEnvelopeService } from "./messaging-envelope.service";
@@ -142,6 +143,7 @@ class NotificationsController {
     NotificationGatewayService,
     NotificationOutboxStoreService,
     NotificationOutboxWorkerService,
+    AppointmentNotificationOrchestratorService,
   ],
   exports: [NotificationsService],
 })

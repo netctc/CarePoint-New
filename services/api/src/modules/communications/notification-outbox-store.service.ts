@@ -3,6 +3,8 @@ import { PrismaService } from "../../infrastructure/prisma/prisma.module";
 
 export type DurableNotificationChannel = "IN_APP" | "PUSH" | "EMAIL" | "SMS";
 
+const APPOINTMENT_REMINDER_BODY_KEY = "notification.appointment.reminder.body";
+
 export interface DurableNotificationWorkItem {
   id: string;
   notificationId: string;
@@ -11,6 +13,7 @@ export interface DurableNotificationWorkItem {
   notification: {
     id: string;
     accountId: string;
+    dedupeKey: string;
     safeTitleKey: string;
     safeBodyKey: string;
     entityType: string;
@@ -76,6 +79,7 @@ export class NotificationOutboxStoreService {
       notification: {
         id: row.notification.id,
         accountId: row.notification.accountId,
+        dedupeKey: row.notification.dedupeKey,
         safeTitleKey: row.notification.safeTitleKey,
         safeBodyKey: row.notification.safeBodyKey,
         entityType: row.notification.entityType,
@@ -89,6 +93,20 @@ export class NotificationOutboxStoreService {
       where: { accountId: item.notification.accountId },
     });
     const locale = preference?.locale ?? "en";
+
+    if (item.notification.entityType === "APPOINTMENT" && item.notification.safeBodyKey === APPOINTMENT_REMINDER_BODY_KEY) {
+      const appointment = await this.prisma.appointment.findUnique({
+        where: { id: item.notification.entityId },
+        select: { status: true, startsAt: true, updatedAt: true },
+      });
+      const currentGeneration = appointment ? `:${appointment.updatedAt.getTime()}` : "";
+      const stale = !appointment
+        || appointment.status !== "CONFIRMED"
+        || appointment.startsAt.getTime() <= Date.now()
+        || !item.notification.dedupeKey.endsWith(currentGeneration);
+      if (stale) return { enabled: false, locale };
+    }
+
     const enabled = item.channel === "IN_APP"
       ? preference?.inAppEnabled ?? true
       : item.channel === "PUSH"

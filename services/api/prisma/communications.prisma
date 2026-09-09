@@ -174,3 +174,37 @@ model NotificationDelivery {
   @@index([status, availableAt])
   @@index([leaseUntil])
 }
+
+model AppointmentLifecycleSignal {
+  id                   BigInt   @id @default(autoincrement())
+  appointmentId        String
+  eventType            String
+  fromStatus           String?
+  toStatus             String?
+  startsAt             DateTime
+  previousStartsAt     DateTime?
+  appointmentUpdatedAt DateTime
+  previousUpdatedAt    DateTime?
+  createdAt            DateTime @default(now())
+  processedAt          DateTime?
+
+  @@index([processedAt, id])
+  @@index([appointmentId, createdAt])
+}
+
+model AppointmentReminderSchedule {
+  id                   BigInt   @id @default(autoincrement())
+  appointmentId        String
+  startsAt             DateTime
+  appointmentUpdatedAt DateTime
+  offsetMinutes        Int
+  dueAt                DateTime
+  status               String   @default("ACTIVE")
+  createdAt            DateTime @default(now())
+  processedAt          DateTime?
+  cancelledAt          DateTime?
+
+  @@unique([appointmentId, appointmentUpdatedAt, offsetMinutes])
+  @@index([status, dueAt])
+  @@index([appointmentId, status])
+}
