@@ -7,6 +7,7 @@ import { AppModule } from "./app.module";
 import { assertProductionProviderResponsePolicyReady } from "./infrastructure/http/bounded-provider-response";
 import { assertProductionFinancialGatewayEgressReady } from "./infrastructure/http/financial-gateway-egress";
 import { assertProductionNotificationGatewayEgressReady } from "./infrastructure/http/notification-gateway-egress";
+import { assertProductionPaymentActionPolicyReady } from "./infrastructure/http/payment-action-url-policy";
 import { assertProductionOtlpReady } from "./infrastructure/observability/production-otel-preflight";
 import { assertProductionDatabaseReady } from "./infrastructure/prisma/production-database-preflight";
 import { assertProductionRedisReady } from "./infrastructure/redis/production-redis-preflight";
@@ -23,6 +24,7 @@ async function bootstrap(): Promise<void> {
   assertProductionFinancialGatewayEgressReady();
   assertProductionProviderResponsePolicyReady();
   assertProductionNotificationGatewayEgressReady();
+  assertProductionPaymentActionPolicyReady();
   await assertProductionObjectStorageReady();
   await assertProductionDatabaseReady();
   await assertProductionRedisReady();
