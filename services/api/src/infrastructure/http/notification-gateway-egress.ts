@@ -19,13 +19,13 @@ export function validatedNotificationGatewayBaseUrl(env: NodeJS.ProcessEnv = pro
   }
 
   if (url.protocol !== "https:" && url.protocol !== "http:") {
-    throw new Error("NOTIFICATION_GATEWAY_BASE_URL must use http:// or https://.");
+    throw new Error("Unsupported notification gateway URL protocol.");
   }
-  if (url.username || url.password) throw new Error("NOTIFICATION_GATEWAY_BASE_URL must not contain embedded credentials.");
+  if (url.username || url.password) throw new Error("Notification gateway URLs must not embed credentials.");
   if (url.hash) throw new Error("NOTIFICATION_GATEWAY_BASE_URL must not contain a URL fragment.");
 
   if (env.NODE_ENV === "production") {
-    if (url.protocol !== "https:") throw new Error("NOTIFICATION_GATEWAY_BASE_URL must use HTTPS in production.");
+    if (url.protocol !== "https:") throw new Error("Production notification gateways require HTTPS.");
     if (isLocalHost(url.hostname)) throw new Error("NOTIFICATION_GATEWAY_BASE_URL must not target loopback in production.");
   }
 
