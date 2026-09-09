@@ -48,7 +48,7 @@ assert.match(adversarialPlan, /CI evidence is necessary but is not treated as a 
 assert.match(adversarialPlan, /two distinct patients/i);
 assert.match(adversarialPlan, /two distinct providers/i);
 assert.match(adversarialPlan, /wrong-version/i);
-assert.match(adversarialPlan, /consent revocation/i);
+assert.match(adversarialPlan, /revocation removes that consent basis/i);
 assert.match(adversarialPlan, /PHI marker/i);
 assert.match(adversarialPlan, /Critical\/High/i);
 
