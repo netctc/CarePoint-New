@@ -150,6 +150,8 @@ jobs:
           CAREPOINT_MFA_POLICY_URL=http://127.0.0.1:4001/api/v1 node services/api/scripts/r6-privileged-mfa-policy-smoke.mjs || { cat /tmp/carepoint-api-mfa-policy.log; exit 1; }
       - name: Release 1 booking/status reminder orchestration acceptance
         run: node services/api/scripts/release1-appointment-reminders-smoke.mjs
+      - name: Release 1 discovery scheduling and visit-context acceptance
+        run: node services/api/scripts/release1-scheduling-context-smoke.mjs
       - name: Start Admin Web
         run: |
           npm --workspace @carepoint/admin run start > /tmp/carepoint-admin.log 2>&1 &
