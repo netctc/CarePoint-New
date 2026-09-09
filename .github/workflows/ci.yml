@@ -196,6 +196,8 @@ jobs:
         run: node services/api/scripts/slice8-smoke.mjs
       - name: Slice 9 production security resilience and observability smoke test
         run: node services/api/scripts/slice9-smoke.mjs
+      - name: R6 adversarial authorization and PHI-leakage acceptance
+        run: node services/api/scripts/r6-adversarial-authorization-smoke.mjs
       - name: Print API and Admin logs on failure
         if: failure()
         run: |
