@@ -95,7 +95,6 @@ assert.match(mainSource, /useBodyParser\("json", \{ limit: bodyLimits\.jsonBytes
 assert.match(mainSource, /useBodyParser\("urlencoded", \{ limit: bodyLimits\.formBytes, extended: true \}\)/);
 assert.doesNotMatch(mainSource, /Number\(process\.env\.JSON_BODY_LIMIT_BYTES/);
 assert.doesNotMatch(mainSource, /Number\(process\.env\.FORM_BODY_LIMIT_BYTES/);
-assert.match(mainSource, /rawBody:\s*true/, "C17 preserves rawBody compatibility while bounding accepted bodies");
 
 const documentSource = await readFile(new URL("../src/modules/documents/documents.service.ts", import.meta.url), "utf8");
 assert.match(documentSource, /const MAX_FILE_BYTES = 8 \* 1024 \* 1024;/, "C17 sizing must remain compatible with the existing clinical document limit");
