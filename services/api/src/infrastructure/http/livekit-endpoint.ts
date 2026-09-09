@@ -33,7 +33,7 @@ export function validatedLiveKitUrl(env: NodeJS.ProcessEnv = process.env): strin
     }
   }
 
-  return url.toString().replace(/\/$/, "");
+  return value;
 }
 
 export function assertProductionTelehealthReady(env: NodeJS.ProcessEnv = process.env): void {
