@@ -17,6 +17,7 @@ import { ClinicalModule } from "./modules/clinical/clinical.module";
 import { CommunicationsModule } from "./modules/communications/communications.module";
 import { ConsentModule } from "./modules/consent/consent.module";
 import { DocumentsModule } from "./modules/documents/documents.module";
+import { emergencyAmbulanceModuleEnabled } from "./modules/emergency/emergency-launch-policy";
 import { EmergencyModule } from "./modules/emergency/emergency.module";
 import { FhirModule } from "./modules/fhir/fhir.module";
 import { HealthModule } from "./modules/health/health.module";
@@ -44,7 +45,7 @@ import { TransportModule } from "./modules/transport/transport.module";
     AdminSecurityModule,
     AdminTelehealthModule,
     ProvidersModule,
-    EmergencyModule,
+    ...(emergencyAmbulanceModuleEnabled(process.env) ? [EmergencyModule] : []),
     TransportModule,
     IamModule,
     OnboardingModule,
