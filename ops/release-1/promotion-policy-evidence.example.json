@@ -1,0 +1,142 @@
+{
+  "schema": "carepoint.release-promotion-policy-evidence/v1",
+  "approved": false,
+  "overallStatus": "BLOCKED",
+  "sensitiveDataIncluded": false,
+  "release": {
+    "sourceSha": "0000000000000000000000000000000000000000",
+    "sourceBranch": "release/release-1-integration-go-live-readiness",
+    "targetBranch": "main",
+    "releaseCandidateEvidenceRef": "PENDING: exact final RC evidence bundle"
+  },
+  "repositoryProtection": {
+    "main": {
+      "protected": false,
+      "mechanism": "PENDING",
+      "configurationEvidenceRef": "PENDING: GitHub Settings ruleset/branch-protection evidence for main"
+    },
+    "release": {
+      "protected": false,
+      "mechanism": "PENDING",
+      "configurationEvidenceRef": "PENDING: GitHub Settings ruleset/branch-protection evidence for release branch"
+    },
+    "rulesetOrProtectionSnapshotRef": "PENDING: exported/screenshot/configuration snapshot showing active enforcement"
+  },
+  "policy": {
+    "pullRequestRequired": true,
+    "directPushAllowed": false,
+    "minimumApprovals": 1,
+    "dismissStaleApprovals": true,
+    "requireConversationResolution": true,
+    "allowForcePushes": false,
+    "allowDeletions": false,
+    "adminBypassPolicy": "DENY_BY_DEFAULT",
+    "policyApprovalRef": "PENDING: approved Release 1 repository governance policy"
+  },
+  "requiredChecks": [
+    {
+      "name": "node",
+      "status": "PENDING",
+      "evidenceRef": "PENDING: exact final candidate check run"
+    },
+    {
+      "name": "flutter",
+      "status": "PENDING",
+      "evidenceRef": "PENDING: exact final candidate check run"
+    },
+    {
+      "name": "Repository Security Gate",
+      "status": "PENDING",
+      "evidenceRef": "PENDING: exact final candidate check run"
+    },
+    {
+      "name": "CodeQL SAST (javascript-typescript)",
+      "status": "PENDING",
+      "evidenceRef": "PENDING: exact final candidate CodeQL analysis job"
+    },
+    {
+      "name": "CodeQL",
+      "status": "FAIL",
+      "evidenceRef": "Current blocker: exact SHA 30893162bd2847f35d6b9e54a8036700621979ec reported 6 new High alerts; tracked by #124"
+    },
+    {
+      "name": "PostgreSQL 16 Backup Restore Drill",
+      "status": "PENDING",
+      "evidenceRef": "PENDING: exact final candidate recovery check run"
+    },
+    {
+      "name": "fhir",
+      "status": "PENDING",
+      "evidenceRef": "PENDING: exact final candidate FHIR interoperability check run"
+    },
+    {
+      "name": "evidence",
+      "status": "PENDING",
+      "evidenceRef": "PENDING: exact final candidate Release Candidate Evidence check run"
+    },
+    {
+      "name": "R3 infrastructure evidence contract",
+      "status": "PENDING",
+      "evidenceRef": "PENDING: exact final candidate R3 contract check run"
+    },
+    {
+      "name": "R4 external-provider evidence contract",
+      "status": "PENDING",
+      "evidenceRef": "PENDING: exact final candidate R4 contract check run"
+    },
+    {
+      "name": "R5 signed mobile release evidence contract",
+      "status": "PENDING",
+      "evidenceRef": "PENDING: exact final candidate R5 contract check run"
+    },
+    {
+      "name": "R7 UAT evidence contract",
+      "status": "PENDING",
+      "evidenceRef": "PENDING: exact final candidate R7 contract check run"
+    },
+    {
+      "name": "R9 market readiness evidence contract",
+      "status": "PENDING",
+      "evidenceRef": "PENDING: exact final candidate R9 contract check run"
+    }
+  ],
+  "security": {
+    "independentCodeQLRequired": true,
+    "independentCodeQLStatus": "FAIL",
+    "unresolvedCriticalOrHighFindings": 6,
+    "blockingIssue": "#124",
+    "blockerDisposition": "OPEN",
+    "dispositionEvidenceRef": "https://github.com/netctc/CarePoint-New/issues/124"
+  },
+  "verificationTests": {
+    "directPushDenied": {
+      "status": "PENDING",
+      "evidenceRef": "PENDING: non-destructive proof that ordinary direct push is rejected"
+    },
+    "failingRequiredCheckBlocksMerge": {
+      "status": "PENDING",
+      "evidenceRef": "PENDING: safe validation PR proof that a failing mandatory check blocks merge"
+    },
+    "approvalRequired": {
+      "status": "PENDING",
+      "evidenceRef": "PENDING: safe validation PR proof that merge is blocked before required approval"
+    },
+    "forcePushDenied": {
+      "status": "PENDING",
+      "evidenceRef": "PENDING: configuration/test evidence that force pushes are blocked"
+    },
+    "deletionDenied": {
+      "status": "PENDING",
+      "evidenceRef": "PENDING: configuration/test evidence that protected branch deletion is blocked"
+    },
+    "passingApprovedPullRequestPath": {
+      "status": "PENDING",
+      "evidenceRef": "PENDING: safe non-main proof that approved PR with all checks passing follows the official path"
+    }
+  },
+  "promotionAuthorization": {
+    "authorized": false,
+    "authorityRole": "Release Authority",
+    "approvalRef": "PENDING: final Release Authority Go/No-Go approval"
+  }
+}
