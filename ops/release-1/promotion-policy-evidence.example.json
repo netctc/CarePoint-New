@@ -57,7 +57,7 @@
     {
       "name": "CodeQL",
       "status": "FAIL",
-      "evidenceRef": "Current blocker: exact SHA 30893162bd2847f35d6b9e54a8036700621979ec reported 6 new High alerts; tracked by #124"
+      "evidenceRef": "Current blocker: reproduced on exact SHA d6334fb617276d9b446cd7691b148e65e00d0ad4 with 6 High alerts; tracked by #124"
     },
     {
       "name": "PostgreSQL 16 Backup Restore Drill",
@@ -90,14 +90,34 @@
       "evidenceRef": "PENDING: exact final candidate R5 contract check run"
     },
     {
+      "name": "R6 promotion policy evidence contract",
+      "status": "PENDING",
+      "evidenceRef": "PENDING: exact final candidate R6 promotion governance contract check run"
+    },
+    {
       "name": "R7 UAT evidence contract",
       "status": "PENDING",
       "evidenceRef": "PENDING: exact final candidate R7 contract check run"
     },
     {
+      "name": "R8 performance harness contract",
+      "status": "PENDING",
+      "evidenceRef": "PENDING: exact final candidate R8 performance contract check run"
+    },
+    {
+      "name": "R8 resilience rehearsal contract",
+      "status": "PENDING",
+      "evidenceRef": "PENDING: exact final candidate R8 resilience contract check run"
+    },
+    {
       "name": "R9 market readiness evidence contract",
       "status": "PENDING",
       "evidenceRef": "PENDING: exact final candidate R9 contract check run"
+    },
+    {
+      "name": "R10 deployment rehearsal contract",
+      "status": "PENDING",
+      "evidenceRef": "PENDING: exact final candidate R10 deployment rehearsal contract check run"
     }
   ],
   "security": {
