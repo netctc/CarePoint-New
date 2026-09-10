@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { DecryptCommand, KMSClient } from "@aws-sdk/client-kms";
 import { createHash } from "node:crypto";
-import { readFile, stat } from "node:fs/promises";
+import { open } from "node:fs/promises";
 import { isAbsolute } from "node:path";
 
 export const EXTERNAL_SECRET_NAMES = [
@@ -80,14 +80,20 @@ export async function resolveExternalSecret(
   if (!encryptedFile) throw new Error(`${config.fileEnv} is required.`);
   if (!isAbsolute(encryptedFile)) throw new Error(`${config.fileEnv} must be an absolute path.`);
 
-  const metadata = await stat(encryptedFile);
-  if (!metadata.isFile()) throw new Error(`${config.fileEnv} must point to a regular file.`);
-  if ((metadata.mode & 0o022) !== 0) throw new Error(`${config.fileEnv} must not be group/world writable.`);
-  if (metadata.size < 1 || metadata.size > MAX_CIPHERTEXT_FILE_BYTES) {
-    throw new Error(`${config.fileEnv} has an invalid size.`);
+  const handle = await open(encryptedFile, "r");
+  let raw: string;
+  try {
+    const metadata = await handle.stat();
+    if (!metadata.isFile()) throw new Error(`${config.fileEnv} must point to a regular file.`);
+    if ((metadata.mode & 0o022) !== 0) throw new Error(`${config.fileEnv} must not be group/world writable.`);
+    if (metadata.size < 1 || metadata.size > MAX_CIPHERTEXT_FILE_BYTES) {
+      throw new Error(`${config.fileEnv} has an invalid size.`);
+    }
+    raw = (await handle.readFile("utf8")).trim();
+  } finally {
+    await handle.close();
   }
 
-  const raw = (await readFile(encryptedFile, "utf8")).trim();
   const ciphertext = decodeCanonicalBase64(raw, config.fileEnv);
   const ciphertextDigest = createHash("sha256").update(ciphertext).digest("hex");
   const cached = cache.get(name);
