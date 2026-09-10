@@ -33,21 +33,18 @@ const CONTROL_DEFINITIONS = [
   { id: 'R9-PRI-05', when: () => true },
   { id: 'R9-PRI-06', when: () => true },
   { id: 'R9-PRI-07', when: () => true },
-
   { id: 'R9-CLN-01', when: () => true },
   { id: 'R9-CLN-02', when: () => true },
   { id: 'R9-CLN-03', when: () => true },
   { id: 'R9-CLN-04', when: () => true },
   { id: 'R9-CLN-05', when: () => true },
   { id: 'R9-CLN-06', when: () => true },
-
   { id: 'R9-TEL-01', when: (root) => root.scope.telemedicineEnabled },
   { id: 'R9-TEL-02', when: (root) => root.scope.telemedicineEnabled },
   { id: 'R9-TEL-03', when: (root) => root.scope.telemedicineEnabled },
   { id: 'R9-TEL-04', when: (root) => root.scope.telemedicineEnabled },
   { id: 'R9-TEL-05', when: (root) => root.scope.telemedicineEnabled },
   { id: 'R9-TEL-06', when: (root) => root.scope.telemedicineEnabled },
-
   { id: 'R9-EMS-01', when: () => true },
   { id: 'R9-EMS-02', when: (root) => !root.scope.emergencyAmbulanceEnabled },
   { id: 'R9-EMS-03', when: (root) => root.scope.emergencyAmbulanceEnabled },
@@ -56,7 +53,6 @@ const CONTROL_DEFINITIONS = [
   { id: 'R9-EMS-06', when: (root) => root.scope.emergencyAmbulanceEnabled },
   { id: 'R9-EMS-07', when: (root) => root.scope.emergencyAmbulanceEnabled },
   { id: 'R9-EMS-08', when: () => true },
-
   { id: 'R9-MKT-01', when: (root) => root.scope.paymentsEnabled },
   { id: 'R9-MKT-02', when: () => true },
   { id: 'R9-MKT-03', when: (root) => root.scope.communicationsEnabled },
@@ -354,6 +350,26 @@ function validateTemplate(input) {
   };
 }
 
+function buildControl(definition, root, acceptedAt) {
+  if (definition.when(root)) {
+    return {
+      id: definition.id,
+      applicability: 'APPLICABLE',
+      status: 'PASS',
+      ownerRoleRef: `owner:${definition.id}`,
+      evidenceRef: `evidence:${definition.id}`,
+      acceptedAt,
+    };
+  }
+  return {
+    id: definition.id,
+    applicability: 'NOT_APPLICABLE',
+    status: 'NOT_APPLICABLE',
+    notApplicableRationaleRef: `decision:${definition.id}-not-applicable`,
+    notApplicableApprovalRef: `approval:${definition.id}-not-applicable`,
+  };
+}
+
 function makeSyntheticEvidence(checkoutSha) {
   const acceptedAt = '2026-01-01T10:00:00Z';
   const approvedAt = '2026-01-01T11:00:00Z';
@@ -399,14 +415,7 @@ function makeSyntheticEvidence(checkoutSha) {
       serviceAreaApprovalRef: 'approval:service-area',
       fallbackSafetyApprovalRef: 'approval:fallback-safety',
     },
-    controls: CONTROL_DEFINITIONS.map(({ id }) => ({
-      id,
-      applicability: 'APPLICABLE',
-      status: 'PASS',
-      ownerRoleRef: `owner:${id}`,
-      evidenceRef: `evidence:${id}`,
-      acceptedAt,
-    })),
+    controls: [],
     blockingIssues: BLOCKING_ISSUES.map((id) => ({ id, status: 'CLOSED', evidenceRef: `issue:${id.slice(1)}-closed` })),
     waivers: [],
     approvals: APPROVAL_ROLES.map((role) => ({
@@ -419,7 +428,15 @@ function makeSyntheticEvidence(checkoutSha) {
     finalDecisionRef: 'decision:r9-final',
     acceptedAt: '2026-01-01T12:00:00Z',
   };
+  root.controls = CONTROL_DEFINITIONS.map((definition) => buildControl(definition, root, acceptedAt));
   return root;
+}
+
+function refreshControlApplicability(root, prefix) {
+  for (const definition of CONTROL_DEFINITIONS.filter(({ id }) => id.startsWith(prefix))) {
+    const index = root.controls.findIndex(({ id }) => id === definition.id);
+    root.controls[index] = buildControl(definition, root, '2026-01-01T10:00:00Z');
+  }
 }
 
 async function expectReject(label, mutator, checkoutSha) {
@@ -437,7 +454,7 @@ async function expectReject(label, mutator, checkoutSha) {
 async function selfTest() {
   const checkoutSha = 'c'.repeat(40);
   const result = await validateEvidence(makeSyntheticEvidence(checkoutSha), { checkoutSha });
-  if (result.passCount !== CONTROL_DEFINITIONS.length || result.overallStatus !== 'PASS') throw new Error('Synthetic PASS evidence did not validate as expected.');
+  if (result.passCount + result.notApplicableCount !== CONTROL_DEFINITIONS.length || result.overallStatus !== 'PASS') throw new Error('Synthetic PASS evidence did not validate as expected.');
 
   await expectReject('wrong source SHA', (value) => { value.release.sourceSha = 'd'.repeat(40); }, checkoutSha);
   await expectReject('failed inherited gate', (value) => { value.dependencies[0].status = 'BLOCKED'; }, checkoutSha);
@@ -452,22 +469,24 @@ async function selfTest() {
   await expectReject('missing approval authority', (value) => { value.approvals.pop(); }, checkoutSha);
   await expectReject('credential-like public evidence', (value) => { value.finalDecisionRef = 'https://user:password@example.invalid/evidence'; }, checkoutSha);
 
-  const disabled = makeSyntheticEvidence(checkoutSha);
-  disabled.scope.telemedicineEnabled = false;
-  disabled.telemedicine.decision = 'DISABLED';
-  disabled.telemedicine.decisionRef = 'decision:telemedicine-disabled';
-  for (const definition of CONTROL_DEFINITIONS.filter(({ id }) => id.startsWith('R9-TEL-'))) {
-    const item = disabled.controls.find(({ id }) => id === definition.id);
-    item.applicability = 'NOT_APPLICABLE';
-    item.status = 'NOT_APPLICABLE';
-    delete item.ownerRoleRef;
-    delete item.evidenceRef;
-    delete item.acceptedAt;
-    item.notApplicableRationaleRef = 'decision:telemedicine-disabled';
-    item.notApplicableApprovalRef = 'approval:telemedicine-disabled';
-  }
-  const disabledResult = await validateEvidence(disabled, { checkoutSha });
-  if (disabledResult.notApplicableCount !== 6) throw new Error('Disabled telemedicine controls did not validate as NOT_APPLICABLE.');
+  const disabledTelemedicine = makeSyntheticEvidence(checkoutSha);
+  disabledTelemedicine.scope.telemedicineEnabled = false;
+  disabledTelemedicine.telemedicine.decision = 'DISABLED';
+  disabledTelemedicine.telemedicine.decisionRef = 'decision:telemedicine-disabled';
+  refreshControlApplicability(disabledTelemedicine, 'R9-TEL-');
+  const telemedicineResult = await validateEvidence(disabledTelemedicine, { checkoutSha });
+  if (telemedicineResult.passCount + telemedicineResult.notApplicableCount !== CONTROL_DEFINITIONS.length) throw new Error('Disabled telemedicine applicability did not validate.');
+
+  const disabledEmergency = makeSyntheticEvidence(checkoutSha);
+  disabledEmergency.scope.emergencyAmbulanceEnabled = false;
+  disabledEmergency.emergencyAmbulance = {
+    decision: 'DISABLED',
+    decisionRef: 'decision:emergency-disabled',
+    routesDisabledEvidenceRef: 'evidence:emergency-routes-disabled',
+  };
+  refreshControlApplicability(disabledEmergency, 'R9-EMS-');
+  const emergencyResult = await validateEvidence(disabledEmergency, { checkoutSha });
+  if (emergencyResult.passCount + emergencyResult.notApplicableCount !== CONTROL_DEFINITIONS.length) throw new Error('Disabled emergency applicability did not validate.');
 
   console.log(`Release market-readiness evidence contract self-test passed (${CONTROL_DEFINITIONS.length} controls, ${APPROVAL_ROLES.length} approval roles).`);
 }
