@@ -15,6 +15,7 @@ permissions:
 
 jobs:
   contract:
+    name: R10 deployment rehearsal contract
     runs-on: ubuntu-24.04
     env:
       CAREPOINT_REHEARSAL_SOURCE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
