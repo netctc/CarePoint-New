@@ -56,9 +56,15 @@ function toBase32(buffer: Buffer): string {
   return output;
 }
 
+function stripBase32Padding(value: string): string {
+  let end = value.length;
+  while (end > 0 && value.charCodeAt(end - 1) === 61) end -= 1;
+  return value.slice(0, end);
+}
+
 function fromBase32(value: string): Buffer {
   let bits = "";
-  for (const char of value.replace(/=+$/g, "").toUpperCase()) {
+  for (const char of stripBase32Padding(value).toUpperCase()) {
     const index = BASE32.indexOf(char);
     if (index < 0) throw new Error("Invalid base32 secret.");
     bits += index.toString(2).padStart(5, "0");
