@@ -1,0 +1,81 @@
+name: Release 1 Container Compatibility
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "Dockerfile"
+      - ".dockerignore"
+      - "package.json"
+      - "package-lock.json"
+      - "apps/admin/**"
+      - "services/api/**"
+      - "packages/contracts/**"
+      - "packages/identity/**"
+      - "packages/security/**"
+      - ".github/workflows/release1-container-compatibility.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-containers:
+    name: Build ${{ matrix.target }} container
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [api, admin]
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build validation image without push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: ${{ matrix.target }}
+          push: false
+          load: true
+          tags: carepoint-${{ matrix.target }}:release1-validation
+          build-args: |
+            RELEASE_SHA=${{ github.event.pull_request.head.sha || github.sha }}
+            RELEASE_VERSION=release1-validation-${{ github.run_id }}
+
+      - name: Verify non-root runtime metadata and release labels
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="carepoint-${{ matrix.target }}:release1-validation"
+          expected_sha="${{ github.event.pull_request.head.sha || github.sha }}"
+          user="$(docker image inspect "$image" --format '{{.Config.User}}')"
+          revision="$(docker image inspect "$image" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')"
+          version="$(docker image inspect "$image" --format '{{index .Config.Labels "org.opencontainers.image.version"}}')"
+
+          test -n "$user"
+          test "$user" != "0"
+          test "$revision" = "$expected_sha"
+          test -n "$version"
+
+          echo "target=${{ matrix.target }} user=$user revision=$revision version=$version"
+
+      - name: Export sanitized image metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="carepoint-${{ matrix.target }}:release1-validation"
+          mkdir -p container-evidence
+          docker image inspect "$image" \
+            --format 'target=${{ matrix.target }}\nimage_id={{.Id}}\nuser={{.Config.User}}\nrevision={{index .Config.Labels "org.opencontainers.image.revision"}}\nversion={{index .Config.Labels "org.opencontainers.image.version"}}' \
+            > "container-evidence/${{ matrix.target }}.txt"
+
+      - name: Upload compatibility evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: release1-container-${{ matrix.target }}-${{ github.event.pull_request.head.sha || github.sha }}
+          path: container-evidence/${{ matrix.target }}.txt
+          if-no-files-found: error
+          retention-days: 14
