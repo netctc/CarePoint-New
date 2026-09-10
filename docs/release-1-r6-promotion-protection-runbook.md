@@ -13,7 +13,7 @@ At the start of this increment, GitHub reported:
 - `main`: `protected=false`.
 - `release/release-1-integration-go-live-readiness`: `protected=false`.
 - Repository rulesets: none returned by the repository rulesets endpoint.
-- Exact candidate `30893162bd2847f35d6b9e54a8036700621979ec` had a failing independent GitHub Advanced Security check named `CodeQL`, reporting six new High alerts. This is tracked by #124.
+- Exact candidates `30893162bd2847f35d6b9e54a8036700621979ec` and `d6334fb617276d9b446cd7691b148e65e00d0ad4` had a failing independent GitHub Advanced Security check named `CodeQL`, reporting six new High alerts. This is tracked by #124.
 
 Therefore #84 and R6 are currently **BLOCKED**.
 
@@ -63,7 +63,7 @@ Do not use a broad administrator bypass as the normal release mechanism.
 
 ## Exact mandatory status-check names
 
-GitHub required status checks are configured by check/job name, so use the observed names from the exact validated candidate rather than workflow display names.
+GitHub required status checks are configured by check/job name, so use the observed stable names rather than workflow display names.
 
 The promotion policy evidence contract requires the following current set:
 
@@ -80,12 +80,16 @@ The promotion policy evidence contract requires the following current set:
 | `R3 infrastructure evidence contract` | R3 machine contract — GitHub Actions |
 | `R4 external-provider evidence contract` | R4 machine contract — GitHub Actions |
 | `R5 signed mobile release evidence contract` | R5 machine contract — GitHub Actions |
+| `R6 promotion policy evidence contract` | R6 promotion-governance contract — GitHub Actions |
 | `R7 UAT evidence contract` | R7 UAT evidence schema/contract — GitHub Actions |
+| `R8 performance harness contract` | R8 performance evidence/harness contract — GitHub Actions |
+| `R8 resilience rehearsal contract` | R8 resilience evidence/rehearsal contract — GitHub Actions |
 | `R9 market readiness evidence contract` | R9 market/legal/clinical evidence schema/contract — GitHub Actions |
+| `R10 deployment rehearsal contract` | R10 deployment/rollback rehearsal contract — GitHub Actions |
 
-Important: `CodeQL SAST (javascript-typescript)` being green does **not** replace the independent `CodeQL` result. Candidate `30893162bd2847f35d6b9e54a8036700621979ec` proved that the analysis job can succeed while the downstream code-scanning check fails. #124 must be closed or formally accepted under the approved security policy, the final independent `CodeQL` result must be PASS, and unresolved Critical/High security findings must be zero before promotion evidence can be accepted.
+Important: `CodeQL SAST (javascript-typescript)` being green does **not** replace the independent `CodeQL` result. Candidate `30893162bd2847f35d6b9e54a8036700621979ec` and the later validation candidate `d6334fb617276d9b446cd7691b148e65e00d0ad4` proved that the analysis job can succeed while the downstream code-scanning check fails. #124 must be closed or formally accepted under the approved security policy, the final independent `CodeQL` result must be PASS, and unresolved Critical/High security findings must be zero before promotion evidence can be accepted.
 
-R8/R10 currently contain several jobs named only `contract`. Do not blindly add a generic `contract` required-check context because required status checks do not distinguish workflow/event/matrix identity by name alone. Rename those jobs to unique stable release-gate names before making them mandatory repository contexts, or enforce their outcome through a uniquely named aggregator gate.
+The R8 performance, R8 resilience and R10 deployment workflows previously exposed only the generic job context `contract`. Their job display names are now unique and stable as listed above. The R10 deployment-rehearsal workflow also runs on every pull request, rather than only when selected file paths change, so it can safely be configured as a mandatory promotion context without remaining permanently pending on an unrelated promotion PR.
 
 ## Administrator execution procedure
 
