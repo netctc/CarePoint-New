@@ -10,6 +10,7 @@ permissions:
 
 jobs:
   contract:
+    name: R8 resilience rehearsal contract
     runs-on: ubuntu-24.04
     env:
       CAREPOINT_RESILIENCE_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
