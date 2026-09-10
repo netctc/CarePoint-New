@@ -4,17 +4,13 @@ import { readFileSync, readdirSync } from "node:fs";
 import { extname, join } from "node:path";
 
 function sarifFiles(root) {
-  const files = [];
-  const stack = [root];
-  while (stack.length) {
-    const current = stack.pop();
-    for (const entry of readdirSync(current, { withFileTypes: true })) {
-      const path = join(current, entry.name);
-      if (entry.isDirectory()) stack.push(path);
-      else if (entry.isFile() && extname(entry.name).toLowerCase() === ".sarif") files.push(path);
-    }
-  }
-  return files.sort();
+  // The CodeQL SARIF directory is runner-generated and trusted. Enumerate it in
+  // one recursive operation and attempt to read only *.sarif entries instead
+  // of checking file metadata and reopening paths later (TOCTOU pattern).
+  return readdirSync(root, { recursive: true })
+    .filter((entry) => typeof entry === "string" && extname(entry).toLowerCase() === ".sarif")
+    .map((entry) => join(root, entry))
+    .sort();
 }
 
 function ruleSecuritySeverity(run, ruleId) {
@@ -38,7 +34,12 @@ function resultComponent(result) {
   const parts = uri.split("/").filter(Boolean);
 
   if (parts[0] === ".ci") return ".ci";
-  if (parts[0] === "packages") return parts[1] ? `packages/${parts[1]}` : "packages";
+  if (parts[0] === "packages") {
+    if (parts[1] === "identity" && ["src", "test", "dist"].includes(parts[2])) {
+      return `packages/identity/${parts[2]}`;
+    }
+    return parts[1] ? `packages/${parts[1]}` : "packages";
+  }
   if (parts[0] === "apps") return parts[1] ? `apps/${parts[1]}` : "apps";
   if (parts[0] === "scripts") return "scripts";
   if (parts[0] === "services" && parts[1] === "api") {
