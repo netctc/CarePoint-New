@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'carepoint_api.dart';
 import 'carepoint_localization.dart';
 import 'mfa_enrollment_api.dart';
+import 'mobile_release_config.dart';
 
 typedef CarePointAuthenticatedBuilder = Widget Function(BuildContext context, CarePointSession session, VoidCallback signOut);
 
@@ -45,7 +46,7 @@ class _CarePointLoginGateState extends State<CarePointLoginGate> {
   @override
   void initState() {
     super.initState();
-    api = widget.api ?? CarePointApi();
+    api = widget.api ?? CarePointApi(baseUrl: CarePointMobileReleaseConfig.resolveApiBase());
     _restoreSession();
   }
 
