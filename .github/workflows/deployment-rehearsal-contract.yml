@@ -2,12 +2,6 @@ name: Deployment Rehearsal Contract
 
 on:
   pull_request:
-    paths:
-      - ".ci/release-rehearsal-contract.mjs"
-      - ".github/workflows/deployment-rehearsal-contract.yml"
-      - "services/api/prisma/migrations/**"
-      - "ops/release-1/deployment-rehearsal-evidence.example.json"
-      - "docs/release-1-r10-deployment-rollback-rehearsal-contract.md"
   workflow_dispatch:
 
 permissions:
