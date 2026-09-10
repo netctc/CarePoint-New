@@ -10,6 +10,7 @@ permissions:
 
 jobs:
   contract:
+    name: R8 performance harness contract
     runs-on: ubuntu-24.04
     env:
       CAREPOINT_PERF_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
