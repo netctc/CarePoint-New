@@ -26,6 +26,24 @@ function ruleSecuritySeverity(run, ruleId) {
   return Number.isFinite(value) ? value : null;
 }
 
+function resultComponent(result) {
+  const locations = Array.isArray(result?.locations) ? result.locations : [];
+  const rawUri = locations[0]?.physicalLocation?.artifactLocation?.uri;
+  if (typeof rawUri !== "string" || !rawUri.trim()) return "other";
+
+  const uri = rawUri
+    .replace(/^file:\/\//i, "")
+    .replace(/\\/g, "/")
+    .replace(/^\/+/, "");
+
+  if (uri === ".ci" || uri.startsWith(".ci/")) return ".ci";
+  if (uri === "services/api" || uri.startsWith("services/api/")) return "services/api";
+  if (uri === "packages" || uri.startsWith("packages/")) return "packages";
+  if (uri === "apps" || uri.startsWith("apps/")) return "apps";
+  if (uri === "scripts" || uri.startsWith("scripts/")) return "scripts";
+  return "other";
+}
+
 export function aggregateSarif(documents) {
   const aggregate = new Map();
   for (const document of documents) {
@@ -34,26 +52,27 @@ export function aggregateSarif(documents) {
         const ruleId = typeof result?.ruleId === "string" && result.ruleId.trim()
           ? result.ruleId.trim()
           : "unknown-rule";
-        const previous = aggregate.get(ruleId) ?? { count: 0, securitySeverity: null };
+        const component = resultComponent(result);
+        const key = `${ruleId}\u0000${component}`;
+        const previous = aggregate.get(key) ?? { ruleId, component, count: 0, securitySeverity: null };
         previous.count += 1;
         const severity = ruleSecuritySeverity(run, ruleId);
         if (severity !== null && (previous.securitySeverity === null || severity > previous.securitySeverity)) {
           previous.securitySeverity = severity;
         }
-        aggregate.set(ruleId, previous);
+        aggregate.set(key, previous);
       }
     }
   }
-  return [...aggregate.entries()]
-    .map(([ruleId, value]) => ({ ruleId, ...value }))
-    .sort((a, b) => a.ruleId.localeCompare(b.ruleId));
+  return [...aggregate.values()]
+    .sort((a, b) => a.ruleId.localeCompare(b.ruleId) || a.component.localeCompare(b.component));
 }
 
 function format(summary) {
-  if (summary.length === 0) return ["CodeQL aggregate rule summary: no results."];
+  if (summary.length === 0) return ["CodeQL aggregate rule/component summary: no results."];
   return [
-    "CodeQL aggregate rule summary (rule IDs/counts only; locations and messages intentionally suppressed):",
-    ...summary.map((item) => `- ${item.ruleId}: ${item.count}${item.securitySeverity === null ? "" : ` (security-severity ${item.securitySeverity})`}`),
+    "CodeQL aggregate rule/component summary (coarse components/counts only; files, locations and messages intentionally suppressed):",
+    ...summary.map((item) => `- ${item.ruleId} | ${item.component}: ${item.count}${item.securitySeverity === null ? "" : ` (security-severity ${item.securitySeverity})`}`),
   ];
 }
 
@@ -71,14 +90,28 @@ function selfTest() {
     }],
   };
   const summary = aggregateSarif([fixture]);
-  if (summary.length !== 1 || summary[0].ruleId !== "js/path-injection" || summary[0].count !== 1 || summary[0].securitySeverity !== 7.5) {
+  if (
+    summary.length !== 1 ||
+    summary[0].ruleId !== "js/path-injection" ||
+    summary[0].component !== "services/api" ||
+    summary[0].count !== 1 ||
+    summary[0].securitySeverity !== 7.5
+  ) {
     throw new Error("aggregate SARIF self-test failed");
   }
   const rendered = format(summary).join("\n");
-  if (rendered.includes(sensitivePath) || rendered.includes(sensitiveMessage) || rendered.includes("42")) {
-    throw new Error("aggregate SARIF summary leaked location/message data");
+  if (
+    rendered.includes(sensitivePath) ||
+    rendered.includes(sensitiveMessage) ||
+    rendered.includes("secret-sensitive-path") ||
+    rendered.includes("42")
+  ) {
+    throw new Error("aggregate SARIF summary leaked file/location/message data");
   }
-  console.log("CodeQL aggregate rule summary self-test: PASS");
+  if (!rendered.includes("js/path-injection | services/api: 1")) {
+    throw new Error("aggregate SARIF summary omitted the safe coarse component");
+  }
+  console.log("CodeQL aggregate rule/component summary self-test: PASS");
 }
 
 if (process.argv.includes("--self-test")) {
