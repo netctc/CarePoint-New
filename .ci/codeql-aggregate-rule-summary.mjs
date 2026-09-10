@@ -35,12 +35,16 @@ function resultComponent(result) {
     .replace(/^file:\/\//i, "")
     .replace(/\\/g, "/")
     .replace(/^\/+/, "");
+  const parts = uri.split("/").filter(Boolean);
 
-  if (uri === ".ci" || uri.startsWith(".ci/")) return ".ci";
-  if (uri === "services/api" || uri.startsWith("services/api/")) return "services/api";
-  if (uri === "packages" || uri.startsWith("packages/")) return "packages";
-  if (uri === "apps" || uri.startsWith("apps/")) return "apps";
-  if (uri === "scripts" || uri.startsWith("scripts/")) return "scripts";
+  if (parts[0] === ".ci") return ".ci";
+  if (parts[0] === "packages") return parts[1] ? `packages/${parts[1]}` : "packages";
+  if (parts[0] === "apps") return parts[1] ? `apps/${parts[1]}` : "apps";
+  if (parts[0] === "scripts") return "scripts";
+  if (parts[0] === "services" && parts[1] === "api") {
+    if (parts[2] === "src") return parts[3] ? `services/api/src/${parts[3]}` : "services/api/src";
+    return parts[2] ? `services/api/${parts[2]}` : "services/api";
+  }
   return "other";
 }
 
@@ -77,7 +81,7 @@ function format(summary) {
 }
 
 function selfTest() {
-  const sensitivePath = "services/api/src/secret-sensitive-path.ts";
+  const sensitivePath = "services/api/src/security/secret-sensitive-path.ts";
   const sensitiveMessage = "sensitive exploit detail must never be printed";
   const fixture = {
     runs: [{
@@ -93,7 +97,7 @@ function selfTest() {
   if (
     summary.length !== 1 ||
     summary[0].ruleId !== "js/path-injection" ||
-    summary[0].component !== "services/api" ||
+    summary[0].component !== "services/api/src/security" ||
     summary[0].count !== 1 ||
     summary[0].securitySeverity !== 7.5
   ) {
@@ -108,7 +112,7 @@ function selfTest() {
   ) {
     throw new Error("aggregate SARIF summary leaked file/location/message data");
   }
-  if (!rendered.includes("js/path-injection | services/api: 1")) {
+  if (!rendered.includes("js/path-injection | services/api/src/security: 1")) {
     throw new Error("aggregate SARIF summary omitted the safe coarse component");
   }
   console.log("CodeQL aggregate rule/component summary self-test: PASS");
