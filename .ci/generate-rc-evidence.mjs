@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
+import { mkdir, open, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 
@@ -12,18 +12,27 @@ function sha256Buffer(value) {
   return createHash("sha256").update(value).digest("hex");
 }
 
-async function sha256File(filePath) {
-  return sha256Buffer(await readFile(filePath));
+async function readRegularFileSnapshot(absolutePath, displayPath) {
+  const handle = await open(absolutePath, "r");
+  try {
+    const metadata = await handle.stat();
+    if (!metadata.isFile()) throw new Error(`${displayPath} is not a regular file.`);
+    const content = await handle.readFile();
+    return {
+      bytes: content.length,
+      sha256: sha256Buffer(content),
+    };
+  } finally {
+    await handle.close();
+  }
 }
 
 async function fileEvidence(repoRoot, relativePath) {
   const absolutePath = path.join(repoRoot, relativePath);
-  const metadata = await stat(absolutePath);
-  if (!metadata.isFile()) throw new Error(`${relativePath} is not a regular file.`);
+  const snapshot = await readRegularFileSnapshot(absolutePath, relativePath);
   return {
     path: relativePath.replaceAll(path.sep, "/"),
-    bytes: metadata.size,
-    sha256: await sha256File(absolutePath),
+    ...snapshot,
   };
 }
 
@@ -74,12 +83,10 @@ async function mobileLockEvidence(repoRoot) {
 
 async function artifactEvidence(outputDir, fileName) {
   const absolutePath = path.join(outputDir, fileName);
-  const metadata = await stat(absolutePath);
-  if (!metadata.isFile()) throw new Error(`${fileName} is not a regular evidence artifact.`);
+  const snapshot = await readRegularFileSnapshot(absolutePath, fileName);
   return {
     file: fileName,
-    bytes: metadata.size,
-    sha256: await sha256File(absolutePath),
+    ...snapshot,
   };
 }
 
