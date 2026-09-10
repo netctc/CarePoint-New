@@ -43,7 +43,12 @@ function resultComponent(result) {
   if (parts[0] === "apps") return parts[1] ? `apps/${parts[1]}` : "apps";
   if (parts[0] === "scripts") return "scripts";
   if (parts[0] === "services" && parts[1] === "api") {
-    if (parts[2] === "src") return parts[3] ? `services/api/src/${parts[3]}` : "services/api/src";
+    if (parts[2] === "src") {
+      // Module-level granularity is intentionally the finest level exposed in
+      // public CI diagnostics. Never emit a file name, line, message or flow.
+      if (parts[3] === "modules" && parts[4]) return `services/api/src/modules/${parts[4]}`;
+      return parts[3] ? `services/api/src/${parts[3]}` : "services/api/src";
+    }
     return parts[2] ? `services/api/${parts[2]}` : "services/api";
   }
   return "other";
