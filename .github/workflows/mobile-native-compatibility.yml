@@ -89,6 +89,13 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ env.CAREPOINT_MOBILE_SOURCE_SHA }}
+      - name: Select Xcode 26.1.1 compatibility SDK
+        run: |
+          DEVELOPER_DIR=/Applications/Xcode_26.1.1.app/Contents/Developer
+          test -d "$DEVELOPER_DIR"
+          echo "DEVELOPER_DIR=$DEVELOPER_DIR" >> "$GITHUB_ENV"
+          DEVELOPER_DIR="$DEVELOPER_DIR" xcodebuild -version
+          DEVELOPER_DIR="$DEVELOPER_DIR" xcrun --sdk iphonesimulator --show-sdk-version
       - name: Set up Flutter
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
@@ -118,9 +125,9 @@ jobs:
         working-directory: apps/${{ matrix.app }}
         run: |
           mkdir -p native-compat-evidence
-          find build/ios/iphonesimulator/Runner.app -type f -print0 | sort -z | xargs -0 shasum -a 256 > native-compat-evidence/app-files.sha256
-          printf 'sourceSha=%s\napp=%s\nplatform=ios-simulator\nidentityNamespace=io.carepoint.validation\nsigning=none-simulator\nproductionReleaseEvidence=false\n' \
-            "$CAREPOINT_MOBILE_SOURCE_SHA" "${{ matrix.app }}" > native-compat-evidence/metadata.txt
+          find build/ios/iphonesimulator/Runner.app -type f -print | LC_ALL=C sort | while IFS= read -r file; do shasum -a 256 "$file"; done > native-compat-evidence/app-files.sha256
+          printf 'sourceSha=%s\napp=%s\nplatform=ios-simulator\nidentityNamespace=io.carepoint.validation\nsigning=none-simulator\nproductionReleaseEvidence=false\nxcode=%s\n' \
+            "$CAREPOINT_MOBILE_SOURCE_SHA" "${{ matrix.app }}" "$(xcodebuild -version | tr '\n' ' ')" > native-compat-evidence/metadata.txt
       - name: Upload iOS compatibility evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
