@@ -77,3 +77,15 @@ extension CarePointPlanningApi on CarePointApi {
   Future<Map<String, dynamic>> earlierMatches(String entryId) async => _asMap(await _send('GET', '/patient-journeys/waitlist/${Uri.encodeComponent(entryId)}/matches'));
   Future<Map<String, dynamic>> providerWaitlistDemand() async => _asMap(await _send('GET', '/provider/waitlist'));
 }
+
+extension CarePointAvailabilityRequestsApi on CarePointApi {
+  Future<Map<String, dynamic>> availabilityRequests({int page = 1, String view = 'requests'}) async {
+    if (page < 1 || page > 1000 || !['requests', 'notices'].contains(view)) throw const CarePointApiException('Invalid availability view.');
+    return _asMap(await _send('GET', '/availability-requests', query: {'page': '$page', 'view': view}));
+  }
+  Future<Map<String, dynamic>> joinAvailabilityRequest(Map<String, dynamic> input) async => _asMap(await _send('POST', '/availability-requests', body: input));
+  Future<Map<String, dynamic>> checkAvailabilityRequest(String id) async => _asMap(await _send('POST', '/availability-requests/${Uri.encodeComponent(id)}/refresh', body: const {}));
+  Future<Map<String, dynamic>> availabilityRequestMatches(String id) async => _asMap(await _send('GET', '/availability-requests/${Uri.encodeComponent(id)}/matches'));
+  Future<Map<String, dynamic>> withdrawAvailabilityRequest(String id) async => _asMap(await _send('POST', '/availability-requests/${Uri.encodeComponent(id)}/withdraw', body: const {}));
+  Future<Map<String, dynamic>> markAvailabilityNoticeRead(String id, int version) async => _asMap(await _send('POST', '/availability-requests/${Uri.encodeComponent(id)}/read', body: {'version': version}));
+}
