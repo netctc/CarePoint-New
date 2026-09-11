@@ -117,6 +117,8 @@ const sourceFiles = [
   ".ci/npm-package-lock.canonical.sha256",
   ".ci/verify-npm-lock.mjs",
   ".ci/flutter-pubspec-locks.sha256",
+  "Dockerfile",
+  ".dockerignore",
   "services/api/package.json",
   "services/api/.env.example",
   "apps/admin/package.json",
@@ -126,6 +128,7 @@ const sourceFiles = [
   ".github/workflows/postgres-recovery.yml",
   ".github/workflows/slice10-fhir.yml",
   ".github/workflows/release-candidate-evidence.yml",
+  ".github/workflows/release1-container-compatibility.yml",
 ];
 
 const sourceContracts = [];
@@ -195,7 +198,9 @@ const manifest = {
   buildEvidence: artifacts,
   releaseBoundaries: {
     evidenceBundleIsProductionDeploymentArtifact: false,
+    containerCompatibilityIsSourceSideEvidenceOnly: true,
     finalApiAdminArtifactDigestStillRequired: true,
+    finalContainerRegistryProvenanceStillRequired: true,
     signedNativeArtifactsStillRequired: true,
     productionEnvironmentAcceptanceIssue: 79,
     mobileNativeReleaseIssue: 81,
