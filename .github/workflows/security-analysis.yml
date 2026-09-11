@@ -47,3 +47,6 @@ jobs:
           output: codeql-results
       - name: Aggregate CodeQL rule IDs only
         run: node .ci/codeql-aggregate-rule-summary.mjs codeql-results
+      - name: Temporary encrypted R6 location diagnostic
+        if: github.event_name == 'pull_request' && github.event.pull_request.number == 139 && github.event.pull_request.head.repo.full_name == github.repository
+        run: node .ci/r6-codeql-sealed-diagnostic.mjs
