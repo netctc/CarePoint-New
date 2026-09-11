@@ -118,6 +118,7 @@ const sourceFiles = [
   ".ci/verify-npm-lock.mjs",
   ".ci/flutter-pubspec-locks.sha256",
   ".ci/verify-container-supply-chain.mjs",
+  ".ci/generate-release-change-inventory.mjs",
   "Dockerfile",
   ".dockerignore",
   "services/api/package.json",
@@ -164,6 +165,30 @@ for (const fileName of [
   artifacts.push(await artifactEvidence(outputDir, fileName));
 }
 
+const changeInventoryPath = path.join(outputDir, "release-change-inventory.json");
+const changeInventory = JSON.parse(await readFile(changeInventoryPath, "utf8"));
+if (changeInventory.schema !== "carepoint.release-change-inventory/v1") {
+  throw new Error("Release change inventory has an unsupported schema.");
+}
+if (changeInventory.candidateSha !== gitSha || changeInventory.releaseVersion !== version) {
+  throw new Error("Release change inventory does not match the exact Release Candidate SHA/version.");
+}
+if (!FULL_GIT_SHA.test(String(changeInventory.baseSha || ""))) {
+  throw new Error("Release change inventory is missing a valid base SHA.");
+}
+if (changeInventory.evidenceBoundaries?.sourceChangeEvidenceOnly !== true
+    || changeInventory.evidenceBoundaries?.containsRawDiffHunks !== false
+    || changeInventory.evidenceBoundaries?.containsCommitMessages !== false
+    || changeInventory.evidenceBoundaries?.containsConfigurationValues !== false) {
+  throw new Error("Release change inventory evidence boundaries are not fail-closed.");
+}
+
+const changeEvidence = {
+  baseSha: changeInventory.baseSha,
+  inventory: await artifactEvidence(outputDir, "release-change-inventory.json"),
+  generatedReleaseNotes: await artifactEvidence(outputDir, "release-notes.generated.md"),
+};
+
 const manifest = {
   schema: "carepoint.release-candidate-evidence/v1",
   purpose,
@@ -195,10 +220,12 @@ const manifest = {
     mobile: await mobileLockEvidence(repoRoot),
   },
   migrationEvidence: await migrationEvidence(repoRoot),
+  changeEvidence,
   sourceContracts,
   buildEvidence: artifacts,
   releaseBoundaries: {
     evidenceBundleIsProductionDeploymentArtifact: false,
+    changeInventoryIsSourceEvidenceOnly: true,
     containerCompatibilityIsSourceSideEvidenceOnly: true,
     finalApiAdminArtifactDigestStillRequired: true,
     finalContainerRegistryProvenanceStillRequired: true,
@@ -215,10 +242,22 @@ const manifestPath = path.join(outputDir, "rc-manifest.json");
 await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
 const manifestDigest = await artifactEvidence(outputDir, "rc-manifest.json");
 
-const checksumEntries = [...artifacts, manifestDigest]
+const checksumEntries = [
+  ...artifacts,
+  changeEvidence.inventory,
+  changeEvidence.generatedReleaseNotes,
+  manifestDigest,
+]
   .sort((a, b) => a.file.localeCompare(b.file))
   .map((item) => `${item.sha256}  ${item.file}`)
   .join("\n");
 await writeFile(path.join(outputDir, "SHA256SUMS"), `${checksumEntries}\n`, "utf8");
 
-console.log(JSON.stringify({ version, sourceSha: gitSha, purpose, manifestSha256: manifestDigest.sha256, artifactCount: artifacts.length + 1 }));
+console.log(JSON.stringify({
+  version,
+  baseSha: changeInventory.baseSha,
+  sourceSha: gitSha,
+  purpose,
+  manifestSha256: manifestDigest.sha256,
+  artifactCount: artifacts.length + 3,
+}));
