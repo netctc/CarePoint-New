@@ -10,6 +10,7 @@ import 'package:carepoint_mobile_core/care_journeys_localization.dart';
 import 'package:carepoint_mobile_core/transport_localization.dart';
 import 'package:carepoint_mobile_core/availability_centre.dart';
 import 'package:carepoint_mobile_core/availability_alert_entry.dart';
+import 'package:carepoint_mobile_core/patient_emergency.dart';
 import 'package:carepoint_mobile_core/patient_messages.dart';
 import 'package:carepoint_mobile_core/patient_notifications.dart';
 import 'package:carepoint_mobile_core/patient_profile.dart';
@@ -75,6 +76,7 @@ class _PatientShellState extends State<PatientShell> {
       CareDiscoveryPage(session: widget.session, locale: widget.locale, onBooked: () => setState(() { visitsVersion++; tab = 1; }), header: Padding(padding: const EdgeInsets.only(bottom: 20), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         FilledButton.icon(onPressed: () => openEmergencyAmbulanceFlow(context, session: widget.session, locale: widget.locale), icon: const Icon(Icons.emergency_share_outlined), label: Text(cpText(widget.locale, 'patient.emergencyAction'))),
         Text(cpText(widget.locale, 'patient.emergencyHint')),
+        PatientActiveEmergencyEntryButton(session: widget.session, locale: widget.locale),
         OutlinedButton.icon(onPressed: () => Navigator.push<void>(context, MaterialPageRoute(builder: (_) => Directionality(textDirection: widget.locale.textDirection, child: PatientMedicalTransportPage(session: widget.session, locale: widget.locale)))), icon: const Icon(Icons.local_shipping_outlined), label: Text(transportText(widget.locale, 'schedule'))),
         PatientNotificationCentreEntryButton(session: widget.session, locale: widget.locale),
         PatientMessagesEntryButton(session: widget.session, locale: widget.locale),

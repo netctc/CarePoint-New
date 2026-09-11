@@ -5,19 +5,22 @@ import 'care_visits.dart';
 import 'carepoint_api.dart';
 import 'carepoint_localization.dart';
 import 'communications_workspace.dart';
+import 'patient_emergency.dart';
 
 const patientNotificationRoutableEntityTypes = <String>{
   'APPOINTMENT',
   'AVAILABILITY_REQUEST',
   'CARE_CONVERSATION',
+  'EMERGENCY_AMBULANCE_REQUEST',
 };
 
-enum PatientNotificationDestination { appointment, availability, conversation, generic }
+enum PatientNotificationDestination { appointment, availability, conversation, emergency, generic }
 
 PatientNotificationDestination patientNotificationDestination(Map<String, dynamic> row) => switch (row['entityType']?.toString()) {
       'APPOINTMENT' => PatientNotificationDestination.appointment,
       'AVAILABILITY_REQUEST' => PatientNotificationDestination.availability,
       'CARE_CONVERSATION' => PatientNotificationDestination.conversation,
+      'EMERGENCY_AMBULANCE_REQUEST' => PatientNotificationDestination.emergency,
       _ => PatientNotificationDestination.generic,
     };
 
@@ -52,6 +55,7 @@ const _safeTitleKeys = <String, String>{
   'notification.availability.available.title': 'availabilityFound',
   'notification.message.title': 'secureMessage',
   'notification.care.title': 'careCoordination',
+  'notification.emergency.title': 'emergencyUpdate',
 };
 
 class PatientNotificationCentreEntryButton extends StatefulWidget {
@@ -233,6 +237,16 @@ class _PatientNotificationCentrePageState extends State<PatientNotificationCentr
             )),
           );
           break;
+        case PatientNotificationDestination.emergency:
+          await Navigator.push<void>(
+            context,
+            MaterialPageRoute(builder: (_) => PatientEmergencyStatusPage(
+              session: widget.session,
+              locale: widget.locale,
+              requestId: entityId,
+            )),
+          );
+          break;
         case PatientNotificationDestination.generic:
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t('noDetail'))));
           break;
@@ -317,6 +331,7 @@ class _PatientNotificationCentrePageState extends State<PatientNotificationCentr
     PatientNotificationDestination.appointment => Icons.event_outlined,
     PatientNotificationDestination.availability => Icons.event_available,
     PatientNotificationDestination.conversation => Icons.forum_outlined,
+    PatientNotificationDestination.emergency => Icons.emergency_share_outlined,
     PatientNotificationDestination.generic => switch (row['type']?.toString()) {
       'CLINICAL_UPDATE' => Icons.health_and_safety_outlined,
       'INSURANCE_UPDATE' => Icons.shield_outlined,

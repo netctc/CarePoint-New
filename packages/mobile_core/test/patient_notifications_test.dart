@@ -10,11 +10,12 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
-  test('F8 routing is allowlisted only for verified entity contracts', () {
-    expect(patientNotificationRoutableEntityTypes, {'APPOINTMENT', 'AVAILABILITY_REQUEST', 'CARE_CONVERSATION'});
+  test('F8/F9 routing is allowlisted only for verified entity contracts', () {
+    expect(patientNotificationRoutableEntityTypes, {'APPOINTMENT', 'AVAILABILITY_REQUEST', 'CARE_CONVERSATION', 'EMERGENCY_AMBULANCE_REQUEST'});
     expect(patientNotificationDestination({'entityType': 'APPOINTMENT'}), PatientNotificationDestination.appointment);
     expect(patientNotificationDestination({'entityType': 'AVAILABILITY_REQUEST'}), PatientNotificationDestination.availability);
     expect(patientNotificationDestination({'entityType': 'CARE_CONVERSATION'}), PatientNotificationDestination.conversation);
+    expect(patientNotificationDestination({'entityType': 'EMERGENCY_AMBULANCE_REQUEST'}), PatientNotificationDestination.emergency);
     expect(patientNotificationDestination({'entityType': 'CLINICAL_RECORD'}), PatientNotificationDestination.generic);
     expect(patientNotificationDestination({'entityType': '../../unsafe'}), PatientNotificationDestination.generic);
   });

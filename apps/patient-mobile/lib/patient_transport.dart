@@ -1,5 +1,6 @@
 import 'package:carepoint_mobile_core/carepoint_api.dart';
 import 'package:carepoint_mobile_core/carepoint_localization.dart';
+import 'package:carepoint_mobile_core/patient_emergency.dart';
 import 'package:carepoint_mobile_core/transport_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
@@ -41,10 +42,13 @@ Future<void> openEmergencyAmbulanceFlow(
     );
     if (!context.mounted) return;
     messenger.hideCurrentSnackBar();
+    final requestId = _map(response['request'])['id']?.toString() ?? '';
     await Navigator.of(context).push<void>(MaterialPageRoute(
-      builder: (_) => Directionality(
-        textDirection: locale.textDirection,
-        child: EmergencyAmbulanceStatusPage(session: session, locale: locale, initial: response),
+      builder: (_) => PatientEmergencyStatusPage(
+        session: session,
+        locale: locale,
+        requestId: requestId,
+        initial: response,
       ),
     ));
   } catch (value) {
@@ -64,94 +68,6 @@ Future<Position> _currentPosition(CarePointLocale locale) async {
     throw CarePointApiException(transportText(locale, 'locationDenied'));
   }
   return Geolocator.getCurrentPosition(locationSettings: const LocationSettings(accuracy: LocationAccuracy.high));
-}
-
-class EmergencyAmbulanceStatusPage extends StatefulWidget {
-  const EmergencyAmbulanceStatusPage({super.key, required this.session, required this.locale, required this.initial});
-  final CarePointSession session;
-  final CarePointLocale locale;
-  final Map<String, dynamic> initial;
-
-  @override
-  State<EmergencyAmbulanceStatusPage> createState() => _EmergencyAmbulanceStatusPageState();
-}
-
-class _EmergencyAmbulanceStatusPageState extends State<EmergencyAmbulanceStatusPage> {
-  bool busy = false;
-  late Map<String, dynamic> value = widget.initial;
-
-  Map<String, dynamic> get request => _map(value['request']);
-  String get requestId => request['id']?.toString() ?? '';
-
-  Future<void> refresh() async {
-    if (requestId.isEmpty) return;
-    setState(() => busy = true);
-    try {
-      final next = await widget.session.api.emergencyAmbulanceRequest(requestId);
-      if (mounted) setState(() => value = next);
-    } catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
-    } finally {
-      if (mounted) setState(() => busy = false);
-    }
-  }
-
-  Future<void> cancel() async {
-    if (requestId.isEmpty) return;
-    setState(() => busy = true);
-    try {
-      final next = await widget.session.api.cancelEmergencyAmbulance(requestId, reason: 'Cancelled by Patient from mobile app');
-      if (mounted) setState(() => value = next);
-    } catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
-    } finally {
-      if (mounted) setState(() => busy = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final status = request['status']?.toString() ?? '';
-    final provider = _map(request['assignedProvider']);
-    final cancellable = const {'REQUESTED', 'DISPATCHING', 'ASSIGNED'}.contains(status);
-    final history = _list(value['history']);
-    return Scaffold(
-      appBar: AppBar(title: Text(transportText(widget.locale, 'emergency'))),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          const Center(child: CircleAvatar(radius: 36, backgroundColor: Color(0xFFE11D48), child: Icon(Icons.emergency_share_outlined, size: 38, color: Colors.white))),
-          const SizedBox(height: 16),
-          Text(transportText(widget.locale, 'emergencyRequested'), textAlign: TextAlign.center, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
-          const SizedBox(height: 8),
-          Center(child: Chip(label: Text(status, style: const TextStyle(fontWeight: FontWeight.w800)))),
-          if (request['etaMinutes'] != null) Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Text('${transportText(widget.locale, 'eta')}: ${request['etaMinutes']} ${transportText(widget.locale, 'minutes')}', textAlign: TextAlign.center),
-          ),
-          if (provider['displayName'] != null) Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Text(provider['displayName'].toString(), textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w700)),
-          ),
-          const SizedBox(height: 20),
-          FilledButton.icon(onPressed: busy ? null : refresh, icon: const Icon(Icons.refresh_rounded), label: Text(transportText(widget.locale, 'refresh'))),
-          if (cancellable) ...[
-            const SizedBox(height: 8),
-            OutlinedButton.icon(onPressed: busy ? null : cancel, icon: const Icon(Icons.cancel_outlined), label: Text(transportText(widget.locale, 'cancel'))),
-          ],
-          if (history.isNotEmpty) ...[
-            const SizedBox(height: 24),
-            ...history.map((event) => ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.radio_button_checked, size: 18),
-              title: Text(event['toStatus']?.toString() ?? ''),
-              subtitle: Text(_displayDate(event['occurredAt']?.toString() ?? '')),
-            )),
-          ],
-        ],
-      ),
-    );
-  }
 }
 
 class PatientMedicalTransportPage extends StatefulWidget {
@@ -414,11 +330,6 @@ Map<String, dynamic> _map(dynamic value) {
   if (value is Map<String, dynamic>) return value;
   if (value is Map) return value.map((key, item) => MapEntry(key.toString(), item));
   return <String, dynamic>{};
-}
-
-List<Map<String, dynamic>> _list(dynamic value) {
-  if (value is! List) return const [];
-  return value.map(_map).toList(growable: false);
 }
 
 String _displayDate(String raw) {
