@@ -22,35 +22,79 @@ function ruleSecuritySeverity(run, ruleId) {
   return Number.isFinite(value) ? value : null;
 }
 
+function decodedUri(rawUri) {
+  const normalized = String(rawUri ?? "")
+    .replace(/^file:\/\//i, "")
+    .replace(/\\/g, "/")
+    .replace(/^\/+/, "");
+  try {
+    return decodeURIComponent(normalized);
+  } catch {
+    return normalized;
+  }
+}
+
+function subsequenceIndex(parts, expected) {
+  if (expected.length === 0 || parts.length < expected.length) return -1;
+  for (let index = 0; index <= parts.length - expected.length; index += 1) {
+    let matches = true;
+    for (let offset = 0; offset < expected.length; offset += 1) {
+      if (parts[index + offset] !== expected[offset]) {
+        matches = false;
+        break;
+      }
+    }
+    if (matches) return index;
+  }
+  return -1;
+}
+
 function resultComponent(result) {
   const locations = Array.isArray(result?.locations) ? result.locations : [];
   const rawUri = locations[0]?.physicalLocation?.artifactLocation?.uri;
   if (typeof rawUri !== "string" || !rawUri.trim()) return "other";
 
-  const uri = rawUri
-    .replace(/^file:\/\//i, "")
-    .replace(/\\/g, "/")
-    .replace(/^\/+/, "");
-  const parts = uri.split("/").filter(Boolean);
+  const parts = decodedUri(rawUri).split("/").filter(Boolean);
 
-  if (parts[0] === ".ci") return ".ci";
-  if (parts[0] === "packages") {
-    if (parts[1] === "identity" && ["src", "test", "dist"].includes(parts[2])) {
-      return `packages/identity/${parts[2]}`;
-    }
-    return parts[1] ? `packages/${parts[1]}` : "packages";
+  // SARIF artifact URIs can be repository-relative or prefixed with a checkout,
+  // CodeQL extraction or workspace root. Match trusted repository path segments
+  // anywhere in the URI, then expose only a deliberately coarse component.
+  const apiModules = subsequenceIndex(parts, ["services", "api", "src", "modules"]);
+  if (apiModules >= 0) {
+    const moduleName = parts[apiModules + 4];
+    return moduleName ? `services/api/src/modules/${moduleName}` : "services/api/src/modules";
   }
-  if (parts[0] === "apps") return parts[1] ? `apps/${parts[1]}` : "apps";
-  if (parts[0] === "scripts") return "scripts";
-  if (parts[0] === "services" && parts[1] === "api") {
-    if (parts[2] === "src") {
-      // Module-level granularity is intentionally the finest level exposed in
-      // public CI diagnostics. Never emit a file name, line, message or flow.
-      if (parts[3] === "modules" && parts[4]) return `services/api/src/modules/${parts[4]}`;
-      return parts[3] ? `services/api/src/${parts[3]}` : "services/api/src";
-    }
-    return parts[2] ? `services/api/${parts[2]}` : "services/api";
+
+  const apiSrc = subsequenceIndex(parts, ["services", "api", "src"]);
+  if (apiSrc >= 0) {
+    const areaName = parts[apiSrc + 3];
+    return areaName ? `services/api/src/${areaName}` : "services/api/src";
   }
+
+  const api = subsequenceIndex(parts, ["services", "api"]);
+  if (api >= 0) return "services/api";
+
+  const identitySrc = subsequenceIndex(parts, ["packages", "identity", "src"]);
+  if (identitySrc >= 0) return "packages/identity/src";
+  const identityTest = subsequenceIndex(parts, ["packages", "identity", "test"]);
+  if (identityTest >= 0) return "packages/identity/test";
+  const identityDist = subsequenceIndex(parts, ["packages", "identity", "dist"]);
+  if (identityDist >= 0) return "packages/identity/dist";
+
+  const packages = parts.lastIndexOf("packages");
+  if (packages >= 0) {
+    const packageName = parts[packages + 1];
+    return packageName ? `packages/${packageName}` : "packages";
+  }
+
+  const apps = parts.lastIndexOf("apps");
+  if (apps >= 0) {
+    const appName = parts[apps + 1];
+    return appName ? `apps/${appName}` : "apps";
+  }
+
+  if (parts.includes(".ci")) return ".ci";
+  if (parts.includes("scripts")) return "scripts";
   return "other";
 }
 
@@ -86,40 +130,54 @@ function format(summary) {
   ];
 }
 
+function resultFixture(uri, message = "sensitive exploit detail must never be printed", line = 42) {
+  return {
+    ruleId: "js/path-injection",
+    message: { text: message },
+    locations: [{ physicalLocation: { artifactLocation: { uri }, region: { startLine: line } } }],
+  };
+}
+
 function selfTest() {
-  const sensitivePath = "services/api/src/security/secret-sensitive-path.ts";
+  const sensitiveFile = "secret-sensitive-path.ts";
   const sensitiveMessage = "sensitive exploit detail must never be printed";
   const fixture = {
     runs: [{
       tool: { driver: { rules: [{ id: "js/path-injection", properties: { "security-severity": "7.5" } }] } },
-      results: [{
-        ruleId: "js/path-injection",
-        message: { text: sensitiveMessage },
-        locations: [{ physicalLocation: { artifactLocation: { uri: sensitivePath }, region: { startLine: 42 } } }],
-      }],
+      results: [
+        resultFixture(`/home/runner/work/CarePoint-New/CarePoint-New/services/api/src/modules/iam/${sensitiveFile}`),
+        resultFixture(`file:///workspace/packages/identity/src/${sensitiveFile}`, sensitiveMessage, 99),
+      ],
     }],
   };
   const summary = aggregateSarif([fixture]);
   if (
-    summary.length !== 1 ||
+    summary.length !== 2 ||
     summary[0].ruleId !== "js/path-injection" ||
-    summary[0].component !== "services/api/src/security" ||
+    summary[0].component !== "packages/identity/src" ||
     summary[0].count !== 1 ||
-    summary[0].securitySeverity !== 7.5
+    summary[0].securitySeverity !== 7.5 ||
+    summary[1].component !== "services/api/src/modules/iam" ||
+    summary[1].count !== 1
   ) {
     throw new Error("aggregate SARIF self-test failed");
   }
   const rendered = format(summary).join("\n");
   if (
-    rendered.includes(sensitivePath) ||
+    rendered.includes(sensitiveFile) ||
     rendered.includes(sensitiveMessage) ||
-    rendered.includes("secret-sensitive-path") ||
-    rendered.includes("42")
+    rendered.includes("42") ||
+    rendered.includes("99") ||
+    rendered.includes("runner/work") ||
+    rendered.includes("/workspace/")
   ) {
     throw new Error("aggregate SARIF summary leaked file/location/message data");
   }
-  if (!rendered.includes("js/path-injection | services/api/src/security: 1")) {
-    throw new Error("aggregate SARIF summary omitted the safe coarse component");
+  if (!rendered.includes("js/path-injection | services/api/src/modules/iam: 1")) {
+    throw new Error("aggregate SARIF summary omitted the safe module component");
+  }
+  if (!rendered.includes("js/path-injection | packages/identity/src: 1")) {
+    throw new Error("aggregate SARIF summary omitted the safe identity component");
   }
   console.log("CodeQL aggregate rule/component summary self-test: PASS");
 }
