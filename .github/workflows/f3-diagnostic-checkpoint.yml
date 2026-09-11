@@ -20,7 +20,7 @@ jobs:
           umask 077
           trap 'rm -f "$RUNNER_TEMP/f3-checkpoint.log"' EXIT
           gh api repos/netctc/CarePoint-New/check-runs/103356425939/annotations --jq '.[] | {path, start_line, title, message}'
-          gh api repos/netctc/CarePoint-New/actions/jobs/103356017474/logs > "$RUNNER_TEMP/f3-checkpoint.log"
+          gh api --allow-escape-sequences repos/netctc/CarePoint-New/actions/jobs/103356017474/logs > "$RUNNER_TEMP/f3-checkpoint.log"
           python3 <<'PY'
           import os, re
           from pathlib import Path
@@ -31,7 +31,6 @@ jobs:
           start = starts[-1]
           end = next((i for i in range(start + 1, len(lines)) if '##[group]' in lines[i]), len(lines))
           section = lines[start:end]
-          # Exclude the workflow environment and command echo, retain diagnostics.
           begin = next((i + 1 for i, line in enumerate(section) if '##[endgroup]' in line), 0)
           section = section[begin:]
           for line in section[-160:]:
