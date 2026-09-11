@@ -1,6 +1,4 @@
-# syntax=docker/dockerfile:1.7
-
-FROM node:22-bookworm-slim AS build
+FROM node:22-bookworm-slim@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5 AS build
 WORKDIR /workspace
 ENV NEXT_TELEMETRY_DISABLED=1
 
@@ -19,7 +17,7 @@ RUN npm run build --workspace @carepoint/contracts \
  && npm run build --workspace @carepoint/api \
  && npm run build --workspace @carepoint/admin
 
-FROM node:22-bookworm-slim AS api
+FROM node:22-bookworm-slim@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5 AS api
 WORKDIR /app
 ENV NODE_ENV=production
 ARG RELEASE_SHA=unknown
@@ -45,7 +43,7 @@ WORKDIR /app/services/api
 EXPOSE 4000
 CMD ["node", "dist/main.js"]
 
-FROM node:22-bookworm-slim AS admin
+FROM node:22-bookworm-slim@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5 AS admin
 WORKDIR /app
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
