@@ -88,4 +88,8 @@ extension CarePointAvailabilityRequestsApi on CarePointApi {
   Future<Map<String, dynamic>> availabilityRequestMatches(String id) async => _asMap(await _send('GET', '/availability-requests/${Uri.encodeComponent(id)}/matches'));
   Future<Map<String, dynamic>> withdrawAvailabilityRequest(String id) async => _asMap(await _send('POST', '/availability-requests/${Uri.encodeComponent(id)}/withdraw', body: const {}));
   Future<Map<String, dynamic>> markAvailabilityNoticeRead(String id, int version) async => _asMap(await _send('POST', '/availability-requests/${Uri.encodeComponent(id)}/read', body: {'version': version}));
+  Future<Map<String, dynamic>> providerAvailabilityDemand({int page = 1}) async {
+    if (page < 1 || page > 1000) throw const CarePointApiException('Invalid demand page.');
+    return _asMap(await _send('GET', '/provider/availability-demand', query: {'page': '$page'}));
+  }
 }

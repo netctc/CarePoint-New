@@ -2,6 +2,7 @@ import { Body, Controller, Get, Header, Module, Param, Post, Query } from "@nest
 import type { AuthPrincipal } from "@carepoint/identity";
 import { CurrentPrincipal, RequirePermissions } from "../../security/api-security.module";
 import { AvailabilityRequestsService } from "./availability-requests.service";
+import { ProviderAvailabilityDemandService } from "./provider-availability-demand.service";
 
 @Controller("availability-requests")
 export class AvailabilityRequestsController {
@@ -19,5 +20,15 @@ export class AvailabilityRequestsController {
   @RequirePermissions("PATIENT_MANAGE_APPOINTMENT") @Post(":requestId/read") @Header("Cache-Control", "no-store")
   read(@CurrentPrincipal() principal: AuthPrincipal, @Param("requestId") id: string, @Body() body: { version?: unknown }) { return this.requests.read(principal, id, body?.version); }
 }
-@Module({ controllers: [AvailabilityRequestsController], providers: [AvailabilityRequestsService] })
+
+@Controller("provider/availability-demand")
+export class ProviderAvailabilityDemandController {
+  constructor(private readonly demand: ProviderAvailabilityDemandService) {}
+  // The existing global guard enforces current credentials and category status.
+  @RequirePermissions("PROVIDER_MANAGE_AVAILABILITY") @Get() @Header("Cache-Control", "no-store")
+  list(@CurrentPrincipal() principal: AuthPrincipal, @Query() query: Record<string, unknown>) {
+    return this.demand.list(principal, query);
+  }
+}
+@Module({ controllers: [AvailabilityRequestsController, ProviderAvailabilityDemandController], providers: [AvailabilityRequestsService, ProviderAvailabilityDemandService] })
 export class AvailabilityRequestsModule {}

@@ -5,6 +5,8 @@ import 'care_journeys_localization.dart';
 import 'care_provider_schedule.dart';
 import 'care_planning.dart';
 import 'care_planning_localization.dart';
+import 'provider_availability_demand.dart';
+import 'availability_demand_localization.dart';
 import 'financial_workspace.dart';
 import 'communications_workspace.dart';
 import 'professional_account_workspace.dart';
@@ -20,16 +22,17 @@ class CareProviderActions extends StatelessWidget {
   final VoidCallback onSignOut;
   final Color accent;
   final bool dark, transport;
-  String t(String key) => key == 'waiting' ? planningText(locale, 'demand') : journeyText(locale, key);
+  String t(String key) => key == 'availabilityDemand' ? availabilityDemandText(locale, 'title') : key == 'waiting' ? planningText(locale, 'demand') : journeyText(locale, key);
   @override
   Widget build(BuildContext context) => Stack(children: [child,
     PositionedDirectional(start: 16, bottom: 90, child: SafeArea(child: Material(elevation: 4, borderRadius: BorderRadius.circular(16), child: PopupMenuButton<String>(
       tooltip: t('actions'),
-      itemBuilder: (_) => ['schedule', 'waiting', 'finance', 'messages', if (transport) 'transport', 'account'].map((key) => PopupMenuItem(value: key, child: Text(t(key)))).toList(),
+      itemBuilder: (_) => ['schedule', 'waiting', 'availabilityDemand', 'finance', 'messages', if (transport) 'transport', 'account'].map((key) => PopupMenuItem(value: key, child: Text(t(key)))).toList(),
       onSelected: (key) {
         final Widget page = switch (key) {
           'schedule' => CareProviderSchedule(session: session, locale: locale, allowedModalities: allowedModalities),
           'waiting' => CareWaitlistPage(session: session, locale: locale, provider: true),
+          'availabilityDemand' => ProviderAvailabilityDemandPage(session: session, locale: locale),
           'finance' => Scaffold(appBar: AppBar(title: Text(t('finance'))), body: ProviderFinancialWorkspace(session: session, locale: locale, accent: accent)),
           'messages' => CommunicationsWorkspace(session: session, locale: locale, accent: accent, isProvider: true),
           'transport' => ProviderTransportWorkspace(session: session, locale: locale, accent: accent),

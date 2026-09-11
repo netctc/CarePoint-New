@@ -200,6 +200,10 @@ jobs:
         run: node services/api/scripts/r6-adversarial-authorization-smoke.mjs
       - name: R9 provider current-credential enforcement acceptance
         run: node services/api/scripts/r9-provider-credential-validity-live-smoke.mjs
+      - name: F3.1 HTTP availability lifecycle and provider demand acceptance
+        env:
+          CAREPOINT_AVAILABILITY_HTTP_ACCEPTANCE: "true"
+        run: node --test services/api/scripts/f3-availability-http-acceptance.mjs
       - name: Print API and Admin logs on failure
         if: failure()
         run: |
