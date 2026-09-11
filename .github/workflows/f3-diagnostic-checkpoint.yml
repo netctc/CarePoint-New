@@ -1,0 +1,42 @@
+name: F3 Diagnostic Checkpoint
+on:
+  pull_request:
+    paths:
+      - .github/workflows/f3-diagnostic-checkpoint.yml
+permissions:
+  actions: read
+  checks: read
+jobs:
+  diagnostics:
+    if: github.repository == 'netctc/CarePoint-New' && github.event.pull_request.number == 141
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Read only the failed synthetic acceptance checkpoint
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          umask 077
+          trap 'rm -f "$RUNNER_TEMP/f3-checkpoint.log"' EXIT
+          gh api repos/netctc/CarePoint-New/check-runs/103356425939/annotations --jq '.[] | {path, start_line, title, message}'
+          gh api repos/netctc/CarePoint-New/actions/jobs/103356017474/logs > "$RUNNER_TEMP/f3-checkpoint.log"
+          python3 <<'PY'
+          import os, re
+          from pathlib import Path
+          lines = Path(os.environ['RUNNER_TEMP'], 'f3-checkpoint.log').read_text(encoding='utf-8-sig').splitlines()
+          starts = [i for i, line in enumerate(lines) if '##[group]Run set -eu' in line]
+          if not starts:
+              raise SystemExit('F3.2 checkpoint section was not found')
+          start = starts[-1]
+          end = next((i for i in range(start + 1, len(lines)) if '##[group]' in lines[i]), len(lines))
+          section = lines[start:end]
+          # Exclude the workflow environment and command echo, retain diagnostics.
+          begin = next((i + 1 for i, line in enumerate(section) if '##[endgroup]' in line), 0)
+          section = section[begin:]
+          for line in section[-160:]:
+              line = re.sub(r'\x1b\[[0-9;]*m', '', line)
+              line = re.sub(r'Synthetic-Mobile![^\s\"\x27]+', '[redacted-synthetic-password]', line)
+              line = re.sub(r'Bearer\s+[^\s\"\x27]+', 'Bearer [redacted]', line)
+              print(line[:1200])
+          PY
