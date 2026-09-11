@@ -1,6 +1,8 @@
 import { Body, Controller, Get, Header, Module, Param, Post, Query } from "@nestjs/common";
 import type { AuthPrincipal } from "@carepoint/identity";
 import { CurrentPrincipal, RequirePermissions } from "../../security/api-security.module";
+import { CommunicationsModule } from "../communications/communications.module";
+import { AvailabilityNotificationWorkerService } from "./availability-notification-worker.service";
 import { AvailabilityRequestsService } from "./availability-requests.service";
 import { ProviderAvailabilityDemandService } from "./provider-availability-demand.service";
 
@@ -24,11 +26,13 @@ export class AvailabilityRequestsController {
 @Controller("provider/availability-demand")
 export class ProviderAvailabilityDemandController {
   constructor(private readonly demand: ProviderAvailabilityDemandService) {}
-  // The existing global guard enforces current credentials and category status.
   @RequirePermissions("PROVIDER_MANAGE_AVAILABILITY") @Get() @Header("Cache-Control", "no-store")
-  list(@CurrentPrincipal() principal: AuthPrincipal, @Query() query: Record<string, unknown>) {
-    return this.demand.list(principal, query);
-  }
+  list(@CurrentPrincipal() principal: AuthPrincipal, @Query() query: Record<string, unknown>) { return this.demand.list(principal, query); }
 }
-@Module({ controllers: [AvailabilityRequestsController, ProviderAvailabilityDemandController], providers: [AvailabilityRequestsService, ProviderAvailabilityDemandService] })
+
+@Module({
+  imports: [CommunicationsModule],
+  controllers: [AvailabilityRequestsController, ProviderAvailabilityDemandController],
+  providers: [AvailabilityRequestsService, ProviderAvailabilityDemandService, AvailabilityNotificationWorkerService],
+})
 export class AvailabilityRequestsModule {}
