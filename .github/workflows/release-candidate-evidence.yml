@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - ".ci/generate-rc-evidence.mjs"
+      - ".ci/verify-container-supply-chain.mjs"
       - ".github/workflows/release-candidate-evidence.yml"
       - ".github/workflows/release1-container-compatibility.yml"
       - "Dockerfile"
@@ -52,6 +53,10 @@ jobs:
         run: npm install --package-lock-only --ignore-scripts
       - name: Verify canonical npm dependency graph
         run: node .ci/verify-npm-lock.mjs
+      - name: Verify container supply-chain source contract
+        run: |
+          node .ci/verify-container-supply-chain.mjs --self-test
+          node .ci/verify-container-supply-chain.mjs
       - name: Install verified dependency graph
         run: npm ci
       - name: Build Node workspaces
@@ -104,6 +109,6 @@ jobs:
             echo "- Source SHA: \`$CAREPOINT_RELEASE_SHA\`"
             echo "- Purpose: \`$CAREPOINT_RELEASE_EVIDENCE_PURPOSE\`"
             echo "- GitHub immutable artifact digest: \`${{ steps.upload.outputs.artifact-digest }}\`"
-            echo "- Container packaging source contracts are fingerprinted in rc-manifest.json."
+            echo "- Container packaging and supply-chain verifier are fingerprinted in rc-manifest.json."
             echo "- This bundle is release evidence/build snapshots, not the final production deployment artifact."
           } >> "$GITHUB_STEP_SUMMARY"
