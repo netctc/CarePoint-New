@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Module, Param, Post } from "@nestjs/common";
 import type { AuthPrincipal } from "@carepoint/identity";
 import { CurrentPrincipal, RequirePermissions } from "../../security/api-security.module";
+import { CommunicationsModule } from "../communications/communications.module";
 import { ProviderCategoryCapabilityService } from "../providers/provider-category-capability.service";
 import { ProvidersModule } from "../providers/providers.module";
 import { OrdersService } from "./orders.service";
@@ -87,7 +88,7 @@ class OrdersController {
 }
 
 @Module({
-  imports: [ProvidersModule],
+  imports: [ProvidersModule, CommunicationsModule],
   controllers: [OrdersController],
   providers: [OrdersService, OrdersEnvelopeService, OrdersAttestationService, OrdersSystemExportService],
   exports: [OrdersService, OrdersSystemExportService],

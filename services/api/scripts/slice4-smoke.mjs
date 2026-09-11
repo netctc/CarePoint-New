@@ -104,10 +104,22 @@ async function main() {
   const patientAfterRelease = await request(`/clinical-orders/${labOrder.id}`, { token: patientToken });
   if (!patientAfterRelease.labResult?.released || !patientAfterRelease.labResult?.data?.conclusion?.includes(labMarker)) throw new Error('Released laboratory result was not visible/decryptable to patient.');
 
+  const patientNotifications = await request('/notifications', { token: patientToken });
+  const labNotification = patientNotifications.find((item) => item.type === 'CLINICAL_UPDATE' && item.entityType === 'CLINICAL_ORDER' && item.entityId === labOrder.id);
+  if (!labNotification) throw new Error('Released laboratory result did not create a patient clinical notification.');
+  if (labNotification.safeTitleKey !== 'notification.clinical.lab-result.title' || labNotification.safeBodyKey !== 'notification.clinical.lab-result.body') throw new Error('Clinical result notification did not use the PHI-neutral template contract.');
+  if (JSON.stringify(labNotification).includes(labMarker)) throw new Error('Laboratory PHI leaked into the notification API payload.');
+
+  const storedClinicalNotifications = await prisma.notificationEvent.findMany({
+    where: { accountId: patient.id, type: 'CLINICAL_UPDATE', entityType: 'CLINICAL_ORDER', entityId: labOrder.id },
+  });
+  if (storedClinicalNotifications.length !== 1) throw new Error(`Expected one deduplicated clinical notification, found ${storedClinicalNotifications.length}.`);
+  if (JSON.stringify(storedClinicalNotifications[0]).includes(labMarker)) throw new Error('Laboratory PHI leaked into notification persistence.');
+
   const validatedStored = await prisma.laboratoryResult.findUnique({ where: { orderId: labOrder.id } });
   if (!validatedStored?.validationSignature || !validatedStored.validationDigest || !validatedStored.validatedAt) throw new Error('Laboratory validation attestation missing.');
 
-  console.log(JSON.stringify({ status: 'passed', prescriptionId: prescription.id, laboratoryOrderId: labOrder.id, laboratoryResultId: validatedStored.id, encryptedAtRest: true, patientReleaseGate: true, adminPhiDenied: true }));
+  console.log(JSON.stringify({ status: 'passed', prescriptionId: prescription.id, laboratoryOrderId: labOrder.id, laboratoryResultId: validatedStored.id, encryptedAtRest: true, patientReleaseGate: true, clinicalNotification: true, notificationPhiNeutral: true, adminPhiDenied: true }));
 }
 
 try { await main(); } finally { await prisma.$disconnect(); }

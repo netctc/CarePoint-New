@@ -10,24 +10,26 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
-  test('F8-F10 routing is allowlisted only for verified entity contracts', () {
+  test('F8-F11 routing is allowlisted only for verified entity contracts', () {
     expect(patientNotificationRoutableEntityTypes, {
       'APPOINTMENT',
       'AVAILABILITY_REQUEST',
       'CARE_CONVERSATION',
+      'CLINICAL_ORDER',
       'EMERGENCY_AMBULANCE_REQUEST',
       'MEDICAL_TRANSPORT_REQUEST',
     });
     expect(patientNotificationDestination({'entityType': 'APPOINTMENT'}), PatientNotificationDestination.appointment);
     expect(patientNotificationDestination({'entityType': 'AVAILABILITY_REQUEST'}), PatientNotificationDestination.availability);
     expect(patientNotificationDestination({'entityType': 'CARE_CONVERSATION'}), PatientNotificationDestination.conversation);
+    expect(patientNotificationDestination({'entityType': 'CLINICAL_ORDER'}), PatientNotificationDestination.clinicalOrder);
     expect(patientNotificationDestination({'entityType': 'EMERGENCY_AMBULANCE_REQUEST'}), PatientNotificationDestination.emergency);
     expect(patientNotificationDestination({'entityType': 'MEDICAL_TRANSPORT_REQUEST'}), PatientNotificationDestination.transport);
     expect(patientNotificationDestination({'entityType': 'CLINICAL_RECORD'}), PatientNotificationDestination.generic);
     expect(patientNotificationDestination({'entityType': '../../unsafe'}), PatientNotificationDestination.generic);
   });
 
-  test('F8 safe titles are localized and unknown template keys are never rendered', () {
+  test('F8-F11 safe titles are localized and unknown template keys are never rendered', () {
     for (final locale in CarePointLocale.values) {
       expect(patientNotificationText(locale, 'centre'), isNotEmpty);
       expect(patientNotificationText(locale, 'openSecurely'), isNotEmpty);
@@ -35,6 +37,12 @@ void main() {
         'type': 'APPOINTMENT_UPDATE',
         'safeTitleKey': 'notification.appointment.confirmed.title',
       }), isNotEmpty);
+      final clinical = patientNotificationTitle(locale, {
+        'type': 'CLINICAL_UPDATE',
+        'safeTitleKey': 'notification.clinical.lab-result.title',
+      });
+      expect(clinical, isNotEmpty);
+      expect(clinical, isNot(contains('notification.clinical.lab-result.title')));
     }
     const malicious = 'internal.secret.template.key';
     final title = patientNotificationTitle(CarePointLocale.en, {
@@ -172,6 +180,114 @@ void main() {
     expect(calls, contains('POST /api/v1/notifications/message-event/read'));
     expect(calls, contains('GET /api/v1/communications/conversations/conversation-safe'));
     expect(calls, contains('POST /api/v1/communications/conversations/conversation-safe/read'));
+  });
+
+  testWidgets('F11 released laboratory notification opens only after clinical-order re-authorization', (tester) async {
+    var notificationRead = false;
+    final calls = <String>[];
+    final client = MockClient((request) async {
+      calls.add('${request.method} ${request.url.path}');
+      expect(request.headers['authorization'], 'Bearer f11-clinical');
+      if (request.method == 'GET' && request.url.path == '/api/v1/notifications') {
+        return http.Response(jsonEncode([
+          {
+            'id': 'lab-event',
+            'type': 'CLINICAL_UPDATE',
+            'entityType': 'CLINICAL_ORDER',
+            'entityId': 'lab-order-1',
+            'safeTitleKey': 'notification.clinical.lab-result.title',
+            'safeBodyKey': 'notification.clinical.lab-result.body',
+            'readAt': notificationRead ? '2026-09-11T22:00:00Z' : null,
+            'createdAt': '2026-09-11T21:55:00Z',
+            'deliveries': [],
+          }
+        ]), 200, headers: {'content-type': 'application/json'});
+      }
+      if (request.method == 'POST' && request.url.path == '/api/v1/notifications/lab-event/read') {
+        notificationRead = true;
+        return http.Response(jsonEncode({'id': 'lab-event', 'readAt': '2026-09-11T22:00:00Z', 'deliveries': []}), 200, headers: {'content-type': 'application/json'});
+      }
+      if (request.method == 'GET' && request.url.path == '/api/v1/clinical-orders/lab-order-1') {
+        return http.Response(jsonEncode({
+          'id': 'lab-order-1',
+          'type': 'LABORATORY',
+          'status': 'FULFILLED',
+          'data': {'tests': [{'display': 'Complete blood count'}]},
+          'labResult': {
+            'status': 'RELEASED',
+            'released': true,
+            'releasedAt': '2026-09-11T21:50:00Z',
+            'data': {
+              'observations': [{'display': 'Haemoglobin', 'value': '13.8', 'unit': 'g/dL'}],
+              'conclusion': 'Released synthetic result',
+            },
+          },
+        }), 200, headers: {'content-type': 'application/json'});
+      }
+      return http.Response('{}', 404, headers: {'content-type': 'application/json'});
+    });
+    final api = CarePointApi(baseUrl: 'https://carepoint.test/api/v1', client: client)
+      ..accessToken = 'f11-clinical'
+      ..refreshToken = 'f11-clinical-refresh';
+    final session = CarePointSession(account: const {'id': 'patient1', 'role': 'PATIENT'}, api: api);
+
+    await tester.pumpWidget(MaterialApp(home: PatientNotificationCentrePage(session: session, locale: CarePointLocale.en)));
+    await tester.pumpAndSettle();
+    expect(find.text('Laboratory result ready'), findsOneWidget);
+    expect(find.textContaining('lab-order-1'), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('notification-lab-event')));
+    await tester.pumpAndSettle();
+    expect(calls, contains('POST /api/v1/notifications/lab-event/read'));
+    expect(calls, contains('GET /api/v1/clinical-orders/lab-order-1'));
+    expect(find.byKey(const ValueKey('patient-clinical-order-result')), findsOneWidget);
+    expect(find.text('Released synthetic result'), findsOneWidget);
+    expect(find.text('13.8 g/dL'), findsOneWidget);
+    expect(find.textContaining('lab-order-1'), findsNothing);
+  });
+
+  testWidgets('F11 denied clinical-order detail fails closed without rendering notification IDs or server text', (tester) async {
+    var notificationRead = false;
+    final calls = <String>[];
+    final client = MockClient((request) async {
+      calls.add('${request.method} ${request.url.path}');
+      expect(request.headers['authorization'], 'Bearer f11-denied');
+      if (request.method == 'GET' && request.url.path == '/api/v1/notifications') {
+        return http.Response(jsonEncode([
+          {
+            'id': 'denied-lab-event',
+            'type': 'CLINICAL_UPDATE',
+            'entityType': 'CLINICAL_ORDER',
+            'entityId': 'other-patient-order-secret',
+            'safeTitleKey': 'notification.clinical.lab-result.title',
+            'readAt': notificationRead ? '2026-09-11T22:00:00Z' : null,
+            'createdAt': '2026-09-11T21:55:00Z',
+            'deliveries': [],
+          }
+        ]), 200, headers: {'content-type': 'application/json'});
+      }
+      if (request.method == 'POST' && request.url.path == '/api/v1/notifications/denied-lab-event/read') {
+        notificationRead = true;
+        return http.Response(jsonEncode({'id': 'denied-lab-event', 'readAt': '2026-09-11T22:00:00Z', 'deliveries': []}), 200, headers: {'content-type': 'application/json'});
+      }
+      if (request.method == 'GET' && request.url.path == '/api/v1/clinical-orders/other-patient-order-secret') {
+        return http.Response(jsonEncode({'message': 'Clinical order access denied for other-patient-order-secret'}), 403, headers: {'content-type': 'application/json'});
+      }
+      return http.Response('{}', 404, headers: {'content-type': 'application/json'});
+    });
+    final api = CarePointApi(baseUrl: 'https://carepoint.test/api/v1', client: client)
+      ..accessToken = 'f11-denied'
+      ..refreshToken = 'f11-denied-refresh';
+    final session = CarePointSession(account: const {'id': 'patient1', 'role': 'PATIENT'}, api: api);
+
+    await tester.pumpWidget(MaterialApp(home: PatientNotificationCentrePage(session: session, locale: CarePointLocale.en)));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('notification-denied-lab-event')));
+    await tester.pumpAndSettle();
+    expect(calls, contains('GET /api/v1/clinical-orders/other-patient-order-secret'));
+    expect(find.byKey(const ValueKey('patient-clinical-order-unavailable')), findsOneWidget);
+    expect(find.text('This laboratory result is not available to this account.'), findsOneWidget);
+    expect(find.textContaining('other-patient-order-secret'), findsNothing);
+    expect(find.textContaining('Clinical order access denied'), findsNothing);
   });
 
   testWidgets('F8 appointment focus selects the owned cancelled bucket and places the requested appointment first', (tester) async {

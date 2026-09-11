@@ -5,6 +5,7 @@ import 'care_visits.dart';
 import 'carepoint_api.dart';
 import 'carepoint_localization.dart';
 import 'communications_workspace.dart';
+import 'patient_clinical_order.dart';
 import 'patient_emergency.dart';
 import 'patient_medical_transport.dart';
 
@@ -12,16 +13,18 @@ const patientNotificationRoutableEntityTypes = <String>{
   'APPOINTMENT',
   'AVAILABILITY_REQUEST',
   'CARE_CONVERSATION',
+  'CLINICAL_ORDER',
   'EMERGENCY_AMBULANCE_REQUEST',
   'MEDICAL_TRANSPORT_REQUEST',
 };
 
-enum PatientNotificationDestination { appointment, availability, conversation, emergency, transport, generic }
+enum PatientNotificationDestination { appointment, availability, conversation, clinicalOrder, emergency, transport, generic }
 
 PatientNotificationDestination patientNotificationDestination(Map<String, dynamic> row) => switch (row['entityType']?.toString()) {
       'APPOINTMENT' => PatientNotificationDestination.appointment,
       'AVAILABILITY_REQUEST' => PatientNotificationDestination.availability,
       'CARE_CONVERSATION' => PatientNotificationDestination.conversation,
+      'CLINICAL_ORDER' => PatientNotificationDestination.clinicalOrder,
       'EMERGENCY_AMBULANCE_REQUEST' => PatientNotificationDestination.emergency,
       'MEDICAL_TRANSPORT_REQUEST' => PatientNotificationDestination.transport,
       _ => PatientNotificationDestination.generic,
@@ -58,6 +61,7 @@ const _safeTitleKeys = <String, String>{
   'notification.availability.available.title': 'availabilityFound',
   'notification.message.title': 'secureMessage',
   'notification.care.title': 'careCoordination',
+  'notification.clinical.lab-result.title': 'labResultReady',
   'notification.emergency.title': 'emergencyUpdate',
   'notification.transport.title': 'transportUpdate',
 };
@@ -241,6 +245,16 @@ class _PatientNotificationCentrePageState extends State<PatientNotificationCentr
             )),
           );
           break;
+        case PatientNotificationDestination.clinicalOrder:
+          await Navigator.push<void>(
+            context,
+            MaterialPageRoute(builder: (_) => PatientClinicalOrderResultPage(
+              session: widget.session,
+              locale: widget.locale,
+              orderId: entityId,
+            )),
+          );
+          break;
         case PatientNotificationDestination.emergency:
           await Navigator.push<void>(
             context,
@@ -345,6 +359,7 @@ class _PatientNotificationCentrePageState extends State<PatientNotificationCentr
     PatientNotificationDestination.appointment => Icons.event_outlined,
     PatientNotificationDestination.availability => Icons.event_available,
     PatientNotificationDestination.conversation => Icons.forum_outlined,
+    PatientNotificationDestination.clinicalOrder => Icons.health_and_safety_outlined,
     PatientNotificationDestination.emergency => Icons.emergency_share_outlined,
     PatientNotificationDestination.transport => Icons.local_shipping_outlined,
     PatientNotificationDestination.generic => switch (row['type']?.toString()) {
@@ -376,7 +391,7 @@ const Map<String, Map<String, String>> _patientNotificationLabels = {
     'appointmentUpdate': 'Appointment update', 'appointmentRequested': 'Appointment requested', 'appointmentConfirmed': 'Appointment confirmed',
     'appointmentCancelled': 'Appointment cancelled', 'appointmentCompleted': 'Appointment completed', 'appointmentNoShow': 'Appointment status update',
     'appointmentRescheduled': 'Appointment rescheduled', 'appointmentReminder': 'Appointment reminder', 'availabilityFound': 'New appointment time available',
-    'secureMessage': 'New secure message', 'careCoordination': 'Care coordination update', 'clinicalUpdate': 'Clinical update',
+    'secureMessage': 'New secure message', 'careCoordination': 'Care coordination update', 'clinicalUpdate': 'Clinical update', 'labResultReady': 'Laboratory result ready',
     'insuranceUpdate': 'Insurance update', 'emergencyUpdate': 'Emergency update', 'transportUpdate': 'Medical transport update',
   },
   'ar': {
@@ -389,7 +404,7 @@ const Map<String, Map<String, String>> _patientNotificationLabels = {
     'appointmentUpdate': 'تحديث الموعد', 'appointmentRequested': 'تم طلب الموعد', 'appointmentConfirmed': 'تم تأكيد الموعد',
     'appointmentCancelled': 'تم إلغاء الموعد', 'appointmentCompleted': 'اكتمل الموعد', 'appointmentNoShow': 'تحديث حالة الموعد',
     'appointmentRescheduled': 'تم تغيير موعد الزيارة', 'appointmentReminder': 'تذكير بالموعد', 'availabilityFound': 'موعد جديد متاح',
-    'secureMessage': 'رسالة آمنة جديدة', 'careCoordination': 'تحديث تنسيق الرعاية', 'clinicalUpdate': 'تحديث سريري',
+    'secureMessage': 'رسالة آمنة جديدة', 'careCoordination': 'تحديث تنسيق الرعاية', 'clinicalUpdate': 'تحديث سريري', 'labResultReady': 'نتيجة المختبر جاهزة',
     'insuranceUpdate': 'تحديث التأمين', 'emergencyUpdate': 'تحديث الطوارئ', 'transportUpdate': 'تحديث النقل الطبي',
   },
   'fr': {
@@ -402,7 +417,7 @@ const Map<String, Map<String, String>> _patientNotificationLabels = {
     'appointmentUpdate': 'Mise à jour du rendez-vous', 'appointmentRequested': 'Rendez-vous demandé', 'appointmentConfirmed': 'Rendez-vous confirmé',
     'appointmentCancelled': 'Rendez-vous annulé', 'appointmentCompleted': 'Rendez-vous terminé', 'appointmentNoShow': 'Mise à jour du rendez-vous',
     'appointmentRescheduled': 'Rendez-vous reprogrammé', 'appointmentReminder': 'Rappel de rendez-vous', 'availabilityFound': 'Nouveau créneau disponible',
-    'secureMessage': 'Nouveau message sécurisé', 'careCoordination': 'Mise à jour de coordination des soins', 'clinicalUpdate': 'Mise à jour clinique',
+    'secureMessage': 'Nouveau message sécurisé', 'careCoordination': 'Mise à jour de coordination des soins', 'clinicalUpdate': 'Mise à jour clinique', 'labResultReady': 'Résultat de laboratoire disponible',
     'insuranceUpdate': 'Mise à jour assurance', 'emergencyUpdate': 'Mise à jour urgence', 'transportUpdate': 'Mise à jour transport médical',
   },
   'es': {
@@ -415,7 +430,7 @@ const Map<String, Map<String, String>> _patientNotificationLabels = {
     'appointmentUpdate': 'Actualización de cita', 'appointmentRequested': 'Cita solicitada', 'appointmentConfirmed': 'Cita confirmada',
     'appointmentCancelled': 'Cita cancelada', 'appointmentCompleted': 'Cita completada', 'appointmentNoShow': 'Actualización del estado de la cita',
     'appointmentRescheduled': 'Cita reprogramada', 'appointmentReminder': 'Recordatorio de cita', 'availabilityFound': 'Nuevo horario de cita disponible',
-    'secureMessage': 'Nuevo mensaje seguro', 'careCoordination': 'Actualización de coordinación asistencial', 'clinicalUpdate': 'Actualización clínica',
+    'secureMessage': 'Nuevo mensaje seguro', 'careCoordination': 'Actualización de coordinación asistencial', 'clinicalUpdate': 'Actualización clínica', 'labResultReady': 'Resultado de laboratorio disponible',
     'insuranceUpdate': 'Actualización de seguro', 'emergencyUpdate': 'Actualización de emergencia', 'transportUpdate': 'Actualización de transporte médico',
   },
 };

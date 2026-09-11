@@ -10,6 +10,7 @@ import type { EncryptedEnvelope } from "@carepoint/security";
 import type { AuthPrincipal } from "@carepoint/identity";
 import { PrismaService } from "../../infrastructure/prisma/prisma.module";
 import { DatabaseAuditService } from "../../infrastructure/audit/audit.service";
+import { NotificationsService } from "../communications/notifications.service";
 import { OrdersEnvelopeService } from "./orders-envelope.service";
 import { OrdersAttestationService } from "./orders-attestation.service";
 
@@ -36,6 +37,7 @@ export class OrdersService {
     private readonly audit: DatabaseAuditService,
     private readonly envelope: OrdersEnvelopeService,
     private readonly attestation: OrdersAttestationService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async createOrder(principal: AuthPrincipal, appointmentId: string, type: OrderType, input: JsonObject) {
@@ -204,13 +206,30 @@ export class OrdersService {
     if (order.type !== "LABORATORY" || !order.labResult) throw new ConflictException("Laboratory result is required before release.");
     if (order.providerId !== provider.id) throw new ForbiddenException("Only the ordering provider can release this result to the patient.");
     if (order.labResult.status !== "VALIDATED") throw new ConflictException("Only a validated laboratory result can be released.");
-    await this.assertValidatedResultIntegrity(order.labResult, order.id);
+    const labResult = order.labResult;
+    await this.assertValidatedResultIntegrity(labResult, order.id);
     const now = new Date();
-    await this.prisma.$transaction([
-      this.prisma.laboratoryResult.update({ where: { id: order.labResult.id }, data: { status: "RELEASED", releasedByProviderId: provider.id, releasedAt: now } }),
-      this.prisma.clinicalOrder.update({ where: { id: order.id }, data: { status: "FULFILLED", completedAt: now } }),
-    ]);
-    await this.audit.write({ actorId: principal.accountId, action: "LAB_RESULT_RELEASED", objectType: "LABORATORY_RESULT", objectId: order.labResult.id, purpose: "TREATMENT", result: "SUCCESS", metadata: { orderId: order.id } });
+    await this.prisma.$transaction(async (tx) => {
+      const patient = await tx.patientProfile.findUnique({ where: { id: order.patientId }, select: { userId: true } });
+      if (!patient?.userId) throw new NotFoundException("Patient profile not found.");
+      const released = await tx.laboratoryResult.updateMany({
+        where: { id: labResult.id, status: "VALIDATED" },
+        data: { status: "RELEASED", releasedByProviderId: provider.id, releasedAt: now },
+      });
+      if (released.count !== 1) throw new ConflictException("Laboratory result changed concurrently. Refresh and retry.");
+      await tx.clinicalOrder.update({ where: { id: order.id }, data: { status: "FULFILLED", completedAt: now } });
+      await this.notifications.enqueueAccountInTransaction(tx, {
+        accountId: patient.userId,
+        dedupeKey: `clinical:${order.id}:lab-result-released`,
+        type: "CLINICAL_UPDATE",
+        entityType: "CLINICAL_ORDER",
+        entityId: order.id,
+        safeTitleKey: "notification.clinical.lab-result.title",
+        safeBodyKey: "notification.clinical.lab-result.body",
+      });
+    });
+    this.notifications.wakeOutbox();
+    await this.audit.write({ actorId: principal.accountId, action: "LAB_RESULT_RELEASED", objectType: "LABORATORY_RESULT", objectId: labResult.id, purpose: "TREATMENT", result: "SUCCESS", metadata: { orderId: order.id } });
     return this.getOrder(principal, order.id);
   }
 
