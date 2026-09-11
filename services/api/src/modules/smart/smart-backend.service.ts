@@ -114,7 +114,7 @@ export class SmartBackendService {
   private async authenticateClient(input: Input, audience: string): Promise<VerifiedBackendClient> {
     const clientId = this.required(input.client_id, "client_id", 128);
     const client = this.config.backendClient(clientId);
-    if (!client) this.oauthError("invalid_client", "Unknown SMART backend client_id.");
+    if (!client || client.clientId !== clientId) this.oauthError("invalid_client", "Unknown SMART backend client_id.");
     const assertionType = this.required(input.client_assertion_type, "client_assertion_type", 200);
     if (assertionType !== CLIENT_ASSERTION_TYPE) {
       this.oauthError("invalid_client", "SMART backend clients must use private_key_jwt client assertions.");
@@ -126,7 +126,6 @@ export class SmartBackendService {
     }
 
     const header = this.jwtObject(parts[0] as string, "client assertion header");
-    const claims = this.jwtObject(parts[1] as string, "client assertion claims");
     if (header.alg !== "RS384") this.oauthError("invalid_client", "SMART backend client assertions must use RS384.");
     if (header.typ !== undefined && header.typ !== "JWT") this.oauthError("invalid_client", "SMART backend client assertion typ must be JWT when supplied.");
     if (header.jku !== undefined || header.jwk !== undefined || header.x5u !== undefined) {
@@ -136,8 +135,15 @@ export class SmartBackendService {
     const jwk = client.jwks.keys.find((key) => key.kid === kid);
     if (!jwk) this.oauthError("invalid_client", "SMART backend client assertion key is not registered.");
 
-    if (claims.iss !== clientId || claims.sub !== clientId) {
-      this.oauthError("invalid_client", "SMART backend assertion iss and sub must match client_id.");
+    // The unverified header only selects an already registered key. Authenticate
+    // the signed bytes before interpreting claims or accepting an identity.
+    if (!this.verifyAssertion(parts[0] as string, parts[1] as string, parts[2] as string, jwk as SmartBackendJwk)) {
+      this.oauthError("invalid_client", "SMART backend client assertion signature is invalid.");
+    }
+
+    const claims = this.jwtObject(parts[1] as string, "client assertion claims");
+    if (claims.iss !== client.clientId || claims.sub !== client.clientId) {
+      this.oauthError("invalid_client", "SMART backend assertion iss and sub must match the registered client identity.");
     }
     if (!this.audienceMatches(claims.aud, audience)) {
       this.oauthError("invalid_client", "SMART backend assertion audience is invalid.");
@@ -154,15 +160,11 @@ export class SmartBackendService {
     const jti = this.claimString(claims.jti, "jti", 256);
     if (jti.length < 16) this.oauthError("invalid_client", "SMART backend client assertion jti is too short.");
 
-    if (!this.verifyAssertion(parts[0] as string, parts[1] as string, parts[2] as string, jwk as SmartBackendJwk)) {
-      this.oauthError("invalid_client", "SMART backend client assertion signature is invalid.");
-    }
-
     const replayTtl = Math.max(1, Math.min(CLIENT_ASSERTION_MAX_LIFETIME_SECONDS, expiresAt - now));
     const jtiHash = tokenHash(jti);
     const claimed = await this.redis.setEphemeralIfAbsent(
-      `carepoint:smart:client-assertion:${tokenHash(clientId)}:${jtiHash}`,
-      JSON.stringify({ clientId, audience, expiresAt }),
+      `carepoint:smart:client-assertion:${tokenHash(client.clientId)}:${jtiHash}`,
+      JSON.stringify({ clientId: client.clientId, audience, expiresAt }),
       replayTtl,
     );
     if (!claimed) this.oauthError("invalid_client", "SMART backend client assertion was already used.");
@@ -171,7 +173,7 @@ export class SmartBackendService {
       actorId: null,
       action: "SMART_BACKEND_CLIENT_AUTHENTICATED",
       objectType: "SMART_CLIENT",
-      objectId: clientId,
+      objectId: client.clientId,
       purpose: "SYSTEM_ACCESS",
       result: "SUCCESS",
       metadata: { authenticationMethod: "private_key_jwt", kid, jtiHash, audience },
