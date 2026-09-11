@@ -117,6 +117,7 @@ const sourceFiles = [
   ".ci/npm-package-lock.canonical.sha256",
   ".ci/verify-npm-lock.mjs",
   ".ci/flutter-pubspec-locks.sha256",
+  ".ci/verify-container-supply-chain.mjs",
   "Dockerfile",
   ".dockerignore",
   "services/api/package.json",
