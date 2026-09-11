@@ -240,10 +240,33 @@ function assertNoDuplicateRoutes(routes, sha) {
   }
 }
 
+function emptySurface(sha) {
+  return {
+    schema: "carepoint.api-route-surface/v1",
+    sourceSha: sha,
+    globalPrefix: null,
+    routeCount: 0,
+    routes: [],
+    evidenceBoundaries: {
+      generatedOfflineFromTypeScriptAst: true,
+      applicationStarted: false,
+      databaseOrProviderAccessRequired: false,
+      includesRequestResponseSchemas: false,
+      fullOpenApiSchema: false,
+      emptySourceTreeRepresentsNoApiAtThisSha: true,
+    },
+  };
+}
+
 function surfaceAt(sha, cwd) {
   const mainPath = "services/api/src/main.ts";
-  const prefix = extractGlobalPrefix(gitFileAt(sha, mainPath, cwd), mainPath);
   const files = listTypeScriptSourcesAt(sha, cwd);
+  if (files.length === 0) return emptySurface(sha);
+  if (!files.includes(mainPath)) {
+    fail(`API TypeScript sources exist at ${sha}, but ${mainPath} is missing.`);
+  }
+
+  const prefix = extractGlobalPrefix(gitFileAt(sha, mainPath, cwd), mainPath);
   const routes = [];
   for (const relativePath of files) {
     routes.push(...extractRoutesFromSource(gitFileAt(sha, relativePath, cwd), relativePath, prefix));
@@ -262,6 +285,7 @@ function surfaceAt(sha, cwd) {
       databaseOrProviderAccessRequired: false,
       includesRequestResponseSchemas: false,
       fullOpenApiSchema: false,
+      emptySourceTreeRepresentsNoApiAtThisSha: false,
     },
   };
 }
@@ -324,6 +348,7 @@ function renderSummary(surface, diff, version) {
     "- Route additions/removals are reported from static Nest decorators.",
     "- Request bodies, query schemas, response schemas and semantic compatibility are not represented.",
     "- Any removed route requires explicit release review; this generator does not automatically declare the change acceptable.",
+    "- A SHA with no services/api/src TypeScript tree is represented as an empty pre-API baseline, not as an error.",
     "- No application process, database, external provider or production environment is used to generate this evidence.",
     "",
   ].join("\n");
@@ -353,6 +378,12 @@ async function selfTest() {
   if (JSON.stringify(identities) !== JSON.stringify(expected)) fail("Route extraction self-test failed.");
   if (joinRoute("/api/v1/", "/billing/", "/me") !== "/api/v1/billing/me") fail("Route joining self-test failed.");
   if (extractGlobalPrefix('async function x(){ app.setGlobalPrefix("api/v1"); }') !== "api/v1") fail("Global prefix self-test failed.");
+
+  const empty = emptySurface("a".repeat(40));
+  if (empty.routeCount !== 0 || empty.routes.length !== 0 || empty.globalPrefix !== null
+      || empty.evidenceBoundaries.emptySourceTreeRepresentsNoApiAtThisSha !== true) {
+    fail("Empty pre-API surface self-test failed.");
+  }
 
   let dynamicRejected = false;
   try {
