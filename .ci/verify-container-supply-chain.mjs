@@ -3,6 +3,7 @@ import process from "node:process";
 
 const COMMIT_PIN = /@[0-9a-f]{40}(?:\s|#|$)/i;
 const IMAGE_DIGEST = /@sha256:[0-9a-f]{64}(?:\s|$)/i;
+const USES_LINE = /^(?:-\s*)?uses:\s*/;
 
 function fail(message) {
   throw new Error(message);
@@ -31,7 +32,7 @@ export function assertWorkflowSupplyChain(content) {
   const usesLines = content
     .split(/\r?\n/)
     .map((line) => line.trim())
-    .filter((line) => /^uses:\s*/.test(line));
+    .filter((line) => USES_LINE.test(line));
 
   if (usesLines.length === 0) fail("Container compatibility workflow has no uses: actions.");
   for (const line of usesLines) {
@@ -88,9 +89,20 @@ function selfTest() {
     "      echo '\"published\": false'",
     "      echo '\"productionDeploymentEvidence\": false'",
   ].join("\n");
+
   assertWorkflowSupplyChain(validWorkflow);
-  expectFailure(() => assertWorkflowSupplyChain(validWorkflow.replace("actions/checkout@" + "b".repeat(40), "actions/checkout@v4")), "mutable action tag");
-  expectFailure(() => assertWorkflowSupplyChain(validWorkflow.replace("ref: ${{ env.CAREPOINT_CONTAINER_SOURCE_SHA }}", "ref: ${{ github.ref }}")), "non-exact checkout ref");
+  expectFailure(
+    () => assertWorkflowSupplyChain(validWorkflow.replace("actions/checkout@" + "b".repeat(40), "actions/checkout@v4")),
+    "mutable action tag",
+  );
+  expectFailure(
+    () => assertWorkflowSupplyChain(validWorkflow.replace("docker/build-push-action@" + "c".repeat(40), "docker/build-push-action@v6")),
+    "second mutable action tag",
+  );
+  expectFailure(
+    () => assertWorkflowSupplyChain(validWorkflow.replace("ref: ${{ env.CAREPOINT_CONTAINER_SOURCE_SHA }}", "ref: ${{ github.ref }}")),
+    "non-exact checkout ref",
+  );
 
   console.log("container supply-chain contract self-test passed");
 }
