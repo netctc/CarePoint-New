@@ -7,6 +7,8 @@ import 'care_journeys_localization.dart';
 import 'care_journeys_widgets.dart';
 import 'care_planning.dart';
 import 'care_planning_localization.dart';
+import 'patient_messages.dart';
+import 'patient_messages_localization.dart';
 
 class CareVisitsPage extends StatefulWidget {
   const CareVisitsPage({super.key, required this.session, required this.locale});
@@ -67,6 +69,18 @@ class _CareVisitsPageState extends State<CareVisitsPage> {
         Chip(label: Text(t(visit['status'].toString()))),
         JourneyVisitContext(locale: widget.locale, value: journeyMap(visit['visitContext'])),
         if (visit['modality'] == 'TELEMEDICINE' && visit['status'] == 'CONFIRMED') TelehealthActionButton(session: widget.session, locale: widget.locale, appointment: visit),
+        if (patientCareConversationEligibleStatus(visit['status'])) OutlinedButton.icon(
+          key: ValueKey('visit-message-${visit['id']}'),
+          onPressed: busy ? null : () => open(AppointmentCommunicationsPage(
+            session: widget.session,
+            locale: widget.locale,
+            appointmentId: visit['id'].toString(),
+            appointmentStatus: visit['status'].toString(),
+            appointmentLabel: '${journeyMap(visit['service'])['name'] ?? ''} · ${journeyMap(visit['provider'])['displayName'] ?? ''} · ${journeyDateTime(visit['startsAt'])}',
+          )),
+          icon: const Icon(Icons.forum_outlined),
+          label: Text(patientMessagesText(widget.locale, 'messageCareTeam')),
+        ),
         TextButton.icon(onPressed: busy ? null : () => open(CareChangeHistoryPage(session: widget.session, locale: widget.locale, appointmentId: visit['id'].toString())), icon: const Icon(Icons.history), label: Text(p('history'))),
         if ((visit['status'] == 'REQUESTED' || visit['status'] == 'CONFIRMED') && (DateTime.tryParse(visit['startsAt']?.toString() ?? '')?.isAfter(now) ?? false)) OutlinedButton.icon(onPressed: busy || mutating.contains(visit['id'].toString()) ? null : () => open(CareReschedulePage(session: widget.session, locale: widget.locale, appointmentId: visit['id'].toString())), icon: const Icon(Icons.edit_calendar), label: Text(p('reschedule'))),
         if (visit['status'] == 'REQUESTED' || visit['status'] == 'CONFIRMED') OutlinedButton.icon(onPressed: mutating.contains(visit['id'].toString()) ? null : () => cancel(visit), icon: const Icon(Icons.cancel_outlined), label: Text(t('cancelVisit'))),
