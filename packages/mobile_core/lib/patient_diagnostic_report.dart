@@ -84,7 +84,7 @@ class _PatientDiagnosticReportPageState extends State<PatientDiagnosticReportPag
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            const Icon(Icons.radiology_outlined, size: 38),
+            const Icon(Icons.description_outlined, size: 38),
             const SizedBox(height: 12),
             Text(error ?? t('unavailable'), textAlign: TextAlign.center),
             if (widget.session.role == 'PATIENT') ...[
@@ -107,7 +107,7 @@ class _PatientDiagnosticReportPageState extends State<PatientDiagnosticReportPag
         padding: const EdgeInsets.all(16),
         children: [
           Row(children: [
-            const CircleAvatar(child: Icon(Icons.radiology_outlined)),
+            const CircleAvatar(child: Icon(Icons.description_outlined)),
             const SizedBox(width: 10),
             Expanded(child: Text(t('ready'), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900))),
           ]),

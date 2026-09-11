@@ -374,7 +374,7 @@ class _PatientNotificationCentrePageState extends State<PatientNotificationCentr
     PatientNotificationDestination.availability => Icons.event_available,
     PatientNotificationDestination.conversation => Icons.forum_outlined,
     PatientNotificationDestination.clinicalOrder => Icons.health_and_safety_outlined,
-    PatientNotificationDestination.diagnosticReport => Icons.radiology_outlined,
+    PatientNotificationDestination.diagnosticReport => Icons.description_outlined,
     PatientNotificationDestination.emergency => Icons.emergency_share_outlined,
     PatientNotificationDestination.transport => Icons.local_shipping_outlined,
     PatientNotificationDestination.generic => switch (row['type']?.toString()) {
