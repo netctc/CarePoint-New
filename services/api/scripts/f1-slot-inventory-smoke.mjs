@@ -44,6 +44,18 @@ test('F1 inventory rejects unbounded, reversed, missing and timezone-less ranges
     assert.equal(f.calls.length, 0);
   }
 });
+test('F1 inventory rejects impossible calendar dates instead of normalising them', async () => {
+  for (const [start, end] of [
+    ['2026-02-30T00:00:00Z', '2026-03-10T00:00:00Z'],
+    ['2025-02-29T00:00:00Z', '2025-03-10T00:00:00Z'],
+    ['2026-09-11T24:00:00Z', '2026-09-15T00:00:00Z'],
+  ]) {
+    const f = fixture(); await assert.rejects(f.controller.list(doctor, start, end), e => e.getStatus() === 400);
+    assert.equal(f.calls.length, 0);
+  }
+  const leap = fixture(); await leap.controller.list(doctor, '2024-02-29T10:00:00+03:00', '2024-03-01T10:00:00+03:00');
+  assert.equal(leap.calls[1][1].where.startsAt.gte.toISOString(), '2024-02-29T07:00:00.000Z');
+});
 test('F1 inventory rejects invalid pages before querying storage', async () => {
   for (const page of ['0', '-1', '1.5', 'NaN', '1001', '1e2', '']) {
     const f = fixture(); await assert.rejects(f.controller.list(doctor, from, to, page), e => e.getStatus() === 400);

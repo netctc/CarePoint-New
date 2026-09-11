@@ -38,6 +38,9 @@ export class ProviderSlotInventoryController {
 
   private date(value?: string): Date {
     if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/.test(value)) throw new BadRequestException("An ISO date-time with timezone is required.");
+    const calendar = new Date(`${value.slice(0, 10)}T00:00:00.000Z`);
+    const hour = Number(value.slice(11, 13)), minute = Number(value.slice(14, 16)), second = Number(value.slice(17, 19));
+    if (!Number.isFinite(calendar.getTime()) || calendar.toISOString().slice(0, 10) !== value.slice(0, 10) || hour > 23 || minute > 59 || second > 59) throw new BadRequestException("Invalid inventory calendar date or time.");
     const date = new Date(value);
     if (!Number.isFinite(date.getTime())) throw new BadRequestException("Invalid inventory date-time.");
     return date;
