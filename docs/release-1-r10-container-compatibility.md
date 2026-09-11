@@ -10,6 +10,8 @@ This document defines a source-side packaging baseline for CarePoint Release 1. 
 - Attach exact source SHA and release-version metadata to validation images.
 - Build both targets in GitHub Actions without publishing them.
 - Preserve the existing fail-closed production readiness checks at runtime.
+- Pin source-side container supply-chain inputs so a future rebuild cannot silently move to a different base image or Action implementation.
+- Capture machine-readable content-addressed image evidence for each exact candidate build.
 
 ## Targets
 
@@ -19,6 +21,14 @@ The root `Dockerfile` exposes two final targets:
 - `admin` — Next.js standalone Admin runtime on port 3000.
 
 Both targets are built from the same source tree and dependency lock. The Admin build uses Next.js `output: "standalone"` so its runtime can be copied as a self-contained server tree rather than requiring the complete development workspace.
+
+## Pinned container base
+
+All Dockerfile stages use the same immutable multi-platform Node base:
+
+`node:22-bookworm-slim@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5`
+
+The mutable Dockerfile frontend directive is intentionally omitted because this Dockerfile does not require frontend-specific advanced syntax. Updating the Node base digest is therefore an explicit repository change that must rerun the container compatibility gate.
 
 ## Build examples
 
@@ -34,7 +44,7 @@ docker build --target admin \
   -t carepoint-admin:release1 .
 ```
 
-These commands create local artifacts only. A final production release must use the approved registry/build platform and record immutable digests/provenance under #97.
+These commands create local artifacts only. A final production release must use the approved registry/build platform and record immutable registry/artifact digests and approved provenance under #97.
 
 ## Runtime configuration boundary
 
@@ -58,20 +68,28 @@ This metadata helps correlate a built artifact with a source candidate. It does 
 
 ## Non-root runtime
 
-Both final stages switch to the standard unprivileged `node` user. The compatibility workflow fails if a final image has an empty or root runtime user.
+Both final stages switch to the standard unprivileged `node` user. The compatibility workflow fails if a final image has an empty, `0` or `root` runtime user.
 
 ## CI compatibility gate
 
 `.github/workflows/release1-container-compatibility.yml` builds `api` and `admin` independently for the exact pull-request head SHA. It:
 
-1. checks out the exact candidate;
-2. builds each final target with Docker Buildx;
-3. does not push or publish images;
-4. verifies the non-root runtime user;
-5. verifies the OCI revision label equals the exact candidate SHA;
-6. exports only sanitized image metadata as a short-lived Actions artifact.
+1. checks out the exact candidate SHA rather than the pull-request merge ref;
+2. verifies `git rev-parse HEAD` equals that SHA;
+3. uses commit-SHA-pinned checkout, Buildx, build-push and artifact-upload Actions;
+4. builds each final target without push/publication;
+5. verifies the non-root runtime user;
+6. verifies the OCI revision label equals the exact candidate SHA;
+7. verifies the Buildx-reported image ID matches the locally inspected content-addressed image ID;
+8. fingerprints `Dockerfile` and `.dockerignore`;
+9. exports only sanitized machine-readable JSON evidence as a short-lived Actions artifact.
 
-The workflow is a source/build compatibility gate only. A green result means the repository can produce the two container targets from that candidate. It does not mean the images have been security-approved, signed, pushed to a production registry or deployed.
+The evidence schema is `carepoint.release-container-compatibility/v1` and records target, source SHA, release version, local image ID, BuildKit digest when supplied, runtime user, OCI revision and source packaging hashes. It explicitly records:
+
+- `published: false`
+- `productionDeploymentEvidence: false`
+
+The workflow is a source/build compatibility gate only. A green result means the repository can produce content-addressed local API/Admin container targets from that candidate. It does not mean the images have been security-approved, signed, pushed to a production registry or deployed.
 
 ## Deferred final evidence
 
@@ -89,4 +107,4 @@ The following remain intentionally deferred to their owning release gates:
 
 ## Acceptance boundary
 
-This task may close when both container targets build successfully on the exact Release 1 candidate and the metadata assertions pass. The parent release gates must remain open until their real external evidence and approvals are complete.
+This source-side task may close when both container targets build successfully on one exact Release 1 candidate using the pinned inputs and their content-identity assertions pass. The parent release gates must remain open until their real external evidence and approvals are complete.
