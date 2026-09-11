@@ -75,7 +75,7 @@ export class Release1ContextualBookingService {
           if (attempt < BOOKING_RETRIES) continue;
           throw new ConflictException("Concurrent booking activity. Retry the same request.");
         }
-        if (this.prismaError(error, "P2004")) throw new ConflictException("The selected time conflicts with another active appointment.");
+        if (this.appointmentOverlap(error)) throw new ConflictException("The selected time conflicts with another active appointment.");
         throw error;
       }
     }
@@ -134,6 +134,15 @@ export class Release1ContextualBookingService {
   }
   private presentContext(context: { id: string; appointmentId: string; modality: AppointmentModality; sourceProviderLocationId: string | null; addressLine1: string; addressLine2: string | null; city: string; region: string | null; postalCode: string | null; countryCode: string; latitude: Prisma.Decimal; longitude: Prisma.Decimal; instructions: string | null; contactPhone: string | null; contactConfirmedAt: Date | null; addressValidatedAt: Date | null; createdAt: Date; updatedAt: Date }) {
     return { ...context, latitude: Number(context.latitude), longitude: Number(context.longitude), addressValidated: Boolean(context.addressValidatedAt), contactConfirmed: Boolean(context.contactConfirmedAt), navigation: { latitude: Number(context.latitude), longitude: Number(context.longitude) } };
+  }
+  // The pinned Prisma query engine reports PostgreSQL exclusion violations as
+  // UnknownRequestError rather than P2004. Match only SQLSTATE 23P01 and the two
+  // known appointment constraints; never return database detail to the patient.
+  private appointmentOverlap(error: unknown): boolean {
+    if (this.prismaError(error, "P2004")) return true;
+    if (!(error instanceof Prisma.PrismaClientUnknownRequestError)) return false;
+    return error.message.includes('code: "23P01"') &&
+      ["Appointment_patient_no_overlap", "Appointment_provider_no_overlap"].some((constraint) => error.message.includes(constraint));
   }
   private text(value: unknown, min: number, max: number, field: string) { if (typeof value !== "string") throw new BadRequestException(`${field} must be text.`); const text = value.trim(); if (text.length < min || text.length > max) throw new BadRequestException(`${field} must contain between ${min} and ${max} characters.`); return text; }
   private optional(value: unknown, max: number, field: string) { if (value === undefined || value === null || value === "") return null; return this.text(value, 1, max, field); }
