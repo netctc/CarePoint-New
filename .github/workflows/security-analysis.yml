@@ -27,6 +27,8 @@ jobs:
   codeql:
     name: CodeQL SAST (javascript-typescript)
     runs-on: ubuntu-24.04
+    outputs:
+      encrypted-diagnostic: ${{ steps.sealed.outputs.envelope }}
     permissions:
       contents: read
       security-events: write
@@ -48,5 +50,22 @@ jobs:
       - name: Aggregate CodeQL rule IDs only
         run: node .ci/codeql-aggregate-rule-summary.mjs codeql-results
       - name: Temporary encrypted R6 location diagnostic
+        id: sealed
         if: github.event_name == 'pull_request' && github.event.pull_request.number == 139 && github.event.pull_request.head.repo.full_name == github.repository
-        run: node .ci/r6-codeql-sealed-diagnostic.mjs
+        run: |
+          packet="$(node .ci/r6-codeql-sealed-diagnostic.mjs)"
+          printf 'envelope=%s\n' "$packet" >> "$GITHUB_OUTPUT"
+
+  encrypted-r6-diagnostic:
+    name: Temporary R6 Encrypted Diagnostic
+    needs: codeql
+    if: github.event_name == 'pull_request' && github.event.pull_request.number == 139 && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    permissions: {}
+    steps:
+      - name: Emit encrypted static diagnostic only
+        env:
+          SEALED_PACKET: ${{ needs.codeql.outputs.encrypted-diagnostic }}
+        run: |
+          node -e 'const p=process.env.SEALED_PACKET;if(!p||!p.startsWith("CAREPOINT_R6_ENCRYPTED="))process.exit(1);console.log(p)'
