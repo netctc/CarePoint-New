@@ -11,6 +11,7 @@ import type { AuthPrincipal } from "@carepoint/identity";
 import { createHash, randomUUID } from "node:crypto";
 import { PrismaService } from "../../infrastructure/prisma/prisma.module";
 import { DatabaseAuditService } from "../../infrastructure/audit/audit.service";
+import { NotificationsService } from "../communications/notifications.service";
 import { DocumentStorageService } from "./document-storage.service";
 import { DocumentsEnvelopeService } from "./documents-envelope.service";
 import { DocumentsAttestationService } from "./documents-attestation.service";
@@ -40,6 +41,7 @@ export class DocumentsService {
     private readonly attestation: DocumentsAttestationService,
     private readonly scanner: DocumentMalwareScannerService,
     private readonly dicomweb: DicomWebService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async uploadForEncounter(principal: AuthPrincipal, appointmentId: string, input: JsonObject) {
@@ -241,9 +243,30 @@ export class DocumentsService {
     await this.assertReportIntegrity(report);
     const now = new Date();
     await this.prisma.$transaction(async (tx) => {
-      await tx.diagnosticReport.update({ where: { id: report.id }, data: { status: "RELEASED", releasedAt: now } });
-      if (report.documentId) await tx.clinicalDocument.updateMany({ where: { id: report.documentId, status: "AVAILABLE" }, data: { releasedToPatient: true, releasedAt: now } });
+      const patient = await tx.patientProfile.findUnique({ where: { id: report.patientId }, select: { userId: true } });
+      if (!patient?.userId) throw new NotFoundException("Patient profile not found.");
+      const released = await tx.diagnosticReport.updateMany({
+        where: { id: report.id, status: "FINAL" },
+        data: { status: "RELEASED", releasedAt: now },
+      });
+      if (released.count !== 1) throw new ConflictException("Diagnostic report changed concurrently. Refresh and retry.");
+      if (report.documentId) {
+        await tx.clinicalDocument.updateMany({
+          where: { id: report.documentId, status: "AVAILABLE" },
+          data: { releasedToPatient: true, releasedAt: now },
+        });
+      }
+      await this.notifications.enqueueAccountInTransaction(tx, {
+        accountId: patient.userId,
+        dedupeKey: `clinical:${report.id}:diagnostic-report-released`,
+        type: "CLINICAL_UPDATE",
+        entityType: "DIAGNOSTIC_REPORT",
+        entityId: report.id,
+        safeTitleKey: "notification.clinical.diagnostic-report.title",
+        safeBodyKey: "notification.clinical.diagnostic-report.body",
+      });
     });
+    this.notifications.wakeOutbox();
     await this.audit.write({ actorId: principal.accountId, action: "DIAGNOSTIC_REPORT_RELEASED", objectType: "DIAGNOSTIC_REPORT", objectId: report.id, purpose: "TREATMENT", result: "SUCCESS", metadata: { documentId: report.documentId } });
     return this.presentReport(await this.requireReport(report.id), "OWN_AUTHORSHIP", false);
   }

@@ -1,6 +1,7 @@
 import { BadRequestException, Body, Controller, Get, Header, Module, Param, Post, StreamableFile } from "@nestjs/common";
 import type { AuthPrincipal } from "@carepoint/identity";
 import { CurrentPrincipal, RequirePermissions } from "../../security/api-security.module";
+import { CommunicationsModule } from "../communications/communications.module";
 import { DocumentsService } from "./documents.service";
 import { DocumentStorageService } from "./document-storage.service";
 import { DocumentsEnvelopeService } from "./documents-envelope.service";
@@ -128,6 +129,7 @@ class DiagnosticReportsController {
 }
 
 @Module({
+  imports: [CommunicationsModule],
   controllers: [ClinicalDocumentsController, DiagnosticReportsController],
   providers: [
     DocumentsService,
