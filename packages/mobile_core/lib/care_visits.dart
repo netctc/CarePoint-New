@@ -11,9 +11,10 @@ import 'patient_messages.dart';
 import 'patient_messages_localization.dart';
 
 class CareVisitsPage extends StatefulWidget {
-  const CareVisitsPage({super.key, required this.session, required this.locale});
+  const CareVisitsPage({super.key, required this.session, required this.locale, this.focusAppointmentId});
   final CarePointSession session;
   final CarePointLocale locale;
+  final String? focusAppointmentId;
   @override
   State<CareVisitsPage> createState() => _CareVisitsPageState();
 }
@@ -25,11 +26,28 @@ class _CareVisitsPageState extends State<CareVisitsPage> {
   final mutating = <String>{};
   String t(String key) => journeyText(widget.locale, key);
   String p(String key) => planningText(widget.locale, key);
+  String? get focusId {
+    final value = widget.focusAppointmentId?.trim();
+    return value?.isNotEmpty == true ? value : null;
+  }
   @override
   void initState() { super.initState(); load(); }
   Future<void> load() async {
     setState(() { busy = true; error = null; });
-    try { final value = await widget.session.api.myAppointments(); if (mounted) setState(() => items = value); }
+    try {
+      final value = await widget.session.api.myAppointments();
+      if (mounted) setState(() {
+        items = value;
+        final focus = focusId;
+        if (focus != null) {
+          final matching = value.where((visit) => visit['id']?.toString() == focus);
+          if (matching.isNotEmpty) {
+            bucket = journeyVisitBucket(matching.first, DateTime.now());
+            filter = '';
+          }
+        }
+      });
+    }
     catch (e) { if (mounted) setState(() => error = journeyError(widget.locale, e)); }
     finally { if (mounted) setState(() => busy = false); }
   }
@@ -51,9 +69,15 @@ class _CareVisitsPageState extends State<CareVisitsPage> {
   }
   @override
   Widget build(BuildContext context) {
-    final now = DateTime.now();
+    final now = DateTime.now(), focus = focusId;
     final visible = items.where((v) => journeyVisitBucket(v, now) == bucket).where((v) => '${journeyMap(v['service'])['name']} ${journeyMap(v['provider'])['displayName']}'.toLowerCase().contains(filter.toLowerCase())).toList();
-    visible.sort((a, b) => bucket == 'upcoming' ? '${a['startsAt']}'.compareTo('${b['startsAt']}') : '${b['startsAt']}'.compareTo('${a['startsAt']}'));
+    visible.sort((a, b) {
+      if (focus != null) {
+        final aFocused = a['id']?.toString() == focus, bFocused = b['id']?.toString() == focus;
+        if (aFocused != bFocused) return aFocused ? -1 : 1;
+      }
+      return bucket == 'upcoming' ? '${a['startsAt']}'.compareTo('${b['startsAt']}') : '${b['startsAt']}'.compareTo('${a['startsAt']}');
+    });
     return RefreshIndicator(onRefresh: load, child: ListView(padding: const EdgeInsets.all(16), physics: const AlwaysScrollableScrollPhysics(), children: [
       Text(t('visits'), style: Theme.of(context).textTheme.headlineSmall),
       OutlinedButton.icon(onPressed: busy ? null : () => open(CareWaitlistPage(session: widget.session, locale: widget.locale)), icon: const Icon(Icons.schedule_send), label: Text(p('waitlist'))),
@@ -62,7 +86,10 @@ class _CareVisitsPageState extends State<CareVisitsPage> {
       if (busy) const Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator())),
       if (error != null) JourneyFailure(locale: widget.locale, message: error!, onRetry: load),
       if (!busy && error == null && visible.isEmpty) Padding(padding: const EdgeInsets.all(24), child: Text(t('empty'))),
-      for (final visit in visible) Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      for (final visit in visible) Card(
+        key: ValueKey('visit-${visit['id']}'),
+        shape: visit['id']?.toString() == focus ? RoundedRectangleBorder(side: BorderSide(color: Theme.of(context).colorScheme.primary, width: 2), borderRadius: BorderRadius.circular(12)) : null,
+        child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(journeyMap(visit['service'])['name']?.toString() ?? '', style: Theme.of(context).textTheme.titleMedium),
         Text(journeyMap(visit['provider'])['displayName']?.toString() ?? ''),
         Text('${journeyDateTime(visit['startsAt'])} · ${t(visit['modality'].toString())}'),
