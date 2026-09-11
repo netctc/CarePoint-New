@@ -11,6 +11,7 @@ import {
   type StoredSmartRefreshFamily,
 } from "../../security/smart-token.service";
 import { SmartOidcService } from "./smart-oidc.service";
+import { normalizeSmartPublicGrantFields, parseSmartPublicGrant } from "./smart-public-grant-policy";
 
 const AUTHORIZATION_CODE_TTL_SECONDS = 180;
 const ACCESS_TOKEN_TTL_SECONDS = 15 * 60;
@@ -161,10 +162,14 @@ export class SmartOAuthService {
   }
 
   async exchange(input: Input): Promise<Record<string, unknown>> {
-    const grantType = this.required(input.grant_type, "grant_type", 50);
-    if (grantType === "authorization_code") return this.exchangeAuthorizationCode(input);
-    if (grantType === "refresh_token") return this.exchangeRefreshToken(input);
-    return this.oauthError("unsupported_grant_type", "SMART token exchange supports authorization_code and refresh_token grants only.");
+    const grantType = parseSmartPublicGrant(input);
+    const request = normalizeSmartPublicGrantFields(input, grantType);
+    // Both grants require a registered public client before credential handling.
+    if (!this.config.client(request.client_id)) this.oauthError("invalid_client", "Unknown SMART client_id.");
+    switch (grantType) {
+      case "authorization_code": return this.exchangeAuthorizationCode(request);
+      case "refresh_token": return this.exchangeRefreshToken(request);
+    }
   }
 
   async revoke(input: Input): Promise<void> {
