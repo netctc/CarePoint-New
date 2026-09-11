@@ -33,7 +33,7 @@ export type SmartBrowserLoginResult =
 @Injectable()
 export class SmartBrowserService {
   constructor(
-    private readonly oauth: SmartOAuthService,
+    private readonly authorizationService: SmartOAuthService,
     private readonly auth: PersistentAuthService,
     private readonly prisma: PrismaService,
     private readonly redis: RedisSecurityService,
@@ -41,7 +41,7 @@ export class SmartBrowserService {
   ) {}
 
   async begin(input: SmartInput): Promise<SmartBrowserView> {
-    const request = this.oauth.normalizeAuthorizationRequest(input, "browser");
+    const request = this.authorizationService.normalizeAuthorizationRequest(input, "browser");
     const transactionId = randomToken(32);
     const expiresAt = new Date(Date.now() + BROWSER_TRANSACTION_TTL_SECONDS * 1000).toISOString();
     const transaction: StoredBrowserTransaction = {
@@ -126,7 +126,7 @@ export class SmartBrowserService {
         metadata: { patientId: transaction.patientId, scopes: transaction.request.scopes },
       });
       return {
-        redirectTo: this.oauth.authorizationErrorRedirect(transaction.request, "access_denied", "The patient denied the requested SMART access."),
+        redirectTo: this.authorizationService.authorizationErrorRedirect(transaction.request, "access_denied", "The patient denied the requested SMART access."),
       };
     }
 
@@ -139,7 +139,7 @@ export class SmartBrowserService {
       result: "SUCCESS",
       metadata: { patientId: transaction.patientId, scopes: transaction.request.scopes },
     });
-    return this.oauth.issueAuthorizationCode(
+    return this.authorizationService.issueAuthorizationCode(
       { userId: transaction.userId!, patientId: transaction.patientId!, authTime: transaction.authTime! },
       transaction.request,
     );

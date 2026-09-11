@@ -165,7 +165,7 @@ export class SmartOAuthService {
     const grantType = parseSmartPublicGrant(input);
     const request = normalizeSmartPublicGrantFields(input, grantType);
     // Both grants require a registered public client before credential handling.
-    if (!this.config.client(request.client_id)) this.oauthError("invalid_client", "Unknown SMART client_id.");
+    if (!this.config.client(request.client_id)) this.rejectTokenRequest("invalid_client", "Unknown SMART client_id.");
     switch (grantType) {
       case "authorization_code": return this.exchangeAuthorizationCode(request);
       case "refresh_token": return this.exchangeRefreshToken(request);
@@ -217,25 +217,25 @@ export class SmartOAuthService {
     const code = this.required(input.code, "code", 500);
     const clientId = this.required(input.client_id, "client_id", 128);
     const client = this.config.client(clientId);
-    if (!client) this.oauthError("invalid_client", "Unknown SMART client_id.");
+    if (!client) this.rejectTokenRequest("invalid_client", "Unknown SMART client_id.");
     const redirectUri = this.canonicalUrl(this.required(input.redirect_uri, "redirect_uri", 1000), "redirect_uri");
     const verifier = this.required(input.code_verifier, "code_verifier", 128);
-    if (!/^[A-Za-z0-9\-._~]{43,128}$/.test(verifier)) this.oauthError("invalid_grant", "PKCE code_verifier is invalid.");
+    if (!/^[A-Za-z0-9\-._~]{43,128}$/.test(verifier)) this.rejectTokenRequest("invalid_grant", "PKCE code_verifier is invalid.");
 
     const key = this.codeKey(code);
     const previewRaw = await this.redis.getEphemeral(key);
-    if (!previewRaw) this.oauthError("invalid_grant", "Authorization code is invalid, expired, or already used.");
+    if (!previewRaw) this.rejectTokenRequest("invalid_grant", "Authorization code is invalid, expired, or already used.");
     const preview = this.parseCode(previewRaw as string);
     if (preview.clientId !== clientId || preview.redirectUri !== redirectUri || new Date(preview.expiresAt).getTime() <= Date.now()) {
-      this.oauthError("invalid_grant", "Authorization code does not match the token request.");
+      this.rejectTokenRequest("invalid_grant", "Authorization code does not match the token request.");
     }
-    if (this.pkceChallenge(verifier) !== preview.codeChallenge) this.oauthError("invalid_grant", "PKCE verification failed.");
+    if (this.pkceChallenge(verifier) !== preview.codeChallenge) this.rejectTokenRequest("invalid_grant", "PKCE verification failed.");
 
     const consumedRaw = await this.redis.consumeEphemeral(key);
-    if (!consumedRaw) this.oauthError("invalid_grant", "Authorization code is invalid, expired, or already used.");
+    if (!consumedRaw) this.rejectTokenRequest("invalid_grant", "Authorization code is invalid, expired, or already used.");
     const authorization = this.parseCode(consumedRaw as string);
     if (authorization.clientId !== preview.clientId || authorization.userId !== preview.userId || authorization.patientId !== preview.patientId) {
-      this.oauthError("invalid_grant", "Authorization code state changed unexpectedly.");
+      this.rejectTokenRequest("invalid_grant", "Authorization code state changed unexpectedly.");
     }
 
     let family: StoredSmartRefreshFamily | null = null;
@@ -270,7 +270,7 @@ export class SmartOAuthService {
     };
     if (refreshToken) response.refresh_token = refreshToken.token;
     if (authorization.scopes.includes("openid") && authorization.scopes.includes("fhirUser")) {
-      if (!authorization.nonce) this.oauthError("invalid_grant", "OIDC authorization code is missing nonce context.");
+      if (!authorization.nonce) this.rejectTokenRequest("invalid_grant", "OIDC authorization code is missing nonce context.");
       response.id_token = this.oidc.signIdToken({
         userId: authorization.userId,
         patientId: authorization.patientId,
@@ -286,30 +286,30 @@ export class SmartOAuthService {
   private async exchangeRefreshToken(input: Input): Promise<Record<string, unknown>> {
     const refreshToken = this.required(input.refresh_token, "refresh_token", 1000);
     const clientId = this.required(input.client_id, "client_id", 128);
-    if (!this.config.client(clientId)) this.oauthError("invalid_client", "Unknown SMART client_id.");
+    if (!this.config.client(clientId)) this.rejectTokenRequest("invalid_client", "Unknown SMART client_id.");
 
     const activeKey = this.refreshTokenKey(refreshToken);
     const usedKey = this.usedRefreshTokenKey(refreshToken);
     const previewRaw = await this.redis.getEphemeral(activeKey);
     if (previewRaw) {
       const preview = this.parseRefreshToken(previewRaw);
-      if (preview.clientId !== clientId) this.oauthError("invalid_grant", "Refresh token does not match this client.");
-      if (new Date(preview.expiresAt).getTime() <= Date.now()) this.oauthError("invalid_grant", "Refresh token is expired.");
+      if (preview.clientId !== clientId) this.rejectTokenRequest("invalid_grant", "Refresh token does not match this client.");
+      if (new Date(preview.expiresAt).getTime() <= Date.now()) this.rejectTokenRequest("invalid_grant", "Refresh token is expired.");
     }
 
     const rotation = await this.redis.consumeAndMarkEphemeral(activeKey, usedKey, REFRESH_FAMILY_TTL_SECONDS);
     if (rotation.status === "missing" || !rotation.value) {
-      this.oauthError("invalid_grant", "Refresh token is invalid, expired, or revoked.");
+      this.rejectTokenRequest("invalid_grant", "Refresh token is invalid, expired, or revoked.");
     }
     const stored = this.parseRefreshToken(rotation.value);
-    if (stored.clientId !== clientId) this.oauthError("invalid_grant", "Refresh token does not match this client.");
+    if (stored.clientId !== clientId) this.rejectTokenRequest("invalid_grant", "Refresh token does not match this client.");
 
     if (rotation.status === "reused") {
       await this.handleRefreshReuse(stored);
     }
 
     const familyRaw = await this.redis.getEphemeral(this.smartTokens.refreshFamilyKey(stored.familyId));
-    if (!familyRaw) this.oauthError("invalid_grant", "Refresh token family is revoked or expired.");
+    if (!familyRaw) this.rejectTokenRequest("invalid_grant", "Refresh token family is revoked or expired.");
     const family = this.parseRefreshFamily(familyRaw as string);
     if (
       family.familyId !== stored.familyId ||
@@ -319,7 +319,7 @@ export class SmartOAuthService {
       new Date(family.expiresAt).getTime() <= Date.now()
     ) {
       await this.redis.deleteEphemeral(this.smartTokens.refreshFamilyKey(stored.familyId));
-      this.oauthError("invalid_grant", "Refresh token family state is invalid or expired.");
+      this.rejectTokenRequest("invalid_grant", "Refresh token family state is invalid or expired.");
     }
 
     await this.assertActivePatient(stored.userId, stored.patientId);
@@ -421,7 +421,7 @@ export class SmartOAuthService {
     scopes: string[],
   ): Promise<{ token: string; refreshId: string }> {
     const ttlSeconds = this.remainingSeconds(family.expiresAt);
-    if (ttlSeconds < 1) this.oauthError("invalid_grant", "Refresh token family is expired.");
+    if (ttlSeconds < 1) this.rejectTokenRequest("invalid_grant", "Refresh token family is expired.");
     const token = randomToken(48);
     const refreshId = randomId("refresh");
     const stored: StoredSmartRefreshToken = {
@@ -466,7 +466,7 @@ export class SmartOAuthService {
         response: "FAMILY_REVOKED",
       },
     });
-    return this.oauthError("invalid_grant", "Refresh token reuse detected; the authorization family has been revoked.");
+    return this.rejectTokenRequest("invalid_grant", "Refresh token reuse detected; the authorization family has been revoked.");
   }
 
   private async revokeRefreshFamily(
@@ -495,7 +495,7 @@ export class SmartOAuthService {
       select: { role: true, status: true, patientProfile: { select: { id: true } } },
     });
     if (!user || user.role !== "PATIENT" || user.status !== "ACTIVE" || user.patientProfile?.id !== patientId) {
-      this.oauthError("invalid_grant", "Patient authorization is no longer active.");
+      this.rejectTokenRequest("invalid_grant", "Patient authorization is no longer active.");
     }
   }
 
@@ -503,12 +503,12 @@ export class SmartOAuthService {
     if (value === undefined || value === null || value === "") return [...grantedScopes];
     const requested = this.scopes(this.required(value, "scope", 4000));
     for (const scope of requested) {
-      if (!grantedScopes.includes(scope)) this.oauthError("invalid_scope", `Refresh scope '${scope}' was not granted by the original authorization.`);
+      if (!grantedScopes.includes(scope)) this.rejectTokenRequest("invalid_scope", `Refresh scope '${scope}' was not granted by the original authorization.`);
     }
     this.assertPatientScopes(requested);
     const hasOpenId = requested.includes("openid");
     const hasFhirUser = requested.includes("fhirUser");
-    if (hasOpenId !== hasFhirUser) this.oauthError("invalid_scope", "openid and fhirUser must be retained or removed together.");
+    if (hasOpenId !== hasFhirUser) this.rejectTokenRequest("invalid_scope", "openid and fhirUser must be retained or removed together.");
     return requested;
   }
 
@@ -558,7 +558,7 @@ export class SmartOAuthService {
       typeof parsed.expiresAt !== "string" ||
       !Array.isArray(parsed.scopes) ||
       !parsed.scopes.every((scope) => typeof scope === "string")
-    ) this.oauthError("invalid_grant", "Authorization code is invalid.");
+    ) this.rejectTokenRequest("invalid_grant", "Authorization code is invalid.");
     return parsed as unknown as StoredAuthorizationCode;
   }
 
@@ -596,7 +596,7 @@ export class SmartOAuthService {
       typeof parsed.expiresAt !== "string" ||
       !Array.isArray(parsed.scopes) ||
       !parsed.scopes.every((scope) => typeof scope === "string")
-    ) this.oauthError("invalid_grant", "Refresh token state is invalid.");
+    ) this.rejectTokenRequest("invalid_grant", "Refresh token state is invalid.");
     return parsed as unknown as StoredSmartRefreshToken;
   }
 
@@ -611,7 +611,7 @@ export class SmartOAuthService {
       typeof parsed.expiresAt !== "string" ||
       !Array.isArray(parsed.scopes) ||
       !parsed.scopes.every((scope) => typeof scope === "string")
-    ) this.oauthError("invalid_grant", "Refresh token family state is invalid.");
+    ) this.rejectTokenRequest("invalid_grant", "Refresh token family state is invalid.");
     return parsed as unknown as StoredSmartRefreshFamily;
   }
 
@@ -650,7 +650,7 @@ export class SmartOAuthService {
     return result;
   }
 
-  private oauthError(error: string, description: string): never {
+  private rejectTokenRequest(error: string, description: string): never {
     throw new BadRequestException({ error, error_description: description });
   }
 }

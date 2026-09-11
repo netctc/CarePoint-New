@@ -50,7 +50,7 @@ class OpenIdDiscoveryController {
 @Controller("smart")
 class SmartOAuthController {
   constructor(
-    private readonly oauth: SmartOAuthService,
+    private readonly authorizationService: SmartOAuthService,
     private readonly backend: SmartBackendService,
     private readonly oidc: SmartOidcService,
     private readonly rateLimits: DistributedRateLimitService,
@@ -68,7 +68,7 @@ class SmartOAuthController {
       this.rateLimits.assertAllowed({ namespace: "smart:authorize:ip", identity: this.clientIp(request), limit: 120, windowSeconds: 300 }),
       this.rateLimits.assertAllowed({ namespace: "smart:authorize:user", identity: principal.accountId, limit: 60, windowSeconds: 300 }),
     ]);
-    const result = await this.oauth.authorize(principal, query);
+    const result = await this.authorizationService.authorize(principal, query);
     noStore(response);
     response.redirect(302, result.redirectTo);
   }
@@ -106,7 +106,7 @@ class SmartOAuthController {
       this.rateLimits.assertAllowed({ namespace: "smart:token:credential", identity: credential, limit: clientKind === "backend" ? 3 : 10, windowSeconds: 300 }),
     ]);
     if (!clientKind) this.invalidClient();
-    return clientKind === "backend" ? this.backend.exchange(body) : this.oauth.exchange(body);
+    return clientKind === "backend" ? this.backend.exchange(body) : this.authorizationService.exchange(body);
   }
 
   @Public()
@@ -128,7 +128,7 @@ class SmartOAuthController {
     ]);
     if (!clientKind) this.invalidClient();
     if (clientKind === "backend") await this.backend.revoke(body);
-    else await this.oauth.revoke(body);
+    else await this.authorizationService.revoke(body);
     return {};
   }
 
