@@ -5,6 +5,9 @@ on:
     paths:
       - ".ci/generate-rc-evidence.mjs"
       - ".github/workflows/release-candidate-evidence.yml"
+      - ".github/workflows/release1-container-compatibility.yml"
+      - "Dockerfile"
+      - ".dockerignore"
       - "package.json"
       - "package-lock.json"
       - ".ci/npm-package-lock.canonical.sha256"
@@ -101,5 +104,6 @@ jobs:
             echo "- Source SHA: \`$CAREPOINT_RELEASE_SHA\`"
             echo "- Purpose: \`$CAREPOINT_RELEASE_EVIDENCE_PURPOSE\`"
             echo "- GitHub immutable artifact digest: \`${{ steps.upload.outputs.artifact-digest }}\`"
+            echo "- Container packaging source contracts are fingerprinted in rc-manifest.json."
             echo "- This bundle is release evidence/build snapshots, not the final production deployment artifact."
           } >> "$GITHUB_STEP_SUMMARY"
