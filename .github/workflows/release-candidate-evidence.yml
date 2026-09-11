@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - ".ci/generate-rc-evidence.mjs"
+      - ".ci/generate-release-change-inventory.mjs"
       - ".ci/verify-container-supply-chain.mjs"
       - ".github/workflows/release-candidate-evidence.yml"
       - ".github/workflows/release1-container-compatibility.yml"
@@ -24,6 +25,10 @@ on:
         description: "Approved Release Candidate version (for example 1.0.0-rc.1)"
         required: true
         type: string
+      release_base_sha:
+        description: "Exact full Git SHA of the approved release/deployment baseline to compare against"
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -33,6 +38,7 @@ jobs:
     runs-on: ubuntu-24.04
     env:
       CAREPOINT_RELEASE_VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.release_version || '0.0.0-ci' }}
+      CAREPOINT_RELEASE_BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || inputs.release_base_sha }}
       CAREPOINT_RELEASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
       CAREPOINT_RELEASE_SOURCE_REF: ${{ github.event_name == 'pull_request' && github.head_ref || github.ref }}
       CAREPOINT_RELEASE_BUILD_ID: github-${{ github.run_id }}-${{ github.run_attempt }}
@@ -42,6 +48,7 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
@@ -57,6 +64,10 @@ jobs:
         run: |
           node .ci/verify-container-supply-chain.mjs --self-test
           node .ci/verify-container-supply-chain.mjs
+      - name: Generate deterministic release change inventory
+        run: |
+          node .ci/generate-release-change-inventory.mjs --self-test
+          node .ci/generate-release-change-inventory.mjs rc-evidence
       - name: Install verified dependency graph
         run: npm ci
       - name: Build Node workspaces
@@ -106,9 +117,11 @@ jobs:
           {
             echo "### Release Candidate evidence"
             echo "- Version: \`$CAREPOINT_RELEASE_VERSION\`"
+            echo "- Change baseline SHA: \`$CAREPOINT_RELEASE_BASE_SHA\`"
             echo "- Source SHA: \`$CAREPOINT_RELEASE_SHA\`"
             echo "- Purpose: \`$CAREPOINT_RELEASE_EVIDENCE_PURPOSE\`"
             echo "- GitHub immutable artifact digest: \`${{ steps.upload.outputs.artifact-digest }}\`"
+            echo "- Deterministic source change inventory and generated release notes are included."
             echo "- Container packaging and supply-chain verifier are fingerprinted in rc-manifest.json."
             echo "- This bundle is release evidence/build snapshots, not the final production deployment artifact."
           } >> "$GITHUB_STEP_SUMMARY"
