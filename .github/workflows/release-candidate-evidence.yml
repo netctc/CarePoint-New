@@ -5,6 +5,7 @@ on:
     paths:
       - ".ci/generate-rc-evidence.mjs"
       - ".ci/generate-release-change-inventory.mjs"
+      - ".ci/generate-api-route-surface.mjs"
       - ".ci/verify-container-supply-chain.mjs"
       - ".github/workflows/release-candidate-evidence.yml"
       - ".github/workflows/release1-container-compatibility.yml"
@@ -70,6 +71,10 @@ jobs:
           node .ci/generate-release-change-inventory.mjs rc-evidence
       - name: Install verified dependency graph
         run: npm ci
+      - name: Generate deterministic API route surface
+        run: |
+          node .ci/generate-api-route-surface.mjs --self-test
+          node .ci/generate-api-route-surface.mjs rc-evidence
       - name: Build Node workspaces
         run: npm run build
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
@@ -122,6 +127,7 @@ jobs:
             echo "- Purpose: \`$CAREPOINT_RELEASE_EVIDENCE_PURPOSE\`"
             echo "- GitHub immutable artifact digest: \`${{ steps.upload.outputs.artifact-digest }}\`"
             echo "- Deterministic source change inventory and generated release notes are included."
+            echo "- Offline Nest API route-surface manifest/diff is included; it is not a full OpenAPI schema diff."
             echo "- Container packaging and supply-chain verifier are fingerprinted in rc-manifest.json."
             echo "- This bundle is release evidence/build snapshots, not the final production deployment artifact."
           } >> "$GITHUB_STEP_SUMMARY"
