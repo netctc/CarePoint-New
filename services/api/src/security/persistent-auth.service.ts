@@ -29,7 +29,6 @@ const REFRESH_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const MFA_CHALLENGE_TTL_MS = 5 * 60 * 1000;
 const LOCKOUT_TTL_MS = 15 * 60 * 1000;
 const MAX_FAILED_LOGINS = 5;
-const MFA_ENROLLMENT_CHALLENGE_PREFIX = "mfaenroll_";
 
 export interface SessionTokens {
   sessionId: string;
@@ -140,7 +139,7 @@ export class PersistentAuthService {
       where: { id: challengeId },
       include: { user: { include: { mfaEnrollment: true } } },
     });
-    if (!challenge || !this.isEnrollmentChallenge(challenge.id) || challenge.type !== "MFA_LOGIN" || challenge.consumedAt || challenge.expiresAt.getTime() <= Date.now()) {
+    if (!challenge || challenge.type !== "MFA_LOGIN" || challenge.consumedAt || challenge.expiresAt.getTime() <= Date.now()) {
       throw new UnauthorizedException("MFA enrollment challenge expired or invalid.");
     }
     if (challenge.user.status !== "ACTIVE" || !isMfaRequiredForRole(challenge.user.role as IdentityRole)) {
@@ -231,12 +230,8 @@ export class PersistentAuthService {
 
     const enrollment = challenge.user.mfaEnrollment;
     if (!enrollment) throw new UnauthorizedException("MFA enrollment is not available.");
-    const enrollmentChallenge = this.isEnrollmentChallenge(challenge.id);
-    if (enrollmentChallenge) {
-      if (!isMfaRequiredForRole(challenge.user.role as IdentityRole) || enrollment.enabledAt) {
-        throw new UnauthorizedException("MFA enrollment challenge is no longer valid.");
-      }
-    } else if (!enrollment.enabledAt) {
+    const enrollmentRequired = isMfaRequiredForRole(challenge.user.role as IdentityRole) && !enrollment.enabledAt;
+    if (!enrollmentRequired && !enrollment.enabledAt) {
       throw new UnauthorizedException("MFA is not enabled.");
     }
 
@@ -251,7 +246,7 @@ export class PersistentAuthService {
         data: { consumedAt: now },
       });
       if (consumed.count !== 1) return false;
-      if (enrollmentChallenge) {
+      if (enrollmentRequired) {
         const enabled = await tx.mfaEnrollment.updateMany({
           where: { userId: challenge.userId, enabledAt: null },
           data: { enabledAt: now },
@@ -266,10 +261,10 @@ export class PersistentAuthService {
       await this.audit.write({ actorId: challenge.userId, action: "MFA_CHALLENGE_REPLAY_DENIED", objectType: "AUTH_CHALLENGE", objectId: challenge.id, result: "DENIED" });
       throw new UnauthorizedException("MFA challenge expired, invalid, or already used.");
     }
-    if (enrollmentChallenge) {
+    if (enrollmentRequired) {
       await this.audit.write({ actorId: challenge.userId, action: "MFA_ENABLED", objectType: "ACCOUNT", objectId: challenge.userId, result: "SUCCESS", metadata: { requiredByPolicy: true } });
     }
-    await this.audit.write({ actorId: challenge.userId, action: "MFA_CHALLENGE_VERIFIED", objectType: "AUTH_CHALLENGE", objectId: challenge.id, result: "SUCCESS", metadata: { enrollmentChallenge } });
+    await this.audit.write({ actorId: challenge.userId, action: "MFA_CHALLENGE_VERIFIED", objectType: "AUTH_CHALLENGE", objectId: challenge.id, result: "SUCCESS", metadata: { enrollmentRequired } });
     await this.audit.write({ actorId: challenge.userId, action: "LOGIN_SUCCEEDED", objectType: "SESSION", objectId: material.tokens.sessionId, result: "SUCCESS", metadata: { mfa: true } });
     return material.tokens;
   }
@@ -430,10 +425,6 @@ export class PersistentAuthService {
       metadata: { role, operation, enrollmentEnabled: Boolean(session.user.mfaEnrollment?.enabledAt), mfaAssuredSession: isMfaAssuredSessionId(session.id) },
     });
     throw new UnauthorizedException("MFA is required for this account. Sign in again and complete MFA.");
-  }
-
-  private isEnrollmentChallenge(challengeId: string): boolean {
-    return challengeId.startsWith(MFA_ENROLLMENT_CHALLENGE_PREFIX);
   }
 
   private normalizeEmail(value: string): string {
