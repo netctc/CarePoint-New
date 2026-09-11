@@ -7,6 +7,18 @@ extension CarePointSelfServiceApi on CarePointApi {
   Future<Map<String, dynamic>> mfaStatus() async => _asMap(await _send('GET', '/iam/mfa/status'));
   Future<Map<String, dynamic>> beginMfaEnrollment() async => _asMap(await _send('POST', '/iam/mfa/enroll', body: const {}));
   Future<Map<String, dynamic>> confirmMfaEnrollment(String code) async => _asMap(await _send('POST', '/iam/mfa/confirm', body: {'code': code.trim()}));
+  Future<Map<String, dynamic>> patientProfile() async => _asMap(await _send('GET', '/iam/patient-profile'));
+  Future<Map<String, dynamic>> updatePatientProfile({
+    required String firstName,
+    required String lastName,
+    required String phone,
+    required String expectedUpdatedAt,
+  }) async => _asMap(await _send('PATCH', '/iam/patient-profile', body: {
+    'firstName': firstName.trim(),
+    'lastName': lastName.trim(),
+    'phone': phone.trim(),
+    'expectedUpdatedAt': expectedUpdatedAt,
+  }));
   Future<List<Map<String, dynamic>>> patientConsents() async => _asList(await _send('GET', '/consents/me'));
   Future<Map<String, dynamic>> revokePatientConsent(String consentId) async => _asMap(await _send('POST', '/consents/$consentId/revoke', body: const {}));
   /// Server revocation is best effort; local sign-out always clears secrets.

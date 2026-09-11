@@ -11,6 +11,7 @@ import 'package:carepoint_mobile_core/transport_localization.dart';
 import 'package:carepoint_mobile_core/availability_centre.dart';
 import 'package:carepoint_mobile_core/availability_alert_entry.dart';
 import 'package:carepoint_mobile_core/patient_messages.dart';
+import 'package:carepoint_mobile_core/patient_profile.dart';
 import 'package:flutter/material.dart';
 import 'clinical_timeline.dart';
 import 'patient_account.dart';
@@ -48,6 +49,24 @@ class _PatientShellState extends State<PatientShell> {
     final booked = await Navigator.push<bool>(context, MaterialPageRoute(builder: (_) => CareAvailabilityCentrePage(session: widget.session, locale: widget.locale, focusRequestId: requestId)));
     if (mounted && booked == true) setState(() { visitsVersion++; tab = 1; });
   }
+  Future<void> openProfile() async {
+    await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => PatientProfilePage(session: widget.session, locale: widget.locale)));
+  }
+  Widget accountTab() => Column(children: [
+    Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: SizedBox(
+        width: double.infinity,
+        child: FilledButton.tonalIcon(
+          key: const ValueKey('patient-edit-profile-entry'),
+          onPressed: openProfile,
+          icon: const Icon(Icons.person_edit_outlined),
+          label: Text(patientProfileText(widget.locale, 'edit')),
+        ),
+      ),
+    ),
+    Expanded(child: PatientAccountPage(session: widget.session, locale: widget.locale, onSignOut: widget.onSignOut)),
+  ]);
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('CarePoint'), actions: [PopupMenuButton<String>(onSelected: (v) { if (v == 'logout') widget.onSignOut(); }, itemBuilder: (_) => [PopupMenuItem(value: 'logout', child: Text(cpText(widget.locale, 'auth.signOut')))])]),
@@ -62,7 +81,7 @@ class _PatientShellState extends State<PatientShell> {
       CareVisitsPage(key: ValueKey(visitsVersion), session: widget.session, locale: widget.locale),
       PatientClinicalTimelinePage(session: widget.session, locale: widget.locale),
       PatientFinancialWorkspace(key: ValueKey('finance-$visitsVersion'), session: widget.session, locale: widget.locale),
-      PatientAccountPage(session: widget.session, locale: widget.locale, onSignOut: widget.onSignOut),
+      accountTab(),
     ]),
     bottomNavigationBar: NavigationBar(selectedIndex: tab, onDestinationSelected: (v) => setState(() { tab = v; if (v == 1) visitsVersion++; }), destinations: [
       NavigationDestination(icon: const Icon(Icons.search), label: journeyText(widget.locale, 'search')),
