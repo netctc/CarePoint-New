@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Header, HttpCode, Module, Post, Query, Req, Res } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Get, Header, HttpCode, Module, Post, Query, Req, Res } from "@nestjs/common";
 import type { AuthPrincipal } from "@carepoint/identity";
 import { DistributedRateLimitService } from "../../infrastructure/redis/redis-security.module";
 import { CurrentPrincipal, Public } from "../../security/api-security.module";
@@ -10,6 +10,7 @@ import { SmartOAuthService } from "./smart-oauth.service";
 import { SmartOidcService } from "./smart-oidc.service";
 
 type SmartInput = Record<string, unknown>;
+type SmartClientKind = "public" | "backend";
 interface RequestIdentity { ip?: string; socket?: { remoteAddress?: string }; }
 interface HttpResponseLike {
   setHeader(name: string, value: string): void;
@@ -53,6 +54,7 @@ class SmartOAuthController {
     private readonly backend: SmartBackendService,
     private readonly oidc: SmartOidcService,
     private readonly rateLimits: DistributedRateLimitService,
+    private readonly config: SmartConfigurationService,
   ) {}
 
   @Get("authorize")
@@ -88,21 +90,23 @@ class SmartOAuthController {
   @Header("Pragma", "no-cache")
   @Header("X-Content-Type-Options", "nosniff")
   async token(@Req() request: RequestIdentity, @Body() body: SmartInput) {
-    const clientId = typeof body.client_id === "string" ? body.client_id : "missing";
-    const grantType = typeof body.grant_type === "string" ? body.grant_type : "missing";
-    const credential = typeof body.code === "string"
-      ? body.code
-      : typeof body.refresh_token === "string"
-        ? body.refresh_token
-        : typeof body.client_assertion === "string"
-          ? body.client_assertion
+    const clientId = typeof body.client_id === "string" ? body.client_id.trim() : "";
+    const clientIdentity = clientId || "missing";
+    const clientKind = clientId ? this.clientKind(clientId) : null;
+    const credential = clientKind === "backend"
+      ? (typeof body.client_assertion === "string" ? body.client_assertion : "missing")
+      : typeof body.code === "string"
+        ? body.code
+        : typeof body.refresh_token === "string"
+          ? body.refresh_token
           : "missing";
     await Promise.all([
       this.rateLimits.assertAllowed({ namespace: "smart:token:ip", identity: this.clientIp(request), limit: 180, windowSeconds: 300 }),
-      this.rateLimits.assertAllowed({ namespace: "smart:token:client", identity: clientId, limit: 120, windowSeconds: 300 }),
-      this.rateLimits.assertAllowed({ namespace: "smart:token:credential", identity: credential, limit: grantType === "client_credentials" ? 3 : 10, windowSeconds: 300 }),
+      this.rateLimits.assertAllowed({ namespace: "smart:token:client", identity: clientIdentity, limit: 120, windowSeconds: 300 }),
+      this.rateLimits.assertAllowed({ namespace: "smart:token:credential", identity: credential, limit: clientKind === "backend" ? 3 : 10, windowSeconds: 300 }),
     ]);
-    return grantType === "client_credentials" ? this.backend.exchange(body) : this.oauth.exchange(body);
+    if (!clientKind) this.invalidClient();
+    return clientKind === "backend" ? this.backend.exchange(body) : this.oauth.exchange(body);
   }
 
   @Public()
@@ -111,18 +115,31 @@ class SmartOAuthController {
   @Header("Cache-Control", "no-store")
   @Header("Pragma", "no-cache")
   async revoke(@Req() request: RequestIdentity, @Body() body: SmartInput) {
-    const clientId = typeof body.client_id === "string" ? body.client_id : "missing";
-    const assertion = typeof body.client_assertion === "string" ? body.client_assertion : null;
+    const clientId = typeof body.client_id === "string" ? body.client_id.trim() : "";
+    const clientIdentity = clientId || "missing";
+    const clientKind = clientId ? this.clientKind(clientId) : null;
+    const assertion = clientKind === "backend" && typeof body.client_assertion === "string" ? body.client_assertion : null;
     await Promise.all([
       this.rateLimits.assertAllowed({ namespace: "smart:revoke:ip", identity: this.clientIp(request), limit: 180, windowSeconds: 300 }),
-      this.rateLimits.assertAllowed({ namespace: "smart:revoke:client", identity: clientId, limit: 120, windowSeconds: 300 }),
+      this.rateLimits.assertAllowed({ namespace: "smart:revoke:client", identity: clientIdentity, limit: 120, windowSeconds: 300 }),
       ...(assertion
         ? [this.rateLimits.assertAllowed({ namespace: "smart:revoke:assertion", identity: assertion, limit: 3, windowSeconds: 300 })]
         : []),
     ]);
-    if (assertion) await this.backend.revoke(body);
+    if (!clientKind) this.invalidClient();
+    if (clientKind === "backend") await this.backend.revoke(body);
     else await this.oauth.revoke(body);
     return {};
+  }
+
+  private clientKind(clientId: string): SmartClientKind | null {
+    if (this.config.backendClient(clientId)) return "backend";
+    if (this.config.client(clientId)) return "public";
+    return null;
+  }
+
+  private invalidClient(): never {
+    throw new BadRequestException({ error: "invalid_client", error_description: "Unknown SMART client_id." });
   }
 
   private clientIp(request: RequestIdentity): string {
