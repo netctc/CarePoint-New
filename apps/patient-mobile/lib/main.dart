@@ -60,7 +60,7 @@ class _PatientShellState extends State<PatientShell> {
         child: FilledButton.tonalIcon(
           key: const ValueKey('patient-edit-profile-entry'),
           onPressed: openProfile,
-          icon: const Icon(Icons.person_edit_outlined),
+          icon: const Icon(Icons.edit_outlined),
           label: Text(patientProfileText(widget.locale, 'edit')),
         ),
       ),
