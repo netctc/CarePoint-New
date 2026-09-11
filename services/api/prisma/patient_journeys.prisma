@@ -1,0 +1,41 @@
+// F2 references are scalar in Prisma; the migration enforces database foreign keys.
+model PatientAppointmentChange {
+  id                 String   @id @default(uuid())
+  appointmentId      String
+  patientId          String
+  actorId            String
+  keyHash            String   @unique
+  requestHash        String
+  fromSlotId         String?
+  toSlotId           String
+  fromStartsAt       DateTime
+  fromEndsAt         DateTime
+  toStartsAt         DateTime
+  toEndsAt           DateTime
+  waitlistEntryId    String?
+  createdAt          DateTime @default(now())
+
+  @@index([appointmentId, createdAt])
+}
+
+model PatientWaitlistEntry {
+  id                     String   @id @default(uuid())
+  appointmentId          String
+  patientId              String
+  providerId             String
+  serviceId              String
+  modality               AppointmentModality
+  appointmentUpdatedAt   DateTime
+  fromAt                 DateTime
+  toAt                   DateTime
+  status                 String   @default("WAITING")
+  activeKey              String?  @unique
+  closureReason          String?
+  closedAt               DateTime?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@index([patientId, status, createdAt])
+  @@index([providerId, status, toAt])
+  @@index([appointmentId, status])
+}

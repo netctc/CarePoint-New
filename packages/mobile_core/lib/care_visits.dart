@@ -5,6 +5,8 @@ import 'telehealth_room.dart';
 import 'care_journeys_models.dart';
 import 'care_journeys_localization.dart';
 import 'care_journeys_widgets.dart';
+import 'care_planning.dart';
+import 'care_planning_localization.dart';
 
 class CareVisitsPage extends StatefulWidget {
   const CareVisitsPage({super.key, required this.session, required this.locale});
@@ -20,6 +22,7 @@ class _CareVisitsPageState extends State<CareVisitsPage> {
   String? error;
   final mutating = <String>{};
   String t(String key) => journeyText(widget.locale, key);
+  String p(String key) => planningText(widget.locale, key);
   @override
   void initState() { super.initState(); load(); }
   Future<void> load() async {
@@ -27,6 +30,10 @@ class _CareVisitsPageState extends State<CareVisitsPage> {
     try { final value = await widget.session.api.myAppointments(); if (mounted) setState(() => items = value); }
     catch (e) { if (mounted) setState(() => error = journeyError(widget.locale, e)); }
     finally { if (mounted) setState(() => busy = false); }
+  }
+  Future<void> open(Widget page) async {
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => Directionality(textDirection: widget.locale.textDirection, child: page)));
+    if (mounted) await load();
   }
   Future<void> cancel(JourneyMap visit) async {
     final id = visit['id'].toString();
@@ -47,6 +54,7 @@ class _CareVisitsPageState extends State<CareVisitsPage> {
     visible.sort((a, b) => bucket == 'upcoming' ? '${a['startsAt']}'.compareTo('${b['startsAt']}') : '${b['startsAt']}'.compareTo('${a['startsAt']}'));
     return RefreshIndicator(onRefresh: load, child: ListView(padding: const EdgeInsets.all(16), physics: const AlwaysScrollableScrollPhysics(), children: [
       Text(t('visits'), style: Theme.of(context).textTheme.headlineSmall),
+      OutlinedButton.icon(onPressed: busy ? null : () => open(CareWaitlistPage(session: widget.session, locale: widget.locale)), icon: const Icon(Icons.schedule_send), label: Text(p('waitlist'))),
       Wrap(spacing: 8, children: ['upcoming', 'history', 'cancelled'].map((v) => ChoiceChip(label: Text(t(v)), selected: bucket == v, onSelected: (_) => setState(() => bucket = v))).toList()),
       TextField(onChanged: (v) => setState(() => filter = v), decoration: InputDecoration(labelText: t('query'), prefixIcon: const Icon(Icons.search))),
       if (busy) const Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator())),
@@ -59,6 +67,8 @@ class _CareVisitsPageState extends State<CareVisitsPage> {
         Chip(label: Text(t(visit['status'].toString()))),
         JourneyVisitContext(locale: widget.locale, value: journeyMap(visit['visitContext'])),
         if (visit['modality'] == 'TELEMEDICINE' && visit['status'] == 'CONFIRMED') TelehealthActionButton(session: widget.session, locale: widget.locale, appointment: visit),
+        TextButton.icon(onPressed: busy ? null : () => open(CareChangeHistoryPage(session: widget.session, locale: widget.locale, appointmentId: visit['id'].toString())), icon: const Icon(Icons.history), label: Text(p('history'))),
+        if ((visit['status'] == 'REQUESTED' || visit['status'] == 'CONFIRMED') && (DateTime.tryParse(visit['startsAt']?.toString() ?? '')?.isAfter(now) ?? false)) OutlinedButton.icon(onPressed: busy || mutating.contains(visit['id'].toString()) ? null : () => open(CareReschedulePage(session: widget.session, locale: widget.locale, appointmentId: visit['id'].toString())), icon: const Icon(Icons.edit_calendar), label: Text(p('reschedule'))),
         if (visit['status'] == 'REQUESTED' || visit['status'] == 'CONFIRMED') OutlinedButton.icon(onPressed: mutating.contains(visit['id'].toString()) ? null : () => cancel(visit), icon: const Icon(Icons.cancel_outlined), label: Text(t('cancelVisit'))),
       ]))),
     ]));
