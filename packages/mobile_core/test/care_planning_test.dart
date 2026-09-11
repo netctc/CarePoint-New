@@ -27,9 +27,13 @@ Future<void> openPage(WidgetTester tester,Widget page) async {
 }
 Future<void> selectNewTime(WidgetTester tester) async {
   final button=find.widgetWithText(FilledButton,planningText(CarePointLocale.en,'reschedule'));
-  await tester.ensureVisible(button);await tester.tap(button);await tester.pumpAndSettle();
+  await tester.ensureVisible(button);await tester.tap(button);
+  // The underlying page is deliberately locked during confirmation. Do not
+  // wait for its progress animation to settle while the dialog is open.
+  await tester.pump();await tester.pump(const Duration(milliseconds:350));
 }
 void main(){
+  test('F2 dates retain dd/mm/yyyy display',(){expect(journeyDate(DateTime(2026,9,11)),'11/09/2026');});
   test('F2 date ranges validate calendar dates and inclusive end dates',(){
     expect(planningWindow('30/02/2026','02/03/2026'),isNull);
     expect(planningWindow('12/09/2026','11/09/2026'),isNull);
@@ -108,5 +112,17 @@ void main(){
     expect(find.text(planningText(CarePointLocale.ar,'waitlist')),findsOneWidget);
     final context=tester.element(find.text(planningText(CarePointLocale.ar,'noGuarantee')));
     expect(Directionality.of(context),TextDirection.rtl);
+  });
+  testWidgets('F2 date dialog rejects impossible values and disposes safely after acceptance',(tester)async{
+    Map<String,String>? selected;
+    await tester.pumpWidget(MaterialApp(home:Builder(builder:(context)=>Scaffold(body:TextButton(onPressed:()async{selected=await askPlanningWindow(context,CarePointLocale.en);},child:const Text('Dates'))))));
+    await tester.tap(find.text('Dates'));await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const ValueKey('planning-from')),'30/02/2026');
+    await tester.tap(find.text(planningText(CarePointLocale.en,'apply')));await tester.pump();
+    expect(selected,isNull);expect(find.text(planningText(CarePointLocale.en,'invalidWindow')),findsOneWidget);
+    await tester.enterText(find.byKey(const ValueKey('planning-from')),'11/09/2026');
+    await tester.enterText(find.byKey(const ValueKey('planning-to')),'12/09/2026');
+    await tester.tap(find.text(planningText(CarePointLocale.en,'apply')));await tester.pumpAndSettle();
+    expect(selected,isNotNull);expect(tester.takeException(),isNull);
   });
 }

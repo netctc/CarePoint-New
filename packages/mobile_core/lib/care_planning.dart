@@ -6,28 +6,51 @@ import 'care_journeys_widgets.dart';
 import 'care_planning_models.dart';
 import 'care_planning_localization.dart';
 
-Future<Map<String, String>?> askPlanningWindow(BuildContext context, CarePointLocale locale, {DateTime? before, int maxDays = 31}) async {
-  final now = DateTime.now();
-  final start = TextEditingController(text: journeyDate(now));
-  final end = TextEditingController(text: journeyDate(before?.toLocal() ?? now.add(const Duration(days: 14))));
+Future<Map<String, String>?> askPlanningWindow(BuildContext context, CarePointLocale locale, {DateTime? before, int maxDays = 31}) =>
+  showDialog<Map<String, String>>(context: context, builder: (_) => Directionality(
+    textDirection: locale.textDirection,
+    child: _PlanningWindowDialog(locale: locale, before: before, maxDays: maxDays),
+  ));
+
+class _PlanningWindowDialog extends StatefulWidget {
+  const _PlanningWindowDialog({required this.locale, required this.before, required this.maxDays});
+  final CarePointLocale locale;
+  final DateTime? before;
+  final int maxDays;
+  @override
+  State<_PlanningWindowDialog> createState() => _PlanningWindowDialogState();
+}
+class _PlanningWindowDialogState extends State<_PlanningWindowDialog> {
+  late final TextEditingController start;
+  late final TextEditingController end;
   String? error;
-  String t(String key) => planningText(locale, key);
-  try {
-    return await showDialog<Map<String, String>>(context: context, builder: (dialogContext) => StatefulBuilder(builder: (_, update) => AlertDialog(
-      title: Text(t('window')),
-      content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
-        TextField(key: const ValueKey('planning-from'), controller: start, keyboardType: TextInputType.datetime, decoration: InputDecoration(labelText: t('from'))),
-        const SizedBox(height: 12),
-        TextField(key: const ValueKey('planning-to'), controller: end, keyboardType: TextInputType.datetime, decoration: InputDecoration(labelText: t('to'))),
-        if (error != null) Padding(padding: const EdgeInsets.only(top: 12), child: Text(error!)),
-      ])),
-      actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: Text(t('cancel'))), FilledButton(onPressed: () {
-        final result = planningWindow(start.text, end.text, before: before, maxDays: maxDays);
-        if (result == null) { update(() => error = t('invalidWindow')); return; }
-        Navigator.pop(dialogContext, result);
-      }, child: Text(t('apply')))],
-    )));
-  } finally { start.dispose(); end.dispose(); }
+  String t(String key) => planningText(widget.locale, key);
+  @override
+  void initState() {
+    super.initState();
+    final now = DateTime.now();
+    start = TextEditingController(text: journeyDate(now));
+    final preferredEnd = now.add(Duration(days: widget.maxDays > 14 ? 14 : widget.maxDays - 1));
+    final before = widget.before?.toLocal();
+    end = TextEditingController(text: journeyDate(before != null && before.isBefore(preferredEnd) ? before : preferredEnd));
+  }
+  @override
+  void dispose() { start.dispose(); end.dispose(); super.dispose(); }
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Text(t('window')),
+    content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+      TextField(key: const ValueKey('planning-from'), controller: start, keyboardType: TextInputType.datetime, decoration: InputDecoration(labelText: t('from'))),
+      const SizedBox(height: 12),
+      TextField(key: const ValueKey('planning-to'), controller: end, keyboardType: TextInputType.datetime, decoration: InputDecoration(labelText: t('to'))),
+      if (error != null) Padding(padding: const EdgeInsets.only(top: 12), child: Text(error!)),
+    ])),
+    actions: [TextButton(onPressed: () => Navigator.pop(context), child: Text(t('cancel'))), FilledButton(onPressed: () {
+      final result = planningWindow(start.text, end.text, before: widget.before, maxDays: widget.maxDays);
+      if (result == null) { setState(() => error = t('invalidWindow')); return; }
+      Navigator.pop(context, result);
+    }, child: Text(t('apply')))],
+  );
 }
 
 class CareReschedulePage extends StatefulWidget {
