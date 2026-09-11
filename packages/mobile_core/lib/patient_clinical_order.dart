@@ -177,14 +177,13 @@ class _PatientClinicalOrderResultPageState extends State<PatientClinicalOrderRes
     if (text.isEmpty || text == '—') return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
-      child: RichText(
-        text: TextSpan(
-          style: DefaultTextStyle.of(context).style,
-          children: [
-            TextSpan(text: '$label: ', style: const TextStyle(fontWeight: FontWeight.w800)),
-            TextSpan(text: text),
-          ],
-        ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: const TextStyle(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 3),
+          Text(text),
+        ],
       ),
     );
   }
