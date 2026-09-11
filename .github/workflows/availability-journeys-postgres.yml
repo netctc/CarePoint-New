@@ -28,6 +28,9 @@ jobs:
       CAREPOINT_JOURNEYS_DB_ACCEPTANCE: 'true'
       SIEM_EXPORT_ENABLED: 'true'
       RELEASE1_TEST_STRICT_VISIT_CONTEXT: 'true'
+      AVAILABILITY_NOTIFICATION_WORKER_ENABLED: 'true'
+      AVAILABILITY_NOTIFICATION_SCAN_INTERVAL_MS: '1000'
+      AVAILABILITY_NOTIFICATION_BATCH_SIZE: '200'
     steps:
       - name: Check out exact candidate
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -50,3 +53,5 @@ jobs:
       - run: npm run db:deploy
       - name: Real PostgreSQL F2 and F3 acceptance
         run: node --test services/api/scripts/f2-f3-postgres-acceptance.mjs services/api/scripts/f3-availability-boundaries-postgres.mjs
+      - name: Real PostgreSQL F4 automatic in-app availability acceptance
+        run: node --test services/api/scripts/f4-availability-notifications-postgres.mjs
