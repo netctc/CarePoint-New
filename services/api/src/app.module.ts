@@ -27,6 +27,7 @@ import { OnboardingModule } from "./modules/onboarding/onboarding.module";
 import { OrdersModule } from "./modules/orders/orders.module";
 import { ProvidersModule } from "./modules/providers/providers.module";
 import { SchedulingModule } from "./modules/scheduling/scheduling.module";
+import { AvailabilityRequestsModule } from "./modules/scheduling/availability-requests.module";
 import { SmartModule } from "./modules/smart/smart.module";
 import { TelehealthModule } from "./modules/telehealth/telehealth.module";
 import { TransportModule } from "./modules/transport/transport.module";
@@ -54,6 +55,7 @@ import { TransportModule } from "./modules/transport/transport.module";
     ConsentModule,
     AuditModule,
     SchedulingModule,
+    AvailabilityRequestsModule,
     TelehealthModule,
     ClinicalModule,
     OrdersModule,

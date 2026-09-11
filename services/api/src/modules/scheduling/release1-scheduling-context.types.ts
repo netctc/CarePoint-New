@@ -78,6 +78,7 @@ export type Release1BookingInput = {
   slotId: string;
   idempotencyKey: string;
   homeVisit?: HomeVisitBookingInput;
+  availabilityRequestId?: string;
 };
 
 export type DiscoveryInput = {

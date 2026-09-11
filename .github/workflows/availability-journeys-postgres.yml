@@ -1,0 +1,52 @@
+name: Availability Journeys PostgreSQL
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: availability-journeys-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  postgres-acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: carepoint
+          POSTGRES_PASSWORD: carepoint
+          POSTGRES_DB: carepoint_f3_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd="pg_isready -U carepoint -d carepoint_f3_test"
+          --health-interval=5s --health-timeout=5s --health-retries=10
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://carepoint:carepoint@127.0.0.1:5432/carepoint_f3_test?schema=public
+      CAREPOINT_JOURNEYS_DB_ACCEPTANCE: 'true'
+      SIEM_EXPORT_ENABLED: 'true'
+      RELEASE1_TEST_STRICT_VISIT_CONTEXT: 'true'
+    steps:
+      - name: Check out exact candidate
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Verify source and dependency identity
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          npm install --global npm@10.9.2
+          npm install --package-lock-only --ignore-scripts
+          node .ci/verify-npm-lock.mjs
+          npm ci
+          npm audit --audit-level=high
+      - run: npm run build
+      - run: npm run db:deploy
+      - name: Real PostgreSQL F2 and F3 acceptance
+        run: node --test services/api/scripts/f2-f3-postgres-acceptance.mjs
