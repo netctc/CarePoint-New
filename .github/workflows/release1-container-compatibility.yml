@@ -18,64 +18,105 @@ on:
 permissions:
   contents: read
 
+env:
+  CAREPOINT_CONTAINER_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
 jobs:
   build-containers:
     name: Build ${{ matrix.target }} container
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
         target: [api, admin]
     steps:
       - name: Checkout exact candidate
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          ref: ${{ env.CAREPOINT_CONTAINER_SOURCE_SHA }}
+
+      - name: Verify exact checkout identity
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = "$CAREPOINT_CONTAINER_SOURCE_SHA"
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
       - name: Build validation image without push
-        uses: docker/build-push-action@v6
+        id: build
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
           target: ${{ matrix.target }}
           push: false
           load: true
+          provenance: false
           tags: carepoint-${{ matrix.target }}:release1-validation
           build-args: |
-            RELEASE_SHA=${{ github.event.pull_request.head.sha || github.sha }}
+            RELEASE_SHA=${{ env.CAREPOINT_CONTAINER_SOURCE_SHA }}
             RELEASE_VERSION=release1-validation-${{ github.run_id }}
 
-      - name: Verify non-root runtime metadata and release labels
+      - name: Verify non-root runtime and content identity
         shell: bash
         run: |
           set -euo pipefail
           image="carepoint-${{ matrix.target }}:release1-validation"
-          expected_sha="${{ github.event.pull_request.head.sha || github.sha }}"
-          user="$(docker image inspect "$image" --format '{{.Config.User}}')"
+          expected_sha="$CAREPOINT_CONTAINER_SOURCE_SHA"
+          image_id="$(docker image inspect "$image" --format '{{.Id}}')"
+          action_image_id="${{ steps.build.outputs.imageid }}"
           revision="$(docker image inspect "$image" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')"
           version="$(docker image inspect "$image" --format '{{index .Config.Labels "org.opencontainers.image.version"}}')"
+          user="$(docker image inspect "$image" --format '{{.Config.User}}')"
 
+          [[ "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]]
+          test "$image_id" = "$action_image_id"
           test -n "$user"
           test "$user" != "0"
+          test "$user" != "root"
           test "$revision" = "$expected_sha"
           test -n "$version"
 
-          echo "target=${{ matrix.target }} user=$user revision=$revision version=$version"
-
-      - name: Export sanitized image metadata
+      - name: Export sanitized content-addressed image evidence
         shell: bash
         run: |
           set -euo pipefail
           image="carepoint-${{ matrix.target }}:release1-validation"
+          target="${{ matrix.target }}"
+          source_sha="$CAREPOINT_CONTAINER_SOURCE_SHA"
+          image_id="$(docker image inspect "$image" --format '{{.Id}}')"
+          user="$(docker image inspect "$image" --format '{{.Config.User}}')"
+          revision="$(docker image inspect "$image" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')"
+          version="$(docker image inspect "$image" --format '{{index .Config.Labels "org.opencontainers.image.version"}}')"
+          buildkit_digest="${{ steps.build.outputs.digest }}"
+          dockerfile_sha256="$(sha256sum Dockerfile | awk '{print $1}')"
+          dockerignore_sha256="$(sha256sum .dockerignore | awk '{print $1}')"
+
           mkdir -p container-evidence
-          docker image inspect "$image" \
-            --format 'target=${{ matrix.target }}\nimage_id={{.Id}}\nuser={{.Config.User}}\nrevision={{index .Config.Labels "org.opencontainers.image.revision"}}\nversion={{index .Config.Labels "org.opencontainers.image.version"}}' \
-            > "container-evidence/${{ matrix.target }}.txt"
+          cat > "container-evidence/${target}.json" <<EOF
+          {
+            "schema": "carepoint.release-container-compatibility/v1",
+            "target": "${target}",
+            "sourceSha": "${source_sha}",
+            "releaseVersion": "${version}",
+            "localImageId": "${image_id}",
+            "buildKitDigest": "${buildkit_digest}",
+            "runtimeUser": "${user}",
+            "ociRevision": "${revision}",
+            "dockerfileSha256": "${dockerfile_sha256}",
+            "dockerignoreSha256": "${dockerignore_sha256}",
+            "published": false,
+            "productionDeploymentEvidence": false
+          }
+          EOF
+
+          grep -q '"published": false' "container-evidence/${target}.json"
+          grep -q '"productionDeploymentEvidence": false' "container-evidence/${target}.json"
 
       - name: Upload compatibility evidence
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: release1-container-${{ matrix.target }}-${{ github.event.pull_request.head.sha || github.sha }}
-          path: container-evidence/${{ matrix.target }}.txt
+          name: release1-container-${{ matrix.target }}-${{ env.CAREPOINT_CONTAINER_SOURCE_SHA }}
+          path: container-evidence/${{ matrix.target }}.json
           if-no-files-found: error
           retention-days: 14
