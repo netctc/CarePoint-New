@@ -92,3 +92,45 @@ extension CarePointProviderOnboardingApi on CarePointApi {
   Future<Map<String, dynamic>> submitProviderOnboarding(String onboardingId) async =>
       _asMap(await _send('POST', '/onboarding/$onboardingId/submit', body: const {}));
 }
+
+/// F1 journey adapters reuse the session-aware transport, including its bounded
+/// one-refresh retry. They never create a second unauthenticated HTTP client.
+extension CarePointJourneyApi on CarePointApi {
+  Future<Map<String, dynamic>> discoverCare(Map<String, String> filters, {int page = 1}) async {
+    if (page < 1 || page > 1000) throw const CarePointApiException('Invalid discovery page.');
+    const allowed = {'q', 'specialty', 'providerClass', 'providerCategory', 'service', 'modality', 'location'};
+    return _asMap(await _send('GET', '/services/discovery', authenticated: false, query: {
+      for (final entry in filters.entries)
+        if (allowed.contains(entry.key) && entry.value.trim().isNotEmpty) entry.key: entry.value.trim(),
+      'page': '$page', 'limit': '20',
+    }));
+  }
+
+  Future<Map<String, dynamic>> bookCare(Map<String, dynamic> immutableIntent) async =>
+      _asMap(await _send('POST', '/bookings', body: immutableIntent));
+
+  Future<List<Map<String, dynamic>>> careLocations() async =>
+      _asList(await _send('GET', '/provider/locations'));
+  Future<Map<String, dynamic>> addCareLocation(Map<String, dynamic> input) async =>
+      _asMap(await _send('POST', '/provider/locations', body: input));
+  Future<Map<String, dynamic>> setCareLocationActive(String id, bool active) async =>
+      _asMap(await _send('PATCH', '/provider/locations/${Uri.encodeComponent(id)}/status', body: {'active': active}));
+  Future<Map<String, dynamic>> setCareDelivery(String serviceId, String modality, Map<String, dynamic> input) async {
+    if (modality != 'CLINIC' && modality != 'HOME_VISIT') throw const CarePointApiException('Unsupported delivery context.');
+    return _asMap(await _send('PATCH', '/provider/services/${Uri.encodeComponent(serviceId)}/delivery-context/$modality', body: input));
+  }
+  Future<List<Map<String, dynamic>>> careExceptions() async =>
+      _asList(await _send('GET', '/provider/availability/exceptions'));
+  Future<Map<String, dynamic>> addCareException(Map<String, dynamic> input) async =>
+      _asMap(await _send('POST', '/provider/availability/exceptions', body: input));
+  Future<Map<String, dynamic>> setCareExceptionActive(String id, bool active) async =>
+      _asMap(await _send('PATCH', '/provider/availability/exceptions/${Uri.encodeComponent(id)}/status', body: {'active': active}));
+  Future<Map<String, dynamic>> addBufferedCareRule(Map<String, dynamic> input) async =>
+      _asMap(await _send('POST', '/provider/availability/rules', body: input));
+  Future<Map<String, dynamic>> careSlotInventory({required DateTime from, required DateTime to, int page = 1}) async =>
+      _asMap(await _send('GET', '/provider/availability/inventory', query: {
+        'from': from.toUtc().toIso8601String(), 'to': to.toUtc().toIso8601String(), 'page': '$page',
+      }));
+  Future<Map<String, dynamic>> setCareSlotBlocked(String slotId, bool blocked) async =>
+      _asMap(await _send('POST', '/provider/availability/slots/${Uri.encodeComponent(slotId)}/${blocked ? 'block' : 'unblock'}', body: const {}));
+}

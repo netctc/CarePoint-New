@@ -4,6 +4,7 @@ import type { AuthPrincipal } from "@carepoint/identity";
 import { CurrentPrincipal, Public, RequirePermissions } from "../../security/api-security.module";
 import { ProviderCategoryCapabilityService } from "../providers/provider-category-capability.service";
 import { ProvidersModule } from "../providers/providers.module";
+import { ProviderSlotInventoryController } from "./provider-slot-inventory.controller";
 import { Release1AvailabilityPolicyService } from "./release1-availability-policy.service";
 import { Release1ContextualBookingService } from "./release1-contextual-booking.service";
 import { Release1LocationDiscoveryService } from "./release1-location-discovery.service";
@@ -111,7 +112,7 @@ class BookingController {
 
 @Module({
   imports: [ProvidersModule],
-  controllers: [ProviderLocationsController, ProviderServicesController, ProviderAvailabilityController, ProviderAppointmentsController, ServiceSearchController, AvailabilitySearchController, BookingController],
+  controllers: [ProviderSlotInventoryController, ProviderLocationsController, ProviderServicesController, ProviderAvailabilityController, ProviderAppointmentsController, ServiceSearchController, AvailabilitySearchController, BookingController],
   providers: [SchedulingService, Release1LocationDiscoveryService, Release1AvailabilityPolicyService, Release1ContextualBookingService, Release1SchedulingContextService],
 })
 export class SchedulingModule {}
