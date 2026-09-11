@@ -81,7 +81,12 @@ void main() {
     await open(tester, s);
     await tester.ensureVisible(find.widgetWithText(OutlinedButton, t('more')));
     await tester.tap(find.widgetWithText(OutlinedButton, t('more'))); await tester.pumpAndSettle();
-    expect(find.text('Clinic'), findsOneWidget); expect(find.text('Remote'), findsOneWidget); expect(find.text(t('more')), findsNothing);
+    // The service name intentionally equals the translated modality. Count the
+    // service/modality cards, not identical labels used in different contexts.
+    expect(find.byKey(const ValueKey('demand-service-a-CLINIC')), findsOneWidget);
+    expect(find.byKey(const ValueKey('demand-service-a-TELEMEDICINE')), findsOneWidget);
+    expect(find.byType(Card), findsNWidgets(2));
+    expect(find.text('Remote'), findsOneWidget); expect(find.text(t('more')), findsNothing);
   });
   testWidgets('F3.1 credential denial clears previously displayed demand', (tester) async {
     var calls = 0; final s = session((r) async { calls++; return calls == 1 ? json(page([row('Old demand')])) : json({'message': 'Denied'}, 403); });
