@@ -90,6 +90,10 @@ async function artifactEvidence(outputDir, fileName) {
   };
 }
 
+function isNonNegativeInteger(value) {
+  return Number.isInteger(value) && value >= 0;
+}
+
 const repoRoot = process.cwd();
 const outputDir = path.resolve(repoRoot, process.argv[2] || "rc-evidence");
 await mkdir(outputDir, { recursive: true });
@@ -119,6 +123,7 @@ const sourceFiles = [
   ".ci/flutter-pubspec-locks.sha256",
   ".ci/verify-container-supply-chain.mjs",
   ".ci/generate-release-change-inventory.mjs",
+  ".ci/generate-api-route-surface.mjs",
   "Dockerfile",
   ".dockerignore",
   "services/api/package.json",
@@ -143,9 +148,6 @@ if (!packageLock || !canonicalNpmContract || !canonicalNpmVerifier) {
   throw new Error("Required npm lock evidence files are missing from the Release Candidate source contracts.");
 }
 
-// Reuse the repository's canonical Phase C2 verifier instead of interpreting its
-// normalized digest as a raw package-lock.json byte hash. The raw lock SHA is
-// fingerprinted separately in the manifest for artifact correlation.
 const canonicalVerificationOutput = command(process.execPath, [".ci/verify-npm-lock.mjs"]);
 if (!canonicalVerificationOutput.includes("committed canonical npm dependency graph verified")) {
   throw new Error("Canonical npm dependency verification did not report a successful Phase C2 result.");
@@ -189,6 +191,62 @@ const changeEvidence = {
   generatedReleaseNotes: await artifactEvidence(outputDir, "release-notes.generated.md"),
 };
 
+const routeSurface = JSON.parse(await readFile(path.join(outputDir, "api-route-surface.json"), "utf8"));
+const routeDiff = JSON.parse(await readFile(path.join(outputDir, "api-route-surface-diff.json"), "utf8"));
+if (routeSurface.schema !== "carepoint.api-route-surface/v1") {
+  throw new Error("API route surface has an unsupported schema.");
+}
+if (routeDiff.schema !== "carepoint.api-route-surface-diff/v1") {
+  throw new Error("API route surface diff has an unsupported schema.");
+}
+if (routeSurface.sourceSha !== gitSha || routeDiff.candidateSha !== gitSha) {
+  throw new Error("API route surface evidence does not match the exact Release Candidate SHA.");
+}
+if (routeDiff.baseSha !== changeInventory.baseSha) {
+  throw new Error("API route surface diff base SHA does not match the Release change inventory base SHA.");
+}
+if (!Array.isArray(routeSurface.routes) || !isNonNegativeInteger(routeSurface.routeCount)
+    || routeSurface.routes.length !== routeSurface.routeCount) {
+  throw new Error("API route surface route count is inconsistent.");
+}
+if (!Array.isArray(routeDiff.addedRoutes) || !Array.isArray(routeDiff.removedRoutes)
+    || !isNonNegativeInteger(routeDiff.baseRouteCount)
+    || !isNonNegativeInteger(routeDiff.candidateRouteCount)
+    || !isNonNegativeInteger(routeDiff.addedRouteCount)
+    || !isNonNegativeInteger(routeDiff.removedRouteCount)
+    || routeDiff.candidateRouteCount !== routeSurface.routeCount
+    || routeDiff.addedRoutes.length !== routeDiff.addedRouteCount
+    || routeDiff.removedRoutes.length !== routeDiff.removedRouteCount
+    || routeDiff.hasRemovedRoutes !== (routeDiff.removedRouteCount > 0)) {
+  throw new Error("API route surface diff counts are inconsistent.");
+}
+if (routeSurface.evidenceBoundaries?.generatedOfflineFromTypeScriptAst !== true
+    || routeSurface.evidenceBoundaries?.applicationStarted !== false
+    || routeSurface.evidenceBoundaries?.databaseOrProviderAccessRequired !== false
+    || routeSurface.evidenceBoundaries?.includesRequestResponseSchemas !== false
+    || routeSurface.evidenceBoundaries?.fullOpenApiSchema !== false) {
+  throw new Error("API route surface evidence boundaries are not fail-closed.");
+}
+if (routeDiff.evidenceBoundaries?.routeIdentityOnly !== true
+    || routeDiff.evidenceBoundaries?.includesRequestResponseSchemas !== false
+    || routeDiff.evidenceBoundaries?.fullOpenApiSchemaDiff !== false
+    || routeDiff.evidenceBoundaries?.removedRoutesRequireReleaseReview !== true) {
+  throw new Error("API route surface diff boundaries are not fail-closed.");
+}
+
+const apiSurfaceEvidence = {
+  globalPrefix: routeSurface.globalPrefix,
+  routeCount: routeSurface.routeCount,
+  baseRouteCount: routeDiff.baseRouteCount,
+  candidateRouteCount: routeDiff.candidateRouteCount,
+  addedRouteCount: routeDiff.addedRouteCount,
+  removedRouteCount: routeDiff.removedRouteCount,
+  hasRemovedRoutes: routeDiff.hasRemovedRoutes,
+  routeSurface: await artifactEvidence(outputDir, "api-route-surface.json"),
+  routeDiff: await artifactEvidence(outputDir, "api-route-surface-diff.json"),
+  summary: await artifactEvidence(outputDir, "api-route-surface-summary.md"),
+};
+
 const manifest = {
   schema: "carepoint.release-candidate-evidence/v1",
   purpose,
@@ -221,11 +279,13 @@ const manifest = {
   },
   migrationEvidence: await migrationEvidence(repoRoot),
   changeEvidence,
+  apiSurfaceEvidence,
   sourceContracts,
   buildEvidence: artifacts,
   releaseBoundaries: {
     evidenceBundleIsProductionDeploymentArtifact: false,
     changeInventoryIsSourceEvidenceOnly: true,
+    apiRouteSurfaceIsNotFullOpenApiSchema: true,
     containerCompatibilityIsSourceSideEvidenceOnly: true,
     finalApiAdminArtifactDigestStillRequired: true,
     finalContainerRegistryProvenanceStillRequired: true,
@@ -246,6 +306,9 @@ const checksumEntries = [
   ...artifacts,
   changeEvidence.inventory,
   changeEvidence.generatedReleaseNotes,
+  apiSurfaceEvidence.routeSurface,
+  apiSurfaceEvidence.routeDiff,
+  apiSurfaceEvidence.summary,
   manifestDigest,
 ]
   .sort((a, b) => a.file.localeCompare(b.file))
@@ -259,5 +322,8 @@ console.log(JSON.stringify({
   sourceSha: gitSha,
   purpose,
   manifestSha256: manifestDigest.sha256,
-  artifactCount: artifacts.length + 3,
+  artifactCount: artifacts.length + 6,
+  apiRouteCount: routeSurface.routeCount,
+  apiRoutesAdded: routeDiff.addedRouteCount,
+  apiRoutesRemoved: routeDiff.removedRouteCount,
 }));
