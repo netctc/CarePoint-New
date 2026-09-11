@@ -36,16 +36,16 @@ export class SmartBackendService {
   async exchange(input: Input): Promise<Record<string, unknown>> {
     const grantType = this.required(input.grant_type, "grant_type", 50);
     if (grantType !== "client_credentials") {
-      return this.oauthError("unsupported_grant_type", "SMART backend authorization requires grant_type=client_credentials.");
+      return this.rejectTokenRequest("unsupported_grant_type", "SMART backend authorization requires grant_type=client_credentials.");
     }
 
     const authenticated = await this.authenticateClient(input, this.config.tokenEndpointUrl());
     const scopes = this.scopes(this.required(input.scope, "scope", 4000));
     for (const scope of scopes) {
       if (!authenticated.client.allowedScopes.includes(scope)) {
-        this.oauthError("invalid_scope", `SMART backend scope '${scope}' is not registered for this client.`);
+        this.rejectTokenRequest("invalid_scope", `SMART backend scope '${scope}' is not registered for this client.`);
       }
-      if (!scope.startsWith("system/")) this.oauthError("invalid_scope", "SMART backend grants support system scopes only.");
+      if (!scope.startsWith("system/")) this.rejectTokenRequest("invalid_scope", "SMART backend grants support system scopes only.");
     }
 
     const token = randomToken(48);
@@ -114,51 +114,51 @@ export class SmartBackendService {
   private async authenticateClient(input: Input, audience: string): Promise<VerifiedBackendClient> {
     const clientId = this.required(input.client_id, "client_id", 128);
     const client = this.config.backendClient(clientId);
-    if (!client || client.clientId !== clientId) this.oauthError("invalid_client", "Unknown SMART backend client_id.");
+    if (!client || client.clientId !== clientId) this.rejectTokenRequest("invalid_client", "Unknown SMART backend client_id.");
     const assertionType = this.required(input.client_assertion_type, "client_assertion_type", 200);
     if (assertionType !== CLIENT_ASSERTION_TYPE) {
-      this.oauthError("invalid_client", "SMART backend clients must use private_key_jwt client assertions.");
+      this.rejectTokenRequest("invalid_client", "SMART backend clients must use private_key_jwt client assertions.");
     }
     const assertion = this.required(input.client_assertion, "client_assertion", 12000);
     const parts = assertion.split(".");
     if (parts.length !== 3 || parts.some((part) => !part || !/^[A-Za-z0-9_-]+$/.test(part))) {
-      this.oauthError("invalid_client", "SMART backend client assertion is not a valid compact JWT.");
+      this.rejectTokenRequest("invalid_client", "SMART backend client assertion is not a valid compact JWT.");
     }
 
     const header = this.jwtObject(parts[0] as string, "client assertion header");
-    if (header.alg !== "RS384") this.oauthError("invalid_client", "SMART backend client assertions must use RS384.");
-    if (header.typ !== undefined && header.typ !== "JWT") this.oauthError("invalid_client", "SMART backend client assertion typ must be JWT when supplied.");
+    if (header.alg !== "RS384") this.rejectTokenRequest("invalid_client", "SMART backend client assertions must use RS384.");
+    if (header.typ !== undefined && header.typ !== "JWT") this.rejectTokenRequest("invalid_client", "SMART backend client assertion typ must be JWT when supplied.");
     if (header.jku !== undefined || header.jwk !== undefined || header.x5u !== undefined) {
-      this.oauthError("invalid_client", "SMART backend client assertion must use only pre-registered key material.");
+      this.rejectTokenRequest("invalid_client", "SMART backend client assertion must use only pre-registered key material.");
     }
     const kid = this.claimString(header.kid, "kid", 128);
     const jwk = client.jwks.keys.find((key) => key.kid === kid);
-    if (!jwk) this.oauthError("invalid_client", "SMART backend client assertion key is not registered.");
+    if (!jwk) this.rejectTokenRequest("invalid_client", "SMART backend client assertion key is not registered.");
 
     // The unverified header only selects an already registered key. Authenticate
     // the signed bytes before interpreting claims or accepting an identity.
     if (!this.verifyAssertion(parts[0] as string, parts[1] as string, parts[2] as string, jwk as SmartBackendJwk)) {
-      this.oauthError("invalid_client", "SMART backend client assertion signature is invalid.");
+      this.rejectTokenRequest("invalid_client", "SMART backend client assertion signature is invalid.");
     }
 
     const claims = this.jwtObject(parts[1] as string, "client assertion claims");
     if (claims.iss !== client.clientId || claims.sub !== client.clientId) {
-      this.oauthError("invalid_client", "SMART backend assertion iss and sub must match the registered client identity.");
+      this.rejectTokenRequest("invalid_client", "SMART backend assertion iss and sub must match the registered client identity.");
     }
     if (!this.audienceMatches(claims.aud, audience)) {
-      this.oauthError("invalid_client", "SMART backend assertion audience is invalid.");
+      this.rejectTokenRequest("invalid_client", "SMART backend assertion audience is invalid.");
     }
     const now = Math.floor(Date.now() / 1000);
     const issuedAt = this.numericDate(claims.iat, "iat");
     const expiresAt = this.numericDate(claims.exp, "exp");
     if (issuedAt > now + CLIENT_ASSERTION_CLOCK_SKEW_SECONDS || issuedAt < now - CLIENT_ASSERTION_MAX_LIFETIME_SECONDS) {
-      this.oauthError("invalid_client", "SMART backend client assertion iat is outside the accepted window.");
+      this.rejectTokenRequest("invalid_client", "SMART backend client assertion iat is outside the accepted window.");
     }
     if (expiresAt <= now || expiresAt > issuedAt + CLIENT_ASSERTION_MAX_LIFETIME_SECONDS) {
-      this.oauthError("invalid_client", "SMART backend client assertion exp is invalid.");
+      this.rejectTokenRequest("invalid_client", "SMART backend client assertion exp is invalid.");
     }
     const jti = this.claimString(claims.jti, "jti", 256);
-    if (jti.length < 16) this.oauthError("invalid_client", "SMART backend client assertion jti is too short.");
+    if (jti.length < 16) this.rejectTokenRequest("invalid_client", "SMART backend client assertion jti is too short.");
 
     const replayTtl = Math.max(1, Math.min(CLIENT_ASSERTION_MAX_LIFETIME_SECONDS, expiresAt - now));
     const jtiHash = tokenHash(jti);
@@ -167,7 +167,7 @@ export class SmartBackendService {
       JSON.stringify({ clientId: client.clientId, audience, expiresAt }),
       replayTtl,
     );
-    if (!claimed) this.oauthError("invalid_client", "SMART backend client assertion was already used.");
+    if (!claimed) this.rejectTokenRequest("invalid_client", "SMART backend client assertion was already used.");
 
     await this.audit.write({
       actorId: null,
@@ -227,7 +227,7 @@ export class SmartBackendService {
     } catch {
       // handled below
     }
-    return this.oauthError("invalid_client", `SMART backend ${label} is invalid.`);
+    return this.rejectTokenRequest("invalid_client", `SMART backend ${label} is invalid.`);
   }
 
   private audienceMatches(value: unknown, expected: string): boolean {
@@ -237,34 +237,34 @@ export class SmartBackendService {
 
   private numericDate(value: unknown, name: string): number {
     if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1) {
-      this.oauthError("invalid_client", `SMART backend client assertion ${name} is invalid.`);
+      this.rejectTokenRequest("invalid_client", `SMART backend client assertion ${name} is invalid.`);
     }
     return value as number;
   }
 
   private claimString(value: unknown, name: string, maxLength: number): string {
     if (typeof value !== "string" || !value.trim() || value.length > maxLength) {
-      this.oauthError("invalid_client", `SMART backend client assertion ${name} is invalid.`);
+      this.rejectTokenRequest("invalid_client", `SMART backend client assertion ${name} is invalid.`);
     }
     return value.trim();
   }
 
   private scopes(value: string): string[] {
     const scopes = value.split(/\s+/).map((scope) => scope.trim()).filter(Boolean);
-    if (scopes.length < 1 || scopes.length > 20) this.oauthError("invalid_scope", "SMART backend scope is invalid.");
-    if (new Set(scopes).size !== scopes.length) this.oauthError("invalid_scope", "SMART backend scopes must not be repeated.");
+    if (scopes.length < 1 || scopes.length > 20) this.rejectTokenRequest("invalid_scope", "SMART backend scope is invalid.");
+    if (new Set(scopes).size !== scopes.length) this.rejectTokenRequest("invalid_scope", "SMART backend scopes must not be repeated.");
     return scopes;
   }
 
   private required(value: unknown, name: string, maxLength: number): string {
-    if (Array.isArray(value)) this.oauthError("invalid_request", `SMART ${name} must not be repeated.`);
-    if (typeof value !== "string" || !value.trim()) this.oauthError("invalid_request", `SMART ${name} is required.`);
+    if (Array.isArray(value)) this.rejectTokenRequest("invalid_request", `SMART ${name} must not be repeated.`);
+    if (typeof value !== "string" || !value.trim()) this.rejectTokenRequest("invalid_request", `SMART ${name} is required.`);
     const result = value.trim();
-    if (result.length > maxLength) this.oauthError("invalid_request", `SMART ${name} exceeds ${maxLength} characters.`);
+    if (result.length > maxLength) this.rejectTokenRequest("invalid_request", `SMART ${name} exceeds ${maxLength} characters.`);
     return result;
   }
 
-  private oauthError(error: string, description: string): never {
+  private rejectTokenRequest(error: string, description: string): never {
     throw new BadRequestException({ error, error_description: description });
   }
 }
