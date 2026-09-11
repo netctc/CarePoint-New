@@ -88,6 +88,37 @@ try {
   const doctorVerified = await enrollAndVerify(doctor);
   const providerVerified = await enrollAndVerify(provider);
 
+  const serverStateUser = await createAccount("ADMIN", "server-state-dispatch");
+  const serverStateLogin = await strictLogin(serverStateUser);
+  assert(serverStateLogin.payload.requiresMfa === true, "Server-state MFA regression account did not require enrollment.");
+  const neutralChallengeId = `mfa_${run}-server-state`;
+  await prisma.authChallenge.create({
+    data: { id: neutralChallengeId, userId: serverStateUser.id, type: "MFA_LOGIN", expiresAt: new Date(Date.now() + 4 * 60 * 1000) },
+  });
+  const serverStateSetup = await beginEnrollment(neutralChallengeId);
+  const serverStateVerify = await request(strictBase, "/iam/mfa/verify", {
+    method: "POST",
+    body: JSON.stringify({ challengeId: neutralChallengeId, code: totpCode(serverStateSetup.secret) }),
+  });
+  assert(serverStateVerify.status === 201 || serverStateVerify.status === 200, `Persisted MFA state did not drive required enrollment: ${serverStateVerify.status} ${serverStateVerify.text}`);
+  const enabledServerState = await prisma.mfaEnrollment.findUnique({ where: { userId: serverStateUser.id } });
+  assert(enabledServerState?.enabledAt, "Required MFA enrollment was not persisted after server-state verification.");
+
+  const enrollmentShapedChallengeId = `mfaenroll_${run}-already-enabled`;
+  await prisma.authChallenge.create({
+    data: { id: enrollmentShapedChallengeId, userId: serverStateUser.id, type: "MFA_LOGIN", expiresAt: new Date(Date.now() + 4 * 60 * 1000) },
+  });
+  const forcedEnrollment = await request(strictBase, "/iam/mfa/enrollment/start", {
+    method: "POST",
+    body: JSON.stringify({ challengeId: enrollmentShapedChallengeId }),
+  });
+  assert(forcedEnrollment.status === 409, `Challenge identifier shape overrode persisted MFA enrollment state: ${forcedEnrollment.status}.`);
+  const ordinaryVerify = await request(strictBase, "/iam/mfa/verify", {
+    method: "POST",
+    body: JSON.stringify({ challengeId: enrollmentShapedChallengeId, code: totpCode(serverStateSetup.secret) }),
+  });
+  assert(ordinaryVerify.status === 201 || ordinaryVerify.status === 200, `Enabled MFA was not verified from persisted server state: ${ordinaryVerify.status} ${ordinaryVerify.text}`);
+
   const supportLogin = await strictLogin(support);
   assert(supportLogin.payload.requiresMfa === true && supportLogin.payload.challengeId?.startsWith("mfaenroll_"), "SUPPORT did not require MFA enrollment.");
   const supportSetup = await beginEnrollment(supportLogin.payload.challengeId);
@@ -124,7 +155,7 @@ try {
 
   const auditRows = await prisma.auditEvent.findMany({ where: { actorId: { in: createdIds } }, select: { action: true, metadata: true } });
   const auditText = JSON.stringify(auditRows);
-  for (const secret of [adminVerified.setup.secret, doctorVerified.setup.secret, providerVerified.setup.secret, supportSetup.secret]) {
+  for (const secret of [adminVerified.setup.secret, doctorVerified.setup.secret, providerVerified.setup.secret, serverStateSetup.secret, supportSetup.secret]) {
     assert(!auditText.includes(secret), "MFA setup secret leaked into audit evidence.");
   }
   assert(auditRows.some((row) => row.action === "MFA_POLICY_ENROLLMENT_REQUIRED"), "MFA policy denial was not audited.");
@@ -137,6 +168,7 @@ try {
     patientMfaRiskConfigRemainsOptional: true,
     noPasswordOnlyPrivilegedSession: true,
     restrictedEnrollmentBootstrap: true,
+    challengePurposeBoundToPersistedServerState: true,
     mfaAssuredSessionMarker: true,
     concurrentReplayDenied: true,
     enrollmentResetRevokesAccessAndRefresh: true,
