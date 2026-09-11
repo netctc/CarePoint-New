@@ -9,7 +9,7 @@ import 'package:carepoint_mobile_core/care_visits.dart';
 import 'package:carepoint_mobile_core/care_journeys_localization.dart';
 import 'package:carepoint_mobile_core/transport_localization.dart';
 import 'package:carepoint_mobile_core/availability_centre.dart';
-import 'package:carepoint_mobile_core/availability_requests_localization.dart';
+import 'package:carepoint_mobile_core/availability_alert_entry.dart';
 import 'package:flutter/material.dart';
 import 'clinical_timeline.dart';
 import 'patient_account.dart';
@@ -43,8 +43,8 @@ class PatientShell extends StatefulWidget {
 }
 class _PatientShellState extends State<PatientShell> {
   int tab = 0, visitsVersion = 0;
-  Future<void> openAvailability() async {
-    final booked = await Navigator.push<bool>(context, MaterialPageRoute(builder: (_) => CareAvailabilityCentrePage(session: widget.session, locale: widget.locale)));
+  Future<void> openAvailability({String? requestId}) async {
+    final booked = await Navigator.push<bool>(context, MaterialPageRoute(builder: (_) => CareAvailabilityCentrePage(session: widget.session, locale: widget.locale, focusRequestId: requestId)));
     if (mounted && booked == true) setState(() { visitsVersion++; tab = 1; });
   }
   @override
@@ -55,7 +55,7 @@ class _PatientShellState extends State<PatientShell> {
         FilledButton.icon(onPressed: () => openEmergencyAmbulanceFlow(context, session: widget.session, locale: widget.locale), icon: const Icon(Icons.emergency_share_outlined), label: Text(cpText(widget.locale, 'patient.emergencyAction'))),
         Text(cpText(widget.locale, 'patient.emergencyHint')),
         OutlinedButton.icon(onPressed: () => Navigator.push<void>(context, MaterialPageRoute(builder: (_) => Directionality(textDirection: widget.locale.textDirection, child: PatientMedicalTransportPage(session: widget.session, locale: widget.locale)))), icon: const Icon(Icons.local_shipping_outlined), label: Text(transportText(widget.locale, 'schedule'))),
-        OutlinedButton.icon(onPressed: openAvailability, icon: const Icon(Icons.notifications_none), label: Text(availabilityText(widget.locale, 'centre'))),
+        AvailabilityAlertEntryButton(session: widget.session, locale: widget.locale, onOpen: (requestId) => openAvailability(requestId: requestId)),
       ]))),
       CareVisitsPage(key: ValueKey(visitsVersion), session: widget.session, locale: widget.locale),
       PatientClinicalTimelinePage(session: widget.session, locale: widget.locale),
