@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { after } from 'node:test';
 import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 const require = createRequire(import.meta.url);
 const { DatabaseAuditService } = require('../dist/infrastructure/audit/audit.service.js');
 const { SiemAuditOutboxStoreService } = require('../dist/infrastructure/siem/siem-audit-outbox-store.service.js');
@@ -10,8 +10,8 @@ const { PatientJourneysService } = require('../dist/modules/scheduling/patient-j
 const { AvailabilityRequestsService } = require('../dist/modules/scheduling/availability-requests.service.js');
 const { Release1ContextualBookingService } = require('../dist/modules/scheduling/release1-contextual-booking.service.js');
 
-// Synthetic, non-production fixtures only. This suite never truncates tables,
-// removes history, disables triggers, contacts a gateway, or clears audit data.
+// Synthetic, non-production fixtures only. Never truncate, remove history,
+// disable triggers, contact a gateway, or clear audit data.
 const url = new URL(process.env.DATABASE_URL || 'postgresql://invalid/invalid');
 assert.equal(process.env.NODE_ENV, 'test');
 assert.equal(process.env.CAREPOINT_JOURNEYS_DB_ACCEPTANCE, 'true');
@@ -80,6 +80,8 @@ export async function state(f) {
     invoices: await db.invoice.findMany({ where, orderBy }),
     audits: await db.auditEvent.findMany({ where: { actorId: f.actor.accountId }, orderBy }),
     deliveries: await db.siemAuditDelivery.findMany({ where: { auditEvent: { actorId: f.actor.accountId } }, orderBy }),
+    signals: await db.$queryRaw(Prisma.sql`SELECT s.* FROM "AppointmentLifecycleSignal" s JOIN "Appointment" a ON a.id = s."appointmentId" WHERE a."patientId" = ${f.patientId} ORDER BY s.id`),
+    reminders: await db.$queryRaw(Prisma.sql`SELECT s.* FROM "AppointmentReminderSchedule" s JOIN "Appointment" a ON a.id = s."appointmentId" WHERE a."patientId" = ${f.patientId} ORDER BY s.id`),
   };
 }
 export function failingJourneys() {

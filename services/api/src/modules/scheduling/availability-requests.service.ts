@@ -49,7 +49,6 @@ export class AvailabilityRequestsService {
     await this.audit.writeInTransaction(tx, { actorId: principal.accountId, action, objectType: "AVAILABILITY_REQUEST", objectId: id, purpose: "PATIENT_SCHEDULING", result: "SUCCESS", metadata: { source: "F3_IN_APP", consentVersion: AVAILABILITY_CONSENT_VERSION } });
   }
   async join(principal: AuthPrincipal, input: unknown) {
-    // Reject other roles before parsing or querying any patient state.
     if (principal.role !== "PATIENT") throw new ForbiddenException("Patient access is required.");
     const parsed = availabilityInput(input);
     return this.serial(async (tx) => {
@@ -107,16 +106,17 @@ export class AvailabilityRequestsService {
         AND NOT EXISTS (SELECT 1 FROM "AvailabilityException" e WHERE e."providerId" = s."providerId" AND e.active
           AND (e."serviceId" IS NULL OR e."serviceId" = s."serviceId") AND (e.modality IS NULL OR e.modality = s.modality)
           AND e."startsAt" < s."endsAt" AND e."endsAt" > s."startsAt")
-        AND NOT EXISTS (SELECT 1 FROM "Appointment" a WHERE a."patientId" = ${entry.patientId}
+        AND NOT EXISTS (SELECT 1 FROM "Appointment" a WHERE (a."patientId" = ${entry.patientId} OR a."providerId" = ${entry.providerId})
           AND a.status IN ('REQUESTED','CONFIRMED') AND a."startsAt" < s."endsAt" AND a."endsAt" > s."startsAt")
       ORDER BY s."startsAt", s.id LIMIT 101`);
     const delivery = await db.serviceDeliveryContext.findUnique({ where: { serviceId_modality: { serviceId: service.id, modality: entry.modality } } });
     const location = delivery?.clinicLocationId ? await db.providerLocation.findUnique({ where: { id: delivery.clinicLocationId } }) : null;
-    if (entry.modality === "CLINIC" && (!location?.active || !location.addressValidatedAt || location.providerId !== entry.providerId)) return { items: [] as OpenSlot[], service: null, truncated: false };
+    const instructions = delivery?.clinicArrivalInstructions?.trim() || location?.arrivalInstructions?.trim();
+    if (entry.modality === "CLINIC" && (!location?.active || !location.addressValidatedAt || location.providerId !== entry.providerId || !instructions)) return { items: [] as OpenSlot[], service: null, truncated: false };
     const locationView = location ? { id: location.id, addressLine1: location.addressLine1, addressLine2: location.addressLine2, city: location.city, region: location.region, postalCode: location.postalCode, countryCode: location.countryCode, latitude: Number(location.latitude), longitude: Number(location.longitude) } : null;
     return {
       items: rows.slice(0, 100), truncated: rows.length > 100,
-      service: { id: service.id, name: service.name, labels: service.labels, currency: service.currency, provider: { id: service.provider.id, displayName: service.provider.displayName }, modalities: service.modalities.filter((m) => m.active).map((m) => ({ modality: m.modality, durationMinutes: m.durationMinutes, priceMinor: m.priceMinor })), deliveryContexts: locationView ? [{ modality: "CLINIC", clinic: { location: locationView, arrivalInstructions: delivery?.clinicArrivalInstructions || location?.arrivalInstructions } }] : [] },
+      service: { id: service.id, name: service.name, labels: service.labels, currency: service.currency, provider: { id: service.provider.id, displayName: service.provider.displayName }, modalities: service.modalities.filter((m) => m.active).map((m) => ({ modality: m.modality, durationMinutes: m.durationMinutes, priceMinor: m.priceMinor })), deliveryContexts: locationView ? [{ modality: "CLINIC", clinic: { location: locationView, arrivalInstructions: instructions } }] : [] },
     };
   }
   async matches(principal: AuthPrincipal, rawId: string) {
