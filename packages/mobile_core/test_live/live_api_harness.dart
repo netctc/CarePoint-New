@@ -118,16 +118,27 @@ Future<void> waitForLive(WidgetTester tester, bool Function() ready, String stag
   while (elapsed.elapsed < const Duration(seconds: 15)) {
     await tester.pump(const Duration(milliseconds: 50));
     expect(tester.takeException(), isNull, reason: stage);
-    if (ready()) { await tester.pump(const Duration(milliseconds: 350)); return; }
+    if (ready()) {
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pump();
+      return;
+    }
     // Called only inside runAsync, so network I/O and the deadline use real time.
     await Future<void>.delayed(const Duration(milliseconds: 25));
   }
   fail('Timed out waiting for live stage: $stage');
 }
 Future<void> pressLive(WidgetTester tester, Finder finder) async {
+  await tester.pump();
   await tester.ensureVisible(finder);
-  await tester.tap(finder);
+  // A menu label can exist while its route is still outside the hit-test area.
+  // Wait for an actual reachable target rather than suppressing missed taps.
+  await waitForLive(tester, () => finder.hitTestable().evaluate().length == 1, 'hit-testable action');
+  await tester.tap(finder.hitTestable());
+  await tester.pump();
   await tester.pump(const Duration(milliseconds: 350));
+  await tester.pump();
 }
 Future<void> openLivePage(WidgetTester tester, Widget page) async {
   await tester.pumpWidget(MaterialApp(key: UniqueKey(), home: Builder(builder: (context) => Scaffold(body: TextButton(

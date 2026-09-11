@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { readFile, writeFile, realpath, lstat } from 'node:fs/promises';
+import { constants } from 'node:fs';
+import { open, writeFile, realpath } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { hashPasswordAsync } from '@carepoint/identity';
 import { db, id, account, provider, service } from './f3-http-fixture.mjs';
@@ -22,10 +23,18 @@ assert.match(sourceCommit, /^[a-f0-9]{40}$/);
 const keys = ['book', 'retry', 'withdraw', 'isolation'];
 
 async function readPrivate(path) {
-  const stat = await lstat(path);
-  assert.ok(stat.isFile() && !stat.isSymbolicLink() && stat.size < 100000);
-  assert.equal(stat.mode & 0o077, 0, 'Synthetic credentials/results must not be group/world readable');
-  return JSON.parse(await readFile(path, 'utf8'));
+  // Open once without following links, then inspect and read that descriptor.
+  // A pathname replacement cannot change the already validated file handle.
+  const file = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+  try {
+    const stat = await file.stat();
+    assert.ok(stat.isFile() && stat.size < 100000);
+    assert.equal(stat.mode & 0o077, 0, 'Synthetic credentials/results must not be group/world readable');
+    const buffer = Buffer.alloc(100000);
+    const { bytesRead } = await file.read(buffer, 0, buffer.length, 0);
+    assert.ok(bytesRead < buffer.length, 'Synthetic fixture exceeds the read limit');
+    return JSON.parse(buffer.subarray(0, bytesRead).toString('utf8'));
+  } finally { await file.close(); }
 }
 async function prepare() {
   const password = `Synthetic-Mobile!${id()}Aa9`;

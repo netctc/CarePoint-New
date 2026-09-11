@@ -80,11 +80,16 @@ Future<String> bookThroughUi(WidgetTester tester, LiveActor patient, String requ
   patient.client.loseNextBookingReply = loseReply;
   await pressLive(tester, find.widgetWithText(FilledButton, j(locale, 'confirm')));
   if (loseReply) {
-    await waitForLive(tester, () => find.widgetWithText(FilledButton, j(locale, 'retry')).evaluate().isNotEmpty, 'ambiguous successful booking reply');
+    // The disabled retry widget is already built while the first HTTP request
+    // is pending. Wait for the real committed reply loss and enabled action.
+    final retry = find.widgetWithText(FilledButton, j(locale, 'retry'));
+    await waitForLive(tester, () => patient.client.committedRepliesLost == 1 &&
+      retry.evaluate().length == 1 && tester.widget<FilledButton>(retry).onPressed != null,
+      'ambiguous successful booking reply');
     expect(patient.client.committedRepliesLost, 1);
     expect(patient.client.bookingBodies.length, 1);
     expect((await patient.api.myAppointments()).length, 1);
-    await pressLive(tester, find.widgetWithText(FilledButton, j(locale, 'retry')));
+    await pressLive(tester, retry);
   }
   await waitForLive(tester, () => find.byType(CareAvailabilityCentrePage).evaluate().isEmpty && find.byType(CareSlotsPage).evaluate().isEmpty, 'booking navigation completed');
   expect(patient.client.bookingBodies.length, loseReply ? 2 : 1);
@@ -98,6 +103,7 @@ Future<String> bookThroughUi(WidgetTester tester, LiveActor patient, String requ
 
 void main() {
   LocalLiveApiBinding();
+  WidgetController.hitTestWarningShouldBeFatal = true;
   late LiveFixture fixture;
   setUpAll(() async { fixture = await LiveFixture.read(); });
   tearDownAll(() async { await fixture.writeResults(); });
