@@ -54,7 +54,13 @@ function harness() {
         if (!row || row.patientId !== where.patientId || row.status !== where.status || row.releasedToPatient !== where.releasedToPatient) return null;
         return { id: row.id, kind: row.kind, providerId: row.providerId, createdByAccountId: row.createdByAccountId };
       },
-      findUnique: async ({ where }) => documents.get(where.id) ?? null,
+      // Prisma query results are snapshots. Return a copy so the later
+      // releaseDocument mutation cannot retroactively alter the pre-release
+      // state used by releaseProviderDocument's notification decision.
+      findUnique: async ({ where }) => {
+        const row = documents.get(where.id);
+        return row ? { ...row } : null;
+      },
     },
     patientProfile: {
       findUnique: async ({ where }) => {
