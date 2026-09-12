@@ -79,14 +79,22 @@ void main() {
     expect(find.text('10 mg'), findsOneWidget);
     expect(find.text('Tablet'), findsOneWidget);
     expect(find.text('Take one tablet with water'), findsOneWidget);
-    expect(find.text('Oral'), findsOneWidget);
-    expect(find.text('Twice daily'), findsOneWidget);
-    expect(find.text('7 days'), findsOneWidget);
-    expect(find.text('14'), findsOneWidget);
-    expect(find.text('1'), findsOneWidget);
-    expect(find.text('Synthetic indication'), findsOneWidget);
-    expect(find.text('Do not double a missed dose'), findsOneWidget);
     expect(find.text('Active signed prescription'), findsOneWidget);
+
+    final scrollable = find.byType(Scrollable).first;
+    for (final text in [
+      'Oral',
+      'Twice daily',
+      '7 days',
+      '14',
+      '1',
+      'Synthetic indication',
+      'Do not double a missed dose',
+    ]) {
+      await tester.scrollUntilVisible(find.text(text), 180, scrollable: scrollable);
+      expect(find.text(text), findsOneWidget);
+    }
+
     expect(find.textContaining('rx-1'), findsNothing);
     expect(find.text(orderText(CarePointLocale.en, 'cancel')), findsNothing);
     expect(find.byType(TextField), findsNothing);

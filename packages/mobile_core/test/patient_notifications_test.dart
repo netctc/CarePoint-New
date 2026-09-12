@@ -292,7 +292,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(calls, contains('GET /api/v1/clinical-orders/unowned-order-id'));
     expect(find.byKey(const ValueKey('patient-clinical-order-unavailable')), findsOneWidget);
-    expect(find.text('This laboratory result is not available to this account.'), findsOneWidget);
+    expect(find.text('This clinical order is not available to this account.'), findsOneWidget);
     expect(find.textContaining('unowned-order-id'), findsNothing);
     expect(find.textContaining('Clinical order access denied'), findsNothing);
   });
