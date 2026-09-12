@@ -53,6 +53,7 @@ export class PatientDocumentInboxService {
       const internal = internalById.get(documentId);
       return {
         ...row,
+        id: documentId,
         firstOpenedAt: receipt?.firstOpenedAt ?? null,
         acknowledgedAt: receipt?.acknowledgedAt ?? null,
         opened: receipt?.firstOpenedAt != null,
