@@ -1,6 +1,6 @@
 import 'package:carepoint_mobile_core/carepoint_api.dart';
 import 'package:carepoint_mobile_core/carepoint_localization.dart';
-import 'package:carepoint_mobile_core/clinical_documents.dart';
+import 'package:carepoint_mobile_core/patient_document_centre.dart';
 import 'package:carepoint_mobile_core/clinical_localization.dart';
 import 'package:carepoint_mobile_core/clinical_orders.dart';
 import 'package:carepoint_mobile_core/communications_localization.dart';
@@ -37,8 +37,9 @@ class _PatientClinicalTimelinePageState extends State<PatientClinicalTimelinePag
       Row(children: [const Icon(Icons.lock_outline, size: 17, color: Color(0xFF10B981)), const SizedBox(width: 6), Text(clinicalText(widget.locale, 'encrypted'), style: const TextStyle(color: Color(0xFF475569)))]),
       const SizedBox(height: 12),
       OutlinedButton.icon(
-        onPressed: () => Navigator.push<void>(context, MaterialPageRoute(builder: (_) => Directionality(textDirection: widget.locale.textDirection, child: PatientClinicalDocumentsPage(session: widget.session, locale: widget.locale)))),
-        icon: const Icon(Icons.folder_shared_outlined), label: Text(documentText(widget.locale, 'title')),
+        key: const ValueKey('patient-document-centre-entry'),
+        onPressed: () => Navigator.push<void>(context, MaterialPageRoute(builder: (_) => Directionality(textDirection: widget.locale.textDirection, child: PatientDocumentCentrePage(session: widget.session, locale: widget.locale)))),
+        icon: const Icon(Icons.folder_shared_outlined), label: Text(patientDocumentCentreText(widget.locale, 'title')),
       ),
       const SizedBox(height: 8),
       OutlinedButton.icon(

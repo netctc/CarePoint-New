@@ -249,12 +249,12 @@ export class PatientDocumentCentreService {
     };
   }
 
-  private optionalKind(value: unknown): string | null {
+  private optionalKind(value: unknown): ClinicalDocument["kind"] | null {
     if (value === undefined || value === null || value === "") return null;
     if (typeof value !== "string") throw new BadRequestException("kind must be a string.");
     const kind = value.trim().toUpperCase();
     if (!DOCUMENT_KINDS.has(kind)) throw new BadRequestException("Unsupported clinical document kind.");
-    return kind;
+    return kind as ClinicalDocument["kind"];
   }
 
   private optionalQuery(value: unknown): string {
