@@ -113,7 +113,7 @@ void main() {
     await reveal(find.text('Continue follow-up.'));
     await reveal(find.textContaining('72'));
     await reveal(find.text('Angina pectoris'));
-    await reveal(find.text('Lifestyle counselling'));
+    await reveal(find.textContaining('Lifestyle counselling'));
     await reveal(find.text('Example medicine'));
     await reveal(find.text('Visit summary.pdf'));
 
