@@ -8,6 +8,10 @@ import {
   adminBackendUrl,
   readBoundedAdminBackendText,
 } from "../lib/admin-backend-policy.js";
+import {
+  adminPublicOrigin,
+  isTrustedAdminPublicOriginRequest,
+} from "../lib/admin-origin-policy.js";
 
 const productionExternal = {
   NODE_ENV: "production",
@@ -15,6 +19,110 @@ const productionExternal = {
   CAREPOINT_API_TIMEOUT_MS: "5000",
   CAREPOINT_API_MAX_RESPONSE_BYTES: "4096",
 };
+
+const productionPublicOrigin = {
+  NODE_ENV: "production",
+  CAREPOINT_ADMIN_PUBLIC_ORIGIN: "https://admin.carepoint.example",
+};
+
+function originRequest(origin, nextUrlOrigin = "http://172.17.0.1:3050") {
+  return {
+    headers: {
+      get(name) {
+        return name.toLowerCase() === "origin" ? origin : null;
+      },
+    },
+    nextUrl: { origin: nextUrlOrigin },
+  };
+}
+
+assert.equal(adminPublicOrigin(productionPublicOrigin), "https://admin.carepoint.example");
+assert.equal(
+  adminPublicOrigin({
+    NODE_ENV: "production",
+    CAREPOINT_ADMIN_PUBLIC_ORIGIN: "https://ADMIN.CAREPOINT.EXAMPLE:443/",
+  }),
+  "https://admin.carepoint.example",
+  "public origin must be normalized before comparison",
+);
+assert.throws(
+  () => adminPublicOrigin({ NODE_ENV: "production", CAREPOINT_ADMIN_PUBLIC_ORIGIN: "http://admin.carepoint.example" }),
+  /must use HTTPS in production/,
+);
+assert.throws(
+  () => adminPublicOrigin({ NODE_ENV: "production", CAREPOINT_ADMIN_PUBLIC_ORIGIN: "https://user:secret@admin.carepoint.example" }),
+  /must not embed credentials/,
+);
+assert.throws(
+  () => adminPublicOrigin({ NODE_ENV: "production", CAREPOINT_ADMIN_PUBLIC_ORIGIN: "https://admin.carepoint.example/path" }),
+  /must contain only an origin/,
+);
+assert.throws(
+  () => adminPublicOrigin({ NODE_ENV: "production", CAREPOINT_ADMIN_PUBLIC_ORIGIN: "https://admin.carepoint.example?tenant=ksa" }),
+  /must not contain a query string/,
+);
+assert.throws(
+  () => adminPublicOrigin({ NODE_ENV: "production", CAREPOINT_ADMIN_PUBLIC_ORIGIN: "https://admin.carepoint.example#fragment" }),
+  /must not contain a URL fragment/,
+);
+assert.throws(
+  () => adminPublicOrigin({ NODE_ENV: "production", CAREPOINT_ADMIN_PUBLIC_ORIGIN: "not-a-url" }),
+  /must be a valid absolute URL/,
+);
+assert.equal(
+  isTrustedAdminPublicOriginRequest(originRequest(null), { NODE_ENV: "production" }),
+  true,
+  "requests without Origin must preserve existing server-side compatibility",
+);
+assert.equal(
+  isTrustedAdminPublicOriginRequest(originRequest("https://admin.carepoint.example"), productionPublicOrigin),
+  true,
+  "configured production browser origin must be accepted behind TLS termination",
+);
+assert.equal(
+  isTrustedAdminPublicOriginRequest(originRequest("https://evil.example"), productionPublicOrigin),
+  false,
+  "unconfigured browser origins must be rejected",
+);
+assert.equal(
+  isTrustedAdminPublicOriginRequest(originRequest("http://172.17.0.1:3050"), productionPublicOrigin),
+  false,
+  "internal reverse-proxy origin must not replace the configured public origin",
+);
+assert.equal(
+  isTrustedAdminPublicOriginRequest(originRequest("https://admin.carepoint.example"), { NODE_ENV: "production" }),
+  false,
+  "production explicit-Origin requests must fail closed without public-origin configuration",
+);
+assert.equal(
+  isTrustedAdminPublicOriginRequest(
+    originRequest("https://admin.carepoint.example"),
+    { NODE_ENV: "production", CAREPOINT_ADMIN_PUBLIC_ORIGIN: "http://admin.carepoint.example" },
+  ),
+  false,
+  "invalid production public-origin configuration must fail closed",
+);
+assert.equal(
+  isTrustedAdminPublicOriginRequest(originRequest("null"), productionPublicOrigin),
+  false,
+  "opaque/null browser origins must be rejected",
+);
+assert.equal(
+  isTrustedAdminPublicOriginRequest(
+    originRequest("http://172.17.0.1:3050"),
+    { NODE_ENV: "development" },
+  ),
+  true,
+  "development without explicit configuration may preserve request.nextUrl.origin fallback",
+);
+assert.equal(
+  isTrustedAdminPublicOriginRequest(
+    originRequest("http://127.0.0.1:3050"),
+    { NODE_ENV: "development" },
+  ),
+  false,
+  "development fallback must still require exact normalized origin equality",
+);
 
 assert.equal(adminApiBaseUrl({ NODE_ENV: "test" }), "http://127.0.0.1:4000/api/v1");
 assert.equal(adminApiBaseUrl(productionExternal), "https://api.carepoint.example/api/v1");
@@ -145,7 +253,18 @@ await assert.rejects(
 const authSource = await readFile(new URL("../lib/admin-auth.ts", import.meta.url), "utf8");
 assert.match(authSource, /adminBackendFetch/, "admin authentication must use the C16 egress helper");
 assert.match(authSource, /readBoundedAdminBackendText/, "admin authentication must bound backend responses");
+assert.match(authSource, /isTrustedAdminPublicOriginRequest/, "admin authentication must use the explicit public-origin policy");
 assert.doesNotMatch(authSource, /await\s+fetch\s*\(/, "admin authentication must not bypass the C16 fetch helper");
+assert.doesNotMatch(authSource, /origin\s*===\s*request\.nextUrl\.origin/, "admin auth must not compare browser Origin directly with the internal standalone origin");
+
+const clinicalAuthSource = await readFile(new URL("../lib/clinical-auth.ts", import.meta.url), "utf8");
+assert.match(clinicalAuthSource, /isTrustedAdminPublicOriginRequest/, "clinical authentication must share the explicit Admin public-origin policy");
+assert.doesNotMatch(clinicalAuthSource, /origin\s*===\s*request\.nextUrl\.origin/, "clinical auth must not compare browser Origin directly with the internal standalone origin");
+
+const originPolicySource = await readFile(new URL("../lib/admin-origin-policy.js", import.meta.url), "utf8");
+assert.match(originPolicySource, /CAREPOINT_ADMIN_PUBLIC_ORIGIN/, "origin policy must use an explicit deployment contract");
+assert.match(originPolicySource, /NODE_ENV\s*===\s*"production"/, "origin policy must fail closed in production");
+assert.doesNotMatch(originPolicySource, /x-forwarded/i, "origin policy must not trust arbitrary forwarded headers");
 
 const apiSource = await readFile(new URL("../lib/admin-api.ts", import.meta.url), "utf8");
 assert.match(apiSource, /adminBackendFetch/, "admin proxy must use the C16 egress helper");
@@ -161,4 +280,4 @@ const packageSource = JSON.parse(await readFile(new URL("../package.json", impor
 assert.equal(packageSource.scripts.test, "npm run c16:admin-backend-egress");
 assert.equal(packageSource.dependencies.undici, undefined, "C16 must not add a new HTTP dependency");
 
-console.log("Phase C16 Admin backend egress resilience acceptance passed");
+console.log("Phase C16 Admin backend egress + public-origin resilience acceptance passed");

@@ -1,5 +1,6 @@
 import type { NextRequest, NextResponse } from "next/server";
 import { adminBackendFetch, readBoundedAdminBackendText } from "./admin-backend-policy.js";
+import { isTrustedAdminPublicOriginRequest } from "./admin-origin-policy.js";
 
 export const CLINICAL_ACCESS_COOKIE = "carepoint_clinical_access";
 export const CLINICAL_REFRESH_COOKIE = "carepoint_clinical_refresh";
@@ -38,8 +39,7 @@ export class ClinicalAuthError extends Error {
 }
 
 export function isTrustedClinicalSameOrigin(request: NextRequest): boolean {
-  const origin = request.headers.get("origin");
-  return !origin || origin === request.nextUrl.origin;
+  return isTrustedAdminPublicOriginRequest(request);
 }
 
 export async function loginWithCarePointClinical(

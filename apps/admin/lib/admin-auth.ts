@@ -4,6 +4,7 @@ import {
   adminBackendFetch,
   readBoundedAdminBackendText,
 } from "./admin-backend-policy.js";
+import { isTrustedAdminPublicOriginRequest } from "./admin-origin-policy.js";
 
 export const ADMIN_ACCESS_COOKIE = "carepoint_admin_access";
 export const ADMIN_REFRESH_COOKIE = "carepoint_admin_refresh";
@@ -49,8 +50,7 @@ export function apiBaseUrl(): string {
 }
 
 export function isTrustedSameOrigin(request: NextRequest): boolean {
-  const origin = request.headers.get("origin");
-  return !origin || origin === request.nextUrl.origin;
+  return isTrustedAdminPublicOriginRequest(request);
 }
 
 export function safeReturnTo(value: string | null | undefined): string {
