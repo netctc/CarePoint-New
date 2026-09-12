@@ -32,7 +32,7 @@ enum DiagnosticReportStatus {
 }
 
 model ClinicalDocument {
-  id                   String                 @id @default(uuid())
+  id                   String                  @id @default(uuid())
   patientId            String
   providerId           String?
   encounterRef         String?
@@ -41,7 +41,7 @@ model ClinicalDocument {
   status               ClinicalDocumentStatus @default(AVAILABLE)
   storageMode          DocumentStorageMode
   storageProvider      String
-  objectKey            String?                @unique
+  objectKey            String?                 @unique
   mediaType            String?
   byteLength           Int?
   contentDigest        String?
@@ -54,12 +54,12 @@ model ClinicalDocument {
   metadataWrappedKey   String
   metadataIv           String
   metadataCiphertext   String
-  releasedToPatient    Boolean                @default(false)
+  releasedToPatient    Boolean                 @default(false)
   createdByAccountId   String
   releasedAt           DateTime?
   removedAt            DateTime?
-  createdAt            DateTime               @default(now())
-  updatedAt            DateTime               @updatedAt
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
 
   @@index([patientId, status, createdAt])
   @@index([providerId, createdAt])
@@ -67,8 +67,35 @@ model ClinicalDocument {
   @@index([orderId, kind, status])
 }
 
+model ClinicalDocumentDownloadGrant {
+  id         String   @id @default(uuid())
+  tokenHash  String   @unique
+  documentId String
+  accountId  String
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime @default(now())
+
+  @@index([documentId, accountId, expiresAt])
+  @@index([expiresAt, consumedAt])
+}
+
+model PatientClinicalDocumentReceipt {
+  id             String   @id @default(uuid())
+  documentId     String
+  accountId      String
+  firstOpenedAt  DateTime?
+  acknowledgedAt DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([documentId, accountId])
+  @@index([accountId, acknowledgedAt, createdAt])
+  @@index([documentId, accountId])
+}
+
 model DiagnosticReport {
-  id                   String                 @id @default(uuid())
+  id                   String                  @id @default(uuid())
   patientId            String
   providerId           String
   encounterRef         String
@@ -86,8 +113,8 @@ model DiagnosticReport {
   signature            String?
   finalizedAt          DateTime?
   releasedAt           DateTime?
-  createdAt            DateTime               @default(now())
-  updatedAt            DateTime               @updatedAt
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
 
   @@index([patientId, status, createdAt])
   @@index([providerId, createdAt])

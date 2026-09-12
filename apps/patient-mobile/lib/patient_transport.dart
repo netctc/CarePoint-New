@@ -1,5 +1,7 @@
 import 'package:carepoint_mobile_core/carepoint_api.dart';
 import 'package:carepoint_mobile_core/carepoint_localization.dart';
+import 'package:carepoint_mobile_core/patient_emergency.dart';
+import 'package:carepoint_mobile_core/patient_medical_transport.dart';
 import 'package:carepoint_mobile_core/transport_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
@@ -41,10 +43,13 @@ Future<void> openEmergencyAmbulanceFlow(
     );
     if (!context.mounted) return;
     messenger.hideCurrentSnackBar();
+    final requestId = _map(response['request'])['id']?.toString() ?? '';
     await Navigator.of(context).push<void>(MaterialPageRoute(
-      builder: (_) => Directionality(
-        textDirection: locale.textDirection,
-        child: EmergencyAmbulanceStatusPage(session: session, locale: locale, initial: response),
+      builder: (_) => PatientEmergencyStatusPage(
+        session: session,
+        locale: locale,
+        requestId: requestId,
+        initial: response,
       ),
     ));
   } catch (value) {
@@ -64,94 +69,6 @@ Future<Position> _currentPosition(CarePointLocale locale) async {
     throw CarePointApiException(transportText(locale, 'locationDenied'));
   }
   return Geolocator.getCurrentPosition(locationSettings: const LocationSettings(accuracy: LocationAccuracy.high));
-}
-
-class EmergencyAmbulanceStatusPage extends StatefulWidget {
-  const EmergencyAmbulanceStatusPage({super.key, required this.session, required this.locale, required this.initial});
-  final CarePointSession session;
-  final CarePointLocale locale;
-  final Map<String, dynamic> initial;
-
-  @override
-  State<EmergencyAmbulanceStatusPage> createState() => _EmergencyAmbulanceStatusPageState();
-}
-
-class _EmergencyAmbulanceStatusPageState extends State<EmergencyAmbulanceStatusPage> {
-  bool busy = false;
-  late Map<String, dynamic> value = widget.initial;
-
-  Map<String, dynamic> get request => _map(value['request']);
-  String get requestId => request['id']?.toString() ?? '';
-
-  Future<void> refresh() async {
-    if (requestId.isEmpty) return;
-    setState(() => busy = true);
-    try {
-      final next = await widget.session.api.emergencyAmbulanceRequest(requestId);
-      if (mounted) setState(() => value = next);
-    } catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
-    } finally {
-      if (mounted) setState(() => busy = false);
-    }
-  }
-
-  Future<void> cancel() async {
-    if (requestId.isEmpty) return;
-    setState(() => busy = true);
-    try {
-      final next = await widget.session.api.cancelEmergencyAmbulance(requestId, reason: 'Cancelled by Patient from mobile app');
-      if (mounted) setState(() => value = next);
-    } catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
-    } finally {
-      if (mounted) setState(() => busy = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final status = request['status']?.toString() ?? '';
-    final provider = _map(request['assignedProvider']);
-    final cancellable = const {'REQUESTED', 'DISPATCHING', 'ASSIGNED'}.contains(status);
-    final history = _list(value['history']);
-    return Scaffold(
-      appBar: AppBar(title: Text(transportText(widget.locale, 'emergency'))),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          const Center(child: CircleAvatar(radius: 36, backgroundColor: Color(0xFFE11D48), child: Icon(Icons.emergency_share_outlined, size: 38, color: Colors.white))),
-          const SizedBox(height: 16),
-          Text(transportText(widget.locale, 'emergencyRequested'), textAlign: TextAlign.center, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
-          const SizedBox(height: 8),
-          Center(child: Chip(label: Text(status, style: const TextStyle(fontWeight: FontWeight.w800)))),
-          if (request['etaMinutes'] != null) Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Text('${transportText(widget.locale, 'eta')}: ${request['etaMinutes']} ${transportText(widget.locale, 'minutes')}', textAlign: TextAlign.center),
-          ),
-          if (provider['displayName'] != null) Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Text(provider['displayName'].toString(), textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w700)),
-          ),
-          const SizedBox(height: 20),
-          FilledButton.icon(onPressed: busy ? null : refresh, icon: const Icon(Icons.refresh_rounded), label: Text(transportText(widget.locale, 'refresh'))),
-          if (cancellable) ...[
-            const SizedBox(height: 8),
-            OutlinedButton.icon(onPressed: busy ? null : cancel, icon: const Icon(Icons.cancel_outlined), label: Text(transportText(widget.locale, 'cancel'))),
-          ],
-          if (history.isNotEmpty) ...[
-            const SizedBox(height: 24),
-            ...history.map((event) => ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.radio_button_checked, size: 18),
-              title: Text(event['toStatus']?.toString() ?? ''),
-              subtitle: Text(_displayDate(event['occurredAt']?.toString() ?? '')),
-            )),
-          ],
-        ],
-      ),
-    );
-  }
 }
 
 class PatientMedicalTransportPage extends StatefulWidget {
@@ -215,7 +132,7 @@ class _PatientMedicalTransportPageState extends State<PatientMedicalTransportPag
   Widget _card(Map<String, dynamic> item) {
     final status = item['status']?.toString() ?? '';
     final provider = _map(item['assignedProvider']);
-    final cancellable = status == 'REQUESTED' || status == 'ASSIGNED';
+    final id = item['id']?.toString() ?? '';
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(14),
@@ -223,19 +140,26 @@ class _PatientMedicalTransportPageState extends State<PatientMedicalTransportPag
           Row(children: [
             CircleAvatar(child: Icon(item['mode'] == 'AIR' ? Icons.flight_outlined : Icons.local_shipping_outlined)),
             const SizedBox(width: 10),
-            Expanded(child: Text(item['mode'] == 'AIR' ? transportText(widget.locale, 'air') : transportText(widget.locale, 'ground'), style: const TextStyle(fontWeight: FontWeight.w900))),
-            Chip(label: Text(status)),
+            Expanded(child: Text(patientMedicalTransportModeText(widget.locale, item['mode']), style: const TextStyle(fontWeight: FontWeight.w900))),
+            Chip(label: Text(patientMedicalTransportStatusText(widget.locale, status))),
           ]),
           const SizedBox(height: 8),
-          Text('${transportText(widget.locale, 'scheduledFor')}: ${_displayDate(item['scheduledFor']?.toString() ?? '')}'),
+          Text('${transportText(widget.locale, 'scheduledFor')}: ${patientMedicalTransportDateTime(item['scheduledFor'])}'),
           Text('${transportText(widget.locale, 'pickup')}: ${item['pickupAddress'] ?? '${item['pickupLatitude']}, ${item['pickupLongitude']}'}'),
           Text('${transportText(widget.locale, 'destination')}: ${item['destinationAddress'] ?? '${item['destinationLatitude']}, ${item['destinationLongitude']}'}'),
           if (provider['displayName'] != null) Text(provider['displayName'].toString(), style: const TextStyle(fontWeight: FontWeight.w700)),
           if (item['etaMinutes'] != null) Text('${transportText(widget.locale, 'eta')}: ${item['etaMinutes']} ${transportText(widget.locale, 'minutes')}'),
-          if (cancellable) ...[
+          const SizedBox(height: 8),
+          FilledButton.tonalIcon(
+            key: ValueKey('medical-transport-detail-$id'),
+            onPressed: id.isEmpty ? null : () => _openDetail(id),
+            icon: const Icon(Icons.route_outlined),
+            label: Text(patientMedicalTransportText(widget.locale, 'detailTitle')),
+          ),
+          if (patientMedicalTransportCanCancel(status)) ...[
             const SizedBox(height: 8),
             OutlinedButton.icon(
-              onPressed: () => _cancel(item['id']?.toString() ?? ''),
+              onPressed: id.isEmpty ? null : () => _cancel(id),
               icon: const Icon(Icons.cancel_outlined),
               label: Text(transportText(widget.locale, 'cancel')),
             ),
@@ -243,6 +167,20 @@ class _PatientMedicalTransportPageState extends State<PatientMedicalTransportPag
         ]),
       ),
     );
+  }
+
+  Future<void> _openDetail(String id, {Map<String, dynamic>? initial}) async {
+    if (id.isEmpty || !mounted) return;
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute(builder: (_) => PatientMedicalTransportStatusPage(
+        session: widget.session,
+        locale: widget.locale,
+        requestId: id,
+        initial: initial,
+      )),
+    );
+    if (mounted) await refresh();
   }
 
   Future<void> _cancel(String id) async {
@@ -264,7 +202,7 @@ class _PatientMedicalTransportPageState extends State<PatientMedicalTransportPag
     try {
       setState(() => busy = true);
       final pickup = await _currentPosition(widget.locale);
-      await widget.session.api.createMedicalTransport(
+      final response = await widget.session.api.createMedicalTransport(
         clientRequestId: 'mobile-transport-${DateTime.now().microsecondsSinceEpoch}',
         mode: result.mode,
         scheduledFor: result.scheduledFor,
@@ -276,7 +214,14 @@ class _PatientMedicalTransportPageState extends State<PatientMedicalTransportPag
         destinationAddress: result.destinationAddress,
         assistance: result.assistance,
       );
-      await refresh();
+      if (!mounted) return;
+      setState(() => busy = false);
+      final requestId = _map(response['request'])['id']?.toString() ?? '';
+      if (requestId.isNotEmpty) {
+        await _openDetail(requestId, initial: response);
+      } else {
+        await refresh();
+      }
     } catch (value) {
       if (mounted) {
         setState(() => busy = false);
@@ -371,7 +316,7 @@ class _TransportDialogState extends State<_TransportDialog> {
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(Icons.schedule_outlined),
                 title: Text(transportText(widget.locale, 'scheduledFor')),
-                subtitle: Text(_displayDate(scheduledFor.toIso8601String())),
+                subtitle: Text(patientMedicalTransportDateTime(scheduledFor.toIso8601String())),
                 onTap: _pickDateTime,
               ),
             ]),
@@ -414,16 +359,4 @@ Map<String, dynamic> _map(dynamic value) {
   if (value is Map<String, dynamic>) return value;
   if (value is Map) return value.map((key, item) => MapEntry(key.toString(), item));
   return <String, dynamic>{};
-}
-
-List<Map<String, dynamic>> _list(dynamic value) {
-  if (value is! List) return const [];
-  return value.map(_map).toList(growable: false);
-}
-
-String _displayDate(String raw) {
-  final parsed = DateTime.tryParse(raw)?.toLocal();
-  if (parsed == null) return raw;
-  String two(int value) => value.toString().padLeft(2, '0');
-  return '${parsed.year}-${two(parsed.month)}-${two(parsed.day)} ${two(parsed.hour)}:${two(parsed.minute)}';
 }

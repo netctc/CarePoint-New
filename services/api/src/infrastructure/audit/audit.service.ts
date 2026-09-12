@@ -5,7 +5,6 @@ import { SiemAuditOutboxStoreService } from "../siem/siem-audit-outbox-store.ser
 import { SiemOutboxWorkerService } from "../siem/siem-outbox-worker.service";
 
 export type AuditResult = "SUCCESS" | "DENIED" | "FAILED";
-
 export interface AuditWrite {
   actorId?: string | null;
   action: string;
@@ -15,43 +14,31 @@ export interface AuditWrite {
   result: AuditResult;
   metadata?: Record<string, unknown>;
 }
-
 @Injectable()
 export class DatabaseAuditService {
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly siemOutbox: SiemAuditOutboxStoreService,
-    private readonly siemWorker: SiemOutboxWorkerService,
-  ) {}
+  constructor(private readonly prisma: PrismaService, private readonly siemOutbox: SiemAuditOutboxStoreService, private readonly siemWorker: SiemOutboxWorkerService) {}
 
+  // Domain state, immutable audit and SIEM enqueue share the caller's commit.
+  // The durable SIEM worker polls committed deliveries. Never wake it before
+  // the caller's transaction has committed.
+  async writeInTransaction(tx: Prisma.TransactionClient, input: AuditWrite): Promise<void> {
+    const event = await tx.auditEvent.create({ data: {
+      actorId: input.actorId ?? null, action: input.action, objectType: input.objectType,
+      objectId: input.objectId ?? null, purpose: input.purpose ?? null, result: input.result,
+      metadata: (input.metadata ?? {}) as Prisma.InputJsonValue,
+    } });
+    if (this.siemExportEnabled()) await this.siemOutbox.enqueueInTransaction(tx, event.id);
+  }
   async write(input: AuditWrite): Promise<void> {
-    const enqueueSiem = this.siemExportEnabled();
     await this.prisma.$transaction(async (tx) => {
-      const event = await tx.auditEvent.create({
-        data: {
-          actorId: input.actorId ?? null,
-          action: input.action,
-          objectType: input.objectType,
-          objectId: input.objectId ?? null,
-          purpose: input.purpose ?? null,
-          result: input.result,
-          metadata: (input.metadata ?? {}) as Prisma.InputJsonValue,
-        },
-      });
-      if (enqueueSiem) await this.siemOutbox.enqueueInTransaction(tx, event.id);
+      await this.writeInTransaction(tx, input);
     });
-    if (enqueueSiem) this.siemWorker.wake();
+    if (this.siemExportEnabled()) this.siemWorker.wake();
   }
-
   async list(limit = 100) {
-    return this.prisma.auditEvent.findMany({
-      orderBy: { occurredAt: "desc" },
-      take: Math.max(1, Math.min(limit, 500)),
-    });
+    return this.prisma.auditEvent.findMany({ orderBy: { occurredAt: "desc" }, take: Math.max(1, Math.min(limit, 500)) });
   }
-
   private siemExportEnabled(): boolean {
-    if (process.env.NODE_ENV === "production") return true;
-    return process.env.SIEM_EXPORT_ENABLED?.trim().toLowerCase() === "true";
+    return process.env.NODE_ENV === "production" || process.env.SIEM_EXPORT_ENABLED?.trim().toLowerCase() === "true";
   }
 }

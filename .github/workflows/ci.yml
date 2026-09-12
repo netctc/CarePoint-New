@@ -200,6 +200,31 @@ jobs:
         run: node services/api/scripts/r6-adversarial-authorization-smoke.mjs
       - name: R9 provider current-credential enforcement acceptance
         run: node services/api/scripts/r9-provider-credential-validity-live-smoke.mjs
+      - name: F3.1 HTTP availability lifecycle and provider demand acceptance
+        env:
+          CAREPOINT_AVAILABILITY_HTTP_ACCEPTANCE: "true"
+        run: node --test services/api/scripts/f3-availability-http-acceptance.mjs
+      - name: Set up pinned Flutter for F3.2 live API journeys
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: "3.47.2"
+          channel: stable
+      - name: F3.2 headless Flutter journeys and independent PostgreSQL verification
+        timeout-minutes: 10
+        env:
+          CAREPOINT_AVAILABILITY_HTTP_ACCEPTANCE: "true"
+          CAREPOINT_MOBILE_LIVE_ACCEPTANCE: "true"
+          CAREPOINT_MOBILE_LIVE_FIXTURE: ${{ runner.temp }}/carepoint-f3-mobile-fixture.json
+          CAREPOINT_MOBILE_LIVE_RESULT: ${{ runner.temp }}/carepoint-f3-mobile-result.json
+        run: |
+          set -eu
+          umask 077
+          trap 'rm -f "$CAREPOINT_MOBILE_LIVE_FIXTURE" "$CAREPOINT_MOBILE_LIVE_RESULT"' EXIT
+          node services/api/scripts/f3-mobile-live-fixture.mjs prepare
+          (cd packages/mobile_core && flutter pub get)
+          sha256sum --check --strict .ci/flutter-pubspec-locks.sha256
+          (cd packages/mobile_core && flutter analyze test_live && flutter test test_live/f3_live_api_test.dart --reporter expanded)
+          node services/api/scripts/f3-mobile-live-fixture.mjs verify
       - name: Print API and Admin logs on failure
         if: failure()
         run: |

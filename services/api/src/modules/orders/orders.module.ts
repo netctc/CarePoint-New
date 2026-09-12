@@ -1,18 +1,21 @@
 import { Body, Controller, Get, Module, Param, Post } from "@nestjs/common";
 import type { AuthPrincipal } from "@carepoint/identity";
 import { CurrentPrincipal, RequirePermissions } from "../../security/api-security.module";
+import { CommunicationsModule } from "../communications/communications.module";
 import { ProviderCategoryCapabilityService } from "../providers/provider-category-capability.service";
 import { ProvidersModule } from "../providers/providers.module";
 import { OrdersService } from "./orders.service";
 import { OrdersEnvelopeService } from "./orders-envelope.service";
 import { OrdersAttestationService } from "./orders-attestation.service";
 import { OrdersSystemExportService } from "./orders-system-export.service";
+import { PrescriptionNotificationService } from "./prescription-notification.service";
 
 @Controller("clinical-orders")
 class OrdersController {
   constructor(
     private readonly orders: OrdersService,
     private readonly capabilities: ProviderCategoryCapabilityService,
+    private readonly prescriptionNotifications: PrescriptionNotificationService,
   ) {}
 
   @RequirePermissions("CLINICAL_ORDER_WRITE")
@@ -23,7 +26,9 @@ class OrdersController {
     @Body() body: Record<string, unknown>,
   ) {
     await this.capabilities.assertClinicalOrderCapability(principal, "PRESCRIPTION");
-    return this.orders.createOrder(principal, appointmentId, "PRESCRIPTION", body);
+    const order = await this.orders.createOrder(principal, appointmentId, "PRESCRIPTION", body);
+    await this.prescriptionNotifications.notifySigned(principal, order);
+    return order;
   }
 
   @RequirePermissions("CLINICAL_ORDER_WRITE")
@@ -57,8 +62,10 @@ class OrdersController {
 
   @RequirePermissions("CLINICAL_ORDER_WRITE")
   @Post(":orderId/cancel")
-  cancel(@CurrentPrincipal() principal: AuthPrincipal, @Param("orderId") orderId: string) {
-    return this.orders.cancelOrder(principal, orderId);
+  async cancel(@CurrentPrincipal() principal: AuthPrincipal, @Param("orderId") orderId: string) {
+    const order = await this.orders.cancelOrder(principal, orderId);
+    await this.prescriptionNotifications.notifyCancelled(principal, order);
+    return order;
   }
 
   @RequirePermissions("LAB_RESULT_ENTER")
@@ -87,9 +94,9 @@ class OrdersController {
 }
 
 @Module({
-  imports: [ProvidersModule],
+  imports: [ProvidersModule, CommunicationsModule],
   controllers: [OrdersController],
-  providers: [OrdersService, OrdersEnvelopeService, OrdersAttestationService, OrdersSystemExportService],
+  providers: [OrdersService, OrdersEnvelopeService, OrdersAttestationService, OrdersSystemExportService, PrescriptionNotificationService],
   exports: [OrdersService, OrdersSystemExportService],
 })
 export class OrdersModule {}
