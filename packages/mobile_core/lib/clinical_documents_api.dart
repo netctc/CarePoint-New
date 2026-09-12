@@ -8,13 +8,36 @@ class CarePointDownloadedDocument {
 }
 
 extension ClinicalDocumentsSecureApi on CarePointApi {
-  Future<Map<String, dynamic>> patientDocumentCentre({String? kind, String search = '', int limit = 100}) async {
+  Future<Map<String, dynamic>> patientDocumentCentre({String? kind, String search = '', int limit = 100, String? focusDocumentId}) async {
     final result = await _send('GET', '/clinical-documents/me/centre', query: {
       if (kind != null && kind.isNotEmpty && kind != 'ALL') 'kind': kind,
       if (search.trim().isNotEmpty) 'q': search.trim(),
+      if (focusDocumentId != null && focusDocumentId.trim().isNotEmpty) 'focusDocumentId': focusDocumentId.trim(),
       'limit': limit.toString(),
     });
     return _asMap(result);
+  }
+
+  Future<Map<String, dynamic>> uploadPatientTextDocument({
+    required String title,
+    required String content,
+    String? category,
+    String? description,
+  }) async {
+    return _asMap(await _send('POST', '/clinical-documents/me/inbox/text', body: {
+      'title': title.trim(),
+      'content': content,
+      if (category?.trim().isNotEmpty == true) 'category': category!.trim(),
+      if (description?.trim().isNotEmpty == true) 'description': description!.trim(),
+    }));
+  }
+
+  Future<Map<String, dynamic>> acknowledgePatientClinicalDocument(String documentId) async {
+    return _asMap(await _send('POST', '/clinical-documents/me/$documentId/acknowledge', body: const {}));
+  }
+
+  Future<Map<String, dynamic>> removePatientClinicalDocumentFromInbox(String documentId) async {
+    return _asMap(await _send('POST', '/clinical-documents/me/$documentId/remove', body: const {}));
   }
 
   Future<Map<String, dynamic>> issuePatientClinicalDocumentDownloadToken(String documentId) async {
