@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Header, Module, Param, Post, StreamableFile } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Get, Header, Module, Param, Post, Query, StreamableFile } from "@nestjs/common";
 import type { AuthPrincipal } from "@carepoint/identity";
 import { CurrentPrincipal, RequirePermissions } from "../../security/api-security.module";
 import { CommunicationsModule } from "../communications/communications.module";
@@ -10,10 +10,14 @@ import { DocumentMalwareScannerService } from "./document-malware-scanner.servic
 import { DicomWebService } from "./dicomweb.service";
 import { DocumentsImagingInteropService } from "./documents-imaging-interop.service";
 import { DocumentsSystemExportService } from "./documents-system-export.service";
+import { PatientDocumentCentreService } from "./patient-document-centre.service";
 
 @Controller("clinical-documents")
 class ClinicalDocumentsController {
-  constructor(private readonly documents: DocumentsService) {}
+  constructor(
+    private readonly documents: DocumentsService,
+    private readonly patientCentre: PatientDocumentCentreService,
+  ) {}
 
   @RequirePermissions("CLINICAL_DOCUMENT_WRITE")
   @Post("appointments/:appointmentId/upload")
@@ -37,6 +41,40 @@ class ClinicalDocumentsController {
   @Get("me")
   patientDocuments(@CurrentPrincipal() principal: AuthPrincipal) {
     return this.documents.patientDocuments(principal);
+  }
+
+  @RequirePermissions("PATIENT_READ_CLINICAL_DOCUMENTS")
+  @Get("me/centre")
+  patientDocumentCentre(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Query("kind") kind?: string,
+    @Query("q") q?: string,
+    @Query("limit") limit?: string,
+  ) {
+    return this.patientCentre.list(principal, { kind, q, limit });
+  }
+
+  @RequirePermissions("PATIENT_READ_CLINICAL_DOCUMENTS")
+  @Post("me/:documentId/download-token")
+  patientDownloadToken(@CurrentPrincipal() principal: AuthPrincipal, @Param("documentId") documentId: string) {
+    return this.patientCentre.issueDownloadGrant(principal, documentId);
+  }
+
+  @RequirePermissions("PATIENT_READ_CLINICAL_DOCUMENTS")
+  @Post("me/:documentId/download")
+  @Header("Cache-Control", "private, no-store, max-age=0")
+  @Header("Pragma", "no-cache")
+  @Header("X-Content-Type-Options", "nosniff")
+  async patientSecureDownload(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Param("documentId") documentId: string,
+    @Body() body: any,
+  ) {
+    const content = await this.patientCentre.consumeDownloadGrant(principal, documentId, body ?? {});
+    return new StreamableFile(content.bytes, {
+      type: content.mediaType,
+      disposition: `attachment; filename="${this.safeFileName(content.fileName)}"`,
+    });
   }
 
   @RequirePermissions("CLINICAL_DOCUMENT_READ")
@@ -140,6 +178,7 @@ class DiagnosticReportsController {
     DicomWebService,
     DocumentsImagingInteropService,
     DocumentsSystemExportService,
+    PatientDocumentCentreService,
   ],
   exports: [DocumentsService, DocumentStorageService, DocumentsImagingInteropService, DocumentsSystemExportService],
 })

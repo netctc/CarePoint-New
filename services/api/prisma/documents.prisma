@@ -67,6 +67,19 @@ model ClinicalDocument {
   @@index([orderId, kind, status])
 }
 
+model ClinicalDocumentDownloadGrant {
+  id         String   @id @default(uuid())
+  tokenHash  String   @unique
+  documentId String
+  accountId  String
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime @default(now())
+
+  @@index([documentId, accountId, expiresAt])
+  @@index([expiresAt, consumedAt])
+}
+
 model DiagnosticReport {
   id                   String                 @id @default(uuid())
   patientId            String
