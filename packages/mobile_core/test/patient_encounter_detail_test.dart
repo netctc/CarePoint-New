@@ -94,18 +94,28 @@ void main() {
 
     expect(calls.first, 'GET /api/v1/clinical/appointments/a1');
     expect(find.textContaining('12/09/2026'), findsOneWidget);
-    expect(find.text('Chest discomfort'), findsOneWidget);
-    expect(find.text('Symptoms improved.'), findsOneWidget);
-    expect(find.text('Comfortable at rest.'), findsOneWidget);
-    expect(find.text('Stable angina follow-up.'), findsOneWidget);
-    expect(find.text('Continue follow-up.'), findsOneWidget);
-    expect(find.textContaining('72'), findsOneWidget);
-    expect(find.text('Angina pectoris'), findsOneWidget);
-    expect(find.text('Lifestyle counselling'), findsOneWidget);
-    expect(find.text('Example medicine'), findsOneWidget);
-    expect(find.text('Visit summary.pdf'), findsOneWidget);
 
-    await tester.tap(find.byKey(const ValueKey('patient-encounter-document-d1')));
+    final scrollable = find.byType(Scrollable).first;
+    Future<void> reveal(Finder finder) async {
+      await tester.dragUntilVisible(finder, scrollable, const Offset(0, -260));
+      await tester.pumpAndSettle();
+      expect(finder, findsOneWidget);
+    }
+
+    await reveal(find.text('Chest discomfort'));
+    await reveal(find.text('Symptoms improved.'));
+    await reveal(find.text('Comfortable at rest.'));
+    await reveal(find.text('Stable angina follow-up.'));
+    await reveal(find.text('Continue follow-up.'));
+    await reveal(find.textContaining('72'));
+    await reveal(find.text('Angina pectoris'));
+    await reveal(find.text('Lifestyle counselling'));
+    await reveal(find.text('Example medicine'));
+    await reveal(find.text('Visit summary.pdf'));
+
+    final attachment = find.byKey(const ValueKey('patient-encounter-document-d1'));
+    await reveal(attachment);
+    await tester.tap(attachment);
     await tester.pumpAndSettle();
     expect(calls, contains('GET /api/v1/clinical-documents/me/centre'));
     expect(find.text('Authorized visit summary'), findsOneWidget);
