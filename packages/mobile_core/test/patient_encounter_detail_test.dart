@@ -95,11 +95,15 @@ void main() {
     expect(calls.first, 'GET /api/v1/clinical/appointments/a1');
     expect(find.textContaining('12/09/2026'), findsOneWidget);
 
-    final scrollable = find.byType(Scrollable).first;
+    final listView = find.byType(ListView).first;
     Future<void> reveal(Finder finder) async {
-      await tester.dragUntilVisible(finder, scrollable, const Offset(0, -260));
-      await tester.pumpAndSettle();
+      for (var attempt = 0; attempt < 40 && finder.evaluate().isEmpty; attempt += 1) {
+        await tester.drag(listView, const Offset(0, -240));
+        await tester.pumpAndSettle();
+      }
       expect(finder, findsOneWidget);
+      await tester.ensureVisible(finder);
+      await tester.pumpAndSettle();
     }
 
     await reveal(find.text('Chest discomfort'));
