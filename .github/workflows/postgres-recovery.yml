@@ -1,0 +1,126 @@
+name: PostgreSQL Recovery
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 4 * * 0"
+
+permissions:
+  contents: read
+
+jobs:
+  recovery-drill:
+    name: PostgreSQL 16 Backup Restore Drill
+    runs-on: ubuntu-24.04
+    services:
+      source-postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: carepoint
+          POSTGRES_PASSWORD: carepoint
+          POSTGRES_DB: carepoint
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd="pg_isready -U carepoint -d carepoint"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+      restore-postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: carepoint
+          POSTGRES_PASSWORD: carepoint
+          POSTGRES_DB: carepoint_restore
+        ports:
+          - 55433:5432
+        options: >-
+          --health-cmd="pg_isready -U carepoint -d carepoint_restore"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 56379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://carepoint:carepoint@127.0.0.1:55432/carepoint?schema=public
+      REDIS_URL: redis://127.0.0.1:56379
+      ALLOWED_ORIGINS: http://localhost:3000
+      MFA_KEY_PROVIDER: local
+      MFA_ENVELOPE_KEY_ID: c11-mfa-kek-v1
+      MFA_ENVELOPE_KEY_BASE64: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+      TELEHEALTH_PROVIDER: mock
+      TELEHEALTH_KEY_PROVIDER: local
+      TELEHEALTH_ENVELOPE_KEY_ID: c11-telehealth-kek-v1
+      TELEHEALTH_ENVELOPE_KEY_BASE64: AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=
+      TELEHEALTH_MOCK_SIGNING_SECRET: carepoint-c11-mock-signing-secret-0001
+      CLINICAL_KEY_PROVIDER: local
+      CLINICAL_ENVELOPE_KEY_ID: c11-clinical-kek-v1
+      CLINICAL_ENVELOPE_KEY_BASE64: AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=
+      ORDER_KEY_PROVIDER: local
+      ORDER_ENVELOPE_KEY_ID: c11-orders-kek-v1
+      ORDER_ENVELOPE_KEY_BASE64: AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI=
+      ORDER_SIGNING_PROVIDER: local
+      ORDER_SIGNING_KEY_ID: c11-orders-signing-v1
+      ORDER_SIGNING_SECRET_BASE64: AwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwM=
+      DOCUMENT_STORAGE_PROVIDER: local
+      DOCUMENT_STORAGE_LOCAL_ROOT: /tmp/carepoint-c11-documents
+      DOCUMENT_KEY_PROVIDER: local
+      DOCUMENT_ENVELOPE_KEY_ID: c11-documents-kek-v1
+      DOCUMENT_ENVELOPE_KEY_BASE64: BAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQ=
+      DOCUMENT_SIGNING_PROVIDER: local
+      DOCUMENT_SIGNING_KEY_ID: c11-documents-signing-v1
+      DOCUMENT_SIGNING_SECRET_BASE64: BQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQU=
+      PAYMENT_GATEWAY_PROVIDER: mock
+      INSURANCE_GATEWAY_PROVIDER: mock
+      CLAIMS_GATEWAY_PROVIDER: mock
+      MESSAGING_KEY_PROVIDER: local
+      MESSAGING_ENVELOPE_KEY_ID: c11-messaging-kek-v1
+      MESSAGING_ENVELOPE_KEY_BASE64: BgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgY=
+      NOTIFICATION_GATEWAY_PROVIDER: mock
+      SIEM_EXPORT_ENABLED: "false"
+      C11_SOURCE_DATABASE_URL: postgresql://carepoint:carepoint@127.0.0.1:55432/carepoint?schema=public
+      C11_RESTORE_DATABASE_URL: postgresql://carepoint:carepoint@127.0.0.1:55433/carepoint_restore?schema=public
+      C11_SOURCE_PORT: "55432"
+      C11_RESTORE_PORT: "55433"
+      C11_PGUSER: carepoint
+      C11_PGPASSWORD: carepoint
+      C11_SOURCE_DB: carepoint
+      C11_RESTORE_DB: carepoint_restore
+      C11_API_PORT: "4100"
+      C11_POSTGRES_IMAGE: postgres:16
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - name: Use repository npm toolchain
+        run: |
+          npm install --global npm@10.9.2
+          test "$(npm --version)" = "10.9.2"
+      - name: Resolve candidate dependency lock without package scripts
+        run: npm install --package-lock-only --ignore-scripts
+      - name: Phase C2 verify canonical dependency graph
+        run: node .ci/verify-npm-lock.mjs
+      - name: Install verified dependency graph
+        run: npm ci
+      - name: Phase C2 high-severity dependency audit
+        run: npm audit --audit-level=high
+      - name: Build CarePoint for restored-database boot test
+        run: npm run build
+      - name: Phase C11 PostgreSQL disaster recovery drill
+        run: bash .ci/postgres-recovery-drill.sh
+      - name: Verify recovery artifacts were not retained
+        run: |
+          test ! -e /tmp/carepoint-c11-recovery.dump
+          test ! -e /tmp/carepoint-c11-recovery.list
+          test ! -e /tmp/carepoint-c11-restored-api.log

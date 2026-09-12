@@ -1,0 +1,49 @@
+name: Security Analysis
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "23 3 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  repository-security-gate:
+    name: Repository Security Gate
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - name: Phase C10 scanner self-test
+        run: node .ci/repository-security-scan.mjs --self-test
+      - name: Phase C10 tracked repository security scan
+        run: node .ci/repository-security-scan.mjs
+
+  codeql:
+    name: CodeQL SAST (javascript-typescript)
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      security-events: write
+      packages: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Privacy-safe CodeQL summary self-test
+        run: node .ci/codeql-aggregate-rule-summary.mjs --self-test
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@6f5948dfacef28e207b48d0905cf90c03365536d # v3.37.9
+        with:
+          languages: javascript-typescript
+          queries: security-extended
+      - name: Analyze with CodeQL
+        uses: github/codeql-action/analyze@6f5948dfacef28e207b48d0905cf90c03365536d # v3.37.9
+        with:
+          category: "/language:javascript-typescript"
+          output: codeql-results
+      - name: Aggregate CodeQL rule IDs only
+        run: node .ci/codeql-aggregate-rule-summary.mjs codeql-results

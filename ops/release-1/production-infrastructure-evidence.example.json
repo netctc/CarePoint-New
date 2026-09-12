@@ -1,0 +1,104 @@
+{
+  "schema": "carepoint.release-infrastructure-evidence/v1",
+  "approved": false,
+  "overallStatus": "DRAFT",
+  "sensitiveDataIncluded": false,
+  "release": {
+    "sourceSha": "REPLACE_WITH_FINAL_40_HEX_RC_SHA",
+    "releaseVersion": "REPLACE_WITH_RELEASE_VERSION",
+    "apiArtifactDigest": "REPLACE_WITH_IMMUTABLE_API_SHA256_DIGEST",
+    "adminArtifactDigest": "REPLACE_WITH_IMMUTABLE_ADMIN_SHA256_DIGEST",
+    "rcEvidenceRef": "REPLACE_WITH_RESTRICTED_OR_SANITIZED_RC_EVIDENCE_REFERENCE"
+  },
+  "environment": {
+    "id": "REPLACE_WITH_NON_SECRET_ENVIRONMENT_REFERENCE",
+    "classification": "production-equivalent",
+    "topologyEvidenceRef": "REPLACE_WITH_TOPOLOGY_EVIDENCE_REFERENCE",
+    "changeApprovalRef": "REPLACE_WITH_CHANGE_APPROVAL_REFERENCE",
+    "productionFaultOrValidationApproved": false
+  },
+  "residency": {
+    "jurisdiction": "REPLACE_WITH_APPROVED_LAUNCH_JURISDICTION",
+    "primaryRegion": "REPLACE_WITH_APPROVED_PRIMARY_REGION",
+    "approvedRegions": [
+      "REPLACE_WITH_APPROVED_REGION"
+    ],
+    "approvalRef": "REPLACE_WITH_PRIVACY_REGULATORY_RESIDENCY_APPROVAL_REFERENCE",
+    "providerLocationEvidenceRef": "REPLACE_WITH_MANAGED_PROVIDER_LOCATION_EVIDENCE_REFERENCE"
+  },
+  "scope": {
+    "clinicalUploadsEnabled": "UNDECIDED",
+    "dicomEnabled": "UNDECIDED",
+    "fhirBulkEnabled": "UNDECIDED",
+    "exportsEnabled": "UNDECIDED",
+    "activationDecisionRef": "REPLACE_WITH_APPROVED_FEATURE_SCOPE_REFERENCE"
+  },
+  "dataDestinations": [
+    { "id": "postgres-primary", "applicability": "UNDECIDED", "regions": [], "evidenceRef": "REPLACE_WITH_EVIDENCE" },
+    { "id": "postgres-ha-replicas", "applicability": "UNDECIDED", "regions": [], "evidenceRef": "REPLACE_WITH_EVIDENCE" },
+    { "id": "postgres-backups-pitr", "applicability": "UNDECIDED", "regions": [], "evidenceRef": "REPLACE_WITH_EVIDENCE" },
+    { "id": "redis-primary", "applicability": "UNDECIDED", "regions": [], "evidenceRef": "REPLACE_WITH_EVIDENCE" },
+    { "id": "redis-ha-replicas", "applicability": "UNDECIDED", "regions": [], "evidenceRef": "REPLACE_WITH_EVIDENCE" },
+    { "id": "clinical-object-storage", "applicability": "UNDECIDED", "regions": [], "evidenceRef": "REPLACE_WITH_EVIDENCE" },
+    { "id": "kms-key-material", "applicability": "UNDECIDED", "regions": [], "evidenceRef": "REPLACE_WITH_EVIDENCE" },
+    { "id": "otlp-processing", "applicability": "UNDECIDED", "regions": [], "evidenceRef": "REPLACE_WITH_EVIDENCE" },
+    { "id": "siem-processing", "applicability": "UNDECIDED", "regions": [], "evidenceRef": "REPLACE_WITH_EVIDENCE" },
+    { "id": "exported-artifacts", "applicability": "UNDECIDED", "regions": [], "evidenceRef": "REPLACE_WITH_EVIDENCE" },
+    { "id": "fhir-bulk-artifacts", "applicability": "UNDECIDED", "regions": [], "evidenceRef": "REPLACE_WITH_EVIDENCE" }
+  ],
+  "controls": [
+    { "id": "postgres-tls-version", "applicability": "UNDECIDED", "status": "BLOCKED", "ownerRef": "REPLACE_WITH_OWNER", "checkedAt": "REPLACE_WITH_TIMESTAMP", "revalidateBy": "REPLACE_WITH_TIMESTAMP", "evidenceRef": "REPLACE_WITH_EVIDENCE" },
+    { "id": "postgres-ha-failover", "applicability": "UNDECIDED", "status": "BLOCKED", "ownerRef": "REPLACE_WITH_OWNER", "checkedAt": "REPLACE_WITH_TIMESTAMP", "revalidateBy": "REPLACE_WITH_TIMESTAMP", "evidenceRef": "REPLACE_WITH_EVIDENCE" },
+    { "id": "postgres-pitr-backup-restore", "applicability": "UNDECIDED", "status": "BLOCKED", "ownerRef": "REPLACE_WITH_OWNER", "checkedAt": "REPLACE_WITH_TIMESTAMP", "revalidateBy": "REPLACE_WITH_TIMESTAMP", "evidenceRef": "REPLACE_WITH_EVIDENCE" },
+    { "id": "postgres-pooling-limits", "applicability": "UNDECIDED", "status": "BLOCKED", "ownerRef": "REPLACE_WITH_OWNER", "checkedAt": "REPLACE_WITH_TIMESTAMP", "revalidateBy": "REPLACE_WITH_TIMESTAMP", "evidenceRef": "REPLACE_WITH_EVIDENCE" },
+    { "id": "redis-tls-auth", "applicability": "UNDECIDED", "status": "BLOCKED", "ownerRef": "REPLACE_WITH_OWNER", "checkedAt": "REPLACE_WITH_TIMESTAMP", "revalidateBy": "REPLACE_WITH_TIMESTAMP", "evidenceRef": "REPLACE_WITH_EVIDENCE" },
+    { "id": "redis-ha-persistence", "applicability": "UNDECIDED", "status": "BLOCKED", "ownerRef": "REPLACE_WITH_OWNER", "checkedAt": "REPLACE_WITH_TIMESTAMP", "revalidateBy": "REPLACE_WITH_TIMESTAMP", "evidenceRef": "REPLACE_WITH_EVIDENCE" },
+    { "id": "redis-monitoring-reconnect", "applicability": "UNDECIDED", "status": "BLOCKED", "ownerRef": "REPLACE_WITH_OWNER", "checkedAt": "REPLACE_WITH_TIMESTAMP", "revalidateBy": "REPLACE_WITH_TIMESTAMP", "evidenceRef": "REPLACE_WITH_EVIDENCE" },
+    { "id": "object-storage-private-access", "applicability": "UNDECIDED", "status": "BLOCKED", "ownerRef": "REPLACE_WITH_OWNER", "checkedAt": "REPLACE_WITH_TIMESTAMP", "revalidateBy": "REPLACE_WITH_TIMESTAMP", "evidenceRef": "REPLACE_WITH_EVIDENCE" },
+    { "id": "object-storage-kms-residency", "applicability": "UNDECIDED", "status": "BLOCKED", "ownerRef": "REPLACE_WITH_OWNER", "checkedAt": "REPLACE_WITH_TIMESTAMP", "revalidateBy": "REPLACE_WITH_TIMESTAMP", "evidenceRef": "REPLACE_WITH_EVIDENCE" },
+    { "id": "object-storage-lifecycle-recovery", "applicability": "UNDECIDED", "status": "BLOCKED", "ownerRef": "REPLACE_WITH_OWNER", "checkedAt": "REPLACE_WITH_TIMESTAMP", "revalidateBy": "REPLACE_WITH_TIMESTAMP", "evidenceRef": "REPLACE_WITH_EVIDENCE" },
+    { "id": "kms-customer-managed-least-privilege", "applicability": "UNDECIDED", "status": "BLOCKED", "ownerRef": "REPLACE_WITH_OWNER", "checkedAt": "REPLACE_WITH_TIMESTAMP", "revalidateBy": "REPLACE_WITH_TIMESTAMP", "evidenceRef": "REPLACE_WITH_EVIDENCE" },
+    { "id": "kms-rotation-recovery", "applicability": "UNDECIDED", "status": "BLOCKED", "ownerRef": "REPLACE_WITH_OWNER", "checkedAt": "REPLACE_WITH_TIMESTAMP", "revalidateBy": "REPLACE_WITH_TIMESTAMP", "evidenceRef": "REPLACE_WITH_EVIDENCE" },
+    { "id": "external-secrets-rotation", "applicability": "UNDECIDED", "status": "BLOCKED", "ownerRef": "REPLACE_WITH_OWNER", "checkedAt": "REPLACE_WITH_TIMESTAMP", "revalidateBy": "REPLACE_WITH_TIMESTAMP", "evidenceRef": "REPLACE_WITH_EVIDENCE" },
+    { "id": "clinical-upload-malware-scan", "applicability": "UNDECIDED", "status": "BLOCKED", "ownerRef": "REPLACE_WITH_OWNER", "checkedAt": "REPLACE_WITH_TIMESTAMP", "revalidateBy": "REPLACE_WITH_TIMESTAMP", "evidenceRef": "REPLACE_WITH_EVIDENCE" },
+    { "id": "dicom-pacs-security", "applicability": "UNDECIDED", "status": "BLOCKED", "ownerRef": "REPLACE_WITH_OWNER", "checkedAt": "REPLACE_WITH_TIMESTAMP", "revalidateBy": "REPLACE_WITH_TIMESTAMP", "evidenceRef": "REPLACE_WITH_EVIDENCE" },
+    { "id": "otlp-tls-phi-safety", "applicability": "UNDECIDED", "status": "BLOCKED", "ownerRef": "REPLACE_WITH_OWNER", "checkedAt": "REPLACE_WITH_TIMESTAMP", "revalidateBy": "REPLACE_WITH_TIMESTAMP", "evidenceRef": "REPLACE_WITH_EVIDENCE" },
+    { "id": "siem-end-to-end-delivery", "applicability": "UNDECIDED", "status": "BLOCKED", "ownerRef": "REPLACE_WITH_OWNER", "checkedAt": "REPLACE_WITH_TIMESTAMP", "revalidateBy": "REPLACE_WITH_TIMESTAMP", "evidenceRef": "REPLACE_WITH_EVIDENCE" },
+    { "id": "async-backlog-alerting", "applicability": "UNDECIDED", "status": "BLOCKED", "ownerRef": "REPLACE_WITH_OWNER", "checkedAt": "REPLACE_WITH_TIMESTAMP", "revalidateBy": "REPLACE_WITH_TIMESTAMP", "evidenceRef": "REPLACE_WITH_EVIDENCE" },
+    { "id": "edge-dns-tls-chain", "applicability": "UNDECIDED", "status": "BLOCKED", "ownerRef": "REPLACE_WITH_OWNER", "checkedAt": "REPLACE_WITH_TIMESTAMP", "revalidateBy": "REPLACE_WITH_TIMESTAMP", "evidenceRef": "REPLACE_WITH_EVIDENCE" },
+    { "id": "edge-proxy-trust-cors-headers", "applicability": "UNDECIDED", "status": "BLOCKED", "ownerRef": "REPLACE_WITH_OWNER", "checkedAt": "REPLACE_WITH_TIMESTAMP", "revalidateBy": "REPLACE_WITH_TIMESTAMP", "evidenceRef": "REPLACE_WITH_EVIDENCE" },
+    { "id": "notification-worker-runtime", "applicability": "UNDECIDED", "status": "BLOCKED", "ownerRef": "REPLACE_WITH_OWNER", "checkedAt": "REPLACE_WITH_TIMESTAMP", "revalidateBy": "REPLACE_WITH_TIMESTAMP", "evidenceRef": "REPLACE_WITH_EVIDENCE" },
+    { "id": "siem-worker-runtime", "applicability": "UNDECIDED", "status": "BLOCKED", "ownerRef": "REPLACE_WITH_OWNER", "checkedAt": "REPLACE_WITH_TIMESTAMP", "revalidateBy": "REPLACE_WITH_TIMESTAMP", "evidenceRef": "REPLACE_WITH_EVIDENCE" },
+    { "id": "fhir-bulk-worker-cleanup", "applicability": "UNDECIDED", "status": "BLOCKED", "ownerRef": "REPLACE_WITH_OWNER", "checkedAt": "REPLACE_WITH_TIMESTAMP", "revalidateBy": "REPLACE_WITH_TIMESTAMP", "evidenceRef": "REPLACE_WITH_EVIDENCE" },
+    { "id": "scheduled-maintenance-runtime", "applicability": "UNDECIDED", "status": "BLOCKED", "ownerRef": "REPLACE_WITH_OWNER", "checkedAt": "REPLACE_WITH_TIMESTAMP", "revalidateBy": "REPLACE_WITH_TIMESTAMP", "evidenceRef": "REPLACE_WITH_EVIDENCE" },
+    { "id": "multi-replica-lease-idempotency", "applicability": "UNDECIDED", "status": "BLOCKED", "ownerRef": "REPLACE_WITH_OWNER", "checkedAt": "REPLACE_WITH_TIMESTAMP", "revalidateBy": "REPLACE_WITH_TIMESTAMP", "evidenceRef": "REPLACE_WITH_EVIDENCE" },
+    { "id": "export-lifecycle-residency", "applicability": "UNDECIDED", "status": "BLOCKED", "ownerRef": "REPLACE_WITH_OWNER", "checkedAt": "REPLACE_WITH_TIMESTAMP", "revalidateBy": "REPLACE_WITH_TIMESTAMP", "evidenceRef": "REPLACE_WITH_EVIDENCE" },
+    { "id": "dr-runbook-failover-restore", "applicability": "UNDECIDED", "status": "BLOCKED", "ownerRef": "REPLACE_WITH_OWNER", "checkedAt": "REPLACE_WITH_TIMESTAMP", "revalidateBy": "REPLACE_WITH_TIMESTAMP", "evidenceRef": "REPLACE_WITH_EVIDENCE" },
+    { "id": "post-recovery-integrity", "applicability": "UNDECIDED", "status": "BLOCKED", "ownerRef": "REPLACE_WITH_OWNER", "checkedAt": "REPLACE_WITH_TIMESTAMP", "revalidateBy": "REPLACE_WITH_TIMESTAMP", "evidenceRef": "REPLACE_WITH_EVIDENCE" }
+  ],
+  "continuity": {
+    "status": "BLOCKED",
+    "incidentDeclaredAt": "REPLACE_WITH_TIMESTAMP",
+    "recoveryPointReferenceAt": "REPLACE_WITH_TIMESTAMP",
+    "recoveredDataThroughAt": "REPLACE_WITH_TIMESTAMP",
+    "acceptedHealthyAt": "REPLACE_WITH_TIMESTAMP",
+    "rpoMinutes": null,
+    "rtoMinutes": null,
+    "pitrEvidenceRef": "REPLACE_WITH_EVIDENCE",
+    "restoreEvidenceRef": "REPLACE_WITH_EVIDENCE",
+    "failoverEvidenceRef": "REPLACE_WITH_EVIDENCE",
+    "integrityEvidenceRef": "REPLACE_WITH_EVIDENCE",
+    "runbookRef": "REPLACE_WITH_RUNBOOK_REFERENCE",
+    "operatorRef": "REPLACE_WITH_NON_SECRET_OPERATOR_REFERENCE"
+  },
+  "approvals": [
+    { "role": "Operations", "decision": "PENDING", "approverRef": "REPLACE_WITH_APPROVER_REFERENCE", "evidenceRef": "REPLACE_WITH_APPROVAL_REFERENCE", "approvedAt": "REPLACE_WITH_TIMESTAMP" },
+    { "role": "SRE", "decision": "PENDING", "approverRef": "REPLACE_WITH_APPROVER_REFERENCE", "evidenceRef": "REPLACE_WITH_APPROVAL_REFERENCE", "approvedAt": "REPLACE_WITH_TIMESTAMP" },
+    { "role": "Database", "decision": "PENDING", "approverRef": "REPLACE_WITH_APPROVER_REFERENCE", "evidenceRef": "REPLACE_WITH_APPROVAL_REFERENCE", "approvedAt": "REPLACE_WITH_TIMESTAMP" },
+    { "role": "Security", "decision": "PENDING", "approverRef": "REPLACE_WITH_APPROVER_REFERENCE", "evidenceRef": "REPLACE_WITH_APPROVAL_REFERENCE", "approvedAt": "REPLACE_WITH_TIMESTAMP" },
+    { "role": "Privacy", "decision": "PENDING", "approverRef": "REPLACE_WITH_APPROVER_REFERENCE", "evidenceRef": "REPLACE_WITH_APPROVAL_REFERENCE", "approvedAt": "REPLACE_WITH_TIMESTAMP" },
+    { "role": "Product", "decision": "PENDING", "approverRef": "REPLACE_WITH_APPROVER_REFERENCE", "evidenceRef": "REPLACE_WITH_APPROVAL_REFERENCE", "approvedAt": "REPLACE_WITH_TIMESTAMP" }
+  ],
+  "finalEvidenceRef": "REPLACE_WITH_FINAL_ACCEPTANCE_REFERENCE",
+  "acceptedAt": "REPLACE_WITH_TIMESTAMP"
+}

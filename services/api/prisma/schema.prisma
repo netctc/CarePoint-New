@@ -1,0 +1,529 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  PATIENT
+  DOCTOR
+  OTHER_PROVIDER
+  ADMIN
+  SUPPORT
+}
+
+enum AccountStatus {
+  ACTIVE
+  SUSPENDED
+  ARCHIVED
+}
+
+enum ProviderClass {
+  DOCTOR
+  OTHER_PROVIDER
+}
+
+enum ProviderStatus {
+  DRAFT
+  PENDING_REVIEW
+  ACTIVE
+  SUSPENDED
+  REJECTED
+}
+
+enum ProviderOnboardingState {
+  DRAFT
+  PENDING_REVIEW
+  REQUEST_CHANGES
+  APPROVED
+  REJECTED
+}
+
+enum CredentialReviewState {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum ConsentState {
+  GRANTED
+  REVOKED
+}
+
+enum AuthChallengeType {
+  MFA_LOGIN
+}
+
+enum AppointmentModality {
+  CLINIC
+  TELEMEDICINE
+  HOME_VISIT
+}
+
+enum AppointmentStatus {
+  REQUESTED
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+  NO_SHOW
+}
+
+enum AvailabilitySlotStatus {
+  OPEN
+  BLOCKED
+}
+
+enum TelehealthSessionStatus {
+  WAITING
+  READY
+  ACTIVE
+  ENDED
+  CANCELLED
+}
+
+enum EmergencyAmbulanceStatus {
+  REQUESTED
+  DISPATCHING
+  ASSIGNED
+  EN_ROUTE
+  ARRIVED
+  TRANSPORTING
+  COMPLETED
+  CANCELLED
+}
+
+model User {
+  id                  String               @id @default(uuid())
+  email               String               @unique
+  passwordHash        String
+  role                UserRole
+  status              AccountStatus        @default(ACTIVE)
+  failedLoginCount    Int                  @default(0)
+  lockedUntil         DateTime?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  patientProfile      PatientProfile?
+  provider            Provider?
+  authSessions        AuthSession[]
+  authChallenges      AuthChallenge[]
+  mfaEnrollment       MfaEnrollment?
+  providerOnboardings ProviderOnboarding[]
+}
+
+model AuthSession {
+  id                  String   @id
+  userId              String
+  accessTokenHash     String   @unique
+  refreshTokenHash    String   @unique
+  expiresAt           DateTime
+  refreshExpiresAt    DateTime
+  revokedAt           DateTime?
+  replacedBySessionId String?
+  userAgent           String?
+  ipAddress           String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+  @@index([refreshExpiresAt])
+}
+
+model AuthChallenge {
+  id         String            @id
+  userId     String
+  type       AuthChallengeType
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime          @default(now())
+  user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, type, expiresAt])
+  @@index([expiresAt, consumedAt])
+}
+
+model MfaEnrollment {
+  id               String   @id @default(uuid())
+  userId           String   @unique
+  version          Int      @default(1)
+  algorithm        String   @default("AES-256-GCM")
+  keyId            String
+  wrappedKey       String
+  iv               String
+  secretCiphertext String
+  enabledAt        DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PatientProfile {
+  id                String                      @id @default(uuid())
+  userId            String                      @unique
+  firstName         String
+  lastName          String
+  phone             String?
+  createdAt         DateTime                    @default(now())
+  updatedAt         DateTime                    @updatedAt
+  user              User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  appointments      Appointment[]
+  emergencyRequests EmergencyAmbulanceRequest[]
+  clinicalRecords   ClinicalRecord[]
+  consents          Consent[]
+}
+
+model Provider {
+  id                        String                      @id @default(uuid())
+  userId                    String?                     @unique
+  class                     ProviderClass
+  displayName               String
+  legalName                 String?
+  status                    ProviderStatus              @default(DRAFT)
+  createdAt                 DateTime                    @default(now())
+  updatedAt                 DateTime                    @updatedAt
+  user                      User?                       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  doctorProfile             DoctorProfile?
+  otherProviderProfile      OtherProviderProfile?
+  credentials               ProviderCredential[]
+  services                  Service[]
+  availabilityRules         AvailabilityRule[]
+  slots                     AvailabilitySlot[]
+  appointments              Appointment[]
+  assignedEmergencyRequests EmergencyAmbulanceRequest[] @relation("EmergencyAssignedProvider")
+}
+
+model ProviderOnboarding {
+  id                 String                    @id @default(uuid())
+  userId             String
+  kind               ProviderClass
+  specialtyId        String?
+  providerCategoryId String?
+  state              ProviderOnboardingState   @default(DRAFT)
+  submittedAt        DateTime?
+  reviewedAt         DateTime?
+  reviewerActorId    String?
+  reviewNote         String?
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
+  user               User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  specialty          MedicalSpecialty?         @relation(fields: [specialtyId], references: [id], onDelete: Restrict)
+  providerCategory   ProviderCategory?          @relation(fields: [providerCategoryId], references: [id], onDelete: Restrict)
+  credentials        OnboardingCredential[]
+
+  @@index([state, submittedAt])
+  @@index([userId, kind])
+}
+
+model OnboardingCredential {
+  id                String                @id @default(uuid())
+  onboardingId      String
+  type              String
+  number            String?
+  issuer            String?
+  validUntil        DateTime?
+  documentId        String?
+  state             CredentialReviewState @default(PENDING)
+  reviewNote        String?
+  reviewedByActorId String?
+  reviewedAt        DateTime?
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+  onboarding        ProviderOnboarding    @relation(fields: [onboardingId], references: [id], onDelete: Cascade)
+
+  @@index([onboardingId, state])
+}
+
+model MedicalSpecialty {
+  id          String               @id @default(uuid())
+  code        String               @unique
+  labels      Json
+  parentId    String?
+  active      Boolean              @default(true)
+  parent      MedicalSpecialty?    @relation("SpecialtyHierarchy", fields: [parentId], references: [id])
+  children    MedicalSpecialty[]   @relation("SpecialtyHierarchy")
+  doctors     DoctorSpecialty[]
+  onboardings ProviderOnboarding[]
+}
+
+model DoctorProfile {
+  id            String            @id @default(uuid())
+  providerId    String            @unique
+  licenseNumber String
+  licenseIssuer String?
+  provider      Provider          @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  specialties   DoctorSpecialty[]
+}
+
+model DoctorSpecialty {
+  doctorId    String
+  specialtyId String
+  primary     Boolean          @default(false)
+  doctor      DoctorProfile    @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  specialty   MedicalSpecialty @relation(fields: [specialtyId], references: [id], onDelete: Restrict)
+
+  @@id([doctorId, specialtyId])
+}
+
+model ProviderCategory {
+  id                      String                 @id @default(uuid())
+  slug                    String                 @unique
+  labels                  Json
+  family                  String
+  active                  Boolean                @default(true)
+  requiredCredentialTypes Json
+  capabilities            Json
+  createdAt               DateTime               @default(now())
+  updatedAt               DateTime               @updatedAt
+  providers               OtherProviderProfile[]
+  onboardings             ProviderOnboarding[]
+}
+
+model OtherProviderProfile {
+  id         String           @id @default(uuid())
+  providerId String           @unique
+  categoryId String
+  provider   Provider         @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  category   ProviderCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+}
+
+model ProviderCredential {
+  id         String   @id @default(uuid())
+  providerId String
+  type       String
+  issuer     String?
+  number     String?
+  validFrom  DateTime?
+  validUntil DateTime?
+  status     String
+  documentId String?
+  createdAt  DateTime @default(now())
+  provider   Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@index([providerId, type, status])
+}
+
+model Service {
+  id                String             @id @default(uuid())
+  providerId        String
+  name              String
+  labels            Json?
+  description       String?
+  descriptionLabels Json?
+  currency          String             @default("USD")
+  active            Boolean            @default(true)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  provider          Provider           @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  modalities        ServiceModality[]
+  availabilityRules AvailabilityRule[]
+  slots             AvailabilitySlot[]
+  appointments      Appointment[]
+
+  @@index([providerId, active])
+}
+
+model ServiceModality {
+  id              String              @id @default(uuid())
+  serviceId       String
+  modality        AppointmentModality
+  durationMinutes Int
+  priceMinor      Int
+  active          Boolean             @default(true)
+  coverage        Json?
+  service         Service             @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@unique([serviceId, modality])
+  @@index([modality, active])
+}
+
+model AvailabilityRule {
+  id              String              @id @default(uuid())
+  providerId      String
+  serviceId       String
+  modality        AppointmentModality
+  timezone        String
+  weekday         Int
+  startMinute     Int
+  endMinute       Int
+  intervalMinutes Int
+  slotCapacity    Int                 @default(1)
+  effectiveFrom   DateTime            @db.Date
+  effectiveUntil  DateTime?           @db.Date
+  active          Boolean             @default(true)
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  provider        Provider            @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  service         Service             @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  slots           AvailabilitySlot[]
+
+  @@index([providerId, active, weekday])
+  @@index([serviceId, modality, active])
+}
+
+model AvailabilitySlot {
+  id           String                 @id @default(uuid())
+  providerId   String
+  serviceId    String
+  modality     AppointmentModality
+  startsAt     DateTime
+  endsAt       DateTime
+  capacity     Int                    @default(1)
+  bookedCount  Int                    @default(0)
+  status       AvailabilitySlotStatus @default(OPEN)
+  version      Int                    @default(1)
+  sourceRuleId String?
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+  provider     Provider               @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  service      Service                @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  sourceRule   AvailabilityRule?      @relation(fields: [sourceRuleId], references: [id], onDelete: SetNull)
+  appointments Appointment[]
+
+  @@unique([providerId, serviceId, modality, startsAt])
+  @@index([serviceId, modality, status, startsAt])
+  @@index([providerId, startsAt, endsAt])
+}
+
+model Appointment {
+  id                 String              @id @default(uuid())
+  patientId          String
+  providerId         String
+  serviceId          String
+  slotId             String?
+  idempotencyKey     String?             @unique
+  modality           AppointmentModality
+  status             AppointmentStatus   @default(REQUESTED)
+  startsAt           DateTime
+  endsAt             DateTime
+  cancelledAt        DateTime?
+  cancellationReason String?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  patient            PatientProfile      @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  provider           Provider            @relation(fields: [providerId], references: [id], onDelete: Restrict)
+  service            Service             @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  slot               AvailabilitySlot?   @relation(fields: [slotId], references: [id], onDelete: SetNull)
+  telehealthSession  TelehealthSession?
+
+  @@index([providerId, startsAt, status])
+  @@index([patientId, startsAt, status])
+  @@index([slotId, status])
+}
+
+model TelehealthSession {
+  id                 String                  @id @default(uuid())
+  appointmentId      String                  @unique
+  roomName           String                  @unique
+  status             TelehealthSessionStatus @default(WAITING)
+  consentId          String?                 @unique
+  consentVersion     String?
+  patientReadyAt     DateTime?
+  providerReadyAt    DateTime?
+  patientReadiness   Json?
+  providerReadiness  Json?
+  startedAt          DateTime?
+  endedAt            DateTime?
+  recordingEnabled   Boolean                 @default(false)
+  e2eeVersion        Int                     @default(1)
+  e2eeAlgorithm      String                  @default("AES-256-GCM")
+  e2eeKeyId          String
+  e2eeWrappedKey     String
+  e2eeIv             String
+  e2eeCiphertext     String
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+  appointment        Appointment             @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  consent            Consent?                @relation(fields: [consentId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+}
+
+model EmergencyAmbulanceRequest {
+  id                 String                   @id @default(uuid())
+  patientId          String
+  status             EmergencyAmbulanceStatus @default(REQUESTED)
+  latitude           Decimal                  @db.Decimal(9, 6)
+  longitude          Decimal                  @db.Decimal(9, 6)
+  pickupAddress      String?
+  callbackPhone      String?
+  note               String?
+  assignedProviderId String?
+  etaMinutes         Int?
+  requestedAt        DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+  patient            PatientProfile           @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  assignedProvider   Provider?                @relation("EmergencyAssignedProvider", fields: [assignedProviderId], references: [id], onDelete: SetNull)
+
+  @@index([status, requestedAt])
+  @@index([assignedProviderId, status])
+}
+
+model ClinicalRecord {
+  id           String         @id @default(uuid())
+  patientId    String
+  providerId   String
+  encounterRef String?
+  algorithm    String
+  keyId        String
+  wrappedKey   String
+  iv           String
+  ciphertext   String
+  createdAt    DateTime       @default(now())
+  patient      PatientProfile @relation(fields: [patientId], references: [id], onDelete: Restrict)
+
+  @@index([patientId, createdAt])
+  @@index([providerId, createdAt])
+}
+
+model Consent {
+  id                String              @id @default(uuid())
+  patientId         String
+  providerId        String?
+  scope             String
+  version           String
+  state             ConsentState        @default(GRANTED)
+  grantedAt         DateTime            @default(now())
+  revokedAt         DateTime?
+  expiresAt         DateTime?
+  patient           PatientProfile      @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  telehealthSession TelehealthSession?
+
+  @@index([patientId, providerId, scope, state])
+}
+
+model AuditEvent {
+  id           String             @id @default(uuid())
+  actorId      String?
+  action       String
+  objectType   String
+  objectId     String?
+  purpose      String?
+  result       String
+  metadata     Json?
+  occurredAt   DateTime           @default(now())
+  siemDelivery SiemAuditDelivery?
+
+  @@index([actorId, occurredAt])
+  @@index([objectType, objectId, occurredAt])
+}
+
+model SiemAuditDelivery {
+  id           String     @id @default(uuid())
+  auditEventId String     @unique
+  status       String     @default("PENDING")
+  attemptCount Int        @default(0)
+  availableAt  DateTime   @default(now())
+  leaseOwner   String?
+  leaseUntil   DateTime?
+  exportedAt   DateTime?
+  errorCode    String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  auditEvent   AuditEvent @relation(fields: [auditEventId], references: [id], onDelete: Cascade)
+
+  @@index([status, availableAt])
+  @@index([leaseUntil])
+}

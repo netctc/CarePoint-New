@@ -1,0 +1,108 @@
+enum InsuranceClaimStatus {
+  SUBMITTED
+  ACCEPTED
+  PENDING
+  ADJUDICATED
+  DENIED
+  PAID
+  VOID
+}
+
+enum ClaimReconciliationStatus {
+  NOT_RECONCILED
+  RECONCILED
+  REVIEW_REQUIRED
+}
+
+enum RemittanceStatus {
+  APPLIED
+  REVERSED
+}
+
+model InsuranceClaim {
+  id                            String                    @id @default(uuid())
+  appointmentId                 String
+  invoiceId                     String
+  coverageId                    String
+  patientId                     String
+  providerId                    String
+  previousClaimId               String?
+  version                       Int                       @default(1)
+  idempotencyKey                String                    @unique
+  gateway                       String
+  gatewayClaimRef               String?                   @unique
+  status                        InsuranceClaimStatus      @default(SUBMITTED)
+  reconciliationStatus          ClaimReconciliationStatus @default(NOT_RECONCILED)
+  submittedAmountMinor          Int
+  currency                      String
+  allowedMinor                  Int?
+  insurerPaidMinor              Int?
+  patientResponsibilityMinor    Int?
+  adjustmentMinor               Int?
+  denialCode                    String?
+  denialPublicMessage           String?
+  reworkReasonCode              String?
+  submittedAt                   DateTime                  @default(now())
+  adjudicatedAt                 DateTime?
+  paidAt                        DateTime?
+  updatedAt                     DateTime                  @updatedAt
+
+  @@unique([invoiceId, version])
+  @@index([appointmentId, submittedAt])
+  @@index([patientId, submittedAt])
+  @@index([providerId, submittedAt])
+  @@index([coverageId, submittedAt])
+  @@index([status, submittedAt])
+}
+
+model ClaimEvent {
+  id                            String               @id @default(uuid())
+  claimId                       String
+  status                        InsuranceClaimStatus
+  source                        String
+  gatewayReference              String?
+  occurredAt                    DateTime             @default(now())
+
+  @@index([claimId, occurredAt])
+}
+
+model ExplanationOfBenefits {
+  id                            String   @id @default(uuid())
+  claimId                       String   @unique
+  patientId                     String
+  providerId                    String
+  payerCode                     String
+  externalEobRef                String?  @unique
+  billedMinor                   Int
+  allowedMinor                  Int
+  insurerPaidMinor              Int
+  patientResponsibilityMinor    Int
+  adjustmentMinor               Int
+  currency                      String
+  denialCode                    String?
+  denialPublicMessage           String?
+  issuedAt                      DateTime @default(now())
+  releasedAt                    DateTime @default(now())
+
+  @@index([patientId, releasedAt])
+  @@index([providerId, releasedAt])
+}
+
+model InsuranceRemittance {
+  id                            String           @id @default(uuid())
+  claimId                       String
+  providerId                    String
+  invoiceId                     String
+  externalRemittanceRef         String           @unique
+  idempotencyKey                String           @unique
+  amountMinor                   Int
+  currency                      String
+  status                        RemittanceStatus @default(APPLIED)
+  createdAt                     DateTime         @default(now())
+  appliedAt                     DateTime         @default(now())
+  reversedAt                    DateTime?
+
+  @@index([claimId, appliedAt])
+  @@index([providerId, appliedAt])
+  @@index([invoiceId, appliedAt])
+}

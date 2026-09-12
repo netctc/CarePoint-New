@@ -1,0 +1,136 @@
+name: Mobile Native Compatibility
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  CAREPOINT_MOBILE_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  android:
+    name: Android unsigned compatibility (${{ matrix.app }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - app: patient-mobile
+            project: carepoint_patient
+          - app: doctor-mobile
+            project: carepoint_doctor
+          - app: provider-mobile
+            project: carepoint_provider
+    steps:
+      - name: Check out exact candidate SHA
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          ref: ${{ env.CAREPOINT_MOBILE_SOURCE_SHA }}
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: "3.47.2"
+          channel: stable
+      - name: Verify exact checkout identity
+        run: test "$(git rev-parse HEAD)" = "$CAREPOINT_MOBILE_SOURCE_SHA"
+      - name: Resolve tracked dependency graph
+        working-directory: apps/${{ matrix.app }}
+        run: |
+          flutter pub get
+          git diff --exit-code -- pubspec.lock
+      - name: Generate validation-only Android runner
+        working-directory: apps/${{ matrix.app }}
+        run: |
+          flutter create --platforms=android --org io.carepoint.validation --project-name "${{ matrix.project }}" .
+          test -f android/app/src/main/AndroidManifest.xml
+          grep -R "io.carepoint.validation" android/app/build.gradle* android/app/src/main 2>/dev/null
+      - name: Build unsigned/non-production Android compatibility APK
+        working-directory: apps/${{ matrix.app }}
+        run: >-
+          flutter build apk --debug
+          --dart-define=CAREPOINT_BUILD_ENV=development
+          --dart-define=CAREPOINT_API_BASE=https://mobile-validation.invalid/api/v1
+          --dart-define=CAREPOINT_RELEASE_SHA=${{ env.CAREPOINT_MOBILE_SOURCE_SHA }}
+      - name: Capture sanitized Android compatibility evidence
+        working-directory: apps/${{ matrix.app }}
+        run: |
+          mkdir -p native-compat-evidence
+          sha256sum build/app/outputs/flutter-apk/app-debug.apk > native-compat-evidence/artifact.sha256
+          printf 'sourceSha=%s\napp=%s\nplatform=android\nidentityNamespace=io.carepoint.validation\nsigning=debug-validation-only\nproductionReleaseEvidence=false\n' \
+            "$CAREPOINT_MOBILE_SOURCE_SHA" "${{ matrix.app }}" > native-compat-evidence/metadata.txt
+      - name: Upload Android compatibility evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: carepoint-native-compat-android-${{ matrix.app }}-${{ env.CAREPOINT_MOBILE_SOURCE_SHA }}
+          path: apps/${{ matrix.app }}/native-compat-evidence
+          if-no-files-found: error
+
+  ios:
+    name: iOS simulator compatibility (${{ matrix.app }})
+    runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - app: patient-mobile
+            project: carepoint_patient
+          - app: doctor-mobile
+            project: carepoint_doctor
+          - app: provider-mobile
+            project: carepoint_provider
+    steps:
+      - name: Check out exact candidate SHA
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          ref: ${{ env.CAREPOINT_MOBILE_SOURCE_SHA }}
+      - name: Select Xcode 26.1.1 compatibility SDK
+        run: |
+          DEVELOPER_DIR=/Applications/Xcode_26.1.1.app/Contents/Developer
+          test -d "$DEVELOPER_DIR"
+          echo "DEVELOPER_DIR=$DEVELOPER_DIR" >> "$GITHUB_ENV"
+          DEVELOPER_DIR="$DEVELOPER_DIR" xcodebuild -version
+          DEVELOPER_DIR="$DEVELOPER_DIR" xcrun --sdk iphonesimulator --show-sdk-version
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: "3.47.2"
+          channel: stable
+      - name: Verify exact checkout identity
+        run: test "$(git rev-parse HEAD)" = "$CAREPOINT_MOBILE_SOURCE_SHA"
+      - name: Resolve tracked dependency graph
+        working-directory: apps/${{ matrix.app }}
+        run: |
+          flutter pub get
+          git diff --exit-code -- pubspec.lock
+      - name: Generate validation-only iOS runner
+        working-directory: apps/${{ matrix.app }}
+        run: |
+          flutter create --platforms=ios --org io.carepoint.validation --project-name "${{ matrix.project }}" .
+          test -f ios/Runner/Info.plist
+          grep -R "io.carepoint.validation" ios/Runner.xcodeproj/project.pbxproj
+      - name: Build non-production iOS simulator compatibility app
+        working-directory: apps/${{ matrix.app }}
+        run: >-
+          flutter build ios --simulator --debug
+          --dart-define=CAREPOINT_BUILD_ENV=development
+          --dart-define=CAREPOINT_API_BASE=https://mobile-validation.invalid/api/v1
+          --dart-define=CAREPOINT_RELEASE_SHA=${{ env.CAREPOINT_MOBILE_SOURCE_SHA }}
+      - name: Capture sanitized iOS compatibility evidence
+        working-directory: apps/${{ matrix.app }}
+        run: |
+          mkdir -p native-compat-evidence
+          find build/ios/iphonesimulator/Runner.app -type f -print | LC_ALL=C sort | while IFS= read -r file; do shasum -a 256 "$file"; done > native-compat-evidence/app-files.sha256
+          printf 'sourceSha=%s\napp=%s\nplatform=ios-simulator\nidentityNamespace=io.carepoint.validation\nsigning=none-simulator\nproductionReleaseEvidence=false\nxcode=%s\n' \
+            "$CAREPOINT_MOBILE_SOURCE_SHA" "${{ matrix.app }}" "$(xcodebuild -version | tr '\n' ' ')" > native-compat-evidence/metadata.txt
+      - name: Upload iOS compatibility evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: carepoint-native-compat-ios-${{ matrix.app }}-${{ env.CAREPOINT_MOBILE_SOURCE_SHA }}
+          path: apps/${{ matrix.app }}/native-compat-evidence
+          if-no-files-found: error

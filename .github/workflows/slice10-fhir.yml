@@ -1,0 +1,200 @@
+name: Slice 10 FHIR
+
+on:
+  pull_request:
+
+jobs:
+  fhir:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: carepoint
+          POSTGRES_PASSWORD: carepoint
+          POSTGRES_DB: carepoint
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U carepoint -d carepoint"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://carepoint:carepoint@127.0.0.1:5432/carepoint?schema=public
+      REDIS_URL: redis://127.0.0.1:6379
+      ALLOWED_ORIGINS: http://localhost:3000
+      SMART_ISSUER_URL: http://127.0.0.1:4000/api/v1
+      SMART_FHIR_BASE_URL: http://127.0.0.1:4000/api/v1/fhir/R4
+      SMART_PUBLIC_CLIENTS_JSON: >-
+        [{"clientId":"slice106-public-client","name":"Slice 10.6 SMART Test App","redirectUris":["https://smart-app.carepoint.test/callback"],"allowedScopes":["launch/patient","patient/Patient.r","patient/Appointment.rs"]},{"clientId":"slice107-browser-client","name":"Slice 10.7 SMART Browser Test App","redirectUris":["https://smart-browser.carepoint.test/callback"],"allowedScopes":["launch/patient","openid","fhirUser","patient/Patient.r","patient/Appointment.rs"]},{"clientId":"slice108-offline-client","name":"Slice 10.8 SMART Offline Test App","redirectUris":["https://smart-offline.carepoint.test/callback"],"allowedScopes":["launch/patient","openid","fhirUser","offline_access","patient/Patient.r","patient/Appointment.rs"]}]
+      TELEHEALTH_PROVIDER: mock
+      CLINICAL_KEY_PROVIDER: local
+      CLINICAL_ENVELOPE_KEY_ID: ci-clinical-kek-v1
+      CLINICAL_ENVELOPE_KEY_BASE64: AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=
+      ORDER_KEY_PROVIDER: local
+      ORDER_ENVELOPE_KEY_ID: ci-orders-kek-v1
+      ORDER_ENVELOPE_KEY_BASE64: AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI=
+      ORDER_SIGNING_PROVIDER: local
+      ORDER_SIGNING_KEY_ID: ci-orders-signing-v1
+      ORDER_SIGNING_SECRET_BASE64: AwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwM=
+      DOCUMENT_STORAGE_PROVIDER: local
+      DOCUMENT_STORAGE_LOCAL_ROOT: /tmp/carepoint-documents
+      BULK_EXPORT_STORAGE_PROVIDER: local
+      BULK_EXPORT_STORAGE_LOCAL_ROOT: /tmp/carepoint-bulk-export
+      BULK_EXPORT_WORKER_POLL_MS: 500
+      BULK_EXPORT_WORKER_LEASE_SECONDS: 30
+      BULK_EXPORT_WORKER_BATCH_SIZE: 10
+      BULK_EXPORT_MAX_ATTEMPTS: 3
+      BULK_EXPORT_RETRY_BASE_SECONDS: 1
+      BULK_EXPORT_CLEANUP_INTERVAL_SECONDS: 5
+      BULK_EXPORT_CLEANUP_BATCH_SIZE: 25
+      BULK_EXPORT_REDIS_COMPAT_WRITE: true
+      DOCUMENT_KEY_PROVIDER: local
+      DOCUMENT_ENVELOPE_KEY_ID: ci-documents-kek-v1
+      DOCUMENT_ENVELOPE_KEY_BASE64: BAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQ=
+      DOCUMENT_SIGNING_PROVIDER: local
+      DOCUMENT_SIGNING_KEY_ID: ci-documents-signing-v1
+      DOCUMENT_SIGNING_SECRET_BASE64: BQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQU=
+      DICOMWEB_PROVIDER: dicomweb
+      DICOMWEB_BASE_URL: https://pacs.carepoint.test/dicomweb/
+      PAYMENT_GATEWAY_PROVIDER: mock
+      INSURANCE_GATEWAY_PROVIDER: mock
+      CLAIMS_GATEWAY_PROVIDER: mock
+      NOTIFICATION_GATEWAY_PROVIDER: mock
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - name: Use repository npm toolchain
+        run: |
+          npm install --global npm@10.9.2
+          test "$(npm --version)" = "10.9.2"
+      - name: Resolve candidate dependency lock without package scripts
+        run: npm install --package-lock-only --ignore-scripts
+      - name: Phase C2 verify canonical dependency graph
+        run: node .ci/verify-npm-lock.mjs
+      - name: Install verified dependency graph
+        run: npm ci
+      - run: npm run build
+      - run: npm run db:deploy
+      - name: Configure Slice 10.9+ SMART backend test clients
+        run: |
+          node <<'NODE'
+          const { generateKeyPairSync } = require('node:crypto');
+          const fs = require('node:fs');
+          const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048, publicExponent: 0x10001 });
+          const publicJwk = publicKey.export({ format: 'jwk' });
+          publicJwk.kid = 'slice109-backend-key';
+          publicJwk.alg = 'RS384';
+          publicJwk.use = 'sig';
+          publicJwk.key_ops = ['verify'];
+          const privatePem = privateKey.export({ format: 'pem', type: 'pkcs8' }).toString();
+          const legacySystemScopes = ['system/Patient.rs', 'system/Appointment.rs'];
+          const clinicalSystemScopes = [
+            ...legacySystemScopes,
+            'system/Encounter.rs',
+            'system/Observation.rs',
+            'system/MedicationRequest.rs',
+            'system/ServiceRequest.rs',
+            'system/DiagnosticReport.rs',
+          ];
+          const clients = [
+            {
+              clientId: 'slice109-backend-client',
+              name: 'Slice 10.9 SMART Backend Test Client',
+              allowedScopes: legacySystemScopes,
+              jwks: { keys: [publicJwk] },
+            },
+            {
+              clientId: 'slice1010-other-client',
+              name: 'Slice 10.10 Isolation Test Client',
+              allowedScopes: legacySystemScopes,
+              jwks: { keys: [publicJwk] },
+            },
+            {
+              clientId: 'slice1012-clinical-client',
+              name: 'Slice 10.12 Clinical Bulk Export Test Client',
+              allowedScopes: clinicalSystemScopes,
+              jwks: { keys: [publicJwk] },
+            },
+            {
+              clientId: 'slice1013-durable-client',
+              name: 'Slice 10.13 Durable Bulk Export Test Client',
+              allowedScopes: legacySystemScopes,
+              jwks: { keys: [publicJwk] },
+            },
+          ];
+          fs.appendFileSync(process.env.GITHUB_ENV, `SMART_BACKEND_PRIVATE_KEY_B64=${Buffer.from(privatePem).toString('base64')}\n`);
+          fs.appendFileSync(process.env.GITHUB_ENV, `SMART_BACKEND_CLIENTS_JSON=${JSON.stringify(clients)}\n`);
+          NODE
+      - name: Start API
+        run: |
+          npm --workspace @carepoint/api run start > /tmp/carepoint-api.log 2>&1 &
+          echo $! > /tmp/carepoint-api.pid
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:4000/api/v1/health/ready > /dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/carepoint-api.log
+          exit 1
+      - name: Slice 10 FHIR R4 interoperability smoke test
+        run: node services/api/scripts/slice10-smoke.mjs
+      - name: Slice 10.3 FHIR diagnostics and documents smoke test
+        run: node services/api/scripts/slice103-smoke.mjs
+      - name: Slice 10.4 FHIR ImagingStudy and secure DICOM smoke test
+        run: node services/api/scripts/slice104-smoke.mjs
+      - name: Slice 10.5 FHIR search pagination and hardening smoke test
+        run: node services/api/scripts/slice105-smoke.mjs
+      - name: Slice 10.6 SMART-on-FHIR OAuth and scope enforcement smoke test
+        run: node services/api/scripts/slice106-smoke.mjs
+      - name: Slice 10.7 SMART browser OIDC and consent smoke test
+        run: node services/api/scripts/slice107-smoke.mjs
+      - name: Slice 10.8 SMART refresh rotation and revocation smoke test
+        run: node services/api/scripts/slice108-smoke.mjs
+      - name: Slice 10.9 SMART backend services smoke test
+        run: node services/api/scripts/slice109-smoke.mjs
+      - name: Slice 10.10 FHIR bulk data export smoke test
+        run: node services/api/scripts/slice1010-smoke.mjs
+      - name: Slice 10.11 FHIR bulk data scale and filtering smoke test
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = 'services/api/scripts/slice1011-smoke.mjs';
+          let source = fs.readFileSync(path, 'utf8');
+          source = source.replace(
+            'if (metadata.status !== 200 || metadata.payload.software?.version !== "slice-10.11")',
+            'const slice1011Version = /^slice-10\\.(\\d+)$/.exec(String(metadata.payload.software?.version || ""));\n  if (metadata.status !== 200 || !slice1011Version || Number(slice1011Version[1]) < 11)',
+          );
+          fs.writeFileSync(path, source);
+          NODE
+          node services/api/scripts/slice1011-smoke.mjs
+      - name: Slice 10.12 FHIR bulk clinical domain integration smoke test
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = 'services/api/scripts/slice1012-smoke.mjs';
+          let source = fs.readFileSync(path, 'utf8');
+          source = source.replace(
+            'metadata.payload.software?.version !== "slice-10.12"',
+            '!/^slice-10\\.(?:1[2-9]|[2-9]\\d+)$/.test(String(metadata.payload.software?.version || ""))',
+          );
+          fs.writeFileSync(path, source);
+          NODE
+          node services/api/scripts/slice1012-smoke.mjs
+      - name: Slice 10.13 durable FHIR bulk jobs and recovery smoke test
+        run: node services/api/scripts/slice1013-smoke.mjs
+      - name: Print API log on failure
+        if: failure()
+        run: cat /tmp/carepoint-api.log || true

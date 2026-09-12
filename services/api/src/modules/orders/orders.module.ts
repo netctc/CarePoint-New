@@ -1,0 +1,102 @@
+import { Body, Controller, Get, Module, Param, Post } from "@nestjs/common";
+import type { AuthPrincipal } from "@carepoint/identity";
+import { CurrentPrincipal, RequirePermissions } from "../../security/api-security.module";
+import { CommunicationsModule } from "../communications/communications.module";
+import { ProviderCategoryCapabilityService } from "../providers/provider-category-capability.service";
+import { ProvidersModule } from "../providers/providers.module";
+import { OrdersService } from "./orders.service";
+import { OrdersEnvelopeService } from "./orders-envelope.service";
+import { OrdersAttestationService } from "./orders-attestation.service";
+import { OrdersSystemExportService } from "./orders-system-export.service";
+import { PrescriptionNotificationService } from "./prescription-notification.service";
+
+@Controller("clinical-orders")
+class OrdersController {
+  constructor(
+    private readonly orders: OrdersService,
+    private readonly capabilities: ProviderCategoryCapabilityService,
+    private readonly prescriptionNotifications: PrescriptionNotificationService,
+  ) {}
+
+  @RequirePermissions("CLINICAL_ORDER_WRITE")
+  @Post("appointments/:appointmentId/prescriptions")
+  async prescription(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Param("appointmentId") appointmentId: string,
+    @Body() body: Record<string, unknown>,
+  ) {
+    await this.capabilities.assertClinicalOrderCapability(principal, "PRESCRIPTION");
+    const order = await this.orders.createOrder(principal, appointmentId, "PRESCRIPTION", body);
+    await this.prescriptionNotifications.notifySigned(principal, order);
+    return order;
+  }
+
+  @RequirePermissions("CLINICAL_ORDER_WRITE")
+  @Post("appointments/:appointmentId/laboratory")
+  async laboratory(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Param("appointmentId") appointmentId: string,
+    @Body() body: Record<string, unknown>,
+  ) {
+    await this.capabilities.assertClinicalOrderCapability(principal, "LABORATORY");
+    return this.orders.createOrder(principal, appointmentId, "LABORATORY", body);
+  }
+
+  @RequirePermissions("PATIENT_READ_CLINICAL_ORDERS")
+  @Get("me")
+  mine(@CurrentPrincipal() principal: AuthPrincipal) {
+    return this.orders.patientOrders(principal);
+  }
+
+  @RequirePermissions("CLINICAL_ORDER_READ")
+  @Get("patients/:patientId")
+  providerPatientOrders(@CurrentPrincipal() principal: AuthPrincipal, @Param("patientId") patientId: string) {
+    return this.orders.providerPatientOrders(principal, patientId);
+  }
+
+  @RequirePermissions("PATIENT_READ_CLINICAL_ORDERS", "CLINICAL_ORDER_READ")
+  @Get(":orderId")
+  get(@CurrentPrincipal() principal: AuthPrincipal, @Param("orderId") orderId: string) {
+    return this.orders.getOrder(principal, orderId);
+  }
+
+  @RequirePermissions("CLINICAL_ORDER_WRITE")
+  @Post(":orderId/cancel")
+  async cancel(@CurrentPrincipal() principal: AuthPrincipal, @Param("orderId") orderId: string) {
+    const order = await this.orders.cancelOrder(principal, orderId);
+    await this.prescriptionNotifications.notifyCancelled(principal, order);
+    return order;
+  }
+
+  @RequirePermissions("LAB_RESULT_ENTER")
+  @Post(":orderId/lab-result")
+  async enterResult(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Param("orderId") orderId: string,
+    @Body() body: Record<string, unknown>,
+  ) {
+    await this.capabilities.assertClinicalOrderCapability(principal, "LAB_RESULT_ENTRY");
+    return this.orders.enterLabResult(principal, orderId, body);
+  }
+
+  @RequirePermissions("LAB_RESULT_VALIDATE")
+  @Post(":orderId/lab-result/validate")
+  async validateResult(@CurrentPrincipal() principal: AuthPrincipal, @Param("orderId") orderId: string) {
+    await this.capabilities.assertClinicalOrderCapability(principal, "LAB_RESULT_VALIDATE");
+    return this.orders.validateLabResult(principal, orderId);
+  }
+
+  @RequirePermissions("LAB_RESULT_VALIDATE")
+  @Post(":orderId/lab-result/release")
+  releaseResult(@CurrentPrincipal() principal: AuthPrincipal, @Param("orderId") orderId: string) {
+    return this.orders.releaseLabResult(principal, orderId);
+  }
+}
+
+@Module({
+  imports: [ProvidersModule, CommunicationsModule],
+  controllers: [OrdersController],
+  providers: [OrdersService, OrdersEnvelopeService, OrdersAttestationService, OrdersSystemExportService, PrescriptionNotificationService],
+  exports: [OrdersService, OrdersSystemExportService],
+})
+export class OrdersModule {}
