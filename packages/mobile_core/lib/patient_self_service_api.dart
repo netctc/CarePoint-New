@@ -14,13 +14,11 @@ extension CarePointSelfServiceApi on CarePointApi {
     required String phone,
     required String expectedUpdatedAt,
   }) async => _asMap(await _send('PATCH', '/iam/patient-profile', body: {
-    'firstName': firstName.trim(),
-    'lastName': lastName.trim(),
-    'phone': phone.trim(),
-    'expectedUpdatedAt': expectedUpdatedAt,
+    'firstName': firstName.trim(), 'lastName': lastName.trim(), 'phone': phone.trim(), 'expectedUpdatedAt': expectedUpdatedAt,
   }));
   Future<List<Map<String, dynamic>>> patientConsents() async => _asList(await _send('GET', '/consents/me'));
-  Future<Map<String, dynamic>> revokePatientConsent(String consentId) async => _asMap(await _send('POST', '/consents/$consentId/revoke', body: const {}));
+  Future<Map<String, dynamic>> revokePatientConsent(String consentId) async => _asMap(await _send('POST', '/consents/${Uri.encodeComponent(consentId)}/revoke', body: const {}));
+  Future<Map<String, dynamic>> regrantPatientConsent(String consentId) async => _asMap(await _send('POST', '/consents/${Uri.encodeComponent(consentId)}/regrant', body: const {}));
   /// Server revocation is best effort; local sign-out always clears secrets.
   Future<void> signOutCurrentSession() async {
     try {
