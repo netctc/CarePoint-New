@@ -6,6 +6,7 @@ import 'package:carepoint_mobile_core/clinical_orders.dart';
 import 'package:carepoint_mobile_core/communications_localization.dart';
 import 'package:carepoint_mobile_core/communications_workspace.dart';
 import 'package:carepoint_mobile_core/patient_clinical_order.dart';
+import 'package:carepoint_mobile_core/patient_encounter_detail.dart';
 import 'package:carepoint_mobile_core/revenue_cycle_localization.dart';
 import 'package:carepoint_mobile_core/revenue_cycle_workspace.dart';
 import 'package:flutter/material.dart';
@@ -62,8 +63,8 @@ class _PatientClinicalTimelinePageState extends State<PatientClinicalTimelinePag
   }
 
   Widget _clinicalCard(Map<String, dynamic> item) {
-    final appointment = _map(item['appointment']); final provider = _map(appointment['provider']); final service = _map(appointment['service']); final record = _map(item['latestRecord']); final data = _map(record['data']); final diagnoses = _list(data['diagnoses']); final starts = DateTime.tryParse(appointment['startsAt']?.toString() ?? '')?.toLocal();
-    return Card(child: ExpansionTile(leading: const CircleAvatar(child: Icon(Icons.medical_services_outlined)), title: Text(service['name']?.toString() ?? clinicalText(widget.locale, 'healthRecord'), style: const TextStyle(fontWeight: FontWeight.w800)), subtitle: Text('${provider['displayName'] ?? ''} · ${_date(starts)}'), childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16), children: [_section(clinicalText(widget.locale, 'chiefComplaint'), data['chiefComplaint']), _section(clinicalText(widget.locale, 'assessment'), data['assessment']), _section(clinicalText(widget.locale, 'plan'), data['plan']), if (diagnoses.isNotEmpty) _section(clinicalText(widget.locale, 'diagnoses'), diagnoses.map((value) => value['display']).whereType<String>().join(', ')), Align(alignment: AlignmentDirectional.centerStart, child: Text('${clinicalText(widget.locale, 'revision')}: ${record['revision'] ?? '—'}', style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))))]));
+    final appointment = _map(item['appointment']); final provider = _map(appointment['provider']); final service = _map(appointment['service']); final record = _map(item['latestRecord']); final data = _map(record['data']); final diagnoses = _list(data['diagnoses']); final starts = DateTime.tryParse(appointment['startsAt']?.toString() ?? '')?.toLocal(); final appointmentId = appointment['id']?.toString() ?? '';
+    return Card(child: ExpansionTile(leading: const CircleAvatar(child: Icon(Icons.medical_services_outlined)), title: Text(service['name']?.toString() ?? clinicalText(widget.locale, 'healthRecord'), style: const TextStyle(fontWeight: FontWeight.w800)), subtitle: Text('${provider['displayName'] ?? ''} · ${_date(starts)}'), childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16), children: [_section(clinicalText(widget.locale, 'chiefComplaint'), data['chiefComplaint']), _section(clinicalText(widget.locale, 'assessment'), data['assessment']), _section(clinicalText(widget.locale, 'plan'), data['plan']), if (diagnoses.isNotEmpty) _section(clinicalText(widget.locale, 'diagnoses'), diagnoses.map((value) => value['display']).whereType<String>().join(', ')), Align(alignment: AlignmentDirectional.centerStart, child: Text('${clinicalText(widget.locale, 'revision')}: ${record['revision'] ?? '—'}', style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)))), if (appointmentId.isNotEmpty) Align(alignment: AlignmentDirectional.centerStart, child: OutlinedButton.icon(key: ValueKey('patient-encounter-open-$appointmentId'), onPressed: () => Navigator.push<void>(context, MaterialPageRoute(builder: (_) => PatientEncounterDetailPage(session: widget.session, locale: widget.locale, appointmentId: appointmentId))), icon: const Icon(Icons.open_in_new), label: Text(patientEncounterDetailText(widget.locale, 'viewFull'))))]));
   }
 
   Widget _orderCard(Map<String, dynamic> order) {
@@ -96,4 +97,4 @@ class _PatientClinicalTimelinePageState extends State<PatientClinicalTimelinePag
 
 Map<String, dynamic> _map(dynamic value) { if (value is Map<String, dynamic>) return value; if (value is Map) return value.map((key, item) => MapEntry(key.toString(), item)); return <String, dynamic>{}; }
 List<Map<String, dynamic>> _list(dynamic value) { if (value is! List) return const []; return value.map(_map).toList(growable: false); }
-String _date(DateTime? value) => value == null ? '—' : '${value.year.toString().padLeft(4, '0')}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';
+String _date(DateTime? value) => value == null ? '—' : '${value.day.toString().padLeft(2, '0')}/${value.month.toString().padLeft(2, '0')}/${value.year.toString().padLeft(4, '0')}';
