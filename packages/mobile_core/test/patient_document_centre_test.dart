@@ -8,6 +8,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
+const _grantToken = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+
 void main() {
   testWidgets('patient document centre searches filters and renders dd/mm/yyyy', (tester) async {
     final client = MockClient((request) async {
@@ -72,11 +74,11 @@ void main() {
       }
       if (request.url.path.endsWith('/clinical-documents/me/d1/download-token')) {
         expect(request.method, 'POST');
-        return http.Response(jsonEncode({'documentId': 'd1', 'token': 'A' * 43, 'expiresInSeconds': 300}), 200, headers: {'content-type': 'application/json'});
+        return http.Response(jsonEncode({'documentId': 'd1', 'token': _grantToken, 'expiresInSeconds': 300}), 200, headers: {'content-type': 'application/json'});
       }
       if (request.url.path.endsWith('/clinical-documents/me/d1/download')) {
         expect(request.method, 'POST');
-        expect((jsonDecode(request.body) as Map<String, dynamic>)['token'], 'A' * 43);
+        expect((jsonDecode(request.body) as Map<String, dynamic>)['token'], _grantToken);
         return http.Response.bytes(utf8.encode('F14 secure body'), 200, headers: {'content-type': 'text/plain', 'content-disposition': 'attachment; filename="result.txt"'});
       }
       return http.Response('{}', 404);
