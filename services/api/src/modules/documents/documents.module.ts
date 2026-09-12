@@ -11,12 +11,14 @@ import { DicomWebService } from "./dicomweb.service";
 import { DocumentsImagingInteropService } from "./documents-imaging-interop.service";
 import { DocumentsSystemExportService } from "./documents-system-export.service";
 import { PatientDocumentCentreService } from "./patient-document-centre.service";
+import { PatientDocumentInboxService } from "./patient-document-inbox.service";
 
 @Controller("clinical-documents")
 class ClinicalDocumentsController {
   constructor(
     private readonly documents: DocumentsService,
     private readonly patientCentre: PatientDocumentCentreService,
+    private readonly patientInbox: PatientDocumentInboxService,
   ) {}
 
   @RequirePermissions("CLINICAL_DOCUMENT_WRITE")
@@ -37,6 +39,12 @@ class ClinicalDocumentsController {
     return this.documents.patientUpload(principal, body);
   }
 
+  @RequirePermissions("PATIENT_WRITE_CLINICAL_DOCUMENTS")
+  @Post("me/inbox/text")
+  patientTextDocument(@CurrentPrincipal() principal: AuthPrincipal, @Body() body: any) {
+    return this.patientInbox.uploadPersonalText(principal, body ?? {});
+  }
+
   @RequirePermissions("PATIENT_READ_CLINICAL_DOCUMENTS")
   @Get("me")
   patientDocuments(@CurrentPrincipal() principal: AuthPrincipal) {
@@ -50,8 +58,9 @@ class ClinicalDocumentsController {
     @Query("kind") kind?: string,
     @Query("q") q?: string,
     @Query("limit") limit?: string,
+    @Query("focusDocumentId") focusDocumentId?: string,
   ) {
-    return this.patientCentre.list(principal, { kind, q, limit });
+    return this.patientInbox.list(principal, { kind, q, limit, focusDocumentId });
   }
 
   @RequirePermissions("PATIENT_READ_CLINICAL_DOCUMENTS")
@@ -70,11 +79,23 @@ class ClinicalDocumentsController {
     @Param("documentId") documentId: string,
     @Body() body: any,
   ) {
-    const content = await this.patientCentre.consumeDownloadGrant(principal, documentId, body ?? {});
+    const content = await this.patientInbox.consumeDownloadGrant(principal, documentId, body ?? {});
     return new StreamableFile(content.bytes, {
       type: content.mediaType,
       disposition: `attachment; filename="${this.safeFileName(content.fileName)}"`,
     });
+  }
+
+  @RequirePermissions("PATIENT_READ_CLINICAL_DOCUMENTS")
+  @Post("me/:documentId/acknowledge")
+  patientAcknowledge(@CurrentPrincipal() principal: AuthPrincipal, @Param("documentId") documentId: string) {
+    return this.patientInbox.acknowledge(principal, documentId);
+  }
+
+  @RequirePermissions("PATIENT_WRITE_CLINICAL_DOCUMENTS")
+  @Post("me/:documentId/remove")
+  patientRemove(@CurrentPrincipal() principal: AuthPrincipal, @Param("documentId") documentId: string) {
+    return this.patientInbox.removeOwnUpload(principal, documentId);
   }
 
   @RequirePermissions("CLINICAL_DOCUMENT_READ")
@@ -110,7 +131,7 @@ class ClinicalDocumentsController {
   @RequirePermissions("CLINICAL_DOCUMENT_WRITE")
   @Post(":documentId/release")
   release(@CurrentPrincipal() principal: AuthPrincipal, @Param("documentId") documentId: string) {
-    return this.documents.releaseDocument(principal, documentId);
+    return this.patientInbox.releaseProviderDocument(principal, documentId);
   }
 
   @RequirePermissions("PATIENT_WRITE_CLINICAL_DOCUMENTS", "CLINICAL_DOCUMENT_WRITE")
@@ -179,6 +200,7 @@ class DiagnosticReportsController {
     DocumentsImagingInteropService,
     DocumentsSystemExportService,
     PatientDocumentCentreService,
+    PatientDocumentInboxService,
   ],
   exports: [DocumentsService, DocumentStorageService, DocumentsImagingInteropService, DocumentsSystemExportService],
 })
