@@ -60,7 +60,12 @@ class ClinicalDocumentsController {
     @Query("limit") limit?: string,
     @Query("focusDocumentId") focusDocumentId?: string,
   ) {
-    return this.patientInbox.list(principal, { kind, q, limit, focusDocumentId });
+    return this.patientInbox.list(principal, {
+      ...(kind !== undefined ? { kind } : {}),
+      ...(q !== undefined ? { q } : {}),
+      ...(limit !== undefined ? { limit } : {}),
+      ...(focusDocumentId !== undefined ? { focusDocumentId } : {}),
+    });
   }
 
   @RequirePermissions("PATIENT_READ_CLINICAL_DOCUMENTS")
