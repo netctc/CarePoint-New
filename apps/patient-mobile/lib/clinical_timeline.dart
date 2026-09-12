@@ -5,6 +5,7 @@ import 'package:carepoint_mobile_core/clinical_localization.dart';
 import 'package:carepoint_mobile_core/clinical_orders.dart';
 import 'package:carepoint_mobile_core/communications_localization.dart';
 import 'package:carepoint_mobile_core/communications_workspace.dart';
+import 'package:carepoint_mobile_core/patient_clinical_order.dart';
 import 'package:carepoint_mobile_core/revenue_cycle_localization.dart';
 import 'package:carepoint_mobile_core/revenue_cycle_workspace.dart';
 import 'package:flutter/material.dart';
@@ -67,7 +68,25 @@ class _PatientClinicalTimelinePageState extends State<PatientClinicalTimelinePag
   Widget _orderCard(Map<String, dynamic> order) {
     final data = _map(order['data']); final labResult = _map(order['labResult']); final prescription = order['type'] == 'PRESCRIPTION'; final medication = _map(data['medication']); final tests = _list(data['tests']);
     final title = prescription ? (medication['name']?.toString() ?? orderText(widget.locale, 'prescription')) : (tests.isEmpty ? orderText(widget.locale, 'laboratory') : tests.map((e) => e['display']).whereType<String>().join(', '));
-    return Card(child: ExpansionTile(leading: CircleAvatar(child: Icon(prescription ? Icons.medication_outlined : Icons.science_outlined)), title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)), subtitle: Text('${orderText(widget.locale, 'status')}: ${order['status'] ?? ''}'), childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16), children: [if (data['reason'] != null) _section(orderText(widget.locale, 'reason'), data['reason']), if (prescription && data['dosageInstruction'] != null) _section(orderText(widget.locale, 'instruction'), data['dosageInstruction']), if (!prescription && labResult.isNotEmpty) ...[_section(orderText(widget.locale, 'result'), labResult['status']), if (labResult['released'] == true && labResult['data'] != null) _releasedResult(_map(labResult['data'])) else Padding(padding: const EdgeInsets.only(bottom: 8), child: Align(alignment: AlignmentDirectional.centerStart, child: Text(orderText(widget.locale, 'resultHidden'), style: const TextStyle(color: Color(0xFF64748B)))))], Align(alignment: AlignmentDirectional.centerStart, child: Row(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.verified_user_outlined, size: 16, color: Color(0xFF10B981)), const SizedBox(width: 5), Text(orderText(widget.locale, 'attested'), style: const TextStyle(fontSize: 12, color: Color(0xFF475569)))]))]));
+    return Card(child: ExpansionTile(leading: CircleAvatar(child: Icon(prescription ? Icons.medication_outlined : Icons.science_outlined)), title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)), subtitle: Text('${orderText(widget.locale, 'status')}: ${order['status'] ?? ''}'), childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16), children: [
+      if (data['reason'] != null) _section(orderText(widget.locale, 'reason'), data['reason']),
+      if (prescription && data['dosageInstruction'] != null) _section(orderText(widget.locale, 'instruction'), data['dosageInstruction']),
+      if (prescription) ...[
+        if (medication['strength'] != null) _section(orderText(widget.locale, 'strength'), medication['strength']),
+        if (medication['form'] != null) _section(orderText(widget.locale, 'form'), medication['form']),
+        if (data['route'] != null) _section(orderText(widget.locale, 'route'), data['route']),
+        if (data['frequency'] != null) _section(orderText(widget.locale, 'frequency'), data['frequency']),
+        if (data['duration'] != null) _section(orderText(widget.locale, 'duration'), data['duration']),
+        Align(alignment: AlignmentDirectional.centerStart, child: OutlinedButton.icon(
+          key: ValueKey('patient-prescription-open-${order['id']}'),
+          onPressed: () => Navigator.push<void>(context, MaterialPageRoute(builder: (_) => PatientClinicalOrderResultPage(session: widget.session, locale: widget.locale, orderId: order['id']?.toString() ?? ''))),
+          icon: const Icon(Icons.open_in_new),
+          label: Text(patientClinicalOrderText(widget.locale, 'prescriptionTitle')),
+        )),
+      ],
+      if (!prescription && labResult.isNotEmpty) ...[_section(orderText(widget.locale, 'result'), labResult['status']), if (labResult['released'] == true && labResult['data'] != null) _releasedResult(_map(labResult['data'])) else Padding(padding: const EdgeInsets.only(bottom: 8), child: Align(alignment: AlignmentDirectional.centerStart, child: Text(orderText(widget.locale, 'resultHidden'), style: const TextStyle(color: Color(0xFF64748B)))))],
+      Align(alignment: AlignmentDirectional.centerStart, child: Row(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.verified_user_outlined, size: 16, color: Color(0xFF10B981)), const SizedBox(width: 5), Text(orderText(widget.locale, 'attested'), style: const TextStyle(fontSize: 12, color: Color(0xFF475569)))]))
+    ]));
   }
 
   Widget _releasedResult(Map<String, dynamic> data) { final observations = _list(data['observations']); return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [...observations.map((item) => _section(item['display']?.toString() ?? orderText(widget.locale, 'observation'), '${item['value'] ?? ''}${item['unit'] == null ? '' : ' ${item['unit']}'}')), if (data['conclusion'] != null) _section(orderText(widget.locale, 'conclusion'), data['conclusion']), Align(alignment: AlignmentDirectional.centerStart, child: Row(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.check_circle_outline, size: 16, color: Color(0xFF10B981)), const SizedBox(width: 5), Text(orderText(widget.locale, 'released'))])), const SizedBox(height: 8)]); }

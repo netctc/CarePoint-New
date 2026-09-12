@@ -51,9 +51,16 @@ class _PatientClinicalOrderResultPageState extends State<PatientClinicalOrderRes
     setState(() { busy = true; error = null; });
     try {
       final result = await widget.session.api.clinicalOrder(id).timeout(const Duration(seconds: 30));
-      final labResult = _map(result['labResult']);
-      if (result['type']?.toString() != 'LABORATORY' || labResult['status']?.toString() != 'RELEASED' || labResult['released'] != true || labResult['data'] == null) {
-        throw const FormatException('Released laboratory result unavailable.');
+      final type = result['type']?.toString();
+      if (type == 'LABORATORY') {
+        final labResult = _map(result['labResult']);
+        if (labResult['status']?.toString() != 'RELEASED' || labResult['released'] != true || labResult['data'] == null) {
+          throw const FormatException('Released laboratory result unavailable.');
+        }
+      } else if (type == 'PRESCRIPTION') {
+        if (result['data'] is! Map) throw const FormatException('Prescription data unavailable.');
+      } else {
+        throw const FormatException('Unsupported clinical order type.');
       }
       if (mounted) setState(() => value = result);
     } catch (_) {
@@ -65,12 +72,15 @@ class _PatientClinicalOrderResultPageState extends State<PatientClinicalOrderRes
 
   @override
   Widget build(BuildContext context) {
+    final prescription = value?['type']?.toString() == 'PRESCRIPTION';
     return Directionality(
       textDirection: widget.locale.textDirection,
       child: Scaffold(
         appBar: AppBar(
-          title: Text(t('title')),
-          actions: widget.session.role == 'PATIENT' ? [IconButton(onPressed: busy ? null : load, icon: const Icon(Icons.refresh), tooltip: orderText(widget.locale, 'refresh'))] : const [],
+          title: Text(prescription ? t('prescriptionTitle') : t('labTitle')),
+          actions: widget.session.role == 'PATIENT'
+              ? [IconButton(onPressed: busy ? null : load, icon: const Icon(Icons.refresh), tooltip: orderText(widget.locale, 'refresh'))]
+              : const [],
         ),
         body: _body(),
       ),
@@ -98,6 +108,68 @@ class _PatientClinicalOrderResultPageState extends State<PatientClinicalOrderRes
     }
 
     final order = value!;
+    return order['type']?.toString() == 'PRESCRIPTION' ? _prescription(order) : _laboratory(order);
+  }
+
+  Widget _prescription(Map<String, dynamic> order) {
+    final data = _map(order['data']);
+    final medication = _map(data['medication']);
+    final status = order['status']?.toString() ?? '';
+    return RefreshIndicator(
+      onRefresh: load,
+      child: ListView(
+        key: const ValueKey('patient-prescription-result'),
+        padding: const EdgeInsets.all(16),
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          Row(children: [
+            const CircleAvatar(child: Icon(Icons.medication_outlined)),
+            const SizedBox(width: 10),
+            Expanded(child: Text(t('prescriptionReady'), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900))),
+          ]),
+          const SizedBox(height: 12),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                _line(orderText(widget.locale, 'status'), _status(status)),
+                _line(t('signedAt'), _dateTime(order['signedAt'])),
+                if (status == 'CANCELLED') _line(t('cancelledAt'), _dateTime(order['cancelledAt'])),
+              ]),
+            ),
+          ),
+          _card(orderText(widget.locale, 'medication'), medication['name']),
+          if (medication['strength'] != null) _card(orderText(widget.locale, 'strength'), medication['strength']),
+          if (medication['form'] != null) _card(t('form'), medication['form']),
+          _card(orderText(widget.locale, 'instruction'), data['dosageInstruction']),
+          if (data['route'] != null) _card(t('route'), data['route']),
+          if (data['frequency'] != null) _card(t('frequency'), data['frequency']),
+          if (data['duration'] != null) _card(t('duration'), data['duration']),
+          if (data['quantity'] != null) _card(orderText(widget.locale, 'quantity'), data['quantity']),
+          if (data['refills'] != null) _card(t('refills'), data['refills']),
+          if (data['reason'] != null) _card(orderText(widget.locale, 'reason'), data['reason']),
+          if (data['instructions'] != null) _card(t('additionalInstructions'), data['instructions']),
+          if (status == 'CANCELLED') ...[
+            const SizedBox(height: 6),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Icon(Icons.info_outline, color: Theme.of(context).colorScheme.error),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(t('cancelledHint'))),
+                ]),
+              ),
+            ),
+          ],
+          const SizedBox(height: 8),
+          _authorizedHint(t('prescriptionAuthorizedHint')),
+        ],
+      ),
+    );
+  }
+
+  Widget _laboratory(Map<String, dynamic> order) {
     final orderData = _map(order['data']);
     final labResult = _map(order['labResult']);
     final resultData = _map(labResult['data']);
@@ -151,15 +223,24 @@ class _PatientClinicalOrderResultPageState extends State<PatientClinicalOrderRes
               ),
           ],
           const SizedBox(height: 8),
-          Row(children: [
-            const Icon(Icons.verified_user_outlined, size: 17, color: Color(0xFF10B981)),
-            const SizedBox(width: 6),
-            Expanded(child: Text(t('authorizedHint'), style: const TextStyle(color: Color(0xFF475569)))),
-          ]),
+          _authorizedHint(t('authorizedHint')),
         ],
       ),
     );
   }
+
+  Widget _authorizedHint(String text) => Row(children: [
+        const Icon(Icons.verified_user_outlined, size: 17, color: Color(0xFF10B981)),
+        const SizedBox(width: 6),
+        Expanded(child: Text(text, style: const TextStyle(color: Color(0xFF475569)))),
+      ]);
+
+  Widget _card(String label, dynamic value) => Card(
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: _line(label, value),
+        ),
+      );
 
   Widget _observation(Map<String, dynamic> item) {
     final label = item['display']?.toString().trim();
@@ -188,6 +269,13 @@ class _PatientClinicalOrderResultPageState extends State<PatientClinicalOrderRes
     );
   }
 
+  String _status(String status) => switch (status) {
+        'SIGNED' => t('statusSigned'),
+        'CANCELLED' => t('statusCancelled'),
+        'FULFILLED' => t('statusFulfilled'),
+        _ => status,
+      };
+
   String _dateTime(dynamic raw) {
     final value = DateTime.tryParse(raw?.toString() ?? '')?.toLocal();
     if (value == null) return '—';
@@ -209,43 +297,103 @@ List<Map<String, dynamic>> _list(dynamic value) {
 
 const Map<String, Map<String, String>> _patientClinicalOrderCopy = {
   'en': {
-    'title': 'Laboratory result',
+    'labTitle': 'Laboratory result',
+    'prescriptionTitle': 'Prescription',
     'ready': 'Your laboratory result is ready',
+    'prescriptionReady': 'Your prescription',
     'releasedAt': 'Released',
+    'signedAt': 'Signed',
+    'cancelledAt': 'Cancelled',
+    'form': 'Form',
+    'route': 'Route',
+    'frequency': 'Frequency',
+    'duration': 'Duration',
+    'refills': 'Refills',
+    'additionalInstructions': 'Additional instructions',
+    'statusSigned': 'Active signed prescription',
+    'statusCancelled': 'Cancelled prescription',
+    'statusFulfilled': 'Completed prescription order',
+    'cancelledHint': 'This prescription was cancelled by the ordering clinician. Do not rely on it as an active prescription.',
     'empty': 'No released result values are available.',
     'authorizedHint': 'Sensitive details are loaded only after CarePoint verifies access to this clinical order.',
-    'unavailable': 'This laboratory result is not available to this account.',
-    'denied': 'Laboratory results are available only to the Patient app.',
+    'prescriptionAuthorizedHint': 'Prescription details are read-only and are loaded only after CarePoint verifies that this order belongs to your patient account.',
+    'unavailable': 'This clinical order is not available to this account.',
+    'denied': 'Clinical orders are available only to the Patient app.',
     'retry': 'Retry',
   },
   'ar': {
-    'title': 'نتيجة المختبر',
+    'labTitle': 'نتيجة المختبر',
+    'prescriptionTitle': 'الوصفة الطبية',
     'ready': 'نتيجة المختبر جاهزة',
+    'prescriptionReady': 'وصفتك الطبية',
     'releasedAt': 'تم الإصدار',
+    'signedAt': 'تم التوقيع',
+    'cancelledAt': 'تم الإلغاء',
+    'form': 'الشكل الدوائي',
+    'route': 'طريقة الاستعمال',
+    'frequency': 'التكرار',
+    'duration': 'المدة',
+    'refills': 'مرات إعادة الصرف',
+    'additionalInstructions': 'تعليمات إضافية',
+    'statusSigned': 'وصفة موقعة فعالة',
+    'statusCancelled': 'وصفة ملغاة',
+    'statusFulfilled': 'طلب وصفة مكتمل',
+    'cancelledHint': 'تم إلغاء هذه الوصفة من قبل الطبيب الذي أصدرها. لا تعتمد عليها كوصفة فعالة.',
     'empty': 'لا توجد قيم نتائج مُصدرة متاحة.',
     'authorizedHint': 'يتم تحميل التفاصيل الحساسة فقط بعد أن يتحقق CarePoint من صلاحية الوصول إلى هذا الطلب السريري.',
-    'unavailable': 'نتيجة المختبر هذه غير متاحة لهذا الحساب.',
-    'denied': 'نتائج المختبر متاحة فقط في تطبيق المريض.',
+    'prescriptionAuthorizedHint': 'تفاصيل الوصفة للقراءة فقط ولا يتم تحميلها إلا بعد أن يتحقق CarePoint من أن الطلب يخص حساب المريض الخاص بك.',
+    'unavailable': 'هذا الطلب السريري غير متاح لهذا الحساب.',
+    'denied': 'الطلبات السريرية متاحة فقط في تطبيق المريض.',
     'retry': 'إعادة المحاولة',
   },
   'fr': {
-    'title': 'Résultat de laboratoire',
+    'labTitle': 'Résultat de laboratoire',
+    'prescriptionTitle': 'Prescription',
     'ready': 'Votre résultat de laboratoire est disponible',
+    'prescriptionReady': 'Votre prescription',
     'releasedAt': 'Publié',
+    'signedAt': 'Signée',
+    'cancelledAt': 'Annulée',
+    'form': 'Forme',
+    'route': 'Voie',
+    'frequency': 'Fréquence',
+    'duration': 'Durée',
+    'refills': 'Renouvellements',
+    'additionalInstructions': 'Instructions supplémentaires',
+    'statusSigned': 'Prescription signée active',
+    'statusCancelled': 'Prescription annulée',
+    'statusFulfilled': 'Ordre de prescription terminé',
+    'cancelledHint': 'Cette prescription a été annulée par le clinicien prescripteur. Ne la considérez pas comme une prescription active.',
     'empty': 'Aucune valeur de résultat publiée n’est disponible.',
     'authorizedHint': 'Les détails sensibles sont chargés uniquement après vérification de l’accès à cet ordre clinique par CarePoint.',
-    'unavailable': 'Ce résultat de laboratoire n’est pas disponible pour ce compte.',
-    'denied': 'Les résultats de laboratoire sont réservés à l’application Patient.',
+    'prescriptionAuthorizedHint': 'Les détails de la prescription sont en lecture seule et ne sont chargés qu’après vérification par CarePoint que cet ordre appartient à votre compte patient.',
+    'unavailable': 'Cet ordre clinique n’est pas disponible pour ce compte.',
+    'denied': 'Les ordres cliniques sont réservés à l’application Patient.',
     'retry': 'Réessayer',
   },
   'es': {
-    'title': 'Resultado de laboratorio',
+    'labTitle': 'Resultado de laboratorio',
+    'prescriptionTitle': 'Prescripción',
     'ready': 'Tu resultado de laboratorio está disponible',
+    'prescriptionReady': 'Tu prescripción',
     'releasedAt': 'Liberado',
+    'signedAt': 'Firmada',
+    'cancelledAt': 'Cancelada',
+    'form': 'Forma',
+    'route': 'Vía',
+    'frequency': 'Frecuencia',
+    'duration': 'Duración',
+    'refills': 'Renovaciones',
+    'additionalInstructions': 'Instrucciones adicionales',
+    'statusSigned': 'Prescripción firmada activa',
+    'statusCancelled': 'Prescripción cancelada',
+    'statusFulfilled': 'Orden de prescripción completada',
+    'cancelledHint': 'Esta prescripción fue cancelada por el profesional que la emitió. No debe considerarse una prescripción activa.',
     'empty': 'No hay valores de resultado liberados disponibles.',
     'authorizedHint': 'Los detalles sensibles solo se cargan después de que CarePoint verifique el acceso a esta orden clínica.',
-    'unavailable': 'Este resultado de laboratorio no está disponible para esta cuenta.',
-    'denied': 'Los resultados de laboratorio solo están disponibles en la aplicación del paciente.',
+    'prescriptionAuthorizedHint': 'Los detalles de la prescripción son de solo lectura y solo se cargan después de que CarePoint verifique que la orden pertenece a tu cuenta de paciente.',
+    'unavailable': 'Esta orden clínica no está disponible para esta cuenta.',
+    'denied': 'Las órdenes clínicas solo están disponibles en la aplicación del paciente.',
     'retry': 'Reintentar',
   },
 };
