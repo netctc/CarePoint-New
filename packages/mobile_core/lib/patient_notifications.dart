@@ -7,6 +7,7 @@ import 'carepoint_localization.dart';
 import 'communications_workspace.dart';
 import 'patient_clinical_order.dart';
 import 'patient_diagnostic_report.dart';
+import 'patient_document_centre.dart';
 import 'patient_emergency.dart';
 import 'patient_medical_transport.dart';
 
@@ -20,7 +21,12 @@ const patientNotificationRoutableEntityTypes = <String>{
   'MEDICAL_TRANSPORT_REQUEST',
 };
 
-enum PatientNotificationDestination { appointment, availability, conversation, clinicalOrder, diagnosticReport, emergency, transport, generic }
+const patientNotificationRoutableEntityTypesF15 = <String>{
+  ...patientNotificationRoutableEntityTypes,
+  'CLINICAL_DOCUMENT',
+};
+
+enum PatientNotificationDestination { appointment, availability, conversation, clinicalOrder, diagnosticReport, clinicalDocument, emergency, transport, generic }
 
 PatientNotificationDestination patientNotificationDestination(Map<String, dynamic> row) => switch (row['entityType']?.toString()) {
       'APPOINTMENT' => PatientNotificationDestination.appointment,
@@ -28,6 +34,7 @@ PatientNotificationDestination patientNotificationDestination(Map<String, dynami
       'CARE_CONVERSATION' => PatientNotificationDestination.conversation,
       'CLINICAL_ORDER' => PatientNotificationDestination.clinicalOrder,
       'DIAGNOSTIC_REPORT' => PatientNotificationDestination.diagnosticReport,
+      'CLINICAL_DOCUMENT' => PatientNotificationDestination.clinicalDocument,
       'EMERGENCY_AMBULANCE_REQUEST' => PatientNotificationDestination.emergency,
       'MEDICAL_TRANSPORT_REQUEST' => PatientNotificationDestination.transport,
       _ => PatientNotificationDestination.generic,
@@ -66,6 +73,7 @@ const _safeTitleKeys = <String, String>{
   'notification.care.title': 'careCoordination',
   'notification.clinical.lab-result.title': 'labResultReady',
   'notification.clinical.diagnostic-report.title': 'diagnosticReportReady',
+  'notification.clinical.document.title': 'clinicalUpdate',
   'notification.emergency.title': 'emergencyUpdate',
   'notification.transport.title': 'transportUpdate',
 };
@@ -269,6 +277,19 @@ class _PatientNotificationCentrePageState extends State<PatientNotificationCentr
             )),
           );
           break;
+        case PatientNotificationDestination.clinicalDocument:
+          await Navigator.push<void>(
+            context,
+            MaterialPageRoute(builder: (_) => Directionality(
+              textDirection: widget.locale.textDirection,
+              child: PatientDocumentCentrePage(
+                session: widget.session,
+                locale: widget.locale,
+                focusDocumentId: entityId,
+              ),
+            )),
+          );
+          break;
         case PatientNotificationDestination.emergency:
           await Navigator.push<void>(
             context,
@@ -375,6 +396,7 @@ class _PatientNotificationCentrePageState extends State<PatientNotificationCentr
     PatientNotificationDestination.conversation => Icons.forum_outlined,
     PatientNotificationDestination.clinicalOrder => Icons.health_and_safety_outlined,
     PatientNotificationDestination.diagnosticReport => Icons.description_outlined,
+    PatientNotificationDestination.clinicalDocument => Icons.folder_shared_outlined,
     PatientNotificationDestination.emergency => Icons.emergency_share_outlined,
     PatientNotificationDestination.transport => Icons.local_shipping_outlined,
     PatientNotificationDestination.generic => switch (row['type']?.toString()) {
