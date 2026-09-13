@@ -4,7 +4,9 @@ ENV NEXT_TELEMETRY_DISABLED=1
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends openssl \
- && rm -rf /var/lib/apt/lists/*
+ && rm -rf /var/lib/apt/lists/* \
+ && npm install --global npm@10.9.2 \
+ && test "$(npm --version)" = "10.9.2"
 
 COPY package.json package-lock.json ./
 COPY apps/admin/package.json apps/admin/package.json
