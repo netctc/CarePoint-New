@@ -133,6 +133,43 @@ jobs:
           subject-digest: ${{ steps.admin.outputs.digest }}
           push-to-registry: true
 
+      - name: Verify exact OCI runtime artifacts
+        env:
+          API_DIGEST: ${{ steps.api.outputs.digest }}
+          ADMIN_DIGEST: ${{ steps.admin.outputs.digest }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          api_tag="$API_IMAGE:candidate-$CAREPOINT_CONTAINER_SOURCE_SHA-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          admin_tag="$ADMIN_IMAGE:candidate-$CAREPOINT_CONTAINER_SOURCE_SHA-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+
+          if [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            [[ "$API_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+            [[ "$ADMIN_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+            api_ref="$API_IMAGE@$API_DIGEST"
+            admin_ref="$ADMIN_IMAGE@$ADMIN_DIGEST"
+            docker pull "$api_ref"
+            docker pull "$admin_ref"
+          else
+            api_ref="$api_tag"
+            admin_ref="$admin_tag"
+          fi
+
+          for image in "$api_ref" "$admin_ref"; do
+            user="$(docker image inspect "$image" --format '{{.Config.User}}')"
+            revision="$(docker image inspect "$image" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')"
+            test -n "$user"
+            test "$user" != "0"
+            test "$user" != "root"
+            test "$revision" = "$CAREPOINT_CONTAINER_SOURCE_SHA"
+          done
+
+          docker run --rm --entrypoint openssl "$api_ref" version
+          docker run --rm --entrypoint /bin/sh "$api_ref" -c \
+            'find /app/node_modules/.prisma/client -maxdepth 1 -type f -name "*openssl-3.0*" -print -quit | grep -q .'
+          docker run --rm --entrypoint /bin/sh "$admin_ref" -c \
+            'test -f /app/apps/admin/server.js'
+
       - name: Export immutable candidate manifest
         env:
           API_DIGEST: ${{ steps.api.outputs.digest }}
@@ -169,6 +206,9 @@ jobs:
               linuxAmd64: true,
               nonMutableLatestTagUsed: false,
               buildOncePromoteByDigest: true,
+              runtimeArtifactSmokeVerified: true,
+              apiOpenSslVerified: true,
+              prismaOpenSsl3EngineVerified: true,
               sbomAttestationOnPublishedImages: published,
               provenanceAttestationOnPublishedImages: published,
               productionDeploymentEvidence: false,
@@ -198,6 +238,7 @@ jobs:
             echo "- Release version: \`$CAREPOINT_RELEASE_VERSION\`"
             echo "- Event: \`${GITHUB_EVENT_NAME}\`"
             echo "- Published to GHCR: \`${{ github.event_name == 'push' }}\`"
+            echo "- Runtime smoke: non-root labels, API OpenSSL/Prisma OpenSSL 3 engine, and Admin standalone entrypoint verified."
             echo "- Promotion contract: use the exact image digest from the immutable manifest; never rebuild or deploy a mutable tag."
             echo "- This workflow produces artifact evidence only; it does not deploy to staging or production."
           } >> "$GITHUB_STEP_SUMMARY"
