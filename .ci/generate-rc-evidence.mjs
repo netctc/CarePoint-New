@@ -122,6 +122,7 @@ const sourceFiles = [
   ".ci/verify-npm-lock.mjs",
   ".ci/flutter-pubspec-locks.sha256",
   ".ci/verify-container-supply-chain.mjs",
+  ".ci/verify-immutable-container-release.mjs",
   ".ci/generate-release-change-inventory.mjs",
   ".ci/generate-api-route-surface.mjs",
   "Dockerfile",
@@ -136,6 +137,7 @@ const sourceFiles = [
   ".github/workflows/slice10-fhir.yml",
   ".github/workflows/release-candidate-evidence.yml",
   ".github/workflows/release1-container-compatibility.yml",
+  ".github/workflows/release1-immutable-containers.yml",
 ];
 
 const sourceContracts = [];
@@ -287,6 +289,7 @@ const manifest = {
     changeInventoryIsSourceEvidenceOnly: true,
     apiRouteSurfaceIsNotFullOpenApiSchema: true,
     containerCompatibilityIsSourceSideEvidenceOnly: true,
+    immutableContainerPublicationRequiresProtectedBranchPush: true,
     finalApiAdminArtifactDigestStillRequired: true,
     finalContainerRegistryProvenanceStillRequired: true,
     signedNativeArtifactsStillRequired: true,
