@@ -30,6 +30,18 @@ export function assertImmutableReleaseWorkflow(content) {
     "sbom: ${{ github.event_name == 'push' && 'true' || 'false' }}",
     'actions/attest-build-provenance@',
     'push-to-registry: true',
+    'Verify exact OCI runtime artifacts',
+    'api_ref="$API_IMAGE@$API_DIGEST"',
+    'admin_ref="$ADMIN_IMAGE@$ADMIN_DIGEST"',
+    'docker pull "$api_ref"',
+    'docker pull "$admin_ref"',
+    'org.opencontainers.image.revision',
+    'docker run --rm --entrypoint openssl "$api_ref" version',
+    'openssl-3.0',
+    'test -f /app/apps/admin/server.js',
+    'runtimeArtifactSmokeVerified: true',
+    'apiOpenSslVerified: true',
+    'prismaOpenSsl3EngineVerified: true',
     'productionDeploymentEvidence: false',
     'promotionRequiresDigest: true',
     'buildOncePromoteByDigest: true',
@@ -83,6 +95,18 @@ function selfTest() {
     "sbom: ${{ github.event_name == 'push' && 'true' || 'false' }}",
     `uses: actions/attest-build-provenance@${pin}`,
     'push-to-registry: true',
+    'Verify exact OCI runtime artifacts',
+    'api_ref="$API_IMAGE@$API_DIGEST"',
+    'admin_ref="$ADMIN_IMAGE@$ADMIN_DIGEST"',
+    'docker pull "$api_ref"',
+    'docker pull "$admin_ref"',
+    'org.opencontainers.image.revision',
+    'docker run --rm --entrypoint openssl "$api_ref" version',
+    'openssl-3.0',
+    'test -f /app/apps/admin/server.js',
+    'runtimeArtifactSmokeVerified: true',
+    'apiOpenSslVerified: true',
+    'prismaOpenSsl3EngineVerified: true',
     'productionDeploymentEvidence: false',
     'promotionRequiresDigest: true',
     'buildOncePromoteByDigest: true',
@@ -94,6 +118,9 @@ function selfTest() {
   expectFailure(() => assertImmutableReleaseWorkflow(`${valid}\nimage: test:latest\n`), 'mutable latest tag');
   expectFailure(() => assertImmutableReleaseWorkflow(valid.replace('packages: write', 'packages: read')), 'missing package write');
   expectFailure(() => assertImmutableReleaseWorkflow(valid.replace('promotionRequiresDigest: true', 'promotionRequiresDigest: false')), 'digest promotion disabled');
+  expectFailure(() => assertImmutableReleaseWorkflow(valid.replace('docker pull "$api_ref"', 'echo skip-api-pull')), 'exact API digest pull removed');
+  expectFailure(() => assertImmutableReleaseWorkflow(valid.replace('docker run --rm --entrypoint openssl "$api_ref" version', 'echo skip-openssl')), 'API OpenSSL smoke removed');
+  expectFailure(() => assertImmutableReleaseWorkflow(valid.replace('openssl-3.0', 'openssl-native')), 'Prisma OpenSSL 3 engine smoke removed');
   console.log('immutable container release contract self-test passed');
 }
 
