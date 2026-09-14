@@ -2,6 +2,12 @@ FROM node:22-bookworm-slim@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3e
 WORKDIR /workspace
 ENV NEXT_TELEMETRY_DISABLED=1
 
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends openssl \
+ && rm -rf /var/lib/apt/lists/* \
+ && npm install --global npm@10.9.2 \
+ && test "$(npm --version)" = "10.9.2"
+
 COPY package.json package-lock.json ./
 COPY apps/admin/package.json apps/admin/package.json
 COPY services/api/package.json services/api/package.json
@@ -25,6 +31,10 @@ ARG RELEASE_VERSION=unversioned
 LABEL org.opencontainers.image.title="CarePoint API" \
       org.opencontainers.image.revision="$RELEASE_SHA" \
       org.opencontainers.image.version="$RELEASE_VERSION"
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends openssl \
+ && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build --chown=node:node /workspace/node_modules ./node_modules
 COPY --from=build --chown=node:node /workspace/package.json ./package.json

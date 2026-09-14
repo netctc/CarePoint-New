@@ -26,6 +26,18 @@ export function assertDockerfileSupplyChain(content) {
   if (syntaxLine && !/@sha256:[0-9a-f]{64}/i.test(syntaxLine)) {
     fail("Dockerfile syntax frontend must be omitted or pinned by immutable sha256 digest.");
   }
+
+  if (!content.includes("npm install --global npm@10.9.2")) {
+    fail("Dockerfile build stage must pin the repository npm 10.9.2 toolchain.");
+  }
+  if (!content.includes('test "$(npm --version)" = "10.9.2"')) {
+    fail("Dockerfile must verify the pinned npm 10.9.2 toolchain before dependency installation.");
+  }
+
+  const opensslInstallCount = (content.match(/apt-get install -y --no-install-recommends openssl/g) || []).length;
+  if (opensslInstallCount < 2) {
+    fail("Dockerfile must install OpenSSL in both the build stage and the API runtime stage for Prisma OpenSSL 3 compatibility.");
+  }
 }
 
 export function assertWorkflowSupplyChain(content) {
@@ -68,9 +80,22 @@ function expectFailure(fn, label) {
 }
 
 function selfTest() {
-  assertDockerfileSupplyChain("FROM node:22@sha256:" + "a".repeat(64) + " AS build\n");
-  expectFailure(() => assertDockerfileSupplyChain("FROM node:22-bookworm-slim AS build\n"), "mutable base image");
-  expectFailure(() => assertDockerfileSupplyChain("# syntax=docker/dockerfile:1.7\nFROM node:22@sha256:" + "a".repeat(64) + "\n"), "mutable Dockerfile frontend");
+  const pinnedBase = "node:22@sha256:" + "a".repeat(64);
+  const validDockerfile = [
+    `FROM ${pinnedBase} AS build`,
+    "RUN apt-get install -y --no-install-recommends openssl",
+    "RUN npm install --global npm@10.9.2",
+    'RUN test "$(npm --version)" = "10.9.2"',
+    `FROM ${pinnedBase} AS api`,
+    "RUN apt-get install -y --no-install-recommends openssl",
+    `FROM ${pinnedBase} AS admin`,
+  ].join("\n") + "\n";
+
+  assertDockerfileSupplyChain(validDockerfile);
+  expectFailure(() => assertDockerfileSupplyChain(validDockerfile.replace(`FROM ${pinnedBase} AS build`, "FROM node:22-bookworm-slim AS build")), "mutable base image");
+  expectFailure(() => assertDockerfileSupplyChain(`# syntax=docker/dockerfile:1.7\n${validDockerfile}`), "mutable Dockerfile frontend");
+  expectFailure(() => assertDockerfileSupplyChain(validDockerfile.replace("npm install --global npm@10.9.2", "npm install --global npm@latest")), "unpinned npm toolchain");
+  expectFailure(() => assertDockerfileSupplyChain(validDockerfile.replace("RUN apt-get install -y --no-install-recommends openssl\nRUN npm install", "RUN npm install")), "missing build-stage OpenSSL");
 
   const validWorkflow = [
     "env:",

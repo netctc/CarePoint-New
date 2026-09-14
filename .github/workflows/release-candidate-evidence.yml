@@ -7,8 +7,10 @@ on:
       - ".ci/generate-release-change-inventory.mjs"
       - ".ci/generate-api-route-surface.mjs"
       - ".ci/verify-container-supply-chain.mjs"
+      - ".ci/verify-immutable-container-release.mjs"
       - ".github/workflows/release-candidate-evidence.yml"
       - ".github/workflows/release1-container-compatibility.yml"
+      - ".github/workflows/release1-immutable-containers.yml"
       - "Dockerfile"
       - ".dockerignore"
       - "package.json"
@@ -61,10 +63,12 @@ jobs:
         run: npm install --package-lock-only --ignore-scripts
       - name: Verify canonical npm dependency graph
         run: node .ci/verify-npm-lock.mjs
-      - name: Verify container supply-chain source contract
+      - name: Verify container supply-chain source contracts
         run: |
           node .ci/verify-container-supply-chain.mjs --self-test
           node .ci/verify-container-supply-chain.mjs
+          node .ci/verify-immutable-container-release.mjs --self-test
+          node .ci/verify-immutable-container-release.mjs
       - name: Generate deterministic release change inventory
         run: |
           node .ci/generate-release-change-inventory.mjs --self-test
@@ -128,6 +132,6 @@ jobs:
             echo "- GitHub immutable artifact digest: \`${{ steps.upload.outputs.artifact-digest }}\`"
             echo "- Deterministic source change inventory and generated release notes are included."
             echo "- Offline Nest API route-surface manifest/diff is included; it is not a full OpenAPI schema diff."
-            echo "- Container packaging and supply-chain verifier are fingerprinted in rc-manifest.json."
+            echo "- Container compatibility and immutable publication contracts are validated."
             echo "- This bundle is release evidence/build snapshots, not the final production deployment artifact."
           } >> "$GITHUB_STEP_SUMMARY"
