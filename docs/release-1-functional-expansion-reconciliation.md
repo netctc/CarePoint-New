@@ -87,15 +87,21 @@ The same rule applies to F3–F17: their canonical source trackers are already c
 
 ## R10 / deployment note
 
-The current authoritative Release 1 candidate has immutable API/Admin artifacts and passed the R10-G10A digest-verification checkpoint. R10-G10B then stopped during the temporary PostgreSQL restore step before candidate API/Admin startup. Cleanup completed without affecting live staging.
+The authoritative Release 1 candidate `5f508d95b387507ba3ef2b8ac44af3792764205d` has immutable API/Admin GHCR artifacts and passed R10-G10A digest verification. R10-G10B is now **PASS** after the earlier restore REVIEW was traced to filesystem permissions on the root-owned `0600` recovery dump. The dump itself is a valid PostgreSQL 16.15 custom archive; the corrected fail-closed rehearsal kept the dump permissions unchanged and restored it by root-opened stdin into `pg_restore` running as `postgres`. The exact RC API/Admin then booted against isolated PostgreSQL/Redis, release identity and artifact correlation passed, Admin-to-API connectivity passed, cleanup completed and live staging remained unchanged.
 
-The repository contains a known-good isolated C11 PostgreSQL recovery path using a PostgreSQL 16 container, a custom-format logical backup, `--no-owner`, `--no-privileges`, `--exit-on-error` and `--single-transaction`, followed by fixture verification and Prisma migration-status checks. This is a useful comparison baseline only; the G10B root cause must still be determined from the exact sanitized failing restore command and stderr from the staging evidence. Do not weaken restore/deployment safeguards or guess the failure class.
+The final G10B evidence is checksum-sealed on the staging host: main log SHA-256 `9f659825969129ffa7e72e51a97d48e745dac0baaeabe11077854b4a7828c0e6`, API log SHA-256 `2d56b2ced0a62f72d6ec7689fa5aa0944b94381365b1fbb0f24bb73838dc4faa`, and Admin log SHA-256 `45a3216ed1f21563dc3b9bbc3dcaa6f15d9f510b4a17fa961ea5f3ff6ea742ff`.
+
+R10-G10D filesystem rollback mechanics also passed against the actual previous deployed filesystem release `9d9075efe78fc3352ee24e20814801a46c0e09a0`: previous API/Admin boot, isolated PostgreSQL/Redis, Admin-to-API connectivity, immutable filesystem hashes, cleanup and live-runtime preservation passed, with an isolated restore-to-readiness observation of 6.084 seconds. An authoritative historical previous OCI digest does not exist for `9d9075...`: the immutable-container workflow was introduced by direct child commit `d6e04150c97ac6b9be48b69cea7762a36a921e2d`. A retroactive rebuild must not be represented as the previously deployed artifact.
+
+R10-G10E isolated PITR mechanics are **PASS**. The final isolated exercise proved physical base backup, WAL archival, timestamp recovery, inclusion of the pre-target transaction, exclusion of the post-target transaction, recovered schema integrity and exact-RC API boot against the recovered database. The observed isolated RPO was 4.200326 seconds and RTO was 5.944 seconds. These measurements are supporting continuity evidence only; the rehearsal explicitly did not prove production-equivalent PITR/WAL topology.
+
+Therefore R10 isolated artifact/restore/rollback/PITR mechanics no longer block source reconciliation, but #98 remains OPEN. Production-equivalent deployment strategy, rollback authority/thresholds, real WAL/backup/PITR topology and final operational approvals still require environment-specific evidence. Production remains NO-GO.
 
 ## Next controlled sequence
 
-1. Resolve R10-G10B from the exact sanitized PostgreSQL restore error and rerun the authoritative isolated runtime using the same immutable RC digests.
-2. Complete review/merge of this documentation-only reconciliation PR through the protected Release 1 branch process.
-3. Treat F1–F17 as source-complete; do not reopen them for duplicate integration work.
+1. Complete protected review/merge of this documentation-only reconciliation PR; do not bypass the required independent approval.
+2. Treat F1–F17 as source-complete and do not reopen them for duplicate integration work.
+3. Continue #98 only with the remaining production-equivalent deployment/rollback/PITR acceptance boundary; do not retroactively manufacture a historical previous-OCI artifact.
 4. Execute the remaining release gates: R3 infrastructure/residency, R4 real providers, R5 signed native/mobile acceptance, R6 security-owner and external adversarial acceptance, R7 human UAT, R8 approved target-load/resilience/DR, and R9 KSA regulatory/clinical-safety approval.
-5. If any remaining gate exposes a real source defect, fix only that defect on a focused branch and produce a new exact RC SHA. Otherwise preserve the current immutable candidate.
+5. If any remaining gate exposes a real source defect, fix only that defect on a focused branch and produce a new exact RC SHA. Otherwise preserve `5f508d95b387507ba3ef2b8ac44af3792764205d` as the authoritative runtime RC artifact candidate even if documentation-only branch history advances.
 6. Promote to `main` only after the final Go/No-Go/CAB decision and all mandatory release gates are accepted.
