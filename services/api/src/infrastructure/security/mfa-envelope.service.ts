@@ -1,5 +1,6 @@
 import { Injectable, InternalServerErrorException } from "@nestjs/common";
 import { PhiEnvelopeEncryption, StaticAesKwKeyProvider, type EncryptedEnvelope, type KeyEncryptionKeyProvider } from "@carepoint/security";
+import { localSyntheticPilotProvidersAllowed } from "../release/private-pilot-infrastructure-profile";
 import { AwsKmsKeyProvider } from "./aws-kms-key-provider";
 
 @Injectable()
@@ -19,7 +20,9 @@ export class MfaEnvelopeService {
       return new AwsKmsKeyProvider(keyId, "carepoint-mfa-secret-dek", process.env.AWS_REGION, process.env.AWS_ENDPOINT_URL_KMS);
     }
     if (provider !== "local") throw new InternalServerErrorException(`Unsupported MFA key provider '${provider}'.`);
-    if (process.env.NODE_ENV === "production") throw new InternalServerErrorException("Local MFA envelope keys are forbidden in production.");
+    if (process.env.NODE_ENV === "production" && !localSyntheticPilotProvidersAllowed(process.env)) {
+      throw new InternalServerErrorException("Local MFA envelope keys are forbidden in production.");
+    }
 
     const encoded = process.env.MFA_ENVELOPE_KEY_BASE64;
     const keyId = process.env.MFA_ENVELOPE_KEY_ID ?? "local-mfa-kek-v1";

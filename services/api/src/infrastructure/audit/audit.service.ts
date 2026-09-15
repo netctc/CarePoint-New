@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
+import { isolatedSyntheticPrivatePilotActive } from "../release/private-pilot-infrastructure-profile";
 import { PrismaService } from "../prisma/prisma.module";
 import { SiemAuditOutboxStoreService } from "../siem/siem-audit-outbox-store.service";
 import { SiemOutboxWorkerService } from "../siem/siem-outbox-worker.service";
@@ -39,6 +40,7 @@ export class DatabaseAuditService {
     return this.prisma.auditEvent.findMany({ orderBy: { occurredAt: "desc" }, take: Math.max(1, Math.min(limit, 500)) });
   }
   private siemExportEnabled(): boolean {
+    if (isolatedSyntheticPrivatePilotActive(process.env)) return false;
     return process.env.NODE_ENV === "production" || process.env.SIEM_EXPORT_ENABLED?.trim().toLowerCase() === "true";
   }
 }

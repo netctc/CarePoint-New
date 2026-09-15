@@ -1,4 +1,5 @@
 import type { RedisOptions } from "ioredis";
+import { isolatedSyntheticPrivatePilotActive } from "../release/private-pilot-infrastructure-profile";
 
 export interface RedisRuntimeConnection {
   url: string;
@@ -24,11 +25,15 @@ export function redisRuntimeConnection(env: NodeJS.ProcessEnv = process.env): Re
   }
 
   if (env.NODE_ENV === "production") {
-    if (parsed.protocol !== "rediss:") throw new Error("Production REDIS_URL must use rediss:// TLS.");
-    if (!parsed.password) throw new Error("Production REDIS_URL must include Redis authentication credentials.");
-    if (isLocalHost(parsed.hostname)) throw new Error("Production REDIS_URL must not target a local loopback host.");
-    if (env.REDIS_TLS_REJECT_UNAUTHORIZED?.trim().toLowerCase() === "false") {
-      throw new Error("Disabling Redis TLS certificate verification is forbidden in production.");
+    if (isolatedSyntheticPrivatePilotActive(env)) {
+      if (!parsed.password) throw new Error("Isolated synthetic pilot REDIS_URL must include authentication credentials.");
+    } else {
+      if (parsed.protocol !== "rediss:") throw new Error("Production REDIS_URL must use rediss:// TLS.");
+      if (!parsed.password) throw new Error("Production REDIS_URL must include Redis authentication credentials.");
+      if (isLocalHost(parsed.hostname)) throw new Error("Production REDIS_URL must not target a local loopback host.");
+      if (env.REDIS_TLS_REJECT_UNAUTHORIZED?.trim().toLowerCase() === "false") {
+        throw new Error("Disabling Redis TLS certificate verification is forbidden in production.");
+      }
     }
   }
 

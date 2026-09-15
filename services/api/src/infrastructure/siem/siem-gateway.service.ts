@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import { isolatedSyntheticPrivatePilotActive } from "../release/private-pilot-infrastructure-profile";
 import { ExternalSecretResolverService } from "../secrets/external-secret-resolver.service";
 import type { SiemAuditEventPayload } from "./siem-event-presenter.service";
 
@@ -18,8 +19,9 @@ export function siemGatewayConfiguration(env: NodeJS.ProcessEnv = process.env): 
   const rawEndpoint = env.SIEM_EXPORT_URL?.trim() || null;
   const apiKey = env.SIEM_EXPORT_API_KEY?.trim() || null;
   const encryptedApiKeyFile = env.SIEM_EXPORT_API_KEY_KMS_FILE?.trim() || null;
+  const isolatedSyntheticPilot = env.NODE_ENV === "production" && isolatedSyntheticPrivatePilotActive(env);
 
-  if (env.NODE_ENV === "production" && !enabled) {
+  if (env.NODE_ENV === "production" && !enabled && !isolatedSyntheticPilot) {
     throw new Error("SIEM_EXPORT_ENABLED=true is required in production for Phase C9 audit forwarding.");
   }
   if (!enabled) return { enabled, endpoint: null, apiKey: null, timeoutMs };

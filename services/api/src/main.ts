@@ -20,6 +20,7 @@ import { assertProductionOtlpReady } from "./infrastructure/observability/produc
 import { assertProductionDatabaseReady } from "./infrastructure/prisma/production-database-preflight";
 import { assertProductionRedisReady } from "./infrastructure/redis/production-redis-preflight";
 import { assertProductionReleaseIdentityReady } from "./infrastructure/release/release-identity";
+import { isolatedSyntheticPrivatePilotActive } from "./infrastructure/release/private-pilot-infrastructure-profile";
 import { carePointRuntimeFeatures } from "./infrastructure/release/private-pilot-policy";
 import { assertProductionExternalSecretsReady } from "./infrastructure/secrets/production-external-secrets-preflight";
 import { assertProductionKmsReady } from "./infrastructure/security/production-kms-preflight";
@@ -30,11 +31,16 @@ import { assertProductionSmartPublicEndpointsReady } from "./security/production
 
 async function bootstrap(): Promise<void> {
   const runtimeFeatures = carePointRuntimeFeatures(process.env);
+  const isolatedSyntheticPilot = isolatedSyntheticPrivatePilotActive(process.env);
   assertProductionReleaseIdentityReady();
-  assertProductionDataGovernanceReady();
-  await assertProductionKmsReady();
-  await assertProductionKmsRotationReady();
-  await assertProductionExternalSecretsReady(process.env, runtimeFeatures);
+
+  if (!isolatedSyntheticPilot) {
+    assertProductionDataGovernanceReady();
+    await assertProductionKmsReady();
+    await assertProductionKmsRotationReady();
+    await assertProductionExternalSecretsReady(process.env, runtimeFeatures);
+  }
+
   if (runtimeFeatures.payments) assertProductionFinancialGatewayEgressReady();
   assertProductionProviderResponsePolicyReady();
   if (runtimeFeatures.externalNotifications) assertProductionNotificationGatewayEgressReady();
@@ -42,13 +48,16 @@ async function bootstrap(): Promise<void> {
   assertProductionInboundBodyLimitsReady();
   const bodyLimits = inboundBodyLimits();
   if (runtimeFeatures.telehealth) assertProductionTelehealthReady();
-  assertProductionSmartPublicEndpointsReady();
+  if (!isolatedSyntheticPilot) assertProductionSmartPublicEndpointsReady();
   const origins = browserOrigins(process.env);
-  await assertProductionObjectStorageReady();
-  await assertProductionDatabaseReady();
-  await assertProductionRedisReady();
-  await assertProductionOtlpReady();
-  assertProductionSiemReady();
+
+  if (!isolatedSyntheticPilot) {
+    await assertProductionObjectStorageReady();
+    await assertProductionDatabaseReady();
+    await assertProductionRedisReady();
+    await assertProductionOtlpReady();
+    assertProductionSiemReady();
+  }
 
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { cors: false, bodyParser: false });
 
