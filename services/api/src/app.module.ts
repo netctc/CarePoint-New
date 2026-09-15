@@ -32,6 +32,9 @@ import { AvailabilityRequestsModule } from "./modules/scheduling/availability-re
 import { SmartModule } from "./modules/smart/smart.module";
 import { TelehealthModule } from "./modules/telehealth/telehealth.module";
 import { TransportModule } from "./modules/transport/transport.module";
+import { carePointRuntimeFeatures } from "./infrastructure/release/private-pilot-policy";
+
+const runtimeFeatures = carePointRuntimeFeatures(process.env);
 
 @Module({
   imports: [
@@ -42,11 +45,11 @@ import { TransportModule } from "./modules/transport/transport.module";
     ApiSecurityModule,
     HealthModule,
     AdminAnalyticsModule,
-    AdminFinanceModule,
+    ...(runtimeFeatures.payments ? [AdminFinanceModule] : []),
     AdminOperationsModule,
     AdminReschedulingModule,
     AdminSecurityModule,
-    AdminTelehealthModule,
+    ...(runtimeFeatures.telehealth ? [AdminTelehealthModule] : []),
     DataGovernanceModule,
     ProvidersModule,
     ...(emergencyAmbulanceModuleEnabled(process.env) ? [EmergencyModule] : []),
@@ -58,12 +61,11 @@ import { TransportModule } from "./modules/transport/transport.module";
     AuditModule,
     SchedulingModule,
     AvailabilityRequestsModule,
-    TelehealthModule,
+    ...(runtimeFeatures.telehealth ? [TelehealthModule] : []),
     ClinicalModule,
     OrdersModule,
     DocumentsModule,
-    BillingModule,
-    ClaimsModule,
+    ...(runtimeFeatures.payments ? [BillingModule, ClaimsModule] : []),
     CommunicationsModule,
     SmartModule,
     FhirModule,

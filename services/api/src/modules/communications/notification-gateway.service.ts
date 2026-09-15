@@ -7,6 +7,7 @@ import {
   validatedNotificationGatewayBaseUrl,
 } from "../../infrastructure/http/notification-gateway-egress";
 import { ExternalSecretResolverService } from "../../infrastructure/secrets/external-secret-resolver.service";
+import { carePointRuntimeFeatures } from "../../infrastructure/release/private-pilot-policy";
 
 type ExternalNotificationChannel = "PUSH" | "EMAIL" | "SMS";
 
@@ -47,7 +48,9 @@ export class NotificationGatewayService {
   private provider(): "mock" | "external" {
     const provider = process.env.NOTIFICATION_GATEWAY_PROVIDER ?? (process.env.NODE_ENV === "production" ? "external" : "mock");
     if (provider !== "mock" && provider !== "external") throw new InternalServerErrorException(`Unsupported NOTIFICATION_GATEWAY_PROVIDER '${provider}'.`);
-    if (process.env.NODE_ENV === "production" && provider === "mock") throw new InternalServerErrorException("Mock notifications are forbidden in production.");
+    if (process.env.NODE_ENV === "production" && provider === "mock" && !carePointRuntimeFeatures(process.env).privatePilot) {
+      throw new InternalServerErrorException("Mock notifications are forbidden in production outside the private pilot.");
+    }
     return provider;
   }
 
