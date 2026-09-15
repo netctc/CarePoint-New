@@ -6,6 +6,7 @@ import {
   isolatedSyntheticPrivatePilotActive,
   privatePilotInfrastructureProfile,
 } from "../dist/infrastructure/release/private-pilot-infrastructure-profile.js";
+import { smartSecurityRuntimeEnabled } from "../dist/security/api-security.module.js";
 
 const key32 = Buffer.alloc(32, 7).toString("base64");
 const base = {
@@ -54,6 +55,16 @@ const base = {
 assert.doesNotThrow(() => assertIsolatedSyntheticPilotConfiguration({ ...base }));
 assert.equal(privatePilotInfrastructureProfile({ ...base }), ISOLATED_SYNTHETIC_PILOT_PROFILE);
 assert.equal(isolatedSyntheticPrivatePilotActive({ ...base }), true);
+assert.equal(
+  smartSecurityRuntimeEnabled({ ...base }),
+  false,
+  "isolated synthetic pilot must not instantiate or accept SMART authentication runtime services",
+);
+assert.equal(
+  smartSecurityRuntimeEnabled({ NODE_ENV: "production" }),
+  true,
+  "normal production must keep SMART security runtime enabled",
+);
 
 const pilotReminderConfiguration = appointmentNotificationConfiguration({
   ...base,

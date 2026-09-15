@@ -6,14 +6,16 @@ import {
   Global,
   Injectable,
   Module,
+  Optional,
   SetMetadata,
   UnauthorizedException,
 } from "@nestjs/common";
 import { APP_FILTER, APP_GUARD, Reflector } from "@nestjs/core";
 import { principalHasAnyPermission, type AuthPrincipal, type Permission } from "@carepoint/identity";
-import { PrismaModule } from "../infrastructure/prisma/prisma.module";
-import { PrismaKnownRequestFilter } from "../infrastructure/prisma/prisma-conflict.filter";
 import { DatabaseAuditService } from "../infrastructure/audit/audit.service";
+import { PrismaKnownRequestFilter } from "../infrastructure/prisma/prisma-conflict.filter";
+import { PrismaModule } from "../infrastructure/prisma/prisma.module";
+import { isolatedSyntheticPrivatePilotActive } from "../infrastructure/release/private-pilot-infrastructure-profile";
 import { MfaEnvelopeService } from "../infrastructure/security/mfa-envelope.service";
 import { PersistentAuthService } from "./persistent-auth.service";
 import { ProviderOperationalCredentialService } from "./provider-operational-credential.service";
@@ -24,6 +26,13 @@ const PUBLIC_ROUTE = "carepoint:public-route";
 const REQUIRED_PERMISSIONS = "carepoint:required-permissions";
 const SMART_FHIR_ACCESS = "carepoint:smart-fhir-access";
 const SMART_SYSTEM_FHIR_OPERATION = "carepoint:smart-system-fhir-operation";
+
+export function smartSecurityRuntimeEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  return !isolatedSyntheticPrivatePilotActive(env);
+}
+
+const smartSecurityEnabled = smartSecurityRuntimeEnabled(process.env);
+const smartSecurityProviders = smartSecurityEnabled ? [SmartConfigurationService, SmartTokenService] : [];
 
 export const Public = () => SetMetadata(PUBLIC_ROUTE, true);
 export const RequirePermissions = (...permissions: Permission[]) => SetMetadata(REQUIRED_PERMISSIONS, permissions);
@@ -47,9 +56,9 @@ class ApiAccessGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     private readonly auth: PersistentAuthService,
-    private readonly smart: SmartTokenService,
     private readonly audit: DatabaseAuditService,
     private readonly providerCredentials: ProviderOperationalCredentialService,
+    @Optional() private readonly smart?: SmartTokenService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -75,6 +84,7 @@ class ApiAccessGuard implements CanActivate {
       principal = await this.auth.validateAccessToken(token);
     } catch (error) {
       if (!(error instanceof UnauthorizedException)) throw error;
+      if (!this.smart) throw error;
       smartContext = await this.smart.validateAccessToken(token);
       principal = smartContext.principal;
       request.smartContext = smartContext;
@@ -86,12 +96,12 @@ class ApiAccessGuard implements CanActivate {
 
     if (systemOperation) {
       if (!smartContext) throw new ForbiddenException(`FHIR operation '${systemOperation}' requires SMART backend-services authentication.`);
-      await this.smart.assertSystemFhirOperation(smartContext, systemOperation, request.url ?? null);
+      await this.smart!.assertSystemFhirOperation(smartContext, systemOperation, request.url ?? null);
     }
 
     if (smartContext) {
-      if (!requirement && !systemOperation) return this.smart.denyNonFhirRoute(smartContext, request.url ?? null);
-      if (requirement) await this.smart.assertFhirAccess(smartContext, requirement, request.url ?? null);
+      if (!requirement && !systemOperation) return this.smart!.denyNonFhirRoute(smartContext, request.url ?? null);
+      if (requirement) await this.smart!.assertFhirAccess(smartContext, requirement, request.url ?? null);
     }
 
     const permissions = this.reflector.getAllAndOverride<Permission[]>(REQUIRED_PERMISSIONS, [context.getHandler(), context.getClass()]) ?? [];
@@ -126,11 +136,16 @@ class ApiAccessGuard implements CanActivate {
     MfaEnvelopeService,
     PersistentAuthService,
     ProviderOperationalCredentialService,
-    SmartConfigurationService,
-    SmartTokenService,
+    ...smartSecurityProviders,
     { provide: APP_GUARD, useClass: ApiAccessGuard },
     { provide: APP_FILTER, useClass: PrismaKnownRequestFilter },
   ],
-  exports: [DatabaseAuditService, MfaEnvelopeService, PersistentAuthService, ProviderOperationalCredentialService, SmartConfigurationService, SmartTokenService],
+  exports: [
+    DatabaseAuditService,
+    MfaEnvelopeService,
+    PersistentAuthService,
+    ProviderOperationalCredentialService,
+    ...smartSecurityProviders,
+  ],
 })
 export class ApiSecurityModule {}
