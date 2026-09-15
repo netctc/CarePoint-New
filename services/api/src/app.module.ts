@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { ObservabilityModule } from "./infrastructure/observability/observability.module";
+import { PilotStructuredObservabilityModule } from "./infrastructure/observability/pilot-structured-observability.module";
 import { RedisSecurityModule } from "./infrastructure/redis/redis-security.module";
 import { ExternalSecretsModule } from "./infrastructure/secrets/external-secrets.module";
 import { SiemExportModule } from "./infrastructure/siem/siem-export.module";
@@ -40,7 +41,7 @@ const isolatedSyntheticPilot = isolatedSyntheticPrivatePilotActive(process.env);
 
 @Module({
   imports: [
-    ObservabilityModule,
+    ...(isolatedSyntheticPilot ? [PilotStructuredObservabilityModule] : [ObservabilityModule]),
     RedisSecurityModule,
     ExternalSecretsModule,
     SiemExportModule,
