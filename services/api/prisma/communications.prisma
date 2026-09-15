@@ -1,0 +1,210 @@
+enum CareConversationStatus {
+  OPEN
+  CLOSED
+}
+
+enum CareParticipantKind {
+  PATIENT
+  PROVIDER
+}
+
+enum NotificationChannel {
+  IN_APP
+  PUSH
+  EMAIL
+  SMS
+}
+
+enum NotificationEventType {
+  SECURE_MESSAGE
+  APPOINTMENT_UPDATE
+  CLINICAL_UPDATE
+  INSURANCE_UPDATE
+  CARE_COORDINATION
+  EMERGENCY_UPDATE
+  TRANSPORT_UPDATE
+}
+
+enum NotificationDeliveryStatus {
+  PENDING
+  SENT
+  FAILED
+  SKIPPED
+}
+
+model CareConversation {
+  id                   String                     @id @default(uuid())
+  patientId            String
+  appointmentId        String?
+  createdByAccountId   String
+  clientConversationId String
+  status               CareConversationStatus     @default(OPEN)
+  subjectAlgorithm     String
+  subjectKeyId         String
+  subjectWrappedKey    String
+  subjectIv            String
+  subjectCiphertext    String
+  lastMessageAt        DateTime?
+  closedAt             DateTime?
+  createdAt            DateTime                   @default(now())
+  updatedAt            DateTime                   @updatedAt
+  participants         CareConversationParticipant[]
+  messages             CareMessage[]
+
+  @@unique([createdByAccountId, clientConversationId])
+  @@index([patientId, status, lastMessageAt])
+  @@index([appointmentId])
+}
+
+model CareConversationParticipant {
+  id             String              @id @default(uuid())
+  conversationId String
+  accountId      String
+  providerId     String?
+  kind           CareParticipantKind
+  joinedAt       DateTime            @default(now())
+  leftAt         DateTime?
+  conversation   CareConversation    @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, accountId])
+  @@index([accountId, leftAt])
+  @@index([providerId, leftAt])
+}
+
+model CareMessage {
+  id              String                   @id @default(uuid())
+  conversationId  String
+  senderAccountId String
+  clientMessageId String
+  algorithm       String
+  keyId           String
+  wrappedKey      String
+  iv              String
+  ciphertext      String
+  sentAt          DateTime                 @default(now())
+  conversation    CareConversation         @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  attachments     CareMessageAttachment[]
+  readReceipts    CareMessageReadReceipt[]
+
+  @@unique([senderAccountId, clientMessageId])
+  @@index([conversationId, sentAt])
+}
+
+model CareMessageAttachment {
+  id                 String      @id @default(uuid())
+  messageId          String
+  clinicalDocumentId String
+  createdAt          DateTime    @default(now())
+  message            CareMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, clinicalDocumentId])
+  @@index([clinicalDocumentId])
+}
+
+model CareMessageReadReceipt {
+  id        String      @id @default(uuid())
+  messageId String
+  accountId String
+  readAt    DateTime    @default(now())
+  message   CareMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, accountId])
+  @@index([accountId, readAt])
+}
+
+model NotificationPreference {
+  id           String   @id @default(uuid())
+  accountId    String   @unique
+  locale       String   @default("en")
+  inAppEnabled Boolean  @default(true)
+  pushEnabled  Boolean  @default(false)
+  emailEnabled Boolean  @default(false)
+  smsEnabled   Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model NotificationEndpoint {
+  id                  String              @id @default(uuid())
+  accountId           String
+  channel             NotificationChannel
+  externalEndpointRef String
+  active              Boolean             @default(true)
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  @@unique([accountId, channel, externalEndpointRef])
+  @@index([accountId, channel, active])
+}
+
+model NotificationEvent {
+  id           String                @id @default(uuid())
+  accountId    String
+  dedupeKey    String                @unique
+  type         NotificationEventType
+  entityType   String
+  entityId     String
+  safeTitleKey String
+  safeBodyKey  String
+  readAt       DateTime?
+  createdAt    DateTime              @default(now())
+  deliveries   NotificationDelivery[]
+
+  @@index([accountId, readAt, createdAt])
+  @@index([type, createdAt])
+}
+
+model NotificationDelivery {
+  id             String                     @id @default(uuid())
+  notificationId String
+  channel        NotificationChannel
+  status         NotificationDeliveryStatus @default(PENDING)
+  providerRef    String?
+  attemptedAt    DateTime?
+  sentAt         DateTime?
+  lastErrorCode  String?
+  attemptCount   Int                        @default(0)
+  availableAt    DateTime                   @default(now())
+  leaseOwner     String?
+  leaseUntil     DateTime?
+  notification   NotificationEvent          @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+
+  @@unique([notificationId, channel])
+  @@index([status, attemptedAt])
+  @@index([status, availableAt])
+  @@index([leaseUntil])
+}
+
+model AppointmentLifecycleSignal {
+  id                   BigInt   @id @default(autoincrement())
+  appointmentId        String
+  eventType            String
+  fromStatus           String?
+  toStatus             String?
+  startsAt             DateTime
+  previousStartsAt     DateTime?
+  appointmentUpdatedAt DateTime
+  previousUpdatedAt    DateTime?
+  createdAt            DateTime @default(now())
+  processedAt          DateTime?
+
+  @@index([processedAt, id])
+  @@index([appointmentId, createdAt])
+}
+
+model AppointmentReminderSchedule {
+  id                   BigInt   @id @default(autoincrement())
+  appointmentId        String
+  startsAt             DateTime
+  appointmentUpdatedAt DateTime
+  offsetMinutes        Int
+  dueAt                DateTime
+  status               String   @default("ACTIVE")
+  createdAt            DateTime @default(now())
+  processedAt          DateTime?
+  cancelledAt          DateTime?
+
+  @@unique([appointmentId, appointmentUpdatedAt, offsetMinutes])
+  @@index([status, dueAt])
+  @@index([appointmentId, status])
+}
