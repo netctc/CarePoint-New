@@ -39,14 +39,16 @@ Release 1 appointment template keys are:
 
 ## Production configuration
 
-The production deployment must explicitly set an approved reminder timing policy. Engineering does not choose a market timing policy.
+The normal production deployment must explicitly set an approved reminder timing policy. Engineering does not choose a market timing policy.
 
 - `APPOINTMENT_NOTIFICATION_WORKER_ENABLED=true` — mandatory in production.
 - `APPOINTMENT_NOTIFICATION_POLL_MS` — technical poll cadence, 100..60000 ms.
 - `APPOINTMENT_NOTIFICATION_BATCH_SIZE` — 1..200.
-- `APPOINTMENT_REMINDER_OFFSETS_MINUTES` — comma-separated positive integer minute offsets, each no greater than 30 days. Production startup fails if this is absent/empty.
+- `APPOINTMENT_REMINDER_OFFSETS_MINUTES` — comma-separated positive integer minute offsets, each no greater than 30 days. Normal production startup fails if this is absent/empty.
 
 Example syntax only, **not an approved market policy**: `APPOINTMENT_REMINDER_OFFSETS_MINUTES=1440,120`. The actual values require Product/Operations approval for the launch market.
+
+The explicit `CAREPOINT_PRIVATE_PILOT_INFRA_PROFILE=isolated-synthetic` profile is the only exception to the reminder-offset startup requirement. In that synthetic-only profile, the appointment notification worker remains mandatory but `APPOINTMENT_REMINDER_OFFSETS_MINUTES` may be omitted until Product/Operations approves a pilot reminder timing policy. With no offsets configured, lifecycle/status notifications continue to be processed while scheduled reminder creation is inactive. This pilot exception does not change the normal Release 1 production contract.
 
 The existing notification delivery configuration remains authoritative for channels/providers: `NOTIFICATION_GATEWAY_*`, `NOTIFICATION_WORKER_*`, user preferences and registered endpoints.
 
@@ -54,7 +56,8 @@ The existing notification delivery configuration remains authoritative for chann
 
 `services/api/scripts/release1-appointment-reminders-smoke.mjs` and the dedicated CI step validate:
 
-- production rejects a disabled appointment-notification worker and an undefined reminder timing policy;
+- normal production rejects a disabled appointment-notification worker and an undefined reminder timing policy;
+- the isolated synthetic pilot may omit reminder offsets while keeping the appointment notification worker enabled;
 - booking creates patient/provider confirmation notifications;
 - idempotent booking retries do not duplicate notifications;
 - user channel opt-out is enforced;
