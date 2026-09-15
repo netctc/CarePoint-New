@@ -127,7 +127,9 @@ export function isPrivatePilotHost(hostname: string): boolean {
   const version = isIP(host);
   if (version === 4) {
     const octets = host.split(".").map(Number);
-    return octets[0] === 10 || (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31) || (octets[0] === 192 && octets[1] === 168);
+    const first = octets[0] ?? -1;
+    const second = octets[1] ?? -1;
+    return first === 10 || (first === 172 && second >= 16 && second <= 31) || (first === 192 && second === 168);
   }
   if (version === 6) return host.startsWith("fc") || host.startsWith("fd") || host.startsWith("fe80:");
   return !host.includes(".") || host.endsWith(".internal") || host.endsWith(".local") || host.endsWith(".lan");
