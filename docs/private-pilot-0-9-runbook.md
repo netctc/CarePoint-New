@@ -40,6 +40,8 @@ The profile keeps production cookies, HSTS/security headers, CORS/origin rules, 
 
 Under this profile, audit events remain durable in the isolated PostgreSQL database but are not exported to an external SIEM. HTTP telemetry remains active as structured local request logs with request, trace and span correlation. SMART/FHIR modules are not mounted. These are pilot-safe equivalents only and do not close the corresponding public-production gates.
 
+The appointment notification orchestrator must remain enabled in the isolated synthetic pilot so booking/status lifecycle notifications continue to be processed. `APPOINTMENT_REMINDER_OFFSETS_MINUTES` may be omitted under this profile because no launch-market reminder timing policy has been approved for the synthetic pilot. When omitted, scheduled appointment reminder creation remains inactive while lifecycle/status notifications continue through the mock/in-app path. This exception is limited to the explicit `isolated-synthetic` profile; normal production still fails closed when reminder offsets are absent.
+
 ## 3. Isolated dependency requirements
 
 ### PostgreSQL
