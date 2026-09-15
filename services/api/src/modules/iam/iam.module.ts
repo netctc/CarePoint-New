@@ -1,9 +1,10 @@
-import { Body, ConflictException, Controller, Delete, Get, Module, Param, Post, Req } from "@nestjs/common";
+import { Body, ConflictException, Controller, Delete, Get, Module, NotFoundException, Param, Post, Req } from "@nestjs/common";
 import type { AuthPrincipal, IdentityRole } from "@carepoint/identity";
 import { PrismaService } from "../../infrastructure/prisma/prisma.module";
 import { DistributedRateLimitService } from "../../infrastructure/redis/redis-security.module";
 import { CurrentPrincipal, Public, RequirePermissions } from "../../security/api-security.module";
 import { PersistentAuthService } from "../../security/persistent-auth.service";
+import { carePointRuntimeFeatures } from "../../infrastructure/release/private-pilot-policy";
 
 interface PatientRegistrationBody { email: string; password: string; firstName: string; lastName: string; phone?: string; }
 interface ManagedAccountBody { email: string; password: string; role: IdentityRole; }
@@ -25,6 +26,9 @@ class IamController {
   @Public()
   @Post("register/patient")
   async registerPatient(@Req() request: RequestIdentity, @Body() body: PatientRegistrationBody) {
+    if (!carePointRuntimeFeatures(process.env).patientSelfRegistration) {
+      throw new NotFoundException("Patient self-registration is not available.");
+    }
     await Promise.all([
       this.rateLimits.assertAllowed({ namespace: "iam:register:ip", identity: this.clientIp(request), limit: 200, windowSeconds: 3600 }),
       this.rateLimits.assertAllowed({ namespace: "iam:register:account", identity: body.email?.trim().toLowerCase() || "missing", limit: 3, windowSeconds: 3600 }),

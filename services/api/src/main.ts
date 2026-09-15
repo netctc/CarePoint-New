@@ -20,6 +20,7 @@ import { assertProductionOtlpReady } from "./infrastructure/observability/produc
 import { assertProductionDatabaseReady } from "./infrastructure/prisma/production-database-preflight";
 import { assertProductionRedisReady } from "./infrastructure/redis/production-redis-preflight";
 import { assertProductionReleaseIdentityReady } from "./infrastructure/release/release-identity";
+import { carePointRuntimeFeatures } from "./infrastructure/release/private-pilot-policy";
 import { assertProductionExternalSecretsReady } from "./infrastructure/secrets/production-external-secrets-preflight";
 import { assertProductionKmsReady } from "./infrastructure/security/production-kms-preflight";
 import { assertProductionKmsRotationReady } from "./infrastructure/security/production-kms-rotation-preflight";
@@ -28,18 +29,19 @@ import { assertProductionSiemReady } from "./infrastructure/siem/production-siem
 import { assertProductionSmartPublicEndpointsReady } from "./security/production-smart-public-endpoints-preflight";
 
 async function bootstrap(): Promise<void> {
+  const runtimeFeatures = carePointRuntimeFeatures(process.env);
   assertProductionReleaseIdentityReady();
   assertProductionDataGovernanceReady();
   await assertProductionKmsReady();
   await assertProductionKmsRotationReady();
-  await assertProductionExternalSecretsReady();
-  assertProductionFinancialGatewayEgressReady();
+  await assertProductionExternalSecretsReady(process.env, runtimeFeatures);
+  if (runtimeFeatures.payments) assertProductionFinancialGatewayEgressReady();
   assertProductionProviderResponsePolicyReady();
-  assertProductionNotificationGatewayEgressReady();
-  assertProductionPaymentActionPolicyReady();
+  if (runtimeFeatures.externalNotifications) assertProductionNotificationGatewayEgressReady();
+  if (runtimeFeatures.payments) assertProductionPaymentActionPolicyReady();
   assertProductionInboundBodyLimitsReady();
   const bodyLimits = inboundBodyLimits();
-  assertProductionTelehealthReady();
+  if (runtimeFeatures.telehealth) assertProductionTelehealthReady();
   assertProductionSmartPublicEndpointsReady();
   const origins = browserOrigins(process.env);
   await assertProductionObjectStorageReady();
