@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { appointmentNotificationConfiguration } from "../dist/modules/communications/appointment-notification-orchestrator.service.js";
 import {
   ISOLATED_SYNTHETIC_PILOT_PROFILE,
   assertIsolatedSyntheticPilotConfiguration,
@@ -53,6 +54,28 @@ const base = {
 assert.doesNotThrow(() => assertIsolatedSyntheticPilotConfiguration({ ...base }));
 assert.equal(privatePilotInfrastructureProfile({ ...base }), ISOLATED_SYNTHETIC_PILOT_PROFILE);
 assert.equal(isolatedSyntheticPrivatePilotActive({ ...base }), true);
+
+const pilotReminderConfiguration = appointmentNotificationConfiguration({
+  ...base,
+  APPOINTMENT_NOTIFICATION_WORKER_ENABLED: "true",
+});
+assert.equal(pilotReminderConfiguration.enabled, true, "isolated synthetic pilot must keep lifecycle notification processing enabled");
+assert.deepEqual(
+  pilotReminderConfiguration.reminderOffsetsMinutes,
+  [],
+  "isolated synthetic pilot must be allowed to omit unapproved market reminder timing",
+);
+
+assert.throws(
+  () => appointmentNotificationConfiguration({ NODE_ENV: "production", APPOINTMENT_NOTIFICATION_WORKER_ENABLED: "true" }),
+  /APPOINTMENT_REMINDER_OFFSETS_MINUTES/,
+  "normal production must continue rejecting an undefined reminder timing policy",
+);
+assert.throws(
+  () => appointmentNotificationConfiguration({ ...base, APPOINTMENT_NOTIFICATION_WORKER_ENABLED: "false" }),
+  /forbidden in production/,
+  "isolated synthetic pilot must not disable appointment lifecycle notification processing",
+);
 
 assert.equal(privatePilotInfrastructureProfile({ NODE_ENV: "production" }), null, "normal production must remain unchanged when profile is absent");
 
