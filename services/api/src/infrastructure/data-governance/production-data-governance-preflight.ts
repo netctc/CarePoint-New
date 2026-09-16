@@ -21,6 +21,11 @@ export function assertProductionDataGovernanceReady(env: Environment = process.e
     if (ociRegion !== residency.region) {
       throw new Error(`OCI_REGION '${ociRegion}' must match DATA_RESIDENCY_REGION '${residency.region}' so OCI Object Storage/Vault preflights validate the approved data region.`);
     }
+  } else if (cloudProvider === "gcp") {
+    const gcpRegion = required(env, "GCP_REGION");
+    if (gcpRegion !== residency.region) {
+      throw new Error(`GCP_REGION '${gcpRegion}' must match DATA_RESIDENCY_REGION '${residency.region}' so GCP Cloud Storage/KMS preflights validate the approved data region.`);
+    }
   } else {
     // Preserve the existing AWS path for direct/legacy preflight callers. The
     // production bootstrap separately requires an explicit cloud provider.
