@@ -220,7 +220,7 @@ async function rejects(pattern, mutate = () => {}, options = {}) {
   assert.equal(fake.keyInspections, 1);
   assert.equal(fake.versionInspections, 1);
   assert.equal(fake.signCalls, 1);
-  assert.equal(fake.publicKeyCalls, 2, "valid and tampered material both use the persisted signing version public key");
+  assert.equal(fake.publicKeyCalls, 3, "all well-formed persisted signatures use the exact version public key before cryptographic/algorithm validation");
   await provider.close();
   await assert.rejects(() => provider.signDigest(payloadDigest), /provider is closed/);
 }
