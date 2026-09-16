@@ -24,8 +24,24 @@ const productionEnv = (overrides = {}) => ({
   ...overrides,
 });
 
+const ociProductionEnv = (overrides = {}) => productionEnv({
+  CAREPOINT_CLOUD_PROVIDER: "oci",
+  CAREPOINT_RESIDENCY_JURISDICTION: "SA",
+  CAREPOINT_APPROVED_DATA_REGIONS: "me-riyadh-1,me-jeddah-1",
+  CAREPOINT_PRIMARY_REGION: "me-riyadh-1",
+  CAREPOINT_DR_REGION: "me-jeddah-1",
+  OCI_REGION: "me-riyadh-1",
+  OCI_TENANCY_OCID: "ocid1.tenancy.oc1..carepointsiemksa0001",
+  OCI_COMPARTMENT_OCID: "ocid1.compartment.oc1..carepointsiemprod0001",
+  CAREPOINT_SIEM_DESTINATION_REGION: "me-riyadh-1",
+  ...overrides,
+});
+
 assert.doesNotThrow(() => assertProductionSiemReady(productionEnv()));
 assert.doesNotThrow(() => assertProductionSiemReady({ NODE_ENV: "test" }));
+assert.doesNotThrow(() => assertProductionSiemReady(ociProductionEnv()));
+assert.throws(() => assertProductionSiemReady(ociProductionEnv({ CAREPOINT_SIEM_DESTINATION_REGION: "" })), /CAREPOINT_SIEM_DESTINATION_REGION is required in production/);
+assert.throws(() => assertProductionSiemReady(ociProductionEnv({ CAREPOINT_SIEM_DESTINATION_REGION: "eu-frankfurt-1" })), /outside CAREPOINT_APPROVED_DATA_REGIONS/);
 assert.throws(() => assertProductionSiemReady(productionEnv({ SIEM_EXPORT_ENABLED: "false" })), /SIEM_EXPORT_ENABLED=true is required/);
 assert.throws(() => assertProductionSiemReady(productionEnv({ SIEM_EXPORT_URL: "" })), /SIEM_EXPORT_URL is required/);
 assert.throws(() => assertProductionSiemReady(productionEnv({ SIEM_EXPORT_URL: "http:\/\/siem.example.internal/events" })), /must use HTTPS in production/);
