@@ -3,6 +3,7 @@ import { DecryptCommand, KMSClient } from "@aws-sdk/client-kms";
 import { createHash } from "node:crypto";
 import { open } from "node:fs/promises";
 import { isAbsolute } from "node:path";
+import { GcpExternalSecretValueResolver } from "./gcp-external-secret-value-resolver";
 import { OciExternalSecretValueResolver } from "./oci-external-secret-value-resolver";
 
 export const EXTERNAL_SECRET_NAMES = [
@@ -148,30 +149,45 @@ function productionOciSecretsActive(env: NodeJS.ProcessEnv): boolean {
     && env.CAREPOINT_EXTERNAL_SECRET_PROVIDER?.trim() === "oci-vault-secrets";
 }
 
+function productionGcpSecretsActive(env: NodeJS.ProcessEnv): boolean {
+  return env.NODE_ENV === "production"
+    && env.CAREPOINT_CLOUD_PROVIDER?.trim() === "gcp"
+    && env.CAREPOINT_EXTERNAL_SECRET_PROVIDER?.trim() === "gcp-secret-manager";
+}
+
 @Injectable()
 export class ExternalSecretResolverService {
   private readonly cache = new Map<ExternalSecretName, CachedSecret>();
   private readonly awsClient: KMSClient | null;
+  private readonly gcpResolver: GcpExternalSecretValueResolver | null;
   private readonly ociResolver: OciExternalSecretValueResolver | null;
 
   constructor() {
     if (productionOciSecretsActive(process.env)) {
       this.awsClient = null;
+      this.gcpResolver = null;
       this.ociResolver = new OciExternalSecretValueResolver(process.env);
+    } else if (productionGcpSecretsActive(process.env)) {
+      this.awsClient = null;
+      this.gcpResolver = new GcpExternalSecretValueResolver(process.env);
+      this.ociResolver = null;
     } else {
       this.awsClient = createExternalSecretsKmsClient();
+      this.gcpResolver = null;
       this.ociResolver = null;
     }
   }
 
   async resolve(name: ExternalSecretName): Promise<string> {
     if (this.ociResolver) return this.ociResolver.resolve(name);
+    if (this.gcpResolver) return this.gcpResolver.resolve(name);
     if (!this.awsClient) throw new Error("External credential resolver is not initialized.");
     return resolveExternalSecret(name, process.env, this.awsClient, this.cache);
   }
 
   async onModuleDestroy(): Promise<void> {
     await this.ociResolver?.close();
+    await this.gcpResolver?.close();
     this.awsClient?.destroy();
     this.cache.clear();
   }
