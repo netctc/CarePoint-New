@@ -115,7 +115,7 @@ export type OciDocumentSignature = {
  * rotation, without a schema migration.
  */
 export class OciKmsSigningProvider {
-  private runtimePromise?: Promise<SigningRuntime>;
+  private runtimePromise: Promise<SigningRuntime> | undefined;
 
   constructor(
     private readonly keyId: string,
