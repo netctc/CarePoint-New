@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
@@ -57,6 +56,19 @@ function jsonResponse(value, options = {}) {
   });
 }
 
+function crc32cBase64(bytes) {
+  let crc = 0xffffffff;
+  for (const byte of bytes) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit += 1) {
+      crc = (crc >>> 1) ^ ((crc & 1) !== 0 ? 0x82f63b78 : 0);
+    }
+  }
+  const checksum = Buffer.allocUnsafe(4);
+  checksum.writeUInt32BE((crc ^ 0xffffffff) >>> 0, 0);
+  return checksum.toString("base64");
+}
+
 function recorder(options = {}) {
   const calls = [];
   let emailCalls = 0;
@@ -105,7 +117,7 @@ function recorder(options = {}) {
       if (init.method === "PUT") {
         const body = Buffer.from(init.body);
         assert.equal(headers.get("content-length"), String(body.byteLength));
-        assert.equal(headers.get("content-md5"), createHash("md5").update(body).digest("base64"));
+        assert.equal(headers.get("x-goog-hash"), `crc32c=${crc32cBase64(body)}`);
         assert.equal(headers.get("cache-control"), "no-store");
         assert.equal(headers.get("x-goog-encryption-kms-key-name"), documentKey);
         stored.set(objectPath, body.toString("utf8"));
