@@ -4,8 +4,8 @@ import { NestFactory } from "@nestjs/core";
 import { NestExpressApplication } from "@nestjs/platform-express";
 import helmet from "helmet";
 import { AppModule } from "./app.module";
+import { assertProductionCloudStartupReady } from "./infrastructure/cloud/production-cloud-startup";
 import { createProductionOciSecurityRuntime } from "./infrastructure/cloud/oci-production-security-runtime";
-import { assertProductionDataGovernanceReady } from "./infrastructure/data-governance/production-data-governance-preflight";
 import { assertProductionProviderResponsePolicyReady } from "./infrastructure/http/bounded-provider-response";
 import { browserOrigins } from "./infrastructure/http/browser-origin-readiness";
 import { assertProductionFinancialGatewayEgressReady } from "./infrastructure/http/financial-gateway-egress";
@@ -36,8 +36,13 @@ async function bootstrap(): Promise<void> {
   assertProductionReleaseIdentityReady();
 
   if (!isolatedSyntheticPilot) {
-    assertProductionDataGovernanceReady();
-    const ociSecurity = await createProductionOciSecurityRuntime();
+    const cloudContract = assertProductionCloudStartupReady();
+    const ociSecurity = cloudContract?.provider === "oci"
+      ? await createProductionOciSecurityRuntime()
+      : null;
+    if (cloudContract?.provider === "oci" && !ociSecurity) {
+      throw new Error("OCI Release 1 production startup requires the OCI security runtime.");
+    }
     try {
       await assertProductionKmsReady(
         ociSecurity ? { inspectManagedKey: ociSecurity.inspectManagedKey } : {},

@@ -15,9 +15,19 @@ export function assertProductionDataGovernanceReady(env: Environment = process.e
   const policy = parseDataRetentionPolicy(env.DATA_RETENTION_POLICY_JSON, true)!;
   retentionBatchSize(env);
 
-  const awsRegion = required(env, "AWS_REGION");
-  if (awsRegion !== residency.region) {
-    throw new Error(`AWS_REGION '${awsRegion}' must match DATA_RESIDENCY_REGION '${residency.region}' so S3/KMS preflights validate the approved data region.`);
+  const cloudProvider = env.CAREPOINT_CLOUD_PROVIDER?.trim().toLowerCase();
+  if (cloudProvider === "oci") {
+    const ociRegion = required(env, "OCI_REGION");
+    if (ociRegion !== residency.region) {
+      throw new Error(`OCI_REGION '${ociRegion}' must match DATA_RESIDENCY_REGION '${residency.region}' so OCI Object Storage/Vault preflights validate the approved data region.`);
+    }
+  } else {
+    // Preserve the existing AWS path for direct/legacy preflight callers. The
+    // production bootstrap separately requires an explicit cloud provider.
+    const awsRegion = required(env, "AWS_REGION");
+    if (awsRegion !== residency.region) {
+      throw new Error(`AWS_REGION '${awsRegion}' must match DATA_RESIDENCY_REGION '${residency.region}' so S3/KMS preflights validate the approved data region.`);
+    }
   }
   if (residency.databaseRegion !== residency.region) {
     throw new Error(`DATABASE_DEPLOYMENT_REGION '${residency.databaseRegion}' must match DATA_RESIDENCY_REGION '${residency.region}'.`);
