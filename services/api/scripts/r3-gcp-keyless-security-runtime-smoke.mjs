@@ -20,6 +20,9 @@ const keyRing = `projects/${projectId}/locations/${region}/keyRings/carepoint-r1
 const documentKey = `${keyRing}/cryptoKeys/clinical-documents`;
 const signingKey = `${keyRing}/cryptoKeys/clinical-document-attestation`;
 const externalSecretKey = `${keyRing}/cryptoKeys/external-secrets`;
+const kmsHost = `cloudkms.${region}.rep.googleapis.com`;
+const secretManagerHost = `secretmanager.${region}.rep.googleapis.com`;
+const approvedRegionalHosts = new Set([kmsHost, secretManagerHost]);
 
 function secretRef(name) {
   return `projects/${projectId}/locations/${region}/secrets/${name}`;
@@ -75,6 +78,19 @@ function jsonResponse(value, options = {}) {
   });
 }
 
+function providerResourcePath(url) {
+  const parsed = new URL(url);
+  assert.equal(parsed.protocol, "https:");
+  assert.ok(approvedRegionalHosts.has(parsed.hostname));
+  assert.ok(parsed.pathname.startsWith("/v1/"));
+  assert.equal(parsed.search, "");
+  assert.equal(parsed.hash, "");
+  return {
+    hostname: parsed.hostname,
+    resourcePath: decodeURIComponent(parsed.pathname.slice("/v1/".length)),
+  };
+}
+
 function successfulFetchRecorder() {
   const calls = [];
   let tokenCalls = 0;
@@ -102,9 +118,9 @@ function successfulFetchRecorder() {
     assert.equal(init.headers?.Authorization, "Bearer short-lived-runtime-token");
     assert.equal(init.redirect, "error");
 
-    if (url.includes("cloudkms.me-central2.rep.googleapis.com")) {
-      const decoded = decodeURIComponent(url);
-      if (decoded.includes(signingKey)) {
+    const { hostname, resourcePath } = providerResourcePath(url);
+    if (hostname === kmsHost) {
+      if (resourcePath === signingKey) {
         return jsonResponse({
           name: signingKey,
           purpose: "ASYMMETRIC_SIGN",
@@ -114,7 +130,7 @@ function successfulFetchRecorder() {
           },
         });
       }
-      const name = decoded.includes(documentKey) ? documentKey : externalSecretKey;
+      const name = resourcePath === documentKey ? documentKey : externalSecretKey;
       return jsonResponse({
         name,
         purpose: "ENCRYPT_DECRYPT",
@@ -126,11 +142,10 @@ function successfulFetchRecorder() {
       });
     }
 
-    if (url.includes("secretmanager.me-central2.rep.googleapis.com")) {
-      const resourcePath = url.split("/v1/")[1] ?? "";
+    if (hostname === secretManagerHost) {
       if (resourcePath.endsWith("/versions/latest")) {
         return jsonResponse({
-          name: resourcePath.replace(/^/, ""),
+          name: resourcePath,
           state: "ENABLED",
         });
       }
@@ -182,8 +197,11 @@ assert.equal(signingInspection.rotationPeriodDays, undefined);
 for (const call of recorder.calls) {
   assert.ok(call.init.signal, "all GCP metadata/provider requests must have a timeout signal");
 }
-for (const call of recorder.calls.filter((entry) => entry.url.includes("rep.googleapis.com"))) {
-  assert.match(call.url, /\.(me-central2)\.rep\.googleapis\.com\/v1\//);
+for (const call of recorder.calls) {
+  const parsed = new URL(call.url);
+  if (!approvedRegionalHosts.has(parsed.hostname)) continue;
+  assert.equal(parsed.protocol, "https:");
+  assert.ok(parsed.pathname.startsWith("/v1/"));
   assert.equal(call.init.headers?.Authorization, "Bearer short-lived-runtime-token");
 }
 
@@ -267,6 +285,8 @@ const leakingRuntime = await createProductionGcpSecurityRuntime(validEnv(), {
       });
     }
     assert.equal(init.headers?.Authorization, "Bearer short-lived-runtime-token");
+    const parsed = new URL(url);
+    assert.ok(approvedRegionalHosts.has(parsed.hostname));
     return response("TOP-SECRET-PROVIDER-BODY", { status: 500 });
   },
 });
@@ -299,7 +319,8 @@ const oversizedRuntime = await createProductionGcpSecurityRuntime(validEnv(), {
         headers: { "metadata-flavor": "Google" },
       });
     }
-    if (url.includes("cloudkms.me-central2.rep.googleapis.com")) {
+    const parsed = new URL(url);
+    if (parsed.hostname === kmsHost) {
       return response("x".repeat(1024 * 1024 + 1), {
         headers: { "content-type": "application/json" },
       });
