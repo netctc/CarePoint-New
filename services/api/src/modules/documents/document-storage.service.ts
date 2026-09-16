@@ -3,6 +3,10 @@ import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } fro
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve, sep } from "node:path";
 import {
+  createProductionGcpObjectStorageRuntime,
+  type GcpObjectStorageRuntime,
+} from "../../infrastructure/cloud/gcp-object-storage-runtime";
+import {
   createProductionOciObjectStorageRuntime,
   type OciObjectStorageRuntime,
 } from "../../infrastructure/cloud/oci-object-storage-runtime";
@@ -11,10 +15,12 @@ import { localSyntheticPilotProvidersAllowed } from "../../infrastructure/releas
 @Injectable()
 export class DocumentStorageService implements OnModuleDestroy {
   private s3?: S3Client;
+  private gcpRuntimePromise?: Promise<GcpObjectStorageRuntime>;
   private ociRuntimePromise?: Promise<OciObjectStorageRuntime>;
 
   storageProviderName(): string {
     const provider = this.provider();
+    if (provider === "gcp") return "GCP_CLOUD_STORAGE";
     if (provider === "oci") return "OCI_OBJECT_STORAGE";
     return provider === "s3" ? "AWS_S3" : "LOCAL_PRIVATE";
   }
@@ -25,6 +31,13 @@ export class DocumentStorageService implements OnModuleDestroy {
       const path = this.safePath(objectKey);
       await mkdir(dirname(path), { recursive: true, mode: 0o700 });
       await writeFile(path, ciphertext, { encoding: "utf8", mode: 0o600 });
+      return;
+    }
+    if (provider === "gcp") {
+      await (await this.gcpRuntime()).putString("clinical-documents", objectKey, ciphertext, {
+        contentType: "application/octet-stream",
+        metadata: { carepoint: "clinical-document", encrypted: "true" },
+      });
       return;
     }
     if (provider === "oci") {
@@ -51,6 +64,7 @@ export class DocumentStorageService implements OnModuleDestroy {
   async get(objectKey: string): Promise<string> {
     const provider = this.provider();
     if (provider === "local") return readFile(this.safePath(objectKey), "utf8");
+    if (provider === "gcp") return (await this.gcpRuntime()).getString("clinical-documents", objectKey);
     if (provider === "oci") return (await this.ociRuntime()).getString("clinical-documents", objectKey);
     const result = await this.s3Client().send(new GetObjectCommand({ Bucket: this.required("DOCUMENT_S3_BUCKET"), Key: this.s3Key(objectKey) }));
     if (!result.Body) throw new InternalServerErrorException("Document object body was not returned by S3.");
@@ -60,21 +74,27 @@ export class DocumentStorageService implements OnModuleDestroy {
   async remove(objectKey: string): Promise<void> {
     const provider = this.provider();
     if (provider === "local") { await rm(this.safePath(objectKey), { force: true }); return; }
+    if (provider === "gcp") { await (await this.gcpRuntime()).delete("clinical-documents", objectKey); return; }
     if (provider === "oci") { await (await this.ociRuntime()).delete("clinical-documents", objectKey); return; }
     await this.s3Client().send(new DeleteObjectCommand({ Bucket: this.required("DOCUMENT_S3_BUCKET"), Key: this.s3Key(objectKey) }));
   }
 
   async onModuleDestroy(): Promise<void> {
-    const pending = this.ociRuntimePromise;
-    if (!pending) return;
-    try {
-      await (await pending).close();
-    } catch {
-      // Best-effort provider cleanup during application shutdown.
-    }
+    await Promise.all([
+      this.closeRuntime(this.gcpRuntimePromise),
+      this.closeRuntime(this.ociRuntimePromise),
+    ]);
   }
 
-  private provider(): "local" | "s3" | "oci" {
+  private provider(): "local" | "s3" | "gcp" | "oci" {
+    if (process.env.NODE_ENV === "production" && process.env.CAREPOINT_CLOUD_PROVIDER?.trim() === "gcp") {
+      if (process.env.CAREPOINT_OBJECT_STORAGE_PROVIDER?.trim() !== "gcp-cloud-storage") {
+        throw new InternalServerErrorException(
+          "GCP production document storage requires CAREPOINT_OBJECT_STORAGE_PROVIDER='gcp-cloud-storage'.",
+        );
+      }
+      return "gcp";
+    }
     if (process.env.NODE_ENV === "production" && process.env.CAREPOINT_CLOUD_PROVIDER?.trim() === "oci") {
       if (process.env.CAREPOINT_OBJECT_STORAGE_PROVIDER?.trim() !== "oci-object-storage") {
         throw new InternalServerErrorException(
@@ -95,6 +115,16 @@ export class DocumentStorageService implements OnModuleDestroy {
     return provider;
   }
 
+  private async gcpRuntime(): Promise<GcpObjectStorageRuntime> {
+    if (!this.gcpRuntimePromise) {
+      this.gcpRuntimePromise = createProductionGcpObjectStorageRuntime(process.env).then((runtime) => {
+        if (!runtime) throw new InternalServerErrorException("GCP Cloud Storage runtime is unavailable for production document storage.");
+        return runtime;
+      });
+    }
+    return this.gcpRuntimePromise;
+  }
+
   private async ociRuntime(): Promise<OciObjectStorageRuntime> {
     if (!this.ociRuntimePromise) {
       this.ociRuntimePromise = createProductionOciObjectStorageRuntime(process.env).then((runtime) => {
@@ -103,6 +133,15 @@ export class DocumentStorageService implements OnModuleDestroy {
       });
     }
     return this.ociRuntimePromise;
+  }
+
+  private async closeRuntime(runtimePromise: Promise<{ close(): Promise<void> }> | undefined): Promise<void> {
+    if (!runtimePromise) return;
+    try {
+      await (await runtimePromise).close();
+    } catch {
+      // Best-effort provider cleanup during application shutdown.
+    }
   }
 
   private s3Client(): S3Client {
