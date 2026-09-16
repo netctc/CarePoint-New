@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { GCP_KSA_PRIMARY_REGION } from "./production-cloud-provider";
 import {
   productionObjectStorageContract,
@@ -195,8 +194,8 @@ export async function createProductionGcpObjectStorageRuntime(
       const headers = new Headers({
         "Content-Type": validateContentType(putOptions.contentType ?? "application/octet-stream"),
         "Content-Length": String(bodyBytes.byteLength),
-        "Content-MD5": createHash("md5").update(bodyBytes).digest("base64"),
         "Cache-Control": "no-store",
+        "x-goog-hash": `crc32c=${crc32cBase64(bodyBytes)}`,
         "x-goog-encryption-kms-key-name": domain.kmsKeyRef,
       });
       appendCustomMetadata(headers, putOptions.metadata);
@@ -327,6 +326,19 @@ function validateContentType(value: string): string {
     throw new Error("GCP Cloud Storage content type is invalid.");
   }
   return contentType;
+}
+
+function crc32cBase64(bytes: Uint8Array): string {
+  let crc = 0xffffffff;
+  for (const byte of bytes) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit += 1) {
+      crc = (crc >>> 1) ^ ((crc & 1) !== 0 ? 0x82f63b78 : 0);
+    }
+  }
+  const checksum = Buffer.allocUnsafe(4);
+  checksum.writeUInt32BE((crc ^ 0xffffffff) >>> 0, 0);
+  return checksum.toString("base64");
 }
 
 async function fetchMetadataText(
