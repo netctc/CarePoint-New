@@ -24,9 +24,12 @@ const METADATA_HOST = "metadata.google.internal";
 const METADATA_BASE_URL = `http://${METADATA_HOST}/computeMetadata/v1/instance/service-accounts/default`;
 const AUTH_MODE = "metadata-service";
 const MAX_PROVIDER_RESPONSE_BYTES = 1024 * 1024;
+const REQUEST_TIMEOUT_MS = 5_000;
 const TOKEN_REFRESH_SKEW_MS = 60_000;
 const FORBIDDEN_CREDENTIAL_ENV_VARS = [
   "GOOGLE_APPLICATION_CREDENTIALS",
+  "CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE",
+  "GOOGLE_GHA_CREDS_PATH",
   "CAREPOINT_GCP_ACCESS_TOKEN",
   "GCP_ACCESS_TOKEN",
   "GOOGLE_API_KEY",
@@ -188,6 +191,7 @@ export async function createProductionGcpSecurityRuntime(
           Accept: "application/json",
         },
         redirect: "error",
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });
     } catch (error) {
       throw new Error(`${label} request failed (${errorName(error)}).`);
@@ -254,6 +258,7 @@ async function fetchMetadataText(
       method: "GET",
       headers: { "Metadata-Flavor": "Google" },
       redirect: "error",
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
   } catch (error) {
     throw new Error(`${label} lookup failed (${errorName(error)}).`);
@@ -278,6 +283,7 @@ async function fetchMetadataJson<T extends JsonRecord>(
       method: "GET",
       headers: { "Metadata-Flavor": "Google" },
       redirect: "error",
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
   } catch (error) {
     throw new Error(`${label} lookup failed (${errorName(error)}).`);
@@ -318,43 +324,77 @@ async function readBoundedText(response: Response, label: string): Promise<strin
       throw new Error(`${label} response exceeds the permitted size.`);
     }
   }
-  const raw = await response.text();
-  if (Buffer.byteLength(raw, "utf8") > MAX_PROVIDER_RESPONSE_BYTES) {
-    throw new Error(`${label} response exceeds the permitted size.`);
+
+  const body = response.body;
+  if (!body) return "";
+
+  const reader = body.getReader();
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      totalBytes += value.byteLength;
+      if (totalBytes > MAX_PROVIDER_RESPONSE_BYTES) {
+        throw new Error(`${label} response exceeds the permitted size.`);
+      }
+      chunks.push(value);
+    }
+  } catch (error) {
+    try {
+      await reader.cancel();
+    } catch {
+      // Preserve the original provider/read error.
+    }
+    throw error;
+  } finally {
+    reader.releaseLock();
   }
-  return raw;
+
+  return Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)), totalBytes).toString("utf8");
 }
 
 function normalizeCryptoKey(resource: JsonRecord): GcpCryptoKeyResource {
+  const name = stringValue(resource.name);
+  const purpose = stringValue(resource.purpose);
   const primary = objectRecord(resource.primary);
+  const primaryState = primary ? stringValue(primary.state) : undefined;
+  const protectionLevel = primary ? stringValue(primary.protectionLevel) : undefined;
+  const normalizedPrimary = primary
+    ? {
+        ...(primaryState ? { state: primaryState } : {}),
+        ...(protectionLevel ? { protectionLevel } : {}),
+      }
+    : undefined;
   const rotationSeconds = parseDurationSeconds(resource.rotationPeriod);
+
   return {
-    ...(stringValue(resource.name) ? { name: stringValue(resource.name) } : {}),
-    ...(stringValue(resource.purpose) ? { purpose: stringValue(resource.purpose) } : {}),
-    ...(primary ? {
-      primary: {
-        ...(stringValue(primary.state) ? { state: stringValue(primary.state) } : {}),
-        ...(stringValue(primary.protectionLevel) ? { protectionLevel: stringValue(primary.protectionLevel) } : {}),
-      },
-    } : {}),
+    ...(name ? { name } : {}),
+    ...(purpose ? { purpose } : {}),
+    ...(normalizedPrimary ? { primary: normalizedPrimary } : {}),
     ...(rotationSeconds ? { rotationPeriod: { seconds: rotationSeconds } } : {}),
   };
 }
 
 function normalizeRegionalSecret(resource: JsonRecord): GcpRegionalSecretResource {
+  const name = stringValue(resource.name);
   const encryption = objectRecord(resource.customerManagedEncryption);
+  const kmsKeyName = encryption ? stringValue(encryption.kmsKeyName) : undefined;
+
   return {
-    ...(stringValue(resource.name) ? { name: stringValue(resource.name) } : {}),
-    ...(encryption && stringValue(encryption.kmsKeyName)
-      ? { customerManagedEncryption: { kmsKeyName: stringValue(encryption.kmsKeyName) } }
-      : {}),
+    ...(name ? { name } : {}),
+    ...(kmsKeyName ? { customerManagedEncryption: { kmsKeyName } } : {}),
   };
 }
 
 function normalizeSecretVersion(resource: JsonRecord): GcpSecretVersionResource {
+  const name = stringValue(resource.name);
+  const state = stringValue(resource.state);
   return {
-    ...(stringValue(resource.name) ? { name: stringValue(resource.name) } : {}),
-    ...(stringValue(resource.state) ? { state: stringValue(resource.state) } : {}),
+    ...(name ? { name } : {}),
+    ...(state ? { state } : {}),
   };
 }
 
