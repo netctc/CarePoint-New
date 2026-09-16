@@ -15,5 +15,12 @@ export function assertProductionCloudStartupReady(
   if (!contract) return null;
 
   assertProductionDataGovernanceReady(env);
+
+  if (contract.provider === "gcp") {
+    throw new Error(
+      "GCP Release 1 production startup remains disabled until the GCP runtime binding is completed and accepted under R3-GCP G2.",
+    );
+  }
+
   return contract;
 }
