@@ -2,6 +2,7 @@ import { Injectable, InternalServerErrorException } from "@nestjs/common";
 import { PhiEnvelopeEncryption, StaticAesKwKeyProvider, type EncryptedEnvelope, type KeyEncryptionKeyProvider } from "@carepoint/security";
 import { localSyntheticPilotProvidersAllowed } from "../../infrastructure/release/private-pilot-infrastructure-profile";
 import { AwsKmsKeyProvider } from "../../infrastructure/security/aws-kms-key-provider";
+import { OciKmsKeyProvider } from "../../infrastructure/security/oci-kms-key-provider";
 
 @Injectable()
 export class DocumentsEnvelopeService {
@@ -27,7 +28,22 @@ export class DocumentsEnvelopeService {
   }
 
   private keyProvider(): KeyEncryptionKeyProvider {
-    const provider = process.env.DOCUMENT_KEY_PROVIDER ?? (process.env.NODE_ENV === "production" ? "aws-kms" : "local");
+    const productionDefault = process.env.CAREPOINT_CLOUD_PROVIDER?.trim() === "oci" ? "oci-vault-kms" : "aws-kms";
+    const provider = process.env.DOCUMENT_KEY_PROVIDER ?? (process.env.NODE_ENV === "production" ? productionDefault : "local");
+
+    if (
+      process.env.NODE_ENV === "production"
+      && process.env.CAREPOINT_CLOUD_PROVIDER?.trim() === "oci"
+      && provider !== "oci-vault-kms"
+    ) {
+      throw new InternalServerErrorException("OCI production document encryption requires DOCUMENT_KEY_PROVIDER='oci-vault-kms'.");
+    }
+
+    if (provider === "oci-vault-kms") {
+      const keyId = process.env.CAREPOINT_DOCUMENT_KEY_REF;
+      if (!keyId) throw new InternalServerErrorException("CAREPOINT_DOCUMENT_KEY_REF is required for OCI Vault KMS document encryption.");
+      return new OciKmsKeyProvider(keyId, "carepoint-clinical-document-dek", process.env);
+    }
     if (provider === "aws-kms") {
       const keyId = process.env.DOCUMENT_KMS_KEY_ID;
       if (!keyId) throw new InternalServerErrorException("DOCUMENT_KMS_KEY_ID is required for AWS KMS document encryption.");
