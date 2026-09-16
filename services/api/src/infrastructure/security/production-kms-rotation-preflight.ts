@@ -45,9 +45,9 @@ export async function assertProductionKmsRotationReady(options: ProductionKmsRot
   if (process.env.NODE_ENV !== "production") return;
 
   const cloudProvider = configuredCloudProvider();
-  if (cloudProvider === "oci") {
+  if (cloudProvider === "oci" || cloudProvider === "gcp") {
     if (!options.inspectManagedKey) {
-      throw new Error("OCI production KMS rotation preflight requires a live managed-key inspector.");
+      throw new Error(`${cloudProvider.toUpperCase()} production KMS rotation preflight requires a live managed-key inspector.`);
     }
     await assertProductionKeyManagementInspectionReady(options.inspectManagedKey, process.env);
     return;
@@ -132,11 +132,12 @@ export async function assertProductionKmsRotationReady(options: ProductionKmsRot
   }
 }
 
-function configuredCloudProvider(): "aws" | "oci" {
+function configuredCloudProvider(): "aws" | "oci" | "gcp" {
   const value = process.env.CAREPOINT_CLOUD_PROVIDER?.trim();
   if (!value || value === "aws") return "aws";
   if (value === "oci") return "oci";
-  throw new Error("CAREPOINT_CLOUD_PROVIDER must be 'aws' or 'oci' in production KMS rotation preflight.");
+  if (value === "gcp") return "gcp";
+  throw new Error("CAREPOINT_CLOUD_PROVIDER must be 'aws', 'oci' or 'gcp' in production KMS rotation preflight.");
 }
 
 function rotationAliasPrefix(): string {
