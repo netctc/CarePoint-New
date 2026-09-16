@@ -8,7 +8,13 @@ import {
   type ProductionKeyManagementProvider,
 } from "./production-key-management";
 
-export type ProductionExternalSecretStoreProvider = "aws-kms-files" | "oci-vault-secrets";
+export const PRODUCTION_EXTERNAL_SECRET_STORE_PROVIDERS = [
+  "aws-kms-files",
+  "oci-vault-secrets",
+] as const;
+
+export type ProductionExternalSecretStoreProvider =
+  (typeof PRODUCTION_EXTERNAL_SECRET_STORE_PROVIDERS)[number];
 
 export const PRODUCTION_EXTERNAL_SECRET_DEFINITIONS = [
   {
@@ -113,14 +119,15 @@ export function productionExternalSecretStoreContract(
   if (!cloud || !keyManagement) return null;
 
   const provider = required(env, "CAREPOINT_EXTERNAL_SECRET_PROVIDER");
-  if (provider !== "aws-kms-files" && provider !== "oci-vault-secrets") {
+  if (!PRODUCTION_EXTERNAL_SECRET_STORE_PROVIDERS.includes(provider as ProductionExternalSecretStoreProvider)) {
     throw new Error(
       "CAREPOINT_EXTERNAL_SECRET_PROVIDER must be 'aws-kms-files' or 'oci-vault-secrets' in production.",
     );
   }
-  if (cloud.provider === "oci" && provider !== "oci-vault-secrets") {
+  const resolvedProvider = provider as ProductionExternalSecretStoreProvider;
+  if (cloud.provider === "oci" && resolvedProvider !== "oci-vault-secrets") {
     throw new Error(
-      "OCI Release 1 production requires CAREPOINT_EXTERNAL_SECRET_PROVIDER='oci-vault-secrets'.",
+      "OCI Release 1 production requires CAREPOINT_EXTERNAL_SECRET_PROVIDER to use 'oci-vault-secrets'.",
     );
   }
 
@@ -159,12 +166,12 @@ export function productionExternalSecretStoreContract(
         name: definition.name,
         cloudProvider: cloud.provider,
         keyManagementProvider: keyManagement.provider,
-        provider,
+        provider: resolvedProvider,
         region,
         vaultRef: keyManagement.vaultRef,
         secretRef: validateSecretRef(
           required(env, definition.refEnv),
-          provider,
+          resolvedProvider,
           definition.refEnv,
         ),
         encryptionKeyRef: externalSecretKey.keyRef,
@@ -179,7 +186,7 @@ export function productionExternalSecretStoreContract(
   }
 
   return {
-    provider,
+    provider: resolvedProvider,
     region,
     vaultRef: keyManagement.vaultRef,
     secrets,
