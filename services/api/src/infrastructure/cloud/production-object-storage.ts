@@ -44,7 +44,7 @@ export function productionObjectStorageContract(
   const provider = required(env, "CAREPOINT_OBJECT_STORAGE_PROVIDER");
   if (provider !== "aws-s3" && provider !== "oci-object-storage" && provider !== "gcp-cloud-storage") {
     throw new Error(
-      "CAREPOINT_OBJECT_STORAGE_PROVIDER must be 'aws-s3', 'oci-object-storage', or 'gcp-cloud-storage' in production.",
+      "CAREPOINT_OBJECT_STORAGE_PROVIDER must be 'aws-s3' or 'oci-object-storage', or 'gcp-cloud-storage' in production.",
     );
   }
 
