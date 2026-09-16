@@ -38,9 +38,10 @@ function env() {
   };
 }
 
-function namedError(name) {
+function namedError(name, statusCode) {
   const error = new Error("provider detail must not escape");
   error.name = name;
+  if (statusCode) error.statusCode = statusCode;
   return error;
 }
 
@@ -49,6 +50,8 @@ function factory(options = {}) {
     auth: 0,
     regions: [],
     namespaces: [],
+    buckets: [],
+    lifecycles: [],
     puts: [],
     gets: [],
     deletes: [],
@@ -74,6 +77,42 @@ function factory(options = {}) {
             calls.namespaces.push(request);
             if (options.namespaceError) throw namedError(options.namespaceError);
             return { value: options.namespace ?? "carepointksa" };
+          },
+          async getBucket(request) {
+            calls.buckets.push(request);
+            if (options.bucketError) throw namedError(options.bucketError);
+            const isBulk = request.bucketName === bulkBucket;
+            return {
+              bucket: {
+                name: options.bucketName ?? request.bucketName,
+                namespace: options.bucketNamespace ?? "carepointksa",
+                publicAccessType: options.publicAccessType ?? "NoPublicAccess",
+                kmsKeyId: options.kmsKeyId ?? (isBulk ? bulkKey : documentKey),
+              },
+            };
+          },
+          async getObjectLifecyclePolicy(request) {
+            calls.lifecycles.push(request);
+            if (options.lifecycleMissing) throw namedError("ServiceError", 404);
+            if (options.lifecycleError) throw namedError(options.lifecycleError);
+            return {
+              objectLifecyclePolicy: {
+                items: options.lifecycleRules ?? [
+                  {
+                    action: "DELETE",
+                    target: "objects",
+                    timeAmount: 1,
+                    timeUnit: "DAYS",
+                    isEnabled: true,
+                    objectNameFilter: {
+                      inclusionPrefixes: ["carepoint/bulk-export"],
+                      inclusionPatterns: [],
+                      exclusionPatterns: [],
+                    },
+                  },
+                ],
+              },
+            };
           },
           async putObject(request) {
             calls.puts.push(request);
@@ -132,10 +171,40 @@ function factory(options = {}) {
     objectName: "carepoint/bulk-export/jobs/export.ndjson",
   });
 
+  const inspection = await runtime.inspectBucket("fhir-bulk-export");
+  assert.equal(inspection.provider, "oci-object-storage");
+  assert.equal(inspection.region, primaryRegion);
+  assert.equal(inspection.bucketRef, bulkBucket);
+  assert.equal(inspection.publicAccessDisabled, true);
+  assert.equal(inspection.customerManagedEncryption, true);
+  assert.equal(inspection.kmsKeyRef, bulkKey);
+  assert.deepEqual(inspection.lifecycleRules, [
+    {
+      action: "DELETE",
+      target: "objects",
+      timeAmount: 1,
+      timeUnit: "DAYS",
+      enabled: true,
+      inclusionPrefixes: ["carepoint/bulk-export"],
+      inclusionPatterns: [],
+      exclusionPatterns: [],
+    },
+  ]);
+  assert.deepEqual(fake.calls.buckets[0], { namespaceName: "carepointksa", bucketName: bulkBucket });
+  assert.deepEqual(fake.calls.lifecycles[0], { namespaceName: "carepointksa", bucketName: bulkBucket });
+
   await runtime.close();
   await runtime.close();
   assert.equal(fake.calls.closed, 1);
   assert.equal(fake.calls.providerClosed, 1);
+}
+
+{
+  const fake = factory({ lifecycleMissing: true });
+  const runtime = await createProductionOciObjectStorageRuntime(env(), { sdkFactory: fake.sdkFactory });
+  const inspection = await runtime.inspectBucket("clinical-documents");
+  assert.deepEqual(inspection.lifecycleRules, []);
+  await runtime.close();
 }
 
 {
@@ -199,6 +268,26 @@ await assert.rejects(
   await assert.rejects(
     () => runtime.putString("clinical-documents", "patient/report.enc", "ciphertext"),
     /put failed \(ServiceError\)/,
+  );
+  await runtime.close();
+}
+
+{
+  const fake = factory({ bucketName: "unexpected-bucket" });
+  const runtime = await createProductionOciObjectStorageRuntime(env(), { sdkFactory: fake.sdkFactory });
+  await assert.rejects(
+    () => runtime.inspectBucket("clinical-documents"),
+    /unexpected resource/,
+  );
+  await runtime.close();
+}
+
+{
+  const fake = factory({ lifecycleError: "ServiceError" });
+  const runtime = await createProductionOciObjectStorageRuntime(env(), { sdkFactory: fake.sdkFactory });
+  await assert.rejects(
+    () => runtime.inspectBucket("clinical-documents"),
+    /lifecycle inspection failed \(ServiceError\)/,
   );
   await runtime.close();
 }
