@@ -4,6 +4,7 @@ import { NestFactory } from "@nestjs/core";
 import { NestExpressApplication } from "@nestjs/platform-express";
 import helmet from "helmet";
 import { AppModule } from "./app.module";
+import { createProductionGcpSecurityRuntime } from "./infrastructure/cloud/gcp-production-security-runtime";
 import { assertProductionCloudStartupReady } from "./infrastructure/cloud/production-cloud-startup";
 import { createProductionOciSecurityRuntime } from "./infrastructure/cloud/oci-production-security-runtime";
 import { assertProductionProviderResponsePolicyReady } from "./infrastructure/http/bounded-provider-response";
@@ -24,6 +25,7 @@ import { assertProductionReleaseIdentityReady } from "./infrastructure/release/r
 import { isolatedSyntheticPrivatePilotActive } from "./infrastructure/release/private-pilot-infrastructure-profile";
 import { carePointRuntimeFeatures } from "./infrastructure/release/private-pilot-policy";
 import { assertProductionExternalSecretsReady } from "./infrastructure/secrets/production-external-secrets-preflight";
+import { assertProductionGcpObjectStorageReady } from "./infrastructure/security/production-gcp-object-storage-preflight";
 import { assertProductionKmsReady } from "./infrastructure/security/production-kms-preflight";
 import { assertProductionKmsRotationReady } from "./infrastructure/security/production-kms-rotation-preflight";
 import { assertProductionObjectStorageReady } from "./infrastructure/security/production-object-storage-preflight";
@@ -33,30 +35,36 @@ import { assertProductionSmartPublicEndpointsReady } from "./security/production
 async function bootstrap(): Promise<void> {
   const runtimeFeatures = carePointRuntimeFeatures(process.env);
   const isolatedSyntheticPilot = isolatedSyntheticPrivatePilotActive(process.env);
+  let productionCloudProvider: "aws" | "oci" | "gcp" | null = null;
   assertProductionReleaseIdentityReady();
 
   if (!isolatedSyntheticPilot) {
     const cloudContract = assertProductionCloudStartupReady();
-    const ociSecurity = cloudContract?.provider === "oci"
+    productionCloudProvider = cloudContract?.provider ?? null;
+    const securityRuntime = cloudContract?.provider === "oci"
       ? await createProductionOciSecurityRuntime()
-      : null;
-    if (cloudContract?.provider === "oci" && !ociSecurity) {
-      throw new Error("OCI Release 1 production startup requires the OCI security runtime.");
+      : cloudContract?.provider === "gcp"
+        ? await createProductionGcpSecurityRuntime()
+        : null;
+    if ((cloudContract?.provider === "oci" || cloudContract?.provider === "gcp") && !securityRuntime) {
+      throw new Error(
+        `${cloudContract.provider.toUpperCase()} Release 1 production startup requires its managed security runtime.`,
+      );
     }
     try {
       await assertProductionKmsReady(
-        ociSecurity ? { inspectManagedKey: ociSecurity.inspectManagedKey } : {},
+        securityRuntime ? { inspectManagedKey: securityRuntime.inspectManagedKey } : {},
       );
       await assertProductionKmsRotationReady(
-        ociSecurity ? { inspectManagedKey: ociSecurity.inspectManagedKey } : {},
+        securityRuntime ? { inspectManagedKey: securityRuntime.inspectManagedKey } : {},
       );
       await assertProductionExternalSecretsReady(
         process.env,
         runtimeFeatures,
-        ociSecurity ? { inspectExternalCredential: ociSecurity.inspectExternalCredential } : {},
+        securityRuntime ? { inspectExternalCredential: securityRuntime.inspectExternalCredential } : {},
       );
     } finally {
-      await ociSecurity?.close();
+      await securityRuntime?.close();
     }
   }
 
@@ -71,7 +79,11 @@ async function bootstrap(): Promise<void> {
   const origins = browserOrigins(process.env);
 
   if (!isolatedSyntheticPilot) {
-    await assertProductionObjectStorageReady();
+    if (productionCloudProvider === "gcp") {
+      await assertProductionGcpObjectStorageReady();
+    } else {
+      await assertProductionObjectStorageReady();
+    }
     await assertProductionDatabaseReady();
     await assertProductionRedisReady();
     await assertProductionOtlpReady();
