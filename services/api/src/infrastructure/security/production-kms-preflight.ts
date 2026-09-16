@@ -1,4 +1,8 @@
 import { DescribeKeyCommand, KMSClient, type KeyMetadata } from "@aws-sdk/client-kms";
+import {
+  assertProductionKeyManagementInspectionReady,
+  type InspectProductionManagedKey,
+} from "../cloud/production-key-management";
 
 export type ProductionKmsKeyRequirement = {
   domain: string;
@@ -15,6 +19,7 @@ export type DescribeProductionKmsKey = (keyId: string) => Promise<KeyMetadata | 
 
 export interface ProductionKmsPreflightOptions {
   describeKey?: DescribeProductionKmsKey;
+  inspectManagedKey?: InspectProductionManagedKey;
 }
 
 export const PRODUCTION_KMS_REQUIREMENTS: readonly ProductionKmsKeyRequirement[] = [
@@ -31,6 +36,15 @@ export const PRODUCTION_KMS_REQUIREMENTS: readonly ProductionKmsKeyRequirement[]
 
 export async function assertProductionKmsReady(options: ProductionKmsPreflightOptions = {}): Promise<void> {
   if (process.env.NODE_ENV !== "production") return;
+
+  const cloudProvider = configuredCloudProvider();
+  if (cloudProvider === "oci") {
+    if (!options.inspectManagedKey) {
+      throw new Error("OCI production KMS preflight requires a live managed-key inspector.");
+    }
+    await assertProductionKeyManagementInspectionReady(options.inspectManagedKey, process.env);
+    return;
+  }
 
   const region = required("AWS_REGION");
   const accountId = process.env.AWS_KMS_ACCOUNT_ID?.trim();
@@ -85,6 +99,13 @@ function validateMetadata(requirement: ProductionKmsKeyRequirement, metadata: Ke
   if (accountId && arn.accountId !== accountId) {
     throw new Error(`${requirement.keyEnv} account '${arn.accountId}' does not match AWS_KMS_ACCOUNT_ID '${accountId}' (${requirement.domain}).`);
   }
+}
+
+function configuredCloudProvider(): "aws" | "oci" {
+  const value = process.env.CAREPOINT_CLOUD_PROVIDER?.trim();
+  if (!value || value === "aws") return "aws";
+  if (value === "oci") return "oci";
+  throw new Error("CAREPOINT_CLOUD_PROVIDER must be 'aws' or 'oci' in production KMS preflight.");
 }
 
 function liveDescribeKey(region: string): DescribeProductionKmsKey {
