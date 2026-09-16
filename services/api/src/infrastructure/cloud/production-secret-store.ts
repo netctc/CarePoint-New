@@ -1,4 +1,5 @@
 import {
+  GCP_KSA_PRIMARY_REGION,
   OCI_KSA_PRIMARY_REGION,
   productionCloudContract,
   type ProductionCloudProvider,
@@ -11,6 +12,7 @@ import {
 export const PRODUCTION_EXTERNAL_SECRET_STORE_PROVIDERS = [
   "aws-kms-files",
   "oci-vault-secrets",
+  "gcp-secret-manager",
 ] as const;
 
 export type ProductionExternalSecretStoreProvider =
@@ -121,7 +123,7 @@ export function productionExternalSecretStoreContract(
   const provider = required(env, "CAREPOINT_EXTERNAL_SECRET_PROVIDER");
   if (!PRODUCTION_EXTERNAL_SECRET_STORE_PROVIDERS.includes(provider as ProductionExternalSecretStoreProvider)) {
     throw new Error(
-      "CAREPOINT_EXTERNAL_SECRET_PROVIDER must be 'aws-kms-files' or 'oci-vault-secrets' in production.",
+      "CAREPOINT_EXTERNAL_SECRET_PROVIDER must be 'aws-kms-files', 'oci-vault-secrets', or 'gcp-secret-manager' in production.",
     );
   }
   const resolvedProvider = provider as ProductionExternalSecretStoreProvider;
@@ -129,6 +131,12 @@ export function productionExternalSecretStoreContract(
     throw new Error(
       "OCI Release 1 production requires CAREPOINT_EXTERNAL_SECRET_PROVIDER" +
         "='oci-vault-secrets'.",
+    );
+  }
+  if (cloud.provider === "gcp" && resolvedProvider !== "gcp-secret-manager") {
+    throw new Error(
+      "GCP Release 1 production requires CAREPOINT_EXTERNAL_SECRET_PROVIDER" +
+        "='gcp-secret-manager'.",
     );
   }
 
@@ -141,6 +149,11 @@ export function productionExternalSecretStoreContract(
   if (cloud.provider === "oci" && region !== OCI_KSA_PRIMARY_REGION) {
     throw new Error(
       `OCI Release 1 active external-secret store must be in primary region '${OCI_KSA_PRIMARY_REGION}'.`,
+    );
+  }
+  if (cloud.provider === "gcp" && region !== GCP_KSA_PRIMARY_REGION) {
+    throw new Error(
+      `GCP Release 1 active external-secret store must be in primary region '${GCP_KSA_PRIMARY_REGION}'.`,
     );
   }
   if (region !== keyManagement.region) {
@@ -173,6 +186,8 @@ export function productionExternalSecretStoreContract(
         secretRef: validateSecretRef(
           required(env, definition.refEnv),
           resolvedProvider,
+          region,
+          keyManagement.vaultRef,
           definition.refEnv,
         ),
         encryptionKeyRef: externalSecretKey.keyRef,
@@ -216,7 +231,7 @@ export function validateProductionExternalSecretInspection(
   }
   if (inspection.vaultRef !== secret.vaultRef) {
     throw new Error(
-      `External secret '${secret.name}' does not belong to configured vault '${secret.vaultRef}'.`,
+      `External secret '${secret.name}' does not use configured key-management container '${secret.vaultRef}'.`,
     );
   }
   if (inspection.secretRef !== secret.secretRef) {
@@ -244,14 +259,40 @@ export function validateProductionExternalSecretInspection(
 function validateSecretRef(
   value: string,
   provider: ProductionExternalSecretStoreProvider,
+  region: string,
+  vaultRef: string,
   name: string,
 ): string {
   const trimmed = value.trim();
   if (provider === "oci-vault-secrets" && !isOcid(trimmed, "vaultsecret")) {
     throw new Error(`${name} must be an OCI Vault secret OCID.`);
   }
+  if (provider === "gcp-secret-manager") {
+    const parsedSecret = parseGcpRegionalSecretRef(trimmed);
+    if (!parsedSecret) {
+      throw new Error(`${name} must be a full regional GCP Secret Manager resource name.`);
+    }
+    if (parsedSecret.region !== region) {
+      throw new Error(`${name} GCP secret region '${parsedSecret.region}' must match CAREPOINT_EXTERNAL_SECRET_REGION '${region}'.`);
+    }
+    const keyRingProject = parseGcpKeyRingProject(vaultRef);
+    if (!keyRingProject || keyRingProject !== parsedSecret.projectId) {
+      throw new Error(`${name} GCP secret project must match the configured GCP key-ring project.`);
+    }
+  }
   if (!trimmed) throw new Error(`${name} is required in production.`);
   return trimmed;
+}
+
+function parseGcpRegionalSecretRef(value: string): { projectId: string; region: string } | null {
+  const match = /^projects\/([a-z][a-z0-9-]{4,28}[a-z0-9])\/locations\/([a-z0-9-]+)\/secrets\/([A-Za-z0-9_-]{1,255})$/.exec(value);
+  if (!match?.[1] || !match[2] || !match[3]) return null;
+  return { projectId: match[1], region: match[2] };
+}
+
+function parseGcpKeyRingProject(value: string): string | null {
+  const match = /^projects\/([a-z][a-z0-9-]{4,28}[a-z0-9])\/locations\/[a-z0-9-]+\/keyRings\/[A-Za-z0-9_-]{1,63}$/.exec(value);
+  return match?.[1] ?? null;
 }
 
 function isOcid(value: string, resourceType: string): boolean {
