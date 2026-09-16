@@ -33,7 +33,7 @@
     "r3:oci-sdk-runtime-binding": "node scripts/r3-oci-sdk-runtime-binding-smoke.mjs",
     "r3:oci-secret-value-runtime": "node scripts/r3-oci-secret-value-runtime-smoke.mjs",
     "r3:oci-kms-crypto-runtime": "node scripts/r3-oci-kms-crypto-runtime-smoke.mjs",
-    "r3:oci-kms-attestation-runtime": "node scripts/r3-oci-kms-attestation-runtime-smoke.mjs",
+    "r3:oci-kms-attestation-runtime": "node scripts/r3-oci-kms-attestation-runtime-smoke.mjs && node scripts/r3-oci-kms-attestation-service-smoke.mjs",
     "c1:kms-preflight": "node scripts/c1-kms-preflight-smoke.mjs",
     "c3:object-storage-preflight": "node scripts/c3-object-storage-preflight-smoke.mjs",
     "c4:redis-preflight": "node scripts/c4-redis-preflight-smoke.mjs",
