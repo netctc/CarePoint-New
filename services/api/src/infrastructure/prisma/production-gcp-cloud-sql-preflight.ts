@@ -1,6 +1,7 @@
 import { GCP_KSA_PRIMARY_REGION } from "../cloud/production-cloud-provider";
 import {
   createProductionGcpCloudSqlInspectionRuntime,
+  type GcpCloudSqlInspection,
   type GcpCloudSqlInspectionRuntime,
   type InspectGcpCloudSqlInstance,
 } from "./gcp-cloud-sql-inspection-runtime";
@@ -26,7 +27,7 @@ export async function assertProductionGcpCloudSqlReady(
   }
 
   try {
-    let inspection;
+    let inspection: GcpCloudSqlInspection;
     try {
       inspection = await inspectInstance();
     } catch (error) {
