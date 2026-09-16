@@ -1,4 +1,15 @@
 import {
+  createProductionOciObjectStorageRuntime,
+  type OciObjectStorageBucketInspection,
+  type OciObjectStorageDomainLabel,
+  type OciObjectStorageRuntime,
+} from "../cloud/oci-object-storage-runtime";
+import {
+  productionObjectStorageContract,
+  validateProductionObjectStorageBucketInspection,
+  type ProductionObjectStorageDomain,
+} from "../cloud/production-object-storage";
+import {
   GetBucketEncryptionCommand,
   GetBucketLifecycleConfigurationCommand,
   GetBucketLocationCommand,
@@ -42,10 +53,14 @@ export type ObjectStorageKmsInspection = {
 
 export type InspectProductionBucket = (bucket: string) => Promise<ObjectStorageBucketInspection>;
 export type InspectProductionStorageKmsKey = (keyId: string) => Promise<ObjectStorageKmsInspection>;
+export type InspectProductionOciBucket = (
+  label: OciObjectStorageDomainLabel,
+) => Promise<OciObjectStorageBucketInspection>;
 
 export interface ProductionObjectStoragePreflightOptions {
   inspectBucket?: InspectProductionBucket;
   inspectKmsKey?: InspectProductionStorageKmsKey;
+  inspectOciBucket?: InspectProductionOciBucket;
 }
 
 type StorageDomain = {
@@ -61,6 +76,55 @@ export async function assertProductionObjectStorageReady(
 ): Promise<void> {
   if (process.env.NODE_ENV !== "production") return;
 
+  if (process.env.CAREPOINT_CLOUD_PROVIDER?.trim() === "oci") {
+    await assertOciProductionObjectStorageReady(options);
+    return;
+  }
+
+  await assertAwsProductionObjectStorageReady(options);
+}
+
+async function assertOciProductionObjectStorageReady(
+  options: ProductionObjectStoragePreflightOptions,
+): Promise<void> {
+  const contract = productionObjectStorageContract(process.env);
+  if (!contract || contract.provider !== "oci-object-storage") {
+    throw new Error("OCI production object-storage preflight requires the OCI object-storage contract.");
+  }
+
+  let runtime: OciObjectStorageRuntime | null = null;
+  let inspectOciBucket = options.inspectOciBucket;
+  if (!inspectOciBucket) {
+    runtime = await createProductionOciObjectStorageRuntime(process.env);
+    if (!runtime) throw new Error("OCI production object-storage runtime is unavailable for C3 preflight.");
+    inspectOciBucket = runtime.inspectBucket;
+  }
+
+  try {
+    const bucketInspections = new Map<string, OciObjectStorageBucketInspection>();
+    for (const domain of contract.domains) {
+      let inspection = bucketInspections.get(domain.bucketRef);
+      if (!inspection) {
+        try {
+          inspection = await inspectOciBucket(domain.label);
+        } catch (error) {
+          throw new Error(
+            `Production OCI object-storage preflight could not inspect bucket '${domain.bucketRef}': ${errorMessage(error)}`,
+          );
+        }
+        bucketInspections.set(domain.bucketRef, inspection);
+      }
+      validateProductionObjectStorageBucketInspection(domain, inspection);
+      if (domain.lifecycleRetentionDays !== undefined) validateOciLifecycle(domain, inspection);
+    }
+  } finally {
+    await runtime?.close();
+  }
+}
+
+async function assertAwsProductionObjectStorageReady(
+  options: ProductionObjectStoragePreflightOptions,
+): Promise<void> {
   const region = required("AWS_REGION");
   if (process.env.AWS_ENDPOINT_URL_S3?.trim()) {
     throw new Error("AWS_ENDPOINT_URL_S3 is development/test-only and is forbidden in production.");
@@ -101,6 +165,45 @@ export async function assertProductionObjectStorageReady(
     validateDefaultEncryption(domain, inspection, validatedKey);
     if (domain.lifecycleRetentionDays !== undefined) validateLifecycle(domain, inspection);
   }
+}
+
+function validateOciLifecycle(
+  domain: ProductionObjectStorageDomain,
+  inspection: OciObjectStorageBucketInspection,
+): void {
+  const maxDays = domain.lifecycleRetentionDays;
+  if (maxDays === undefined) return;
+  const matchingRule = inspection.lifecycleRules.find((rule) => {
+    if (!rule.enabled || rule.action !== "DELETE") return false;
+    if (rule.target && rule.target !== "objects") return false;
+    if (!Number.isFinite(rule.timeAmount) || rule.timeAmount < 1 || rule.timeUnit !== "DAYS") return false;
+    if (rule.timeAmount > maxDays) return false;
+    if (rule.exclusionPatterns.length > 0) return false;
+    return ociRuleCoversPrefix(rule.inclusionPrefixes, rule.inclusionPatterns, domain.prefix);
+  });
+  if (!matchingRule) {
+    throw new Error(
+      `OCI Object Storage bucket '${domain.bucketRef}' needs an enabled DELETE lifecycle rule covering prefix '${domain.prefix}' within ${maxDays} day(s).`,
+    );
+  }
+}
+
+function ociRuleCoversPrefix(prefixes: string[], patterns: string[], targetPrefix: string): boolean {
+  if (prefixes.length === 0 && patterns.length === 0) return true;
+  if (prefixes.some((prefix) => prefixCovers(prefix, targetPrefix))) return true;
+  return patterns.some((pattern) => simpleOciPatternCoversPrefix(pattern, targetPrefix));
+}
+
+function simpleOciPatternCoversPrefix(pattern: string, targetPrefix: string): boolean {
+  const normalizedPattern = pattern.trim().replace(/^\/+/, "");
+  const target = normalizePrefix(targetPrefix);
+  if (!normalizedPattern) return false;
+  if (normalizedPattern === "*" || normalizedPattern === "**") return true;
+  if (!/[?\[\]\\]/.test(normalizedPattern) && normalizedPattern.endsWith("*")) {
+    const base = normalizePrefix(normalizedPattern.slice(0, -1));
+    return prefixCovers(base, target);
+  }
+  return normalizePrefix(normalizedPattern) === target;
 }
 
 function productionStorageDomains(): StorageDomain[] {
