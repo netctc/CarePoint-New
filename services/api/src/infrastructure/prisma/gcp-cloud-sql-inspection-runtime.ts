@@ -338,7 +338,7 @@ function validateProjectId(value: string): string {
 }
 
 function validateInstanceId(value: string): string {
-  if (!/^[a-z][a-z0-9-]{0,96}[a-z0-9]$/.test(value) || value.length > 98) {
+  if (!/^[a-z](?:[a-z0-9-]{0,96}[a-z0-9])?$/.test(value) || value.length > 98) {
     throw new Error("CAREPOINT_GCP_CLOUD_SQL_INSTANCE must be a valid Cloud SQL instance id.");
   }
   return value;
