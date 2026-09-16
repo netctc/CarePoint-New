@@ -56,7 +56,7 @@ function validGcpProductionEnv() {
     DATA_RESIDENCY_JURISDICTION: "SA",
     DATA_RESIDENCY_REGION: "me-central2",
     DATA_RESIDENCY_POLICY_VERSION: "release1-ksa-gcp-v1",
-    DATA_RESIDENCY_EVIDENCE_REFERENCE: "R3-GCP-G1-STARTUP-TEST",
+    DATA_RESIDENCY_EVIDENCE_REFERENCE: "R3-GCP-G2-STARTUP-TEST",
     DATABASE_DEPLOYMENT_REGION: "me-central2",
     REDIS_DEPLOYMENT_REGION: "me-central2",
     DATA_RETENTION_POLICY_JSON: preservePolicy(),
@@ -98,10 +98,11 @@ assert.throws(
 );
 
 const validGcp = validGcpProductionEnv();
-assert.throws(
-  () => assertProductionCloudStartupReady(validGcp),
-  /GCP Release 1 production startup remains disabled until the GCP runtime binding is completed.*R3-GCP G2/,
-);
+const gcpContract = assertProductionCloudStartupReady(validGcp);
+assert.equal(gcpContract.provider, "gcp");
+assert.equal(gcpContract.primaryRegion, "me-central2");
+assert.equal(gcpContract.drRegion, null);
+assert.deepEqual(gcpContract.approvedDataRegions, ["me-central2"]);
 assert.throws(
   () => assertProductionCloudStartupReady({ ...validGcp, DATA_RESIDENCY_REGION: "me-central1" }),
   /GCP_REGION.*must match DATA_RESIDENCY_REGION/,
@@ -123,4 +124,4 @@ assert.throws(
   /CAREPOINT_DR_REGION must be unset for the GCP KSA profile/,
 );
 
-console.log("R3 production cloud startup binding smoke passed for OCI with GCP fail-closed pending G2");
+console.log("R3 production cloud startup binding smoke passed for OCI and GCP KSA profiles");
