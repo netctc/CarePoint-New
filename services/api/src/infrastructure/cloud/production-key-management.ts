@@ -208,12 +208,12 @@ export function validateProductionManagedKeyInspection(
     );
   }
   const period = inspection.rotationPeriodDays;
-  if (!Number.isInteger(period) || (period ?? 0) < 1) {
+  if (typeof period !== "number" || !Number.isInteger(period) || period < 1) {
     throw new Error(
       `Managed key '${domain.keyRef}' must expose a positive rotation period.`,
     );
   }
-  if ((period as number) > domain.maxRotationDays) {
+  if (period > domain.maxRotationDays) {
     throw new Error(
       `Managed key '${domain.keyRef}' rotation period exceeds CAREPOINT_KEY_MAX_ROTATION_DAYS (${domain.maxRotationDays}).`,
     );
