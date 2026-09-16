@@ -4,6 +4,7 @@ import { NestFactory } from "@nestjs/core";
 import { NestExpressApplication } from "@nestjs/platform-express";
 import helmet from "helmet";
 import { AppModule } from "./app.module";
+import { createProductionOciSecurityRuntime } from "./infrastructure/cloud/oci-production-security-runtime";
 import { assertProductionDataGovernanceReady } from "./infrastructure/data-governance/production-data-governance-preflight";
 import { assertProductionProviderResponsePolicyReady } from "./infrastructure/http/bounded-provider-response";
 import { browserOrigins } from "./infrastructure/http/browser-origin-readiness";
@@ -36,9 +37,22 @@ async function bootstrap(): Promise<void> {
 
   if (!isolatedSyntheticPilot) {
     assertProductionDataGovernanceReady();
-    await assertProductionKmsReady();
-    await assertProductionKmsRotationReady();
-    await assertProductionExternalSecretsReady(process.env, runtimeFeatures);
+    const ociSecurity = await createProductionOciSecurityRuntime();
+    try {
+      await assertProductionKmsReady(
+        ociSecurity ? { inspectManagedKey: ociSecurity.inspectManagedKey } : {},
+      );
+      await assertProductionKmsRotationReady(
+        ociSecurity ? { inspectManagedKey: ociSecurity.inspectManagedKey } : {},
+      );
+      await assertProductionExternalSecretsReady(
+        process.env,
+        runtimeFeatures,
+        ociSecurity ? { inspectExternalCredential: ociSecurity.inspectExternalCredential } : {},
+      );
+    } finally {
+      await ociSecurity?.close();
+    }
   }
 
   if (runtimeFeatures.payments) assertProductionFinancialGatewayEgressReady();
