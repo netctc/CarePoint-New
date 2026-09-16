@@ -12,6 +12,7 @@ const keyArn = `arn:aws:kms:${region}:${accountId}:key/${keyId}`;
 
 function configureProduction() {
   process.env.NODE_ENV = "production";
+  delete process.env.CAREPOINT_CLOUD_PROVIDER;
   process.env.AWS_REGION = region;
   process.env.AWS_KMS_ACCOUNT_ID = accountId;
   delete process.env.AWS_ENDPOINT_URL_S3;
@@ -193,5 +194,117 @@ await expectReject(
   () => {},
   { inspectBucket: async () => validBucket(), inspectKmsKey: async () => { throw new Error("AccessDenied"); } },
 );
+
+const ociPrimary = "me-riyadh-1";
+const ociDr = "me-jeddah-1";
+const ociDocumentBucket = "carepoint-clinical-documents";
+const ociBulkBucket = "carepoint-fhir-bulk-export";
+const ociDocumentKey = "ocid1.key.oc1.me-riyadh-1.carepointdocuments0301";
+const ociBulkKey = "ocid1.key.oc1.me-riyadh-1.carepointbulk0302";
+
+function configureOciProduction() {
+  process.env.NODE_ENV = "production";
+  process.env.CAREPOINT_CLOUD_PROVIDER = "oci";
+  process.env.CAREPOINT_RESIDENCY_JURISDICTION = "SA";
+  process.env.CAREPOINT_APPROVED_DATA_REGIONS = `${ociPrimary},${ociDr}`;
+  process.env.CAREPOINT_PRIMARY_REGION = ociPrimary;
+  process.env.CAREPOINT_DR_REGION = ociDr;
+  process.env.OCI_REGION = ociPrimary;
+  process.env.OCI_TENANCY_OCID = "ocid1.tenancy.oc1..carepointrelease1ksa0301";
+  process.env.OCI_COMPARTMENT_OCID = "ocid1.compartment.oc1..carepointrelease1prod0302";
+  process.env.CAREPOINT_OCI_AUTH_MODE = "instance-principal";
+  process.env.CAREPOINT_OBJECT_STORAGE_PROVIDER = "oci-object-storage";
+  process.env.CAREPOINT_OBJECT_STORAGE_REGION = ociPrimary;
+  process.env.CAREPOINT_DOCUMENT_BUCKET_REF = ociDocumentBucket;
+  process.env.CAREPOINT_DOCUMENT_STORAGE_KEY_REF = ociDocumentKey;
+  process.env.CAREPOINT_DOCUMENT_STORAGE_PREFIX = "carepoint/clinical";
+  process.env.CAREPOINT_BULK_EXPORT_BUCKET_REF = ociBulkBucket;
+  process.env.CAREPOINT_BULK_EXPORT_STORAGE_KEY_REF = ociBulkKey;
+  process.env.CAREPOINT_BULK_EXPORT_PREFIX = "carepoint/bulk-export";
+  process.env.BULK_EXPORT_RETENTION_SECONDS = "86400";
+}
+
+function validOciBucket(label) {
+  const isBulk = label === "fhir-bulk-export";
+  return {
+    provider: "oci-object-storage",
+    region: ociPrimary,
+    bucketRef: isBulk ? ociBulkBucket : ociDocumentBucket,
+    publicAccessDisabled: true,
+    customerManagedEncryption: true,
+    kmsKeyRef: isBulk ? ociBulkKey : ociDocumentKey,
+    lifecycleRules: isBulk
+      ? [{
+          action: "DELETE",
+          target: "objects",
+          timeAmount: 1,
+          timeUnit: "DAYS",
+          enabled: true,
+          inclusionPrefixes: ["carepoint/bulk-export"],
+          inclusionPatterns: [],
+          exclusionPatterns: [],
+        }]
+      : [],
+  };
+}
+
+async function expectOciReject(pattern, mutator) {
+  configureOciProduction();
+  await assert.rejects(
+    () => assertProductionObjectStorageReady({
+      inspectOciBucket: async (label) => mutator(label, structuredClone(validOciBucket(label))),
+    }),
+    pattern,
+  );
+}
+
+configureOciProduction();
+const ociLabels = [];
+await assertProductionObjectStorageReady({
+  inspectOciBucket: async (label) => {
+    ociLabels.push(label);
+    return validOciBucket(label);
+  },
+});
+assert.deepEqual(ociLabels.sort(), ["clinical-documents", "fhir-bulk-export"]);
+
+await expectOciReject(/must have public access disabled/, (_label, value) => ({ ...value, publicAccessDisabled: false }));
+await expectOciReject(/must use customer-managed encryption/, (_label, value) => ({ ...value, customerManagedEncryption: false }));
+await expectOciReject(/encryption key does not match configured key reference/, (label, value) => (
+  label === "fhir-bulk-export" ? { ...value, kmsKeyRef: ociDocumentKey } : value
+));
+await expectOciReject(/needs an enabled DELETE lifecycle rule/, (label, value) => (
+  label === "fhir-bulk-export" ? { ...value, lifecycleRules: [] } : value
+));
+await expectOciReject(/needs an enabled DELETE lifecycle rule/, (label, value) => (
+  label === "fhir-bulk-export"
+    ? { ...value, lifecycleRules: [{ ...value.lifecycleRules[0], timeAmount: 2 }] }
+    : value
+));
+await expectOciReject(/needs an enabled DELETE lifecycle rule/, (label, value) => (
+  label === "fhir-bulk-export"
+    ? { ...value, lifecycleRules: [{ ...value.lifecycleRules[0], inclusionPrefixes: ["other/prefix"] }] }
+    : value
+));
+
+configureOciProduction();
+await assertProductionObjectStorageReady({
+  inspectOciBucket: async (label) => {
+    const value = validOciBucket(label);
+    if (label === "fhir-bulk-export") {
+      value.lifecycleRules = [{
+        action: "DELETE",
+        target: "objects",
+        timeAmount: 1,
+        timeUnit: "DAYS",
+        enabled: true,
+        inclusionPrefixes: [],
+        inclusionPatterns: ["carepoint/bulk-export/*"],
+        exclusionPatterns: [],
+      }];
+    }
+    return value;
+  },
+});
 
 console.log("Phase C3 private object-storage preflight acceptance passed");
