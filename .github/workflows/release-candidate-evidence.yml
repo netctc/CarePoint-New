@@ -22,6 +22,7 @@ on:
       - "apps/admin/**"
       - "apps/*-mobile/**"
       - "packages/mobile_core/**"
+      - "docs/**"
   workflow_dispatch:
     inputs:
       release_version:
