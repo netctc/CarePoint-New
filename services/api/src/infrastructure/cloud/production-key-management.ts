@@ -75,7 +75,7 @@ export function productionKeyManagementContract(
   const provider = required(env, "CAREPOINT_KEY_MANAGEMENT_PROVIDER");
   if (provider !== "aws-kms" && provider !== "oci-vault-kms" && provider !== "gcp-cloud-kms") {
     throw new Error(
-      "CAREPOINT_KEY_MANAGEMENT_PROVIDER must be 'aws-kms', 'oci-vault-kms', or 'gcp-cloud-kms' in production.",
+      "CAREPOINT_KEY_MANAGEMENT_PROVIDER must be 'aws-kms' or 'oci-vault-kms', or 'gcp-cloud-kms' in production.",
     );
   }
   if (cloud.provider === "oci" && provider !== "oci-vault-kms") {
