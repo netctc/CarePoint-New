@@ -13,7 +13,22 @@ const {
 } = require("../dist/infrastructure/observability/otlp-http-exporter.js");
 const { assertProductionOtlpReady } = require("../dist/infrastructure/observability/production-otel-preflight.js");
 
+function clearOciResidency() {
+  for (const name of [
+    "CAREPOINT_CLOUD_PROVIDER",
+    "CAREPOINT_RESIDENCY_JURISDICTION",
+    "CAREPOINT_APPROVED_DATA_REGIONS",
+    "CAREPOINT_PRIMARY_REGION",
+    "CAREPOINT_DR_REGION",
+    "OCI_REGION",
+    "OCI_TENANCY_OCID",
+    "OCI_COMPARTMENT_OCID",
+    "CAREPOINT_OTEL_DESTINATION_REGION",
+  ]) delete process.env[name];
+}
+
 function configureProduction() {
+  clearOciResidency();
   process.env.NODE_ENV = "production";
   process.env.OTEL_EXPORTER_OTLP_ENDPOINT = "https://otel.internal.example:4318/root";
   delete process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT;
@@ -36,6 +51,19 @@ function configureProduction() {
   process.env.OTEL_TRACES_SAMPLER = "parentbased_always_on";
   delete process.env.OTEL_TRACES_SAMPLER_ARG;
   delete process.env.OTEL_SDK_DISABLED;
+}
+
+function configureOciProduction() {
+  configureProduction();
+  process.env.CAREPOINT_CLOUD_PROVIDER = "oci";
+  process.env.CAREPOINT_RESIDENCY_JURISDICTION = "SA";
+  process.env.CAREPOINT_APPROVED_DATA_REGIONS = "me-riyadh-1,me-jeddah-1";
+  process.env.CAREPOINT_PRIMARY_REGION = "me-riyadh-1";
+  process.env.CAREPOINT_DR_REGION = "me-jeddah-1";
+  process.env.OCI_REGION = "me-riyadh-1";
+  process.env.OCI_TENANCY_OCID = "ocid1.tenancy.oc1..carepointotelksa0001";
+  process.env.OCI_COMPARTMENT_OCID = "ocid1.compartment.oc1..carepointotelprod0001";
+  process.env.CAREPOINT_OTEL_DESTINATION_REGION = "me-riyadh-1";
 }
 
 async function expectConfigReject(pattern, mutate) {
@@ -145,6 +173,25 @@ await assertProductionOtlpReady({
 });
 assert.equal(requiredCalls, 2);
 assert.deepEqual(requiredPayloads, [{ resourceSpans: [] }, { resourceMetrics: [] }]);
+
+configureOciProduction();
+let ociCalls = 0;
+await assertProductionOtlpReady({ send: async () => { ociCalls += 1; } });
+assert.equal(ociCalls, 2, "OCI OTLP preflight must accept an approved KSA destination region");
+
+configureOciProduction();
+delete process.env.CAREPOINT_OTEL_DESTINATION_REGION;
+await assert.rejects(
+  () => assertProductionOtlpReady({ send: async () => undefined }),
+  /CAREPOINT_OTEL_DESTINATION_REGION is required in production/,
+);
+
+configureOciProduction();
+process.env.CAREPOINT_OTEL_DESTINATION_REGION = "eu-frankfurt-1";
+await assert.rejects(
+  () => assertProductionOtlpReady({ send: async () => undefined }),
+  /outside CAREPOINT_APPROVED_DATA_REGIONS/,
+);
 
 configureProduction();
 process.env.CAREPOINT_OTEL_EXPORT_MODE = "best-effort";

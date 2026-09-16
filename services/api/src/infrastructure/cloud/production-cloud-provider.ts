@@ -66,6 +66,22 @@ export function assertProductionCloudProviderReady(
   void productionCloudContract(env);
 }
 
+export function assertApprovedProductionDataDestinationRegion(
+  env: NodeJS.ProcessEnv = process.env,
+  variableName = "CAREPOINT_DATA_DESTINATION_REGION",
+): string | null {
+  if (env.NODE_ENV !== "production") return null;
+  if (env.CAREPOINT_CLOUD_PROVIDER?.trim().toLowerCase() !== "oci") return null;
+
+  const contract = productionCloudContract(env);
+  if (!contract) return null;
+  const region = required(env, variableName);
+  if (!contract.approvedDataRegions.includes(region)) {
+    throw new Error(`${variableName} '${region}' is outside CAREPOINT_APPROVED_DATA_REGIONS.`);
+  }
+  return region;
+}
+
 function assertOciKsaContract(
   env: NodeJS.ProcessEnv,
   approvedDataRegions: readonly string[],
