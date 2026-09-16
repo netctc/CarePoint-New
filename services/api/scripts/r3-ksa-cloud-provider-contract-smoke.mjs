@@ -58,7 +58,12 @@ assert.throws(
   /must not contain duplicates/,
 );
 assert.throws(
-  () => productionCloudContract({ ...valid, CAREPOINT_PRIMARY_REGION: OCI_KSA_DR_REGION }),
+  () => productionCloudContract({
+    ...valid,
+    CAREPOINT_APPROVED_DATA_REGIONS: `me-dubai-1,${OCI_KSA_DR_REGION}`,
+    CAREPOINT_PRIMARY_REGION: "me-dubai-1",
+    OCI_REGION: "me-dubai-1",
+  }),
   /primary region must be 'me-riyadh-1'/,
 );
 assert.throws(
