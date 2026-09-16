@@ -25,9 +25,12 @@ const payloadDigest = createHash("sha256").update(material).digest("hex");
 const kmsHost = `cloudkms.${region}.rep.googleapis.com`;
 const metadataHost = "metadata.google.internal";
 const providerAlgorithm = "RSA_SIGN_PSS_2048_SHA256";
+const ecdsaProviderAlgorithm = "EC_SIGN_P256_SHA256";
 
-const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
-const publicKeyPem = publicKey.export({ type: "spki", format: "pem" }).toString();
+const rsa = generateKeyPairSync("rsa", { modulusLength: 2048 });
+const rsaPublicKeyPem = rsa.publicKey.export({ type: "spki", format: "pem" }).toString();
+const ec = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
+const ecPublicKeyPem = ec.publicKey.export({ type: "spki", format: "pem" }).toString();
 
 function env() {
   return {
@@ -76,16 +79,27 @@ function crc32c(bytes) {
   return (crc ^ 0xffffffff) >>> 0;
 }
 
-function signatureFor(value) {
+function signatureFor(value, algorithm) {
+  if (algorithm === ecdsaProviderAlgorithm) {
+    return signData(
+      "sha256",
+      Buffer.from(value, "utf8"),
+      { key: ec.privateKey, dsaEncoding: "der" },
+    );
+  }
   return signData(
     "sha256",
     Buffer.from(value, "utf8"),
     {
-      key: privateKey,
+      key: rsa.privateKey,
       padding: cryptoConstants.RSA_PKCS1_PSS_PADDING,
       saltLength: 32,
     },
   );
+}
+
+function publicKeyPemFor(algorithm) {
+  return algorithm === ecdsaProviderAlgorithm ? ecPublicKeyPem : rsaPublicKeyPem;
 }
 
 function fakeFetch(options = {}) {
@@ -138,6 +152,7 @@ function fakeFetch(options = {}) {
         return response("PROVIDER-SIGNING-BODY-MUST-NOT-ESCAPE", { status: options.httpStatus });
       }
 
+      const algorithm = options.algorithm ?? providerAlgorithm;
       const path = decodeURIComponent(url.pathname);
       if (path === `/v1/${signingKeyRef}` && init.method === "GET") {
         keyInspections += 1;
@@ -151,7 +166,7 @@ function fakeFetch(options = {}) {
         return jsonResponse({
           name: options.versionName ?? signingVersionRef,
           state: options.versionState ?? "ENABLED",
-          algorithm: options.algorithm ?? providerAlgorithm,
+          algorithm,
           protectionLevel: options.protectionLevel ?? "HSM",
         });
       }
@@ -161,7 +176,7 @@ function fakeFetch(options = {}) {
         const digest = Buffer.from(body.digest?.sha256 ?? "", "base64");
         assert.equal(digest.toString("hex"), payloadDigest);
         assert.equal(Number(body.digestCrc32c), crc32c(digest));
-        const signature = options.signature ?? signatureFor(material).toString("base64");
+        const signature = options.signature ?? signatureFor(material, algorithm).toString("base64");
         return jsonResponse({
           name: options.signResponseName ?? signingVersionRef,
           signature,
@@ -173,11 +188,12 @@ function fakeFetch(options = {}) {
       }
       if (path === `/v1/${signingVersionRef}/publicKey` && init.method === "GET") {
         publicKeyCalls += 1;
-        const pem = options.pem ?? publicKeyPem;
+        const publicKeyAlgorithm = options.publicKeyAlgorithm ?? algorithm;
+        const pem = options.pem ?? publicKeyPemFor(publicKeyAlgorithm);
         return jsonResponse({
           name: options.publicKeyName ?? signingVersionRef,
           pem,
-          algorithm: options.publicKeyAlgorithm ?? options.algorithm ?? providerAlgorithm,
+          algorithm: publicKeyAlgorithm,
           pemCrc32c: options.pemCrc32c ?? String(crc32c(Buffer.from(pem, "utf8"))),
           protectionLevel: options.protectionLevel ?? "HSM",
         });
@@ -223,6 +239,15 @@ async function rejects(pattern, mutate = () => {}, options = {}) {
   assert.equal(fake.publicKeyCalls, 3, "all well-formed persisted signatures use the exact version public key before cryptographic/algorithm validation");
   await provider.close();
   await assert.rejects(() => provider.signDigest(payloadDigest), /provider is closed/);
+}
+
+{
+  const fake = fakeFetch({ algorithm: ecdsaProviderAlgorithm });
+  const provider = new GcpKmsSigningProvider(signingKeyRef, env(), { fetch: fake.fetch });
+  const signed = await provider.signDigest(payloadDigest);
+  assert.equal(signed.algorithm, "GCP-KMS-ECDSA-P256-SHA256");
+  assert.equal(await provider.verifyMaterial(material, signed.signature, signed.algorithm), true);
+  assert.equal(await provider.verifyMaterial(`${material}-tampered`, signed.signature, signed.algorithm), false);
 }
 
 await rejects(/CAREPOINT_GCP_AUTH_MODE/, (config) => { config.CAREPOINT_GCP_AUTH_MODE = "service-account-key"; });
@@ -274,7 +299,7 @@ await rejects(/not canonical base64/, () => {}, { signature: "not-base64", signa
 }
 
 {
-  const fake = fakeFetch({ publicKeyAlgorithm: "EC_SIGN_P256_SHA256" });
+  const fake = fakeFetch({ publicKeyAlgorithm: ecdsaProviderAlgorithm, pem: ecPublicKeyPem });
   const provider = new GcpKmsSigningProvider(signingKeyRef, env(), { fetch: fake.fetch });
   const signed = await provider.signDigest(payloadDigest);
   assert.equal(await provider.verifyMaterial(material, signed.signature, signed.algorithm), false);
