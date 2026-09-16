@@ -127,7 +127,8 @@ export function productionExternalSecretStoreContract(
   const resolvedProvider = provider as ProductionExternalSecretStoreProvider;
   if (cloud.provider === "oci" && resolvedProvider !== "oci-vault-secrets") {
     throw new Error(
-      "OCI Release 1 production requires CAREPOINT_EXTERNAL_SECRET_PROVIDER to use 'oci-vault-secrets'.",
+      "OCI Release 1 production requires CAREPOINT_EXTERNAL_SECRET_PROVIDER" +
+        "='oci-vault-secrets'.",
     );
   }
 
