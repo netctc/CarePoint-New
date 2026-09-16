@@ -22,7 +22,10 @@ export async function assertProductionExternalSecretsReady(
   if (cloudProvider === "oci" || cloudProvider === "gcp") {
     const inspect = options.inspectExternalCredential;
     if (!inspect) {
-      throw new Error(`${cloudProvider.toUpperCase()} production external credential preflight requires a live managed-secret inspector.`);
+      if (cloudProvider === "oci") {
+        throw new Error("OCI production external credential preflight requires a live OCI Vault inspector.");
+      }
+      throw new Error("GCP production external credential preflight requires a live GCP Secret Manager inspector.");
     }
 
     const contract = productionExternalSecretStoreContract(env);
