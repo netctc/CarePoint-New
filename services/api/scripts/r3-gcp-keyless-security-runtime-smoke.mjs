@@ -179,6 +179,9 @@ const signingInspection = await runtime.inspectManagedKey(signingDomain);
 assert.equal(signingInspection.rotationEnabled, false);
 assert.equal(signingInspection.rotationPeriodDays, undefined);
 
+for (const call of recorder.calls) {
+  assert.ok(call.init.signal, "all GCP metadata/provider requests must have a timeout signal");
+}
 for (const call of recorder.calls.filter((entry) => entry.url.includes("rep.googleapis.com"))) {
   assert.match(call.url, /\.(me-central2)\.rep\.googleapis\.com\/v1\//);
   assert.equal(call.init.headers?.Authorization, "Bearer short-lived-runtime-token");
@@ -192,6 +195,14 @@ await assert.rejects(
     GOOGLE_APPLICATION_CREDENTIALS: "/tmp/static-key.json",
   }, { fetch: successfulFetchRecorder().fetch }),
   /GOOGLE_APPLICATION_CREDENTIALS static credential configuration is forbidden/,
+);
+
+await assert.rejects(
+  () => createProductionGcpSecurityRuntime({
+    ...validEnv(),
+    CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE: "/tmp/gcloud-static-creds.json",
+  }, { fetch: successfulFetchRecorder().fetch }),
+  /CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE static credential configuration is forbidden/,
 );
 
 await assert.rejects(
@@ -270,5 +281,36 @@ assert.ok(providerError instanceof Error);
 assert.match(providerError.message, /HTTP 500/);
 assert.doesNotMatch(providerError.message, /TOP-SECRET-PROVIDER-BODY/);
 await leakingRuntime.close();
+
+const oversizedRuntime = await createProductionGcpSecurityRuntime(validEnv(), {
+  fetch: async (input) => {
+    const url = String(input);
+    if (url.endsWith("/email")) {
+      return response(serviceAccountEmail, {
+        headers: { "metadata-flavor": "Google" },
+      });
+    }
+    if (url.endsWith("/token")) {
+      return jsonResponse({
+        access_token: "short-lived-runtime-token",
+        expires_in: 3600,
+        token_type: "Bearer",
+      }, {
+        headers: { "metadata-flavor": "Google" },
+      });
+    }
+    if (url.includes("cloudkms.me-central2.rep.googleapis.com")) {
+      return response("x".repeat(1024 * 1024 + 1), {
+        headers: { "content-type": "application/json" },
+      });
+    }
+    throw new Error("unexpected call");
+  },
+});
+await assert.rejects(
+  () => oversizedRuntime.inspectManagedKey(firstDomain),
+  /response exceeds the permitted size/,
+);
+await oversizedRuntime.close();
 
 console.log("R3 GCP keyless regional security runtime smoke passed");
