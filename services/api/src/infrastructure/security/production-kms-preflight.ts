@@ -38,9 +38,9 @@ export async function assertProductionKmsReady(options: ProductionKmsPreflightOp
   if (process.env.NODE_ENV !== "production") return;
 
   const cloudProvider = configuredCloudProvider();
-  if (cloudProvider === "oci") {
+  if (cloudProvider === "oci" || cloudProvider === "gcp") {
     if (!options.inspectManagedKey) {
-      throw new Error("OCI production KMS preflight requires a live managed-key inspector.");
+      throw new Error(`${cloudProvider.toUpperCase()} production KMS preflight requires a live managed-key inspector.`);
     }
     await assertProductionKeyManagementInspectionReady(options.inspectManagedKey, process.env);
     return;
@@ -101,11 +101,12 @@ function validateMetadata(requirement: ProductionKmsKeyRequirement, metadata: Ke
   }
 }
 
-function configuredCloudProvider(): "aws" | "oci" {
+function configuredCloudProvider(): "aws" | "oci" | "gcp" {
   const value = process.env.CAREPOINT_CLOUD_PROVIDER?.trim();
   if (!value || value === "aws") return "aws";
   if (value === "oci") return "oci";
-  throw new Error("CAREPOINT_CLOUD_PROVIDER must be 'aws' or 'oci' in production KMS preflight.");
+  if (value === "gcp") return "gcp";
+  throw new Error("CAREPOINT_CLOUD_PROVIDER must be 'aws', 'oci' or 'gcp' in production KMS preflight.");
 }
 
 function liveDescribeKey(region: string): DescribeProductionKmsKey {
