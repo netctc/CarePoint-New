@@ -164,14 +164,13 @@ export async function createProductionGcpObjectStorageRuntime(
     assertOpen();
     await assertRuntimeIdentity();
     validateStorageObjectUrl(url);
+    const headers = new Headers(init.headers);
+    headers.set("Authorization", `Bearer ${await accessToken()}`);
     let response: Response;
     try {
       response = await fetchImpl(url, {
         ...init,
-        headers: {
-          ...(init.headers ?? {}),
-          Authorization: `Bearer ${await accessToken()}`,
-        },
+        headers,
         redirect: "error",
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });
