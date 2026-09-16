@@ -1,4 +1,8 @@
-import { productionObjectStorageContract, type ProductionObjectStorageDomain } from "./production-object-storage";
+import {
+  productionObjectStorageContract,
+  type ProductionObjectStorageBucketInspection,
+  type ProductionObjectStorageDomain,
+} from "./production-object-storage";
 
 const INSTANCE_PRINCIPAL_AUTH_MODE = "instance-principal";
 const FORBIDDEN_ENDPOINT_ENV_VARS = [
@@ -12,10 +16,56 @@ type OciAuthenticationProvider = unknown;
 
 type OciNamespaceResponse = { value?: string | undefined };
 type OciGetObjectResponse = { value?: unknown };
+type OciBucketResponse = {
+  bucket?: {
+    name?: string | undefined;
+    namespace?: string | undefined;
+    kmsKeyId?: string | undefined;
+    publicAccessType?: string | undefined;
+  } | undefined;
+};
+type OciLifecycleRule = {
+  action?: string | undefined;
+  target?: string | undefined;
+  timeAmount?: number | undefined;
+  timeUnit?: string | undefined;
+  isEnabled?: boolean | undefined;
+  objectNameFilter?: {
+    inclusionPrefixes?: string[] | undefined;
+    inclusionPatterns?: string[] | undefined;
+    exclusionPatterns?: string[] | undefined;
+  } | undefined;
+};
+type OciLifecycleResponse = {
+  objectLifecyclePolicy?: { items?: OciLifecycleRule[] | undefined } | undefined;
+};
+
+export type OciObjectStorageLifecycleRuleInspection = {
+  action: string;
+  target?: string | undefined;
+  timeAmount: number;
+  timeUnit: string;
+  enabled: boolean;
+  inclusionPrefixes: string[];
+  inclusionPatterns: string[];
+  exclusionPatterns: string[];
+};
+
+export type OciObjectStorageBucketInspection = ProductionObjectStorageBucketInspection & {
+  lifecycleRules: OciObjectStorageLifecycleRuleInspection[];
+};
 
 export interface OciObjectStorageClientPort {
   regionId: string;
   getNamespace(request: { compartmentId?: string | undefined }): Promise<OciNamespaceResponse>;
+  getBucket(request: {
+    namespaceName: string;
+    bucketName: string;
+  }): Promise<OciBucketResponse>;
+  getObjectLifecyclePolicy(request: {
+    namespaceName: string;
+    bucketName: string;
+  }): Promise<OciLifecycleResponse>;
   putObject(request: {
     namespaceName: string;
     bucketName: string;
@@ -61,6 +111,7 @@ export type OciObjectStorageRuntime = {
   ): Promise<void>;
   getString(label: OciObjectStorageDomainLabel, objectKey: string): Promise<string>;
   delete(label: OciObjectStorageDomainLabel, objectKey: string): Promise<void>;
+  inspectBucket(label: OciObjectStorageDomainLabel): Promise<OciObjectStorageBucketInspection>;
   close(): Promise<void>;
 };
 
@@ -172,6 +223,46 @@ export async function createProductionOciObjectStorageRuntime(
           throw new Error(`OCI Object Storage delete failed (${errorName(error)}).`);
         }
       },
+      async inspectBucket(label) {
+        const domain = requiredDomain(domains, label);
+        let bucketResponse: OciBucketResponse;
+        try {
+          bucketResponse = await client!.getBucket({
+            namespaceName,
+            bucketName: domain.bucketRef,
+          });
+        } catch (error) {
+          throw new Error(`OCI Object Storage bucket inspection failed (${errorName(error)}).`);
+        }
+        const bucket = bucketResponse.bucket;
+        if (!bucket || bucket.name !== domain.bucketRef || bucket.namespace !== namespaceName) {
+          throw new Error("OCI Object Storage bucket inspection returned an unexpected resource.");
+        }
+
+        let lifecycleRules: OciLifecycleRule[] = [];
+        try {
+          const lifecycle = await client!.getObjectLifecyclePolicy({
+            namespaceName,
+            bucketName: domain.bucketRef,
+          });
+          lifecycleRules = lifecycle.objectLifecyclePolicy?.items ?? [];
+        } catch (error) {
+          if (!isMissingLifecyclePolicy(error)) {
+            throw new Error(`OCI Object Storage lifecycle inspection failed (${errorName(error)}).`);
+          }
+        }
+
+        const kmsKeyRef = bucket.kmsKeyId?.trim();
+        return {
+          provider: "oci-object-storage",
+          region: domain.region,
+          bucketRef: domain.bucketRef,
+          publicAccessDisabled: bucket.publicAccessType === "NoPublicAccess",
+          customerManagedEncryption: Boolean(kmsKeyRef),
+          ...(kmsKeyRef ? { kmsKeyRef } : {}),
+          lifecycleRules: lifecycleRules.map(normalizeLifecycleRule),
+        };
+      },
       async close() {
         if (closed) return;
         closed = true;
@@ -184,6 +275,19 @@ export async function createProductionOciObjectStorageRuntime(
     closeProvider(provider);
     throw error;
   }
+}
+
+function normalizeLifecycleRule(rule: OciLifecycleRule): OciObjectStorageLifecycleRuleInspection {
+  return {
+    action: String(rule.action ?? ""),
+    ...(rule.target ? { target: String(rule.target) } : {}),
+    timeAmount: Number(rule.timeAmount ?? 0),
+    timeUnit: String(rule.timeUnit ?? ""),
+    enabled: rule.isEnabled === true,
+    inclusionPrefixes: rule.objectNameFilter?.inclusionPrefixes?.map(String) ?? [],
+    inclusionPatterns: rule.objectNameFilter?.inclusionPatterns?.map(String) ?? [],
+    exclusionPatterns: rule.objectNameFilter?.exclusionPatterns?.map(String) ?? [],
+  };
 }
 
 function requiredDomain(
@@ -275,6 +379,15 @@ function loadDefaultSdkFactory(): OciObjectStorageSdkFactory {
   } catch (error) {
     throw new Error(`OCI Object Storage SDK modules could not be loaded (${errorName(error)}).`);
   }
+}
+
+function isMissingLifecyclePolicy(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const candidate = error as { statusCode?: unknown; status?: unknown; name?: unknown };
+  const status = Number(candidate.statusCode ?? candidate.status ?? 0);
+  if (status === 404) return true;
+  const name = String(candidate.name ?? "");
+  return name === "ObjectLifecyclePolicyNotFound" || name === "NoSuchObjectLifecyclePolicy";
 }
 
 function closeClient(client: OciObjectStorageClientPort | undefined): void {
