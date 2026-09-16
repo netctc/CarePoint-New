@@ -1,0 +1,64 @@
+{
+  "schema": "carepoint.release-infrastructure-evidence/v1",
+  "cloudProvider": {
+    "provider": "oci",
+    "tenancyRef": "REPLACE_WITH_OCI_TENANCY_OCID",
+    "compartmentRef": "REPLACE_WITH_OCI_PRODUCTION_COMPARTMENT_OCID"
+  },
+  "ociResources": [
+    {
+      "id": "postgres-primary",
+      "region": "me-riyadh-1",
+      "resourceRef": "REPLACE_WITH_OCI_POSTGRES_PRIMARY_OCID",
+      "evidenceRef": "REPLACE_WITH_SANITIZED_POSTGRES_PRIMARY_EVIDENCE_REFERENCE"
+    },
+    {
+      "id": "postgres-ha-replicas",
+      "region": "me-riyadh-1",
+      "resourceRef": "REPLACE_WITH_OCI_POSTGRES_HA_RESOURCE_OCID",
+      "evidenceRef": "REPLACE_WITH_SANITIZED_POSTGRES_HA_EVIDENCE_REFERENCE"
+    },
+    {
+      "id": "postgres-backups-pitr",
+      "region": "me-riyadh-1",
+      "resourceRef": "REPLACE_WITH_OCI_POSTGRES_BACKUP_RESOURCE_OCID",
+      "evidenceRef": "REPLACE_WITH_SANITIZED_POSTGRES_BACKUP_EVIDENCE_REFERENCE"
+    },
+    {
+      "id": "redis-primary",
+      "region": "me-riyadh-1",
+      "resourceRef": "REPLACE_WITH_OCI_CACHE_PRIMARY_OCID",
+      "evidenceRef": "REPLACE_WITH_SANITIZED_CACHE_PRIMARY_EVIDENCE_REFERENCE"
+    },
+    {
+      "id": "redis-ha-replicas",
+      "region": "me-riyadh-1",
+      "resourceRef": "REPLACE_WITH_OCI_CACHE_HA_RESOURCE_OCID",
+      "evidenceRef": "REPLACE_WITH_SANITIZED_CACHE_HA_EVIDENCE_REFERENCE"
+    },
+    {
+      "id": "clinical-object-storage",
+      "region": "me-riyadh-1",
+      "resourceRef": "oci-object-storage://REPLACE_WITH_NAMESPACE/REPLACE_WITH_CLINICAL_BUCKET",
+      "evidenceRef": "REPLACE_WITH_SANITIZED_CLINICAL_BUCKET_EVIDENCE_REFERENCE"
+    },
+    {
+      "id": "fhir-bulk-artifacts",
+      "region": "me-riyadh-1",
+      "resourceRef": "oci-object-storage://REPLACE_WITH_NAMESPACE/REPLACE_WITH_FHIR_BULK_BUCKET",
+      "evidenceRef": "REPLACE_WITH_SANITIZED_FHIR_BUCKET_EVIDENCE_REFERENCE"
+    },
+    {
+      "id": "kms-key-material",
+      "region": "me-riyadh-1",
+      "resourceRef": "REPLACE_WITH_OCI_VAULT_KEY_OCID",
+      "evidenceRef": "REPLACE_WITH_SANITIZED_KMS_EVIDENCE_REFERENCE"
+    },
+    {
+      "id": "external-secrets",
+      "region": "me-riyadh-1",
+      "resourceRef": "REPLACE_WITH_OCI_VAULT_SECRET_OCID",
+      "evidenceRef": "REPLACE_WITH_SANITIZED_SECRET_STORE_EVIDENCE_REFERENCE"
+    }
+  ]
+}
