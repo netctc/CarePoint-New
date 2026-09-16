@@ -282,7 +282,11 @@ await rejects(/unsupported protection level/, () => {}, { protectionLevel: "EXTE
 
 {
   const config = env();
-  config.CAREPOINT_DOCUMENT_KEY_REF = `projects/other-project/locations/${region}/keyRings/carepoint-r1/cryptoKeys/clinical-documents`;
+  const otherKeyRing = `projects/other-project/locations/${region}/keyRings/carepoint-r1`;
+  config.CAREPOINT_VAULT_REF = otherKeyRing;
+  config.CAREPOINT_DOCUMENT_KEY_REF = `${otherKeyRing}/cryptoKeys/clinical-documents`;
+  config.CAREPOINT_DOCUMENT_SIGNING_KEY_REF = `${otherKeyRing}/cryptoKeys/clinical-document-attestation`;
+  config.CAREPOINT_EXTERNAL_SECRET_KEY_REF = `${otherKeyRing}/cryptoKeys/external-secrets`;
   const fake = fakeFetch();
   const provider = new GcpKmsKeyProvider(config.CAREPOINT_DOCUMENT_KEY_REF, purpose, config, { fetch: fake.fetch });
   await assert.rejects(() => provider.wrapDataKey(dataKey), /must belong to GCP_PROJECT_ID/);
