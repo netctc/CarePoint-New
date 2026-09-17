@@ -106,12 +106,38 @@ export class Release1LocationDiscoveryService {
     return this.serviceWithContexts(service.id);
   }
 
+  async assertServiceReadyForActivation(principal: AuthPrincipal, serviceId: string) {
+    const provider = await this.requireProvider(principal);
+    const service = await this.prisma.service.findUnique({
+      where: { id: this.text(serviceId, 1, 128, "serviceId") },
+      include: { modalities: { where: { active: true } } },
+    });
+    if (!service || service.providerId !== provider.id) throw new NotFoundException("Service not found.");
+    const contexts = await this.prisma.serviceDeliveryContext.findMany({ where: { serviceId: service.id } });
+    for (const modality of service.modalities) {
+      const context = contexts.find((row) => row.modality === modality.modality);
+      if (modality.modality === "HOME_VISIT" && (!context || context.homeCoverageCenterLatitude === null || context.homeCoverageCenterLongitude === null || context.homeCoverageRadiusKm === null || Number(context.homeCoverageRadiusKm) <= 0)) {
+        throw new ConflictException("Home-visit services require an explicit operational coverage before activation.");
+      }
+      if (modality.modality === "CLINIC") {
+        if (!context?.clinicLocationId) throw new ConflictException("Clinic services require an active validated location and arrival instructions before activation.");
+        const location = await this.prisma.providerLocation.findUnique({ where: { id: context.clinicLocationId } });
+        const instructions = context.clinicArrivalInstructions?.trim() || location?.arrivalInstructions?.trim();
+        if (!location || !location.active || !location.addressValidatedAt || !instructions) throw new ConflictException("Clinic services require an active validated location and arrival instructions before activation.");
+      }
+    }
+  }
+
   async listProviderServices(principal: AuthPrincipal) {
     return this.enrich(await this.scheduling.listProviderServices(principal));
   }
 
   async legacySearch(input: { q?: string; modality?: string }) {
-    return this.enrich(await this.scheduling.searchServices(input));
+    const requested = input.modality ? this.modality(input.modality) : undefined;
+    const enriched = await this.enrich(await this.scheduling.searchServices(input));
+    return enriched
+      .map((service) => ({ ...service, modalities: this.readyModalities(service.modalities, service.deliveryContexts, requested) }))
+      .filter((service) => service.modalities.length > 0);
   }
 
   async discovery(input: DiscoveryInput) {
@@ -136,6 +162,14 @@ export class Release1LocationDiscoveryService {
             WHERE sdc."serviceId" = s.id AND sdc.modality = 'CLINIC' AND pl.active = true
               AND pl."addressValidatedAt" IS NOT NULL
               AND COALESCE(NULLIF(BTRIM(sdc."clinicArrivalInstructions"), ''), NULLIF(BTRIM(pl."arrivalInstructions"), '')) IS NOT NULL
+          ))
+          AND (sm.modality <> 'HOME_VISIT' OR EXISTS (
+            SELECT 1 FROM "ServiceDeliveryContext" sdc
+            WHERE sdc."serviceId" = s.id AND sdc.modality = 'HOME_VISIT'
+              AND sdc."homeCoverageCenterLatitude" IS NOT NULL
+              AND sdc."homeCoverageCenterLongitude" IS NOT NULL
+              AND sdc."homeCoverageRadiusKm" IS NOT NULL
+              AND sdc."homeCoverageRadiusKm" > 0
           ))
       )`,
     ];
@@ -174,7 +208,7 @@ export class Release1LocationDiscoveryService {
     if (pageIds.length === 0) return { page, limit, nextPage: null, items: [] };
     const services = await this.prisma.service.findMany({
       where: { id: { in: pageIds } },
-      include: { modalities: { where: { active: true }, orderBy: { modality: "asc" } }, provider: { include: { doctorProfile: { include: { specialties: { include: { specialty: true } } } }, otherProviderProfile: { include: { category: true } } } } },
+      include: { modalities: { where: { active: true }, orderBy: { modality: "asc" } }, provider: { include: { doctorProfile: { include: { specialties: { include: { specialty: true } } }, otherProviderProfile: { include: { category: true } } } } } },
     });
     const enriched = await this.enrich(services);
     const byId = new Map(enriched.map((row) => [row.id, row]));
@@ -217,7 +251,7 @@ export class Release1LocationDiscoveryService {
     const byLocation = new Map(locations.map((row) => [row.id, row]));
     return services.map((service) => ({ ...service, deliveryContexts: contexts.filter((context) => context.serviceId === service.id).map((context): Record<string, unknown> => {
       const location = context.clinicLocationId ? byLocation.get(context.clinicLocationId) : undefined;
-      return { modality: context.modality, ...(location ? { clinic: { location: this.presentLocation(location), arrivalInstructions: context.clinicArrivalInstructions ?? location.arrivalInstructions, navigation: { latitude: Number(location.latitude), longitude: Number(location.longitude) } } } : {}), ...(context.homeCoverageRadiusKm !== null ? { homeVisitCoverage: { centerLatitude: Number(context.homeCoverageCenterLatitude), centerLongitude: Number(context.homeCoverageCenterLongitude), radiusKm: Number(context.homeCoverageRadiusKm) } } : {}) };
+      return { modality: context.modality, ...(location ? { clinic: { location: this.presentLocation(location), arrivalInstructions: context.clinicArrivalInstructions ?? location.arrivalInstructions, navigation: { latitude: Number(location.latitude), longitude: Number(location.longitude) } } } : {}), ...(context.homeCoverageRadiusKm !== null && context.homeCoverageCenterLatitude !== null && context.homeCoverageCenterLongitude !== null ? { homeVisitCoverage: { centerLatitude: Number(context.homeCoverageCenterLatitude), centerLongitude: Number(context.homeCoverageCenterLongitude), radiusKm: Number(context.homeCoverageRadiusKm) } } : {}) };
     }) }));
   }
 
@@ -225,6 +259,12 @@ export class Release1LocationDiscoveryService {
     const byModality = new Map(contexts.map((context) => [String(context.modality), context]));
     return modalities.filter((item) => {
       if (!item.active || (requested && item.modality !== requested)) return false;
+      if (item.modality === "HOME_VISIT") {
+        const coverage = byModality.get("HOME_VISIT")?.homeVisitCoverage;
+        if (!coverage || typeof coverage !== "object") return false;
+        const value = coverage as { centerLatitude?: unknown; centerLongitude?: unknown; radiusKm?: unknown };
+        return Number.isFinite(Number(value.centerLatitude)) && Number.isFinite(Number(value.centerLongitude)) && Number(value.radiusKm) > 0;
+      }
       if (item.modality !== "CLINIC") return true;
       const clinic = byModality.get("CLINIC")?.clinic;
       if (!clinic || typeof clinic !== "object") return false;
@@ -234,7 +274,7 @@ export class Release1LocationDiscoveryService {
   }
 
   private validateCoverage(coverage: HomeVisitCoverageInput | undefined) {
-    if (!coverage) return;
+    if (!coverage) throw new BadRequestException("HOME_VISIT services require homeVisitCoverage before publication.");
     this.latitude(coverage.centerLatitude); this.longitude(coverage.centerLongitude);
     if (!Number.isFinite(coverage.radiusKm) || coverage.radiusKm <= 0 || coverage.radiusKm > 1_000) throw new BadRequestException("homeVisitCoverage.radiusKm must be greater than 0 and no more than 1000 km.");
   }
