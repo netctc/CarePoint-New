@@ -19,32 +19,43 @@ enum MedicalTransportAssistance {
   STRETCHER
 }
 
+enum MedicalTransportEquipment {
+  OXYGEN
+  MONITORING
+  VENTILATION
+}
+
 model MedicalTransportRequest {
-  id                   String                     @id @default(uuid())
-  patientId            String
-  mode                 MedicalTransportMode
-  status               MedicalTransportStatus     @default(REQUESTED)
-  assistance           MedicalTransportAssistance @default(STANDARD)
-  scheduledFor         DateTime
-  pickupLatitude       Decimal                    @db.Decimal(9, 6)
-  pickupLongitude      Decimal                    @db.Decimal(9, 6)
-  pickupAddress        String?
-  destinationLatitude  Decimal                    @db.Decimal(9, 6)
-  destinationLongitude Decimal                    @db.Decimal(9, 6)
-  destinationAddress   String?
-  callbackPhone        String?
-  assignedProviderId   String?
-  etaMinutes           Int?
-  clientRequestId      String
-  cancellationReason   String?
-  cancelledAt          DateTime?
-  assignedAt           DateTime?
-  enRouteAt            DateTime?
-  arrivedAt            DateTime?
-  transportingAt       DateTime?
-  completedAt          DateTime?
-  requestedAt          DateTime                   @default(now())
-  updatedAt            DateTime                   @updatedAt
+  id                       String                      @id @default(uuid())
+  patientId                String
+  mode                     MedicalTransportMode
+  status                   MedicalTransportStatus      @default(REQUESTED)
+  assistance               MedicalTransportAssistance  @default(STANDARD)
+  companionCount           Int                         @default(0)
+  equipment                MedicalTransportEquipment[] @default([])
+  scheduledFor             DateTime
+  pickupLatitude           Decimal                     @db.Decimal(9, 6)
+  pickupLongitude          Decimal                     @db.Decimal(9, 6)
+  pickupAddress            String?
+  destinationLatitude      Decimal                     @db.Decimal(9, 6)
+  destinationLongitude     Decimal                     @db.Decimal(9, 6)
+  destinationAddress       String?
+  callbackPhone            String?
+  assignedProviderId       String?
+  etaMinutes               Int?
+  clientRequestId          String
+  cancellationReason       String?
+  cancelledAt              DateTime?
+  assignedAt               DateTime?
+  enRouteAt                DateTime?
+  arrivedAt                DateTime?
+  transportingAt           DateTime?
+  completedAt              DateTime?
+  requestedAt              DateTime                    @default(now())
+  updatedAt                DateTime                    @updatedAt
+  patient                  PatientProfile              @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  assignedProvider         Provider?                   @relation("AssignedMedicalTransportProvider", fields: [assignedProviderId], references: [id], onDelete: SetNull)
+  events                   MedicalTransportEvent[]
 
   @@unique([patientId, clientRequestId])
   @@index([patientId, requestedAt])
@@ -53,39 +64,46 @@ model MedicalTransportRequest {
 }
 
 model MedicalTransportEvent {
-  id                 String                  @id @default(uuid())
+  id                 String                 @id @default(uuid())
   transportRequestId String
   actorAccountId     String?
   fromStatus         MedicalTransportStatus?
   toStatus           MedicalTransportStatus
   providerId         String?
   etaMinutes         Int?
-  occurredAt         DateTime                @default(now())
+  occurredAt         DateTime               @default(now())
+  request            MedicalTransportRequest @relation(fields: [transportRequestId], references: [id], onDelete: Cascade)
+  actor              User?                  @relation("MedicalTransportEventActor", fields: [actorAccountId], references: [id], onDelete: SetNull)
+  provider           Provider?              @relation("MedicalTransportEventProvider", fields: [providerId], references: [id], onDelete: SetNull)
 
   @@index([transportRequestId, occurredAt])
   @@index([providerId, occurredAt])
 }
 
 model EmergencyRequestIdempotency {
-  id                 String   @id @default(uuid())
+  id                 String                    @id @default(uuid())
   patientId          String
   clientRequestId    String
-  emergencyRequestId String   @unique
-  createdAt          DateTime @default(now())
+  emergencyRequestId String                    @unique
+  createdAt          DateTime                  @default(now())
+  patient            PatientProfile            @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  request            EmergencyAmbulanceRequest @relation(fields: [emergencyRequestId], references: [id], onDelete: Cascade)
 
   @@unique([patientId, clientRequestId])
-  @@index([emergencyRequestId])
 }
 
 model EmergencyDispatchEvent {
-  id                 String                    @id @default(uuid())
+  id                 String                   @id @default(uuid())
   emergencyRequestId String
   actorAccountId     String?
   fromStatus         EmergencyAmbulanceStatus?
   toStatus           EmergencyAmbulanceStatus
   providerId         String?
   etaMinutes         Int?
-  occurredAt         DateTime                  @default(now())
+  occurredAt         DateTime                 @default(now())
+  request            EmergencyAmbulanceRequest @relation(fields: [emergencyRequestId], references: [id], onDelete: Cascade)
+  actor              User?                    @relation("EmergencyDispatchEventActor", fields: [actorAccountId], references: [id], onDelete: SetNull)
+  provider           Provider?                @relation("EmergencyDispatchEventProvider", fields: [providerId], references: [id], onDelete: SetNull)
 
   @@index([emergencyRequestId, occurredAt])
   @@index([providerId, occurredAt])
