@@ -66,7 +66,7 @@ jobs:
           printf 'sourceSha=%s\nphase=G5a\nrcFrozen=false\nproductionAcceptance=false\nartifactRegistryPromotionEvidence=false\nproductionDeploymentEvidence=false\nworkflowPurpose=contract-validation-only\n' \
             "$CAREPOINT_GCP_FREEZE_SOURCE_SHA" \
             > gcp-immutable-rc-freeze-contract-evidence/metadata.txt
-          (cd gcp-immutable-rc-freeze-contract-evidence && sha256sum --check --strict SHA256SUMS)
+          sha256sum --check --strict gcp-immutable-rc-freeze-contract-evidence/SHA256SUMS
       - name: Upload G5a contract evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
