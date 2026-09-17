@@ -1,11 +1,13 @@
 import {
+  GCP_KSA_PRIMARY_REGION,
   OCI_KSA_PRIMARY_REGION,
   productionCloudContract,
   type ProductionCloudProvider,
 } from "./production-cloud-provider";
 
-export type ProductionKeyManagementProvider = "aws-kms" | "oci-vault-kms";
+export type ProductionKeyManagementProvider = "aws-kms" | "oci-vault-kms" | "gcp-cloud-kms";
 export type ProductionManagedKeyUsage = "encrypt-decrypt" | "sign-verify";
+export type ProductionManagedKeyRotationMode = "automatic" | "manual";
 
 export type ProductionManagedKeyDomain = {
   label: "clinical-documents" | "clinical-document-attestation" | "external-integration-secrets";
@@ -15,6 +17,7 @@ export type ProductionManagedKeyDomain = {
   vaultRef: string;
   keyRef: string;
   usage: ProductionManagedKeyUsage;
+  rotationMode: ProductionManagedKeyRotationMode;
   maxRotationDays: number;
 };
 
@@ -70,14 +73,19 @@ export function productionKeyManagementContract(
   if (!cloud) return null;
 
   const provider = required(env, "CAREPOINT_KEY_MANAGEMENT_PROVIDER");
-  if (provider !== "aws-kms" && provider !== "oci-vault-kms") {
+  if (provider !== "aws-kms" && provider !== "oci-vault-kms" && provider !== "gcp-cloud-kms") {
     throw new Error(
-      "CAREPOINT_KEY_MANAGEMENT_PROVIDER must be 'aws-kms' or 'oci-vault-kms' in production.",
+      "CAREPOINT_KEY_MANAGEMENT_PROVIDER must be 'aws-kms' or 'oci-vault-kms', or 'gcp-cloud-kms' in production.",
     );
   }
   if (cloud.provider === "oci" && provider !== "oci-vault-kms") {
     throw new Error(
       "OCI Release 1 production requires CAREPOINT_KEY_MANAGEMENT_PROVIDER='oci-vault-kms'.",
+    );
+  }
+  if (cloud.provider === "gcp" && provider !== "gcp-cloud-kms") {
+    throw new Error(
+      "GCP Release 1 production requires CAREPOINT_KEY_MANAGEMENT_PROVIDER='gcp-cloud-kms'.",
     );
   }
 
@@ -92,10 +100,16 @@ export function productionKeyManagementContract(
       `OCI Release 1 active key management must be in primary region '${OCI_KSA_PRIMARY_REGION}'.`,
     );
   }
+  if (cloud.provider === "gcp" && region !== GCP_KSA_PRIMARY_REGION) {
+    throw new Error(
+      `GCP Release 1 active key management must be in primary region '${GCP_KSA_PRIMARY_REGION}'.`,
+    );
+  }
 
   const vaultRef = validateVaultRef(
     required(env, "CAREPOINT_VAULT_REF"),
     provider,
+    region,
     "CAREPOINT_VAULT_REF",
   );
   const maxRotationDays = parseRotationDays(
@@ -113,9 +127,12 @@ export function productionKeyManagementContract(
       keyRef: validateKeyRef(
         required(env, "CAREPOINT_DOCUMENT_KEY_REF"),
         provider,
+        region,
+        vaultRef,
         "CAREPOINT_DOCUMENT_KEY_REF",
       ),
       usage: "encrypt-decrypt",
+      rotationMode: "automatic",
       maxRotationDays,
     },
     {
@@ -127,9 +144,12 @@ export function productionKeyManagementContract(
       keyRef: validateKeyRef(
         required(env, "CAREPOINT_DOCUMENT_SIGNING_KEY_REF"),
         provider,
+        region,
+        vaultRef,
         "CAREPOINT_DOCUMENT_SIGNING_KEY_REF",
       ),
       usage: "sign-verify",
+      rotationMode: provider === "gcp-cloud-kms" ? "manual" : "automatic",
       maxRotationDays,
     },
     {
@@ -141,9 +161,12 @@ export function productionKeyManagementContract(
       keyRef: validateKeyRef(
         required(env, "CAREPOINT_EXTERNAL_SECRET_KEY_REF"),
         provider,
+        region,
+        vaultRef,
         "CAREPOINT_EXTERNAL_SECRET_KEY_REF",
       ),
       usage: "encrypt-decrypt",
+      rotationMode: "automatic",
       maxRotationDays,
     },
   ];
@@ -179,7 +202,7 @@ export function validateProductionManagedKeyInspection(
   }
   if (inspection.vaultRef !== domain.vaultRef) {
     throw new Error(
-      `Managed key '${domain.keyRef}' does not belong to configured vault '${domain.vaultRef}'.`,
+      `Managed key '${domain.keyRef}' does not belong to configured key-management container '${domain.vaultRef}'.`,
     );
   }
   if (inspection.keyRef !== domain.keyRef) {
@@ -202,6 +225,16 @@ export function validateProductionManagedKeyInspection(
       `Managed key '${domain.keyRef}' usage '${inspection.usage}' does not match required usage '${domain.usage}'.`,
     );
   }
+
+  if (domain.rotationMode === "manual") {
+    if (inspection.rotationEnabled === true || inspection.rotationPeriodDays !== undefined) {
+      throw new Error(
+        `Managed key '${domain.keyRef}' must use manual rotation without an automatic rotation schedule.`,
+      );
+    }
+    return;
+  }
+
   if (inspection.rotationEnabled !== true) {
     throw new Error(
       `Managed key '${domain.keyRef}' must have rotation enabled.`,
@@ -223,11 +256,21 @@ export function validateProductionManagedKeyInspection(
 function validateVaultRef(
   value: string,
   provider: ProductionKeyManagementProvider,
+  region: string,
   name: string,
 ): string {
   const trimmed = value.trim();
   if (provider === "oci-vault-kms" && !isOcid(trimmed, "vault")) {
     throw new Error(`${name} must be an OCI Vault OCID.`);
+  }
+  if (provider === "gcp-cloud-kms") {
+    const parsed = parseGcpKeyRingRef(trimmed);
+    if (!parsed) {
+      throw new Error(`${name} must be a full GCP Cloud KMS key-ring resource name.`);
+    }
+    if (parsed.region !== region) {
+      throw new Error(`${name} GCP key-ring region '${parsed.region}' must match CAREPOINT_KEY_MANAGEMENT_REGION '${region}'.`);
+    }
   }
   if (!trimmed) throw new Error(`${name} is required in production.`);
   return trimmed;
@@ -236,14 +279,40 @@ function validateVaultRef(
 function validateKeyRef(
   value: string,
   provider: ProductionKeyManagementProvider,
+  region: string,
+  vaultRef: string,
   name: string,
 ): string {
   const trimmed = value.trim();
   if (provider === "oci-vault-kms" && !isOcid(trimmed, "key")) {
     throw new Error(`${name} must be an OCI Key Management key OCID.`);
   }
+  if (provider === "gcp-cloud-kms") {
+    const parsed = parseGcpCryptoKeyRef(trimmed);
+    if (!parsed) {
+      throw new Error(`${name} must be a full GCP Cloud KMS CryptoKey resource name.`);
+    }
+    if (parsed.region !== region) {
+      throw new Error(`${name} GCP CryptoKey region '${parsed.region}' must match CAREPOINT_KEY_MANAGEMENT_REGION '${region}'.`);
+    }
+    if (parsed.keyRingRef !== vaultRef) {
+      throw new Error(`${name} must belong to CAREPOINT_VAULT_REF GCP key ring.`);
+    }
+  }
   if (!trimmed) throw new Error(`${name} is required in production.`);
   return trimmed;
+}
+
+function parseGcpKeyRingRef(value: string): { projectId: string; region: string } | null {
+  const match = /^projects\/([a-z][a-z0-9-]{4,28}[a-z0-9])\/locations\/([a-z0-9-]+)\/keyRings\/([A-Za-z0-9_-]{1,63})$/.exec(value);
+  if (!match?.[1] || !match[2] || !match[3]) return null;
+  return { projectId: match[1], region: match[2] };
+}
+
+function parseGcpCryptoKeyRef(value: string): { projectId: string; region: string; keyRingRef: string } | null {
+  const match = /^(projects\/([a-z][a-z0-9-]{4,28}[a-z0-9])\/locations\/([a-z0-9-]+)\/keyRings\/[A-Za-z0-9_-]{1,63})\/cryptoKeys\/[A-Za-z0-9_-]{1,63}$/.exec(value);
+  if (!match?.[1] || !match[2] || !match[3]) return null;
+  return { projectId: match[2], region: match[3], keyRingRef: match[1] };
 }
 
 function isOcid(value: string, resourceType: string): boolean {
