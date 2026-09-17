@@ -5,6 +5,7 @@ import { NestExpressApplication } from "@nestjs/platform-express";
 import helmet from "helmet";
 import { AppModule } from "./app.module";
 import { createProductionGcpSecurityRuntime } from "./infrastructure/cloud/gcp-production-security-runtime";
+import { assertProductionGcpCloudRunReady } from "./infrastructure/cloud/production-gcp-cloud-run-preflight";
 import { assertProductionCloudStartupReady } from "./infrastructure/cloud/production-cloud-startup";
 import { createProductionOciSecurityRuntime } from "./infrastructure/cloud/oci-production-security-runtime";
 import { assertProductionProviderResponsePolicyReady } from "./infrastructure/http/bounded-provider-response";
@@ -82,6 +83,7 @@ async function bootstrap(): Promise<void> {
 
   if (!isolatedSyntheticPilot) {
     if (productionCloudProvider === "gcp") {
+      await assertProductionGcpCloudRunReady();
       await assertProductionGcpObjectStorageReady();
       await assertProductionGcpCloudSqlReady();
       await assertProductionGcpMemorystoreReady();
