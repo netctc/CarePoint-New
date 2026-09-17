@@ -137,4 +137,6 @@ assert.doesNotMatch(redactedError.message, /carepoint-test-password/);
 assert.doesNotMatch(redactedError.message, /rediss:\/\//);
 assert.match(redactedError.message, /<redis-url>/);
 
+await import("./r3-gcp-memorystore-preflight-smoke.mjs");
+
 console.log("Phase C4 production Redis readiness acceptance passed");
