@@ -208,7 +208,15 @@ export class Release1LocationDiscoveryService {
     if (pageIds.length === 0) return { page, limit, nextPage: null, items: [] };
     const services = await this.prisma.service.findMany({
       where: { id: { in: pageIds } },
-      include: { modalities: { where: { active: true }, orderBy: { modality: "asc" } }, provider: { include: { doctorProfile: { include: { specialties: { include: { specialty: true } } }, otherProviderProfile: { include: { category: true } } } } } },
+      include: {
+        modalities: { where: { active: true }, orderBy: { modality: "asc" } },
+        provider: {
+          include: {
+            doctorProfile: { include: { specialties: { include: { specialty: true } } } },
+            otherProviderProfile: { include: { category: true } },
+          },
+        },
+      },
     });
     const enriched = await this.enrich(services);
     const byId = new Map(enriched.map((row) => [row.id, row]));
