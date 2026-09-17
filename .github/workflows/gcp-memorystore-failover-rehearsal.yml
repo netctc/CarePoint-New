@@ -104,6 +104,7 @@ jobs:
           if (String(value.state ?? '').toUpperCase() !== 'READY') throw new Error('Memorystore source must be READY.');
           if (String(value.tier ?? '').toUpperCase() !== 'STANDARD_HA') throw new Error('Memorystore source must use STANDARD_HA.');
           if (Number(value.replicaCount ?? 0) < 1) throw new Error('Memorystore source requires a replica.');
+          if (String(value.readReplicasMode ?? '').toUpperCase() === 'READ_REPLICAS_ENABLED') throw new Error('Manual failover rehearsal does not support read-replica mode.');
           if (value.authEnabled !== true) throw new Error('Memorystore source requires Redis AUTH.');
           if (String(value.transitEncryptionMode ?? '').toUpperCase() !== 'SERVER_AUTHENTICATION') throw new Error('Memorystore source requires TLS server authentication.');
           if (String(value.connectMode ?? '').toUpperCase() !== 'PRIVATE_SERVICE_ACCESS') throw new Error('Memorystore source requires private service access.');
@@ -114,8 +115,6 @@ jobs:
           if (!/^me-central2-[a-z]$/.test(zone)) throw new Error('Memorystore current primary zone is invalid.');
           const identityHash = `sha256:${createHash('sha256').update(value.name).digest('hex')}`;
           writeFileSync('gcp-memorystore-failover-evidence/source-hash.txt', `${identityHash}\n`, { mode: 0o600 });
-          writeFileSync('gcp-memorystore-failover-evidence/before-zone.txt', `${zone}\n`, { mode: 0o600 });
-          writeFileSync('gcp-memorystore-failover-evidence/before-endpoint.txt', `${String(value.host ?? '')}:${Number(value.port ?? 0)}\n`, { mode: 0o600 });
           NODE
 
       - name: Initiate limited-data-loss manual failover
@@ -160,6 +159,7 @@ jobs:
           if (String(after.state ?? '').toUpperCase() !== 'READY') throw new Error('Memorystore did not return to READY.');
           if (String(after.tier ?? '').toUpperCase() !== 'STANDARD_HA') throw new Error('STANDARD_HA was not preserved.');
           if (Number(after.replicaCount ?? 0) < 1) throw new Error('Replica availability was not preserved.');
+          if (String(after.readReplicasMode ?? '').toUpperCase() === 'READ_REPLICAS_ENABLED') throw new Error('Unsupported read-replica mode became enabled.');
           if (after.authEnabled !== true) throw new Error('Redis AUTH was not preserved.');
           if (String(after.transitEncryptionMode ?? '').toUpperCase() !== 'SERVER_AUTHENTICATION') throw new Error('TLS was not preserved.');
           if (String(after.connectMode ?? '').toUpperCase() !== 'PRIVATE_SERVICE_ACCESS') throw new Error('Private networking was not preserved.');
@@ -177,7 +177,6 @@ jobs:
           writeFileSync('gcp-memorystore-failover-evidence/post-hash.txt', `${hash}\n`, { mode: 0o600 });
           NODE
           rm -f gcp-memorystore-failover-evidence/before.json gcp-memorystore-failover-evidence/after.json
-          rm -f gcp-memorystore-failover-evidence/before-zone.txt gcp-memorystore-failover-evidence/before-endpoint.txt
 
       - name: Export sanitized G6b control-plane failover evidence
         shell: bash
