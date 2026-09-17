@@ -1,0 +1,112 @@
+name: GCP Cloud Storage Recovery Contract
+
+on:
+  pull_request:
+    paths:
+      - ".ci/release-gcp-cloud-storage-recovery-contract.mjs"
+      - ".github/workflows/gcp-cloud-storage-recovery-contract.yml"
+      - ".github/workflows/gcp-cloud-storage-recovery.yml"
+      - "ops/release-1/gcp-cloud-storage-recovery.example.json"
+      - "ops/release-1/gcp-g6c-cloud-storage-recovery-runbook.md"
+      - "services/api/src/infrastructure/cloud/production-object-storage.ts"
+      - "services/api/src/infrastructure/cloud/gcp-object-storage-runtime.ts"
+      - "services/api/src/infrastructure/cloud/gcp-object-storage-inspection-runtime.ts"
+      - "services/api/src/infrastructure/security/production-gcp-object-storage-preflight.ts"
+  push:
+    branches:
+      - main
+    paths:
+      - ".ci/release-gcp-cloud-storage-recovery-contract.mjs"
+      - ".github/workflows/gcp-cloud-storage-recovery-contract.yml"
+      - ".github/workflows/gcp-cloud-storage-recovery.yml"
+      - "ops/release-1/gcp-cloud-storage-recovery.example.json"
+      - "ops/release-1/gcp-g6c-cloud-storage-recovery-runbook.md"
+
+permissions:
+  contents: read
+
+env:
+  CAREPOINT_CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  contract:
+    name: Validate G6c Cloud Storage recovery contract
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out exact candidate source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ env.CAREPOINT_CANDIDATE_SHA }}
+
+      - name: Verify exact checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$CAREPOINT_CANDIDATE_SHA"
+
+      - name: Run deterministic G6c contract self-tests
+        run: node .ci/release-gcp-cloud-storage-recovery-contract.mjs --self-test
+
+      - name: Validate non-approved evidence template
+        run: node .ci/release-gcp-cloud-storage-recovery-contract.mjs --validate-template ops/release-1/gcp-cloud-storage-recovery.example.json
+
+      - name: Validate protected live workflow boundary
+        run: node .ci/release-gcp-cloud-storage-recovery-contract.mjs --validate-workflow .github/workflows/gcp-cloud-storage-recovery.yml
+
+      - name: Verify existing G3 Cloud Storage security bindings remain intact
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -F 'label: "clinical-documents"' services/api/src/infrastructure/cloud/production-object-storage.ts
+          grep -F 'provider !== "gcp-cloud-storage"' services/api/src/infrastructure/cloud/gcp-object-storage-inspection-runtime.ts
+          grep -F 'publicAccessDisabled' services/api/src/infrastructure/cloud/production-object-storage.ts
+          grep -F 'uniformBucketLevelAccessEnabled' services/api/src/infrastructure/security/production-gcp-object-storage-preflight.ts
+          grep -F 'x-goog-encryption-kms-key-name' services/api/src/infrastructure/cloud/gcp-object-storage-runtime.ts
+          grep -F 'GCP_KSA_PRIMARY_REGION' services/api/src/infrastructure/cloud/gcp-object-storage-runtime.ts
+
+      - name: Emit non-production contract evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p gcp-cloud-storage-recovery-contract-evidence
+          node --input-type=module <<'NODE'
+          import { writeFileSync } from 'node:fs';
+          const value = {
+            schema: 'carepoint.release1-gcp-cloud-storage-recovery-contract/v1',
+            phase: 'G6c',
+            sourceSha: process.env.CAREPOINT_CANDIDATE_SHA,
+            provider: 'gcp',
+            jurisdiction: 'SA',
+            region: 'me-central2',
+            workflowPurpose: 'contract-validation-only',
+            regionalEndpointRequired: 'https://storage.me-central2.rep.googleapis.com/',
+            liveRecoveryExecuted: false,
+            productionRecoveryEvidence: false,
+            geographicDrClaimed: false,
+            productionAcceptance: false,
+          };
+          writeFileSync('gcp-cloud-storage-recovery-contract-evidence/contract.json', `${JSON.stringify(value, null, 2)}\n`);
+          NODE
+          sha256sum \
+            .ci/release-gcp-cloud-storage-recovery-contract.mjs \
+            .github/workflows/gcp-cloud-storage-recovery-contract.yml \
+            .github/workflows/gcp-cloud-storage-recovery.yml \
+            ops/release-1/gcp-cloud-storage-recovery.example.json \
+            ops/release-1/gcp-g6c-cloud-storage-recovery-runbook.md \
+            services/api/src/infrastructure/cloud/production-object-storage.ts \
+            services/api/src/infrastructure/cloud/gcp-object-storage-runtime.ts \
+            services/api/src/infrastructure/cloud/gcp-object-storage-inspection-runtime.ts \
+            services/api/src/infrastructure/security/production-gcp-object-storage-preflight.ts \
+            gcp-cloud-storage-recovery-contract-evidence/contract.json \
+            > gcp-cloud-storage-recovery-contract-evidence/SHA256SUMS
+          sha256sum --check --strict gcp-cloud-storage-recovery-contract-evidence/SHA256SUMS
+
+      - name: Upload contract-only evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: carepoint-gcp-cloud-storage-recovery-contract-${{ env.CAREPOINT_CANDIDATE_SHA }}
+          path: gcp-cloud-storage-recovery-contract-evidence
+          if-no-files-found: error
+          retention-days: 90
