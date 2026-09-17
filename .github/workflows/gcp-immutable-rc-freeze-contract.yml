@@ -1,0 +1,75 @@
+name: GCP Immutable RC Freeze Contract
+
+on:
+  pull_request:
+    paths:
+      - ".ci/release-gcp-immutable-rc-freeze-contract.mjs"
+      - ".ci/verify-immutable-container-release.mjs"
+      - ".github/workflows/gcp-immutable-rc-freeze-contract.yml"
+      - ".github/workflows/release1-immutable-containers.yml"
+      - "ops/release-1/gcp-immutable-rc-freeze.example.json"
+  push:
+    branches: [main]
+    paths:
+      - ".ci/release-gcp-immutable-rc-freeze-contract.mjs"
+      - ".ci/verify-immutable-container-release.mjs"
+      - ".github/workflows/gcp-immutable-rc-freeze-contract.yml"
+      - ".github/workflows/release1-immutable-containers.yml"
+      - "ops/release-1/gcp-immutable-rc-freeze.example.json"
+
+permissions:
+  contents: read
+
+env:
+  CAREPOINT_GCP_FREEZE_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  contract:
+    name: G5a immutable RC freeze evidence contract
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out exact candidate SHA
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          ref: ${{ env.CAREPOINT_GCP_FREEZE_SOURCE_SHA }}
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+      - name: Verify exact checkout identity
+        run: test "$(git rev-parse HEAD)" = "$CAREPOINT_GCP_FREEZE_SOURCE_SHA"
+      - name: Verify shared immutable container publication contract remains intact
+        run: |
+          node .ci/verify-immutable-container-release.mjs --self-test
+          node .ci/verify-immutable-container-release.mjs
+      - name: Self-test GCP immutable RC freeze evidence contract
+        run: node .ci/release-gcp-immutable-rc-freeze-contract.mjs --self-test
+      - name: Verify non-approved GCP immutable RC freeze template
+        run: >-
+          node .ci/release-gcp-immutable-rc-freeze-contract.mjs
+          --validate-template ops/release-1/gcp-immutable-rc-freeze.example.json
+      - name: Capture sanitized G5a contract evidence
+        run: |
+          mkdir -p gcp-immutable-rc-freeze-contract-evidence
+          node .ci/release-gcp-immutable-rc-freeze-contract.mjs \
+            --contract-evidence \
+            ops/release-1/gcp-immutable-rc-freeze.example.json \
+            gcp-immutable-rc-freeze-contract-evidence/contract-evidence.json
+          sha256sum \
+            .ci/release-gcp-immutable-rc-freeze-contract.mjs \
+            .ci/verify-immutable-container-release.mjs \
+            .github/workflows/release1-immutable-containers.yml \
+            ops/release-1/gcp-immutable-rc-freeze.example.json \
+            gcp-immutable-rc-freeze-contract-evidence/contract-evidence.json \
+            > gcp-immutable-rc-freeze-contract-evidence/SHA256SUMS
+          printf 'sourceSha=%s\nphase=G5a\nrcFrozen=false\nproductionAcceptance=false\nartifactRegistryPromotionEvidence=false\nproductionDeploymentEvidence=false\nworkflowPurpose=contract-validation-only\n' \
+            "$CAREPOINT_GCP_FREEZE_SOURCE_SHA" \
+            > gcp-immutable-rc-freeze-contract-evidence/metadata.txt
+          (cd gcp-immutable-rc-freeze-contract-evidence && sha256sum --check --strict SHA256SUMS)
+      - name: Upload G5a contract evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: carepoint-gcp-immutable-rc-freeze-contract-${{ env.CAREPOINT_GCP_FREEZE_SOURCE_SHA }}
+          path: gcp-immutable-rc-freeze-contract-evidence
+          if-no-files-found: error
