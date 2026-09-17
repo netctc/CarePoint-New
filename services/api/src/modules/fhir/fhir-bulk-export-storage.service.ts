@@ -3,6 +3,10 @@ import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } fro
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve, sep } from "node:path";
 import {
+  createProductionGcpObjectStorageRuntime,
+  type GcpObjectStorageRuntime,
+} from "../../infrastructure/cloud/gcp-object-storage-runtime";
+import {
   createProductionOciObjectStorageRuntime,
   type OciObjectStorageRuntime,
 } from "../../infrastructure/cloud/oci-object-storage-runtime";
@@ -10,6 +14,7 @@ import {
 @Injectable()
 export class FhirBulkExportStorageService implements OnModuleDestroy {
   private s3?: S3Client;
+  private gcpRuntimePromise?: Promise<GcpObjectStorageRuntime>;
   private ociRuntimePromise?: Promise<OciObjectStorageRuntime>;
 
   async put(objectKey: string, ndjson: string, expiresAt: string): Promise<void> {
@@ -18,6 +23,16 @@ export class FhirBulkExportStorageService implements OnModuleDestroy {
       const path = this.safePath(objectKey);
       await mkdir(dirname(path), { recursive: true, mode: 0o700 });
       await writeFile(path, ndjson, { encoding: "utf8", mode: 0o600 });
+      return;
+    }
+    if (provider === "gcp") {
+      await (await this.gcpRuntime()).putString("fhir-bulk-export", objectKey, ndjson, {
+        contentType: "application/fhir+ndjson",
+        metadata: {
+          carepoint: "fhir-bulk-export",
+          expiresat: expiresAt,
+        },
+      });
       return;
     }
     if (provider === "oci") {
@@ -49,6 +64,7 @@ export class FhirBulkExportStorageService implements OnModuleDestroy {
   async get(objectKey: string): Promise<string> {
     const provider = this.provider();
     if (provider === "local") return readFile(this.safePath(objectKey), "utf8");
+    if (provider === "gcp") return (await this.gcpRuntime()).getString("fhir-bulk-export", objectKey);
     if (provider === "oci") return (await this.ociRuntime()).getString("fhir-bulk-export", objectKey);
     const result = await this.s3Client().send(new GetObjectCommand({
       Bucket: this.bucket(),
@@ -64,6 +80,10 @@ export class FhirBulkExportStorageService implements OnModuleDestroy {
       await rm(this.safePath(objectKey), { force: true });
       return;
     }
+    if (provider === "gcp") {
+      await (await this.gcpRuntime()).delete("fhir-bulk-export", objectKey);
+      return;
+    }
     if (provider === "oci") {
       await (await this.ociRuntime()).delete("fhir-bulk-export", objectKey);
       return;
@@ -75,16 +95,21 @@ export class FhirBulkExportStorageService implements OnModuleDestroy {
   }
 
   async onModuleDestroy(): Promise<void> {
-    const pending = this.ociRuntimePromise;
-    if (!pending) return;
-    try {
-      await (await pending).close();
-    } catch {
-      // Best-effort provider cleanup during application shutdown.
-    }
+    await Promise.all([
+      this.closeRuntime(this.gcpRuntimePromise),
+      this.closeRuntime(this.ociRuntimePromise),
+    ]);
   }
 
-  private provider(): "local" | "s3" | "oci" {
+  private provider(): "local" | "s3" | "gcp" | "oci" {
+    if (process.env.NODE_ENV === "production" && process.env.CAREPOINT_CLOUD_PROVIDER?.trim() === "gcp") {
+      if (process.env.CAREPOINT_OBJECT_STORAGE_PROVIDER?.trim() !== "gcp-cloud-storage") {
+        throw new InternalServerErrorException(
+          "GCP production FHIR bulk export storage requires CAREPOINT_OBJECT_STORAGE_PROVIDER='gcp-cloud-storage'.",
+        );
+      }
+      return "gcp";
+    }
     if (process.env.NODE_ENV === "production" && process.env.CAREPOINT_CLOUD_PROVIDER?.trim() === "oci") {
       if (process.env.CAREPOINT_OBJECT_STORAGE_PROVIDER?.trim() !== "oci-object-storage") {
         throw new InternalServerErrorException(
@@ -109,6 +134,16 @@ export class FhirBulkExportStorageService implements OnModuleDestroy {
     return provider;
   }
 
+  private async gcpRuntime(): Promise<GcpObjectStorageRuntime> {
+    if (!this.gcpRuntimePromise) {
+      this.gcpRuntimePromise = createProductionGcpObjectStorageRuntime(process.env).then((runtime) => {
+        if (!runtime) throw new InternalServerErrorException("GCP Cloud Storage runtime is unavailable for production FHIR bulk export storage.");
+        return runtime;
+      });
+    }
+    return this.gcpRuntimePromise;
+  }
+
   private async ociRuntime(): Promise<OciObjectStorageRuntime> {
     if (!this.ociRuntimePromise) {
       this.ociRuntimePromise = createProductionOciObjectStorageRuntime(process.env).then((runtime) => {
@@ -117,6 +152,15 @@ export class FhirBulkExportStorageService implements OnModuleDestroy {
       });
     }
     return this.ociRuntimePromise;
+  }
+
+  private async closeRuntime(runtimePromise: Promise<{ close(): Promise<void> }> | undefined): Promise<void> {
+    if (!runtimePromise) return;
+    try {
+      await (await runtimePromise).close();
+    } catch {
+      // Best-effort provider cleanup during application shutdown.
+    }
   }
 
   private s3Client(): S3Client {
