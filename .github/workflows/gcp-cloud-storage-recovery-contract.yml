@@ -61,7 +61,7 @@ jobs:
           set -euo pipefail
           grep -F 'label: "clinical-documents"' services/api/src/infrastructure/cloud/production-object-storage.ts
           grep -F 'provider !== "gcp-cloud-storage"' services/api/src/infrastructure/cloud/gcp-object-storage-inspection-runtime.ts
-          grep -F 'publicAccessDisabled' services/api/src/infrastructure/security/production-gcp-object-storage-preflight.ts
+          grep -F 'publicAccessDisabled' services/api/src/infrastructure/cloud/production-object-storage.ts
           grep -F 'uniformBucketLevelAccessEnabled' services/api/src/infrastructure/security/production-gcp-object-storage-preflight.ts
           grep -F 'x-goog-encryption-kms-key-name' services/api/src/infrastructure/cloud/gcp-object-storage-runtime.ts
           grep -F 'GCP_KSA_PRIMARY_REGION' services/api/src/infrastructure/cloud/gcp-object-storage-runtime.ts
