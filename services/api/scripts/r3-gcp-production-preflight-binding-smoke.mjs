@@ -211,4 +211,6 @@ assert.ok(
   "GCP Cloud Storage preflight must execute before Nest application creation",
 );
 
+await import("./r3-gcp-cloud-run-preflight-smoke.mjs");
+
 console.log("R3 GCP production security/storage startup binding smoke passed");
