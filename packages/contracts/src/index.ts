@@ -42,6 +42,8 @@ export const MedicalTransportStatuses = ["REQUESTED", "ASSIGNED", "EN_ROUTE", "A
 export type MedicalTransportStatus = (typeof MedicalTransportStatuses)[number];
 export const MedicalTransportAssistanceLevels = ["STANDARD", "WHEELCHAIR", "STRETCHER"] as const;
 export type MedicalTransportAssistance = (typeof MedicalTransportAssistanceLevels)[number];
+export const MedicalTransportEquipmentOptions = ["OXYGEN", "MONITORING", "VENTILATION"] as const;
+export type MedicalTransportEquipment = (typeof MedicalTransportEquipmentOptions)[number];
 
 export const InvoiceStatuses = ["OPEN", "PARTIALLY_PAID", "PAID", "VOID", "REFUNDED"] as const;
 export type InvoiceStatus = (typeof InvoiceStatuses)[number];
@@ -242,6 +244,8 @@ export interface CreateMedicalTransportRequestInput {
   destinationLongitude: number;
   destinationAddress?: string;
   assistance?: MedicalTransportAssistance;
+  companionCount?: number;
+  equipment?: readonly MedicalTransportEquipment[];
   callbackPhone?: string;
 }
 
@@ -265,6 +269,8 @@ export interface MedicalTransportRequest {
   mode: MedicalTransportMode;
   status: MedicalTransportStatus;
   assistance: MedicalTransportAssistance;
+  companionCount: number;
+  equipment: readonly MedicalTransportEquipment[];
   scheduledFor: string;
   pickupLatitude: number;
   pickupLongitude: number;
