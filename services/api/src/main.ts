@@ -21,6 +21,7 @@ import { assertProductionPaymentActionPolicyReady } from "./infrastructure/http/
 import { assertProductionOtlpReady } from "./infrastructure/observability/production-otel-preflight";
 import { assertProductionDatabaseReady } from "./infrastructure/prisma/production-database-preflight";
 import { assertProductionGcpCloudSqlReady } from "./infrastructure/prisma/production-gcp-cloud-sql-preflight";
+import { assertProductionGcpMemorystoreReady } from "./infrastructure/redis/production-gcp-memorystore-preflight";
 import { assertProductionRedisReady } from "./infrastructure/redis/production-redis-preflight";
 import { assertProductionReleaseIdentityReady } from "./infrastructure/release/release-identity";
 import { isolatedSyntheticPrivatePilotActive } from "./infrastructure/release/private-pilot-infrastructure-profile";
@@ -83,6 +84,7 @@ async function bootstrap(): Promise<void> {
     if (productionCloudProvider === "gcp") {
       await assertProductionGcpObjectStorageReady();
       await assertProductionGcpCloudSqlReady();
+      await assertProductionGcpMemorystoreReady();
     } else {
       await assertProductionObjectStorageReady();
     }
