@@ -19,6 +19,10 @@ on:
         description: "Frozen GHCR Admin sha256 digest"
         required: true
         type: string
+      g5a_freeze_evidence_ref:
+        description: "Approved restricted G5a freeze evidence reference"
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -39,6 +43,7 @@ env:
   RELEASE_VERSION: ${{ inputs.release_version }}
   API_SOURCE_DIGEST: ${{ inputs.api_source_digest }}
   ADMIN_SOURCE_DIGEST: ${{ inputs.admin_source_digest }}
+  G5A_FREEZE_EVIDENCE_REF: ${{ inputs.g5a_freeze_evidence_ref }}
   API_SOURCE_IMAGE: ghcr.io/netctc/carepoint-new-api
   ADMIN_SOURCE_IMAGE: ghcr.io/netctc/carepoint-new-admin
 
@@ -64,6 +69,8 @@ jobs:
           [[ "$ADMIN_SOURCE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
           test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
           test -n "$RELEASE_VERSION"
+          test -n "$G5A_FREEZE_EVIDENCE_REF"
+          [[ "$G5A_FREEZE_EVIDENCE_REF" != REPLACE_WITH_* ]]
           test -n "$GCP_PROJECT_ID"
           test -n "$GCP_WIF_PROVIDER"
           test -n "$GCP_PROMOTION_SERVICE_ACCOUNT"
@@ -113,8 +120,9 @@ jobs:
           set -euo pipefail
           api_source_ref="$API_SOURCE_IMAGE@$API_SOURCE_DIGEST"
           admin_source_ref="$ADMIN_SOURCE_IMAGE@$ADMIN_SOURCE_DIGEST"
-          api_target_repo="$AR_HOST/$GCP_PROJECT_ID/$GCP_ARTIFACT_REGISTRY_REPOSITORY/carepoint-new-api"
-          admin_target_repo="$AR_HOST/$GCP_PROJECT_ID/$GCP_ARTIFACT_REGISTRY_REPOSITORY/carepoint-new-admin"
+          target_repository="$AR_HOST/$GCP_PROJECT_ID/$GCP_ARTIFACT_REGISTRY_REPOSITORY"
+          api_target_repo="$target_repository/carepoint-new-api"
+          admin_target_repo="$target_repository/carepoint-new-admin"
           api_target_tag="$api_target_repo:rc-$SOURCE_SHA"
           admin_target_tag="$admin_target_repo:rc-$SOURCE_SHA"
 
@@ -126,41 +134,79 @@ jobs:
           test "$api_target_digest" = "$API_SOURCE_DIGEST"
           test "$admin_target_digest" = "$ADMIN_SOURCE_DIGEST"
 
-          printf 'API_TARGET_DIGEST=%s\nADMIN_TARGET_DIGEST=%s\n' "$api_target_digest" "$admin_target_digest" >> "$GITHUB_ENV"
+          printf 'API_TARGET_DIGEST=%s\nADMIN_TARGET_DIGEST=%s\nTARGET_REPOSITORY=%s\n' \
+            "$api_target_digest" "$admin_target_digest" "$target_repository" >> "$GITHUB_ENV"
 
-      - name: Capture sanitized promotion evidence
+      - name: Capture and validate contract-compatible promotion evidence
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p gcp-artifact-registry-promotion-evidence
           node --input-type=module <<'NODE'
           import { writeFileSync } from 'node:fs';
+          const runRef = `github://actions/runs/${process.env.GITHUB_RUN_ID}/attempts/${process.env.GITHUB_RUN_ATTEMPT}`;
+          const apiSourceRef = `${process.env.API_SOURCE_IMAGE}@${process.env.API_SOURCE_DIGEST}`;
+          const adminSourceRef = `${process.env.ADMIN_SOURCE_IMAGE}@${process.env.ADMIN_SOURCE_DIGEST}`;
+          const apiTargetRef = `${process.env.TARGET_REPOSITORY}/carepoint-new-api@${process.env.API_TARGET_DIGEST}`;
+          const adminTargetRef = `${process.env.TARGET_REPOSITORY}/carepoint-new-admin@${process.env.ADMIN_TARGET_DIGEST}`;
           const evidence = {
-            schema: 'carepoint.release1-gcp-artifact-registry-promotion-run/v1',
+            schema: 'carepoint.release1-gcp-artifact-registry-promotion/v1',
             phase: 'G5b',
-            sourceSha: process.env.SOURCE_SHA,
-            releaseVersion: process.env.RELEASE_VERSION,
-            region: 'me-central2',
-            apiSourceDigest: process.env.API_SOURCE_DIGEST,
-            apiTargetDigest: process.env.API_TARGET_DIGEST,
-            adminSourceDigest: process.env.ADMIN_SOURCE_DIGEST,
-            adminTargetDigest: process.env.ADMIN_TARGET_DIGEST,
-            controls: {
-              workloadIdentityFederation: true,
-              serviceAccountKeyUsed: false,
+            productionAcceptance: false,
+            productionDeploymentEvidence: false,
+            release: {
+              sourceSha: process.env.SOURCE_SHA,
+              releaseVersion: process.env.RELEASE_VERSION,
+              g5aFreezeEvidenceRef: process.env.G5A_FREEZE_EVIDENCE_REF,
+            },
+            target: {
+              provider: 'gcp',
+              region: 'me-central2',
+              projectRef: `projects/${process.env.GCP_PROJECT_ID}`,
+              repositoryRef: process.env.TARGET_REPOSITORY,
+            },
+            auth: {
+              mode: 'workload-identity-federation',
+              workloadIdentityProviderRef: process.env.GCP_WIF_PROVIDER,
+              serviceAccountRef: process.env.GCP_PROMOTION_SERVICE_ACCOUNT,
               staticCredentialsUsed: false,
+              serviceAccountKeyUsed: false,
+            },
+            sourceImages: {
+              api: { name: process.env.API_SOURCE_IMAGE, digest: process.env.API_SOURCE_DIGEST, immutableRef: apiSourceRef },
+              admin: { name: process.env.ADMIN_SOURCE_IMAGE, digest: process.env.ADMIN_SOURCE_DIGEST, immutableRef: adminSourceRef },
+            },
+            promotedImages: {
+              api: { digest: process.env.API_TARGET_DIGEST, immutableRef: apiTargetRef },
+              admin: { digest: process.env.ADMIN_TARGET_DIGEST, immutableRef: adminTargetRef },
+            },
+            controls: {
+              exactFrozenRcUsed: true,
+              sourceDigestsVerified: true,
               noRebuild: true,
               digestPreservingCopy: true,
               apiTargetDigestMatchesSource: process.env.API_TARGET_DIGEST === process.env.API_SOURCE_DIGEST,
               adminTargetDigestMatchesSource: process.env.ADMIN_TARGET_DIGEST === process.env.ADMIN_SOURCE_DIGEST,
-              productionDeploymentEvidence: false,
-              productionAcceptance: false,
+              mutableLatestTagUsed: false,
+              keylessAuthentication: true,
             },
-            workflowRunRef: `github://actions/runs/${process.env.GITHUB_RUN_ID}/attempts/${process.env.GITHUB_RUN_ATTEMPT}`,
+            evidenceRefs: {
+              promotionRun: runRef,
+              sourceDigestVerification: `${runRef}#source-digest-verification`,
+              apiPromotion: `${runRef}#api-promotion`,
+              adminPromotion: `${runRef}#admin-promotion`,
+              targetDigestVerification: `${runRef}#target-digest-verification`,
+            },
           };
           writeFileSync('gcp-artifact-registry-promotion-evidence/promotion.json', `${JSON.stringify(evidence, null, 2)}\n`, { mode: 0o600 });
           NODE
-          sha256sum gcp-artifact-registry-promotion-evidence/promotion.json > gcp-artifact-registry-promotion-evidence/SHA256SUMS
+          node .ci/release-gcp-artifact-registry-promotion-contract.mjs \
+            --validate gcp-artifact-registry-promotion-evidence/promotion.json \
+            --out gcp-artifact-registry-promotion-evidence/validation.json
+          sha256sum \
+            gcp-artifact-registry-promotion-evidence/promotion.json \
+            gcp-artifact-registry-promotion-evidence/validation.json \
+            > gcp-artifact-registry-promotion-evidence/SHA256SUMS
           sha256sum --check --strict gcp-artifact-registry-promotion-evidence/SHA256SUMS
           printf 'productionDeploymentEvidence=false\nproductionAcceptance=false\n' > gcp-artifact-registry-promotion-evidence/metadata.txt
 
@@ -182,6 +228,8 @@ jobs:
             echo "- Region: \`me-central2\`"
             echo "- API digest preserved: \`$API_TARGET_DIGEST\`"
             echo "- Admin digest preserved: \`$ADMIN_TARGET_DIGEST\`"
+            echo "- Evidence schema: \`carepoint.release1-gcp-artifact-registry-promotion/v1\`"
+            echo "- G5b validator: \`passed\`"
             echo "- Authentication: Workload Identity Federation / keyless"
             echo "- Rebuild performed: \`false\`"
             echo "- Production deployment evidence: \`false\`"
