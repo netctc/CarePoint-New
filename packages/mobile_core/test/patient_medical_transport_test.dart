@@ -10,7 +10,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
-  test('F10 transport status, assistance and date semantics cover every supported locale', () {
+  test('F10 transport status, assistance, logistics and date semantics cover every supported locale', () {
     for (final locale in CarePointLocale.values) {
       for (final status in const ['REQUESTED', 'ASSIGNED', 'EN_ROUTE', 'ARRIVED', 'TRANSPORTING', 'COMPLETED', 'CANCELLED']) {
         final label = patientMedicalTransportStatusText(locale, status);
@@ -19,6 +19,8 @@ void main() {
       }
       expect(patientMedicalTransportAssistanceText(locale, 'WHEELCHAIR'), isNotEmpty);
       expect(patientMedicalTransportModeText(locale, 'AIR'), isNotEmpty);
+      expect(patientMedicalTransportEquipmentText(locale, const ['OXYGEN', 'MONITORING']), isNotEmpty);
+      expect(patientMedicalTransportEquipmentText(locale, const []), isNotEmpty);
       expect(patientMedicalTransportText(locale, 'detailTitle'), isNotEmpty);
     }
     expect(patientMedicalTransportDateTime('2031-01-15T10:30:00'), '15/01/2031 10:30');
@@ -52,6 +54,8 @@ void main() {
             'mode': 'GROUND',
             'status': 'EN_ROUTE',
             'assistance': 'WHEELCHAIR',
+            'companionCount': 2,
+            'equipment': ['OXYGEN', 'MONITORING'],
             'scheduledFor': '2031-01-15T10:30:00',
             'pickupAddress': 'Authorized pickup',
             'destinationAddress': 'Authorized destination',
@@ -84,6 +88,8 @@ void main() {
     expect(find.text('En route'), findsWidgets);
     expect(find.text('15/01/2031 10:30'), findsOneWidget);
     expect(find.text('Wheelchair'), findsOneWidget);
+    expect(find.text('2'), findsOneWidget);
+    expect(find.text('Oxygen, Monitoring'), findsOneWidget);
     expect(find.text('Authorized pickup'), findsOneWidget);
     expect(find.text('Authorized destination'), findsOneWidget);
     expect(find.text('Authorized Transport Team'), findsOneWidget);
@@ -101,6 +107,7 @@ void main() {
         return http.Response(jsonEncode({
           'request': {
             'id': 'cancellable', 'mode': 'GROUND', 'status': cancelled ? 'CANCELLED' : 'ASSIGNED', 'assistance': 'STANDARD',
+            'companionCount': 0, 'equipment': [],
             'scheduledFor': '2031-01-15T10:30:00', 'pickupAddress': 'Pickup', 'destinationAddress': 'Destination'
           },
           'history': []
@@ -111,6 +118,7 @@ void main() {
         return http.Response(jsonEncode({
           'request': {
             'id': 'cancellable', 'mode': 'GROUND', 'status': 'CANCELLED', 'assistance': 'STANDARD',
+            'companionCount': 0, 'equipment': [],
             'scheduledFor': '2031-01-15T10:30:00', 'pickupAddress': 'Pickup', 'destinationAddress': 'Destination',
             'cancellationReason': 'Cancelled by Patient from mobile app'
           },
@@ -168,6 +176,7 @@ void main() {
         return http.Response(jsonEncode({
           'request': {
             'id': 'owned-transport', 'mode': 'AIR', 'status': 'ASSIGNED', 'assistance': 'STRETCHER',
+            'companionCount': 1, 'equipment': ['VENTILATION'],
             'scheduledFor': '2031-01-15T15:30:00', 'pickupAddress': 'Hospital A', 'destinationAddress': 'Hospital B',
             'etaMinutes': 25, 'assignedProvider': {'displayName': 'Air Medical Team'}
           },
@@ -192,6 +201,7 @@ void main() {
     expect(calls, contains('GET /api/v1/medical-transport/owned-transport'));
     expect(find.text('Medical transport status'), findsOneWidget);
     expect(find.text('Air Medical Team'), findsOneWidget);
+    expect(find.text('Ventilation'), findsOneWidget);
     expect(find.textContaining('owned-transport'), findsNothing);
   });
 
