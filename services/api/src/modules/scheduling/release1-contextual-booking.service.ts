@@ -109,11 +109,11 @@ export class Release1ContextualBookingService {
     if (homeVisit?.contactConfirmed !== true) throw new BadRequestException("homeVisit.contactConfirmed must be true before booking.");
     if (homeVisit?.addressValidated !== true) throw new BadRequestException("homeVisit.addressValidated must be true before booking.");
     const delivery = await tx.serviceDeliveryContext.findUnique({ where: { serviceId_modality: { serviceId, modality: "HOME_VISIT" } } });
-    if (delivery?.homeCoverageRadiusKm !== null && delivery?.homeCoverageRadiusKm !== undefined) {
-      if (delivery.homeCoverageCenterLatitude === null || delivery.homeCoverageCenterLongitude === null) throw new ConflictException("Home-visit coverage configuration is incomplete.");
-      const distance = this.distanceKm(latitude, longitude, Number(delivery.homeCoverageCenterLatitude), Number(delivery.homeCoverageCenterLongitude));
-      if (distance > Number(delivery.homeCoverageRadiusKm)) throw new ConflictException("Home-visit address is outside the configured service coverage.");
+    if (!delivery || delivery.homeCoverageRadiusKm === null || delivery.homeCoverageCenterLatitude === null || delivery.homeCoverageCenterLongitude === null || Number(delivery.homeCoverageRadiusKm) <= 0) {
+      throw new ConflictException("Home-visit service is missing its required coverage configuration.");
     }
+    const distance = this.distanceKm(latitude, longitude, Number(delivery.homeCoverageCenterLatitude), Number(delivery.homeCoverageCenterLongitude));
+    if (distance > Number(delivery.homeCoverageRadiusKm)) throw new ConflictException("Home-visit address is outside the configured service coverage.");
     const addressLine2 = this.optional(homeVisit?.addressLine2, 300, "homeVisit.addressLine2");
     const region = this.optional(homeVisit?.region, 120, "homeVisit.region");
     const postalCode = this.optional(homeVisit?.postalCode, 40, "homeVisit.postalCode");
