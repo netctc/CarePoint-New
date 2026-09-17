@@ -2,6 +2,7 @@ import { Injectable, InternalServerErrorException } from "@nestjs/common";
 import { PhiEnvelopeEncryption, StaticAesKwKeyProvider, type EncryptedEnvelope, type KeyEncryptionKeyProvider } from "@carepoint/security";
 import { localSyntheticPilotProvidersAllowed } from "../../infrastructure/release/private-pilot-infrastructure-profile";
 import { AwsKmsKeyProvider } from "../../infrastructure/security/aws-kms-key-provider";
+import { GcpKmsKeyProvider } from "../../infrastructure/security/gcp-kms-key-provider";
 import { OciKmsKeyProvider } from "../../infrastructure/security/oci-kms-key-provider";
 
 @Injectable()
@@ -28,17 +29,34 @@ export class DocumentsEnvelopeService {
   }
 
   private keyProvider(): KeyEncryptionKeyProvider {
-    const productionDefault = process.env.CAREPOINT_CLOUD_PROVIDER?.trim() === "oci" ? "oci-vault-kms" : "aws-kms";
+    const cloudProvider = process.env.CAREPOINT_CLOUD_PROVIDER?.trim();
+    const productionDefault = cloudProvider === "gcp"
+      ? "gcp-cloud-kms"
+      : cloudProvider === "oci"
+        ? "oci-vault-kms"
+        : "aws-kms";
     const provider = process.env.DOCUMENT_KEY_PROVIDER ?? (process.env.NODE_ENV === "production" ? productionDefault : "local");
 
     if (
       process.env.NODE_ENV === "production"
-      && process.env.CAREPOINT_CLOUD_PROVIDER?.trim() === "oci"
+      && cloudProvider === "oci"
       && provider !== "oci-vault-kms"
     ) {
       throw new InternalServerErrorException("OCI production document encryption requires DOCUMENT_KEY_PROVIDER='oci-vault-kms'.");
     }
+    if (
+      process.env.NODE_ENV === "production"
+      && cloudProvider === "gcp"
+      && provider !== "gcp-cloud-kms"
+    ) {
+      throw new InternalServerErrorException("GCP production document encryption requires DOCUMENT_KEY_PROVIDER='gcp-cloud-kms'.");
+    }
 
+    if (provider === "gcp-cloud-kms") {
+      const keyId = process.env.CAREPOINT_DOCUMENT_KEY_REF;
+      if (!keyId) throw new InternalServerErrorException("CAREPOINT_DOCUMENT_KEY_REF is required for GCP Cloud KMS document encryption.");
+      return new GcpKmsKeyProvider(keyId, "carepoint-clinical-document-dek", process.env);
+    }
     if (provider === "oci-vault-kms") {
       const keyId = process.env.CAREPOINT_DOCUMENT_KEY_REF;
       if (!keyId) throw new InternalServerErrorException("CAREPOINT_DOCUMENT_KEY_REF is required for OCI Vault KMS document encryption.");
