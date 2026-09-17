@@ -37,7 +37,7 @@
     "r3:gcp-kms-attestation-runtime": "node scripts/r3-gcp-kms-attestation-runtime-smoke.mjs && node scripts/r3-gcp-kms-attestation-service-smoke.mjs",
     "r3:gcp-object-storage-runtime": "node scripts/r3-gcp-object-storage-runtime-smoke.mjs && node scripts/r3-gcp-object-storage-consumer-smoke.mjs",
     "r3:gcp-object-storage-preflight": "node scripts/r3-gcp-object-storage-preflight-smoke.mjs",
-    "r3:gcp-production-preflight-binding": "node scripts/r3-gcp-production-preflight-binding-smoke.mjs",
+    "r3:gcp-production-preflight-binding": "node scripts/r3-gcp-production-preflight-binding-smoke.mjs && node scripts/r3-gcp-cloud-sql-preflight-smoke.mjs",
     "r3:oci-security-preflight-binding": "node scripts/r3-oci-security-preflight-binding-smoke.mjs",
     "r3:oci-sdk-runtime-binding": "node scripts/r3-oci-sdk-runtime-binding-smoke.mjs",
     "r3:oci-secret-value-runtime": "node scripts/r3-oci-secret-value-runtime-smoke.mjs",
