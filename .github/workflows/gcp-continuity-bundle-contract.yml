@@ -1,0 +1,127 @@
+name: GCP Continuity Bundle Closure Contract
+
+on:
+  pull_request:
+    paths:
+      - ".ci/release-gcp-continuity-bundle-contract.mjs"
+      - ".github/workflows/gcp-continuity-bundle-contract.yml"
+      - "ops/release-1/gcp-continuity-bundle.example.json"
+      - "ops/release-1/gcp-g6d-continuity-closure-runbook.md"
+      - ".ci/release-gcp-cloud-sql-pitr-rehearsal-contract.mjs"
+      - ".ci/release-gcp-memorystore-failover-rehearsal-contract.mjs"
+      - ".ci/release-gcp-cloud-storage-recovery-contract.mjs"
+      - ".github/workflows/gcp-cloud-sql-pitr-rehearsal.yml"
+      - ".github/workflows/gcp-memorystore-failover-rehearsal.yml"
+      - ".github/workflows/gcp-cloud-storage-recovery.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - ".ci/release-gcp-continuity-bundle-contract.mjs"
+      - ".github/workflows/gcp-continuity-bundle-contract.yml"
+      - "ops/release-1/gcp-continuity-bundle.example.json"
+      - "ops/release-1/gcp-g6d-continuity-closure-runbook.md"
+
+permissions:
+  contents: read
+
+env:
+  CAREPOINT_CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  contract:
+    name: Validate G6 continuity bundle closure contract
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out exact candidate source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ env.CAREPOINT_CANDIDATE_SHA }}
+
+      - name: Verify exact checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$CAREPOINT_CANDIDATE_SHA"
+          test -z "$(git status --porcelain)"
+
+      - name: Revalidate G6 phase contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node .ci/release-gcp-cloud-sql-pitr-rehearsal-contract.mjs --self-test
+          node .ci/release-gcp-memorystore-failover-rehearsal-contract.mjs --self-test
+          node .ci/release-gcp-cloud-storage-recovery-contract.mjs --self-test
+          node .ci/release-gcp-continuity-bundle-contract.mjs --self-test
+
+      - name: Revalidate protected live workflow boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          node .ci/release-gcp-cloud-sql-pitr-rehearsal-contract.mjs --validate-workflow .github/workflows/gcp-cloud-sql-pitr-rehearsal.yml
+          node .ci/release-gcp-memorystore-failover-rehearsal-contract.mjs --validate-workflow .github/workflows/gcp-memorystore-failover-rehearsal.yml
+          node .ci/release-gcp-cloud-storage-recovery-contract.mjs --validate-workflow .github/workflows/gcp-cloud-storage-recovery.yml
+
+      - name: Validate non-approved G6d manifest
+        run: node .ci/release-gcp-continuity-bundle-contract.mjs --validate-manifest ops/release-1/gcp-continuity-bundle.example.json
+
+      - name: Emit contract-only G6d evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p gcp-continuity-bundle-contract-evidence
+          node .ci/release-gcp-continuity-bundle-contract.mjs \
+            --contract-evidence \
+            ops/release-1/gcp-continuity-bundle.example.json \
+            gcp-continuity-bundle-contract-evidence/contract.json
+          node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from 'node:fs';
+          const path = 'gcp-continuity-bundle-contract-evidence/contract.json';
+          const value = JSON.parse(readFileSync(path, 'utf8'));
+          value.sourceSha = process.env.CAREPOINT_CANDIDATE_SHA;
+          value.exactCheckoutVerified = true;
+          value.liveRecoveryExecuted = false;
+          value.workflowPurpose = 'contract-validation-only';
+          writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`);
+          NODE
+          sha256sum \
+            .ci/release-gcp-continuity-bundle-contract.mjs \
+            .ci/release-gcp-cloud-sql-pitr-rehearsal-contract.mjs \
+            .ci/release-gcp-memorystore-failover-rehearsal-contract.mjs \
+            .ci/release-gcp-cloud-storage-recovery-contract.mjs \
+            .github/workflows/gcp-continuity-bundle-contract.yml \
+            .github/workflows/gcp-cloud-sql-pitr-rehearsal.yml \
+            .github/workflows/gcp-memorystore-failover-rehearsal.yml \
+            .github/workflows/gcp-cloud-storage-recovery.yml \
+            ops/release-1/gcp-continuity-bundle.example.json \
+            ops/release-1/gcp-g6d-continuity-closure-runbook.md \
+            gcp-continuity-bundle-contract-evidence/contract.json \
+            > gcp-continuity-bundle-contract-evidence/SHA256SUMS
+          sha256sum --check --strict gcp-continuity-bundle-contract-evidence/SHA256SUMS
+
+      - name: Upload contract-only G6d evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: carepoint-gcp-continuity-bundle-contract-${{ env.CAREPOINT_CANDIDATE_SHA }}
+          path: gcp-continuity-bundle-contract-evidence
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Summarize evidence boundary
+        shell: bash
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" <<'EOF'
+          ## G6d continuity bundle contract
+          - Exact candidate checkout: verified
+          - G6a/G6b/G6c contract self-tests: passed
+          - G6a/G6b/G6c protected live workflow boundaries: validated
+          - Live recovery executed by this workflow: **false**
+          - Production recovery evidence produced by this workflow: **false**
+          - Second Saudi GCP region approved: **false**
+          - Geographic DR claimed: **false**
+          - Production acceptance: **false**
+
+          Final G6 closure requires the three restricted real G6a/G6b/G6c evidence files to pass `--validate-bundle` on the exact frozen RC checkout.
+          EOF
