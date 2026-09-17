@@ -10,6 +10,7 @@ import { createProductionOciSecurityRuntime } from "./infrastructure/cloud/oci-p
 import { assertProductionProviderResponsePolicyReady } from "./infrastructure/http/bounded-provider-response";
 import { browserOrigins } from "./infrastructure/http/browser-origin-readiness";
 import { assertProductionFinancialGatewayEgressReady } from "./infrastructure/http/financial-gateway-egress";
+import { assertProductionGcpEdgeRuntimeReady } from "./infrastructure/http/production-gcp-edge-runtime-preflight";
 import { assertProductionInboundBodyLimitsReady, inboundBodyLimits } from "./infrastructure/http/inbound-body-limits";
 import { assertProductionTelehealthReady } from "./infrastructure/http/livekit-endpoint";
 import {
@@ -82,6 +83,7 @@ async function bootstrap(): Promise<void> {
 
   if (!isolatedSyntheticPilot) {
     if (productionCloudProvider === "gcp") {
+      await assertProductionGcpEdgeRuntimeReady();
       await assertProductionGcpObjectStorageReady();
       await assertProductionGcpCloudSqlReady();
       await assertProductionGcpMemorystoreReady();
