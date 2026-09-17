@@ -31,6 +31,8 @@ jobs:
         run: node .ci/release-infrastructure-evidence-contract.mjs --self-test
       - name: Self-test OCI KSA infrastructure evidence extension
         run: node .ci/release-infrastructure-oci-evidence-contract.mjs --self-test
+      - name: Self-test GCP KSA infrastructure evidence extension
+        run: node .ci/release-infrastructure-gcp-evidence-contract.mjs --self-test
       - name: Self-test OCI live evidence draft composer
         run: node .ci/compose-release-infrastructure-oci-evidence-template.mjs --self-test
       - name: Verify non-approved infrastructure evidence template
@@ -41,6 +43,10 @@ jobs:
         run: >-
           node .ci/release-infrastructure-oci-evidence-contract.mjs
           --validate-template ops/release-1/production-infrastructure-oci-extension.example.json
+      - name: Verify non-approved GCP evidence extension template
+        run: >-
+          node .ci/release-infrastructure-gcp-evidence-contract.mjs
+          --validate-template ops/release-1/production-infrastructure-gcp-extension.example.json
       - name: Compose and verify non-approved OCI operator draft
         run: |
           mkdir -p infrastructure-contract-evidence
@@ -64,15 +70,22 @@ jobs:
             --contract-evidence \
             ops/release-1/production-infrastructure-oci-extension.example.json \
             infrastructure-contract-evidence/oci-extension-contract-evidence.json
+          node .ci/release-infrastructure-gcp-evidence-contract.mjs \
+            --contract-evidence \
+            ops/release-1/production-infrastructure-gcp-extension.example.json \
+            infrastructure-contract-evidence/gcp-extension-contract-evidence.json
           sha256sum \
             .ci/release-infrastructure-evidence-contract.mjs \
             .ci/release-infrastructure-oci-evidence-contract.mjs \
+            .ci/release-infrastructure-gcp-evidence-contract.mjs \
             .ci/compose-release-infrastructure-oci-evidence-template.mjs \
             ops/release-1/production-infrastructure-evidence.example.json \
             ops/release-1/production-infrastructure-oci-extension.example.json \
+            ops/release-1/production-infrastructure-gcp-extension.example.json \
             infrastructure-contract-evidence/oci-live-evidence-template.json \
             infrastructure-contract-evidence/contract-evidence.json \
             infrastructure-contract-evidence/oci-extension-contract-evidence.json \
+            infrastructure-contract-evidence/gcp-extension-contract-evidence.json \
             > infrastructure-contract-evidence/SHA256SUMS
           printf 'sourceSha=%s\nproductionAcceptance=false\nworkflowPurpose=contract-validation-only\n' \
             "$CAREPOINT_INFRA_SOURCE_SHA" \
