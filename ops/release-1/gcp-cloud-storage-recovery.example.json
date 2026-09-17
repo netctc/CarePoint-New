@@ -1,0 +1,43 @@
+{
+  "schema": "carepoint.release1-gcp-cloud-storage-recovery/v1",
+  "phase": "G6c",
+  "sourceSha": "0000000000000000000000000000000000000000",
+  "releaseVersion": "REPLACE_WITH_FROZEN_RC_VERSION",
+  "g5BundleEvidenceRef": "restricted://replace-with-g5e-evidence-reference",
+  "provider": "gcp",
+  "jurisdiction": "SA",
+  "region": "me-central2",
+  "recoveryTarget": "clinical-documents",
+  "bucketEvidenceHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "softDeleteRetentionSeconds": 604800,
+  "regionalEndpoint": "https://storage.me-central2.rep.googleapis.com/",
+  "rehearsal": {
+    "objectIdentityHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "contentDigestBefore": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "contentDigestAfter": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "recoveryStartedAtUtc": "2026-09-17T00:00:00Z",
+    "recoveryCompletedAtUtc": "2026-09-17T00:00:00Z",
+    "measuredRpoSeconds": 0,
+    "measuredRtoSeconds": 0,
+    "evidenceRef": "restricted://replace-with-rehearsal-evidence-reference"
+  },
+  "controls": {
+    "keylessAuthentication": false,
+    "exactFrozenRcBound": false,
+    "g5BundleBound": false,
+    "regionalEndpointUsed": false,
+    "bucketRegionVerified": false,
+    "publicAccessPreventionVerified": false,
+    "uniformBucketLevelAccessVerified": false,
+    "cmekVerified": false,
+    "softDeletePolicyVerified": false,
+    "objectCreated": false,
+    "objectSoftDeleted": false,
+    "objectRestored": false,
+    "restoredContentIntegrityVerified": false,
+    "syntheticLiveObjectRemoved": false,
+    "geographicDrClaimed": false,
+    "productionRecoveryEvidence": false,
+    "productionAcceptance": false
+  }
+}
