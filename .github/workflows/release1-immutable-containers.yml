@@ -15,22 +15,12 @@ on:
       - "packages/identity/**"
       - "packages/security/**"
       - ".github/workflows/release1-immutable-containers.yml"
+  # Every canonical release-line commit is an RC identity. Even release-tooling-only
+  # changes must republish images so their embedded revision exactly matches the
+  # canonical SHA consumed by G5/G6/G7.
   push:
     branches:
       - "release/release-1-integration-go-live-readiness"
-    paths:
-      - "Dockerfile"
-      - ".dockerignore"
-      - ".ci/verify-container-supply-chain.mjs"
-      - ".ci/verify-immutable-container-release.mjs"
-      - "package.json"
-      - "package-lock.json"
-      - "apps/admin/**"
-      - "services/api/**"
-      - "packages/contracts/**"
-      - "packages/identity/**"
-      - "packages/security/**"
-      - ".github/workflows/release1-immutable-containers.yml"
 
 permissions:
   contents: read
