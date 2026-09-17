@@ -27,6 +27,7 @@ export class Release1SchedulingContextService {
   validateServiceContexts(principal: AuthPrincipal, modalities: readonly Release1ServiceModalityInput[]) { return this.locationDiscovery.validateServiceContexts(principal, modalities); }
   configureServiceContexts(principal: AuthPrincipal, serviceId: string, modalities: readonly Release1ServiceModalityInput[]) { return this.locationDiscovery.configureServiceContexts(principal, serviceId, modalities); }
   configureSingleServiceContext(principal: AuthPrincipal, serviceId: string, modality: string, input: Release1DeliveryContextInput) { return this.locationDiscovery.configureSingleServiceContext(principal, serviceId, modality, input); }
+  assertServiceReadyForActivation(principal: AuthPrincipal, serviceId: string) { return this.locationDiscovery.assertServiceReadyForActivation(principal, serviceId); }
   listProviderServices(principal: AuthPrincipal) { return this.locationDiscovery.listProviderServices(principal); }
   legacySearch(input: { q?: string; modality?: string }) { return this.locationDiscovery.legacySearch(input); }
   discovery(input: DiscoveryInput) { return this.locationDiscovery.discovery(input); }
