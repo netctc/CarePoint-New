@@ -45,37 +45,83 @@ function validOciProductionEnv() {
   };
 }
 
+function validGcpProductionEnv() {
+  return {
+    NODE_ENV: "production",
+    CAREPOINT_CLOUD_PROVIDER: "gcp",
+    CAREPOINT_RESIDENCY_JURISDICTION: "SA",
+    CAREPOINT_APPROVED_DATA_REGIONS: "me-central2",
+    CAREPOINT_PRIMARY_REGION: "me-central2",
+    GCP_REGION: "me-central2",
+    DATA_RESIDENCY_JURISDICTION: "SA",
+    DATA_RESIDENCY_REGION: "me-central2",
+    DATA_RESIDENCY_POLICY_VERSION: "release1-ksa-gcp-v1",
+    DATA_RESIDENCY_EVIDENCE_REFERENCE: "R3-GCP-G2-STARTUP-TEST",
+    DATABASE_DEPLOYMENT_REGION: "me-central2",
+    REDIS_DEPLOYMENT_REGION: "me-central2",
+    DATA_RETENTION_POLICY_JSON: preservePolicy(),
+    DATA_RETENTION_BATCH_SIZE: "100",
+  };
+}
+
 assert.equal(assertProductionCloudStartupReady({ NODE_ENV: "test" }), null);
 
-const valid = validOciProductionEnv();
-const contract = assertProductionCloudStartupReady(valid);
-assert.equal(contract.provider, "oci");
-assert.equal(contract.primaryRegion, "me-riyadh-1");
-assert.equal(contract.drRegion, "me-jeddah-1");
+const validOci = validOciProductionEnv();
+const ociContract = assertProductionCloudStartupReady(validOci);
+assert.equal(ociContract.provider, "oci");
+assert.equal(ociContract.primaryRegion, "me-riyadh-1");
+assert.equal(ociContract.drRegion, "me-jeddah-1");
 
 assert.throws(
-  () => assertProductionCloudStartupReady({ ...valid, CAREPOINT_CLOUD_PROVIDER: "" }),
+  () => assertProductionCloudStartupReady({ ...validOci, CAREPOINT_CLOUD_PROVIDER: "" }),
   /CAREPOINT_CLOUD_PROVIDER is required in production/,
 );
 assert.throws(
-  () => assertProductionCloudStartupReady({ ...valid, CAREPOINT_CLOUD_PROVIDER: "gcp" }),
-  /must be 'aws' or 'oci'/,
+  () => assertProductionCloudStartupReady({ ...validOci, CAREPOINT_CLOUD_PROVIDER: "azure" }),
+  /must be 'aws', 'oci', or 'gcp'/,
 );
 assert.throws(
-  () => assertProductionCloudStartupReady({ ...valid, CAREPOINT_CLOUD_PROVIDER: "aws" }),
+  () => assertProductionCloudStartupReady({ ...validOci, CAREPOINT_CLOUD_PROVIDER: "aws" }),
   /AWS is retained as a compatibility provider but is not an accepted KSA-resident Release 1 production target/,
 );
 assert.throws(
-  () => assertProductionCloudStartupReady({ ...valid, DATA_RESIDENCY_REGION: "me-jeddah-1" }),
+  () => assertProductionCloudStartupReady({ ...validOci, DATA_RESIDENCY_REGION: "me-jeddah-1" }),
   /OCI_REGION.*must match DATA_RESIDENCY_REGION/,
 );
 assert.throws(
-  () => assertProductionCloudStartupReady({ ...valid, DATABASE_DEPLOYMENT_REGION: "me-jeddah-1" }),
+  () => assertProductionCloudStartupReady({ ...validOci, DATABASE_DEPLOYMENT_REGION: "me-jeddah-1" }),
   /DATABASE_DEPLOYMENT_REGION.*must match DATA_RESIDENCY_REGION/,
 );
 assert.throws(
-  () => assertProductionCloudStartupReady({ ...valid, REDIS_DEPLOYMENT_REGION: "me-jeddah-1" }),
+  () => assertProductionCloudStartupReady({ ...validOci, REDIS_DEPLOYMENT_REGION: "me-jeddah-1" }),
   /REDIS_DEPLOYMENT_REGION.*must match DATA_RESIDENCY_REGION/,
 );
 
-console.log("R3 production cloud startup binding smoke passed");
+const validGcp = validGcpProductionEnv();
+const gcpContract = assertProductionCloudStartupReady(validGcp);
+assert.equal(gcpContract.provider, "gcp");
+assert.equal(gcpContract.primaryRegion, "me-central2");
+assert.equal(gcpContract.drRegion, null);
+assert.deepEqual(gcpContract.approvedDataRegions, ["me-central2"]);
+assert.throws(
+  () => assertProductionCloudStartupReady({ ...validGcp, DATA_RESIDENCY_REGION: "me-central1" }),
+  /GCP_REGION.*must match DATA_RESIDENCY_REGION/,
+);
+assert.throws(
+  () => assertProductionCloudStartupReady({ ...validGcp, DATABASE_DEPLOYMENT_REGION: "me-central1" }),
+  /DATABASE_DEPLOYMENT_REGION.*must match DATA_RESIDENCY_REGION/,
+);
+assert.throws(
+  () => assertProductionCloudStartupReady({ ...validGcp, REDIS_DEPLOYMENT_REGION: "me-central1" }),
+  /REDIS_DEPLOYMENT_REGION.*must match DATA_RESIDENCY_REGION/,
+);
+assert.throws(
+  () => assertProductionCloudStartupReady({ ...validGcp, GCP_REGION: "" }),
+  /GCP_REGION is required in production/,
+);
+assert.throws(
+  () => assertProductionCloudStartupReady({ ...validGcp, CAREPOINT_DR_REGION: "me-central2" }),
+  /CAREPOINT_DR_REGION must be unset for the GCP KSA profile/,
+);
+
+console.log("R3 production cloud startup binding smoke passed for OCI and GCP KSA profiles");

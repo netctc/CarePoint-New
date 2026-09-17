@@ -1,10 +1,11 @@
 import {
+  GCP_KSA_PRIMARY_REGION,
   OCI_KSA_PRIMARY_REGION,
   productionCloudContract,
   type ProductionCloudProvider,
 } from "./production-cloud-provider";
 
-export type ProductionObjectStorageProvider = "aws-s3" | "oci-object-storage";
+export type ProductionObjectStorageProvider = "aws-s3" | "oci-object-storage" | "gcp-cloud-storage";
 
 export type ProductionObjectStorageDomain = {
   label: "clinical-documents" | "fhir-bulk-export";
@@ -41,15 +42,20 @@ export function productionObjectStorageContract(
   if (!cloud) return null;
 
   const provider = required(env, "CAREPOINT_OBJECT_STORAGE_PROVIDER");
-  if (provider !== "aws-s3" && provider !== "oci-object-storage") {
+  if (provider !== "aws-s3" && provider !== "oci-object-storage" && provider !== "gcp-cloud-storage") {
     throw new Error(
-      "CAREPOINT_OBJECT_STORAGE_PROVIDER must be 'aws-s3' or 'oci-object-storage' in production.",
+      "CAREPOINT_OBJECT_STORAGE_PROVIDER must be 'aws-s3' or 'oci-object-storage', or 'gcp-cloud-storage' in production.",
     );
   }
 
   if (cloud.provider === "oci" && provider !== "oci-object-storage") {
     throw new Error(
       "OCI Release 1 production requires CAREPOINT_OBJECT_STORAGE_PROVIDER='oci-object-storage'.",
+    );
+  }
+  if (cloud.provider === "gcp" && provider !== "gcp-cloud-storage") {
+    throw new Error(
+      "GCP Release 1 production requires CAREPOINT_OBJECT_STORAGE_PROVIDER='gcp-cloud-storage'.",
     );
   }
 
@@ -64,14 +70,21 @@ export function productionObjectStorageContract(
       `OCI Release 1 active object storage must be in primary region '${OCI_KSA_PRIMARY_REGION}'.`,
     );
   }
+  if (cloud.provider === "gcp" && region !== GCP_KSA_PRIMARY_REGION) {
+    throw new Error(
+      `GCP Release 1 active object storage must be in primary region '${GCP_KSA_PRIMARY_REGION}'.`,
+    );
+  }
 
   const documentBucketRef = validateBucketRef(
     required(env, "CAREPOINT_DOCUMENT_BUCKET_REF"),
+    provider,
     "CAREPOINT_DOCUMENT_BUCKET_REF",
   );
   const documentKeyRef = validateKeyRef(
     required(env, "CAREPOINT_DOCUMENT_STORAGE_KEY_REF"),
     provider,
+    region,
     "CAREPOINT_DOCUMENT_STORAGE_KEY_REF",
   );
   const documentPrefix = normalizePrefix(
@@ -80,11 +93,13 @@ export function productionObjectStorageContract(
 
   const bulkBucketRef = validateBucketRef(
     env.CAREPOINT_BULK_EXPORT_BUCKET_REF?.trim() || documentBucketRef,
+    provider,
     "CAREPOINT_BULK_EXPORT_BUCKET_REF",
   );
   const bulkKeyRef = validateKeyRef(
     env.CAREPOINT_BULK_EXPORT_STORAGE_KEY_REF?.trim() || documentKeyRef,
     provider,
+    region,
     "CAREPOINT_BULK_EXPORT_STORAGE_KEY_REF",
   );
   const bulkPrefix = normalizePrefix(
@@ -166,8 +181,21 @@ export function validateProductionObjectStorageBucketInspection(
   }
 }
 
-function validateBucketRef(value: string, name: string): string {
+function validateBucketRef(
+  value: string,
+  provider: ProductionObjectStorageProvider,
+  name: string,
+): string {
   const trimmed = value.trim();
+  if (provider === "gcp-cloud-storage") {
+    if (trimmed.length < 3 || trimmed.length > 63 || !/^[a-z0-9][a-z0-9._-]*[a-z0-9]$/.test(trimmed)) {
+      throw new Error(`${name} must be a valid lowercase GCP Cloud Storage bucket name.`);
+    }
+    if (/^\d{1,3}(?:\.\d{1,3}){3}$/.test(trimmed)) {
+      throw new Error(`${name} must not use an IP-address-shaped GCP bucket name.`);
+    }
+    return trimmed;
+  }
   if (trimmed.length < 3 || trimmed.length > 256 || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(trimmed)) {
     throw new Error(`${name} must be a non-secret bucket reference using only letters, digits, '.', '_' or '-'.`);
   }
@@ -177,6 +205,7 @@ function validateBucketRef(value: string, name: string): string {
 function validateKeyRef(
   value: string,
   provider: ProductionObjectStorageProvider,
+  region: string,
   name: string,
 ): string {
   const trimmed = value.trim();
@@ -186,8 +215,24 @@ function validateKeyRef(
     }
     return trimmed;
   }
+  if (provider === "gcp-cloud-storage") {
+    const parsed = parseGcpCryptoKeyRef(trimmed);
+    if (!parsed) {
+      throw new Error(`${name} must be a full GCP Cloud KMS CryptoKey resource name.`);
+    }
+    if (parsed.region !== region) {
+      throw new Error(`${name} GCP CryptoKey region '${parsed.region}' must match CAREPOINT_OBJECT_STORAGE_REGION '${region}'.`);
+    }
+    return trimmed;
+  }
   if (!trimmed) throw new Error(`${name} is required in production.`);
   return trimmed;
+}
+
+function parseGcpCryptoKeyRef(value: string): { region: string } | null {
+  const match = /^projects\/[a-z][a-z0-9-]{4,28}[a-z0-9]\/locations\/([a-z0-9-]+)\/keyRings\/[A-Za-z0-9_-]{1,63}\/cryptoKeys\/[A-Za-z0-9_-]{1,63}$/.exec(value);
+  if (!match?.[1]) return null;
+  return { region: match[1] };
 }
 
 function isOciKeyOcid(value: string): boolean {

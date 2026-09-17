@@ -31,8 +31,22 @@ jobs:
         run: node .ci/release-infrastructure-evidence-contract.mjs --self-test
       - name: Self-test OCI KSA infrastructure evidence extension
         run: node .ci/release-infrastructure-oci-evidence-contract.mjs --self-test
+      - name: Self-test GCP KSA infrastructure evidence extension
+        run: node .ci/release-infrastructure-gcp-evidence-contract.mjs --self-test
       - name: Self-test OCI live evidence draft composer
         run: node .ci/compose-release-infrastructure-oci-evidence-template.mjs --self-test
+      - name: Self-test GCP live evidence draft composer
+        run: node .ci/compose-release-infrastructure-gcp-evidence-template.mjs --self-test
+      - name: Verify GCP live acceptance runbook boundary
+        run: |
+          test -s ops/release-1/gcp-r3-live-acceptance-runbook.md
+          grep -Fq 'operator procedure / does not itself grant production acceptance' ops/release-1/gcp-r3-live-acceptance-runbook.md
+          grep -Fq 'Primary region: `me-central2` (Dammam)' ops/release-1/gcp-r3-live-acceptance-runbook.md
+          grep -Fq 'Geographic DR: **not yet proven or approved**' ops/release-1/gcp-r3-live-acceptance-runbook.md
+          grep -Fq 'productionAcceptance=false' ops/release-1/gcp-r3-live-acceptance-runbook.md
+          grep -Fq 'service-account JSON' ops/release-1/gcp-r3-live-acceptance-runbook.md
+          grep -Fq 'RPO <= 15 minutes' ops/release-1/gcp-r3-live-acceptance-runbook.md
+          grep -Fq 'RTO <= 120 minutes' ops/release-1/gcp-r3-live-acceptance-runbook.md
       - name: Verify non-approved infrastructure evidence template
         run: >-
           node .ci/release-infrastructure-evidence-contract.mjs
@@ -41,6 +55,10 @@ jobs:
         run: >-
           node .ci/release-infrastructure-oci-evidence-contract.mjs
           --validate-template ops/release-1/production-infrastructure-oci-extension.example.json
+      - name: Verify non-approved GCP evidence extension template
+        run: >-
+          node .ci/release-infrastructure-gcp-evidence-contract.mjs
+          --validate-template ops/release-1/production-infrastructure-gcp-extension.example.json
       - name: Compose and verify non-approved OCI operator draft
         run: |
           mkdir -p infrastructure-contract-evidence
@@ -53,6 +71,18 @@ jobs:
             --validate-template infrastructure-contract-evidence/oci-live-evidence-template.json
           node .ci/release-infrastructure-oci-evidence-contract.mjs \
             --validate-template infrastructure-contract-evidence/oci-live-evidence-template.json
+      - name: Compose and verify non-approved GCP operator draft
+        run: |
+          mkdir -p infrastructure-contract-evidence
+          node .ci/compose-release-infrastructure-gcp-evidence-template.mjs \
+            --compose \
+            ops/release-1/production-infrastructure-evidence.example.json \
+            ops/release-1/production-infrastructure-gcp-extension.example.json \
+            infrastructure-contract-evidence/gcp-live-evidence-template.json
+          node .ci/release-infrastructure-evidence-contract.mjs \
+            --validate-template infrastructure-contract-evidence/gcp-live-evidence-template.json
+          node .ci/release-infrastructure-gcp-evidence-contract.mjs \
+            --validate-template infrastructure-contract-evidence/gcp-live-evidence-template.json
       - name: Capture sanitized infrastructure-contract evidence
         run: |
           mkdir -p infrastructure-contract-evidence
@@ -64,17 +94,27 @@ jobs:
             --contract-evidence \
             ops/release-1/production-infrastructure-oci-extension.example.json \
             infrastructure-contract-evidence/oci-extension-contract-evidence.json
+          node .ci/release-infrastructure-gcp-evidence-contract.mjs \
+            --contract-evidence \
+            ops/release-1/production-infrastructure-gcp-extension.example.json \
+            infrastructure-contract-evidence/gcp-extension-contract-evidence.json
           sha256sum \
             .ci/release-infrastructure-evidence-contract.mjs \
             .ci/release-infrastructure-oci-evidence-contract.mjs \
+            .ci/release-infrastructure-gcp-evidence-contract.mjs \
             .ci/compose-release-infrastructure-oci-evidence-template.mjs \
+            .ci/compose-release-infrastructure-gcp-evidence-template.mjs \
+            ops/release-1/gcp-r3-live-acceptance-runbook.md \
             ops/release-1/production-infrastructure-evidence.example.json \
             ops/release-1/production-infrastructure-oci-extension.example.json \
+            ops/release-1/production-infrastructure-gcp-extension.example.json \
             infrastructure-contract-evidence/oci-live-evidence-template.json \
+            infrastructure-contract-evidence/gcp-live-evidence-template.json \
             infrastructure-contract-evidence/contract-evidence.json \
             infrastructure-contract-evidence/oci-extension-contract-evidence.json \
+            infrastructure-contract-evidence/gcp-extension-contract-evidence.json \
             > infrastructure-contract-evidence/SHA256SUMS
-          printf 'sourceSha=%s\nproductionAcceptance=false\nworkflowPurpose=contract-validation-only\n' \
+          printf 'sourceSha=%s\nproductionAcceptance=false\ngeographicDrProven=false\nrpoRtoProven=false\nworkflowPurpose=contract-validation-only\n' \
             "$CAREPOINT_INFRA_SOURCE_SHA" \
             > infrastructure-contract-evidence/metadata.txt
       - name: Upload infrastructure-contract evidence

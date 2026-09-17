@@ -1,0 +1,29 @@
+{
+  "schema": "carepoint.release1-gcp-continuity-bundle-manifest/v1",
+  "phase": "G6d",
+  "release": {
+    "sourceSha": "REPLACE_WITH_EXACT_FROZEN_RC_SHA",
+    "releaseVersion": "REPLACE_WITH_RELEASE_VERSION",
+    "g5BundleEvidenceRef": "REPLACE_WITH_RESTRICTED_G5E_BUNDLE_REFERENCE"
+  },
+  "evidence": {
+    "g6aCloudSql": "REPLACE_WITH_RESTRICTED_G6A_EVIDENCE_PATH",
+    "g6bMemorystore": "REPLACE_WITH_RESTRICTED_G6B_EVIDENCE_PATH",
+    "g6cCloudStorage": "REPLACE_WITH_RESTRICTED_G6C_EVIDENCE_PATH"
+  },
+  "controls": {
+    "exactRcIdentityAcrossSlices": false,
+    "g5BundleReferenceAligned": false,
+    "cloudSqlPitrValidated": false,
+    "memorystoreFailoverValidated": false,
+    "cloudStorageRestoreValidated": false,
+    "rpoObjectiveMet": false,
+    "rtoObjectiveMet": false,
+    "secondSaudiRegionApproved": false,
+    "geographicDrClaimed": false,
+    "phaseComplete": false
+  },
+  "bundleComplete": false,
+  "productionRecoveryEvidence": false,
+  "productionAcceptance": false
+}

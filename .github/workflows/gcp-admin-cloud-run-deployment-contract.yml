@@ -1,0 +1,111 @@
+name: GCP Admin Cloud Run Deployment Contract
+
+on:
+  pull_request:
+    paths:
+      - ".ci/release-gcp-admin-cloud-run-deployment-contract.mjs"
+      - ".github/workflows/gcp-admin-cloud-run-deployment.yml"
+      - ".github/workflows/gcp-admin-cloud-run-deployment-contract.yml"
+      - "ops/release-1/gcp-admin-cloud-run-deployment.example.json"
+      - "Dockerfile"
+      - "apps/admin/next.config.ts"
+      - "apps/admin/app/login/page.tsx"
+      - ".github/workflows/gcp-artifact-registry-promotion.yml"
+      - ".github/workflows/release1-immutable-containers.yml"
+  push:
+    branches: [main]
+    paths:
+      - ".ci/release-gcp-admin-cloud-run-deployment-contract.mjs"
+      - ".github/workflows/gcp-admin-cloud-run-deployment.yml"
+      - ".github/workflows/gcp-admin-cloud-run-deployment-contract.yml"
+      - "ops/release-1/gcp-admin-cloud-run-deployment.example.json"
+      - "Dockerfile"
+      - "apps/admin/next.config.ts"
+      - "apps/admin/app/login/page.tsx"
+      - ".github/workflows/gcp-artifact-registry-promotion.yml"
+      - ".github/workflows/release1-immutable-containers.yml"
+
+permissions:
+  contents: read
+
+env:
+  CAREPOINT_GCP_ADMIN_DEPLOYMENT_CONTRACT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  contract:
+    name: G5d Admin Cloud Run deployment evidence contract
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out exact candidate SHA
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          ref: ${{ env.CAREPOINT_GCP_ADMIN_DEPLOYMENT_CONTRACT_SHA }}
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+
+      - name: Verify exact checkout identity
+        run: test "$(git rev-parse HEAD)" = "$CAREPOINT_GCP_ADMIN_DEPLOYMENT_CONTRACT_SHA"
+
+      - name: Self-test GCP Admin Cloud Run deployment evidence contract
+        run: node .ci/release-gcp-admin-cloud-run-deployment-contract.mjs --self-test
+
+      - name: Verify non-approved G5d evidence template
+        run: >-
+          node .ci/release-gcp-admin-cloud-run-deployment-contract.mjs
+          --validate-template ops/release-1/gcp-admin-cloud-run-deployment.example.json
+
+      - name: Verify live Admin deployment workflow remains keyless and immutable
+        run: >-
+          node .ci/release-gcp-admin-cloud-run-deployment-contract.mjs
+          --validate-workflow .github/workflows/gcp-admin-cloud-run-deployment.yml
+
+      - name: Verify Admin immutable artifact and standalone runtime contracts remain present
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -F 'ADMIN_IMAGE: ghcr.io/netctc/carepoint-new-admin' .github/workflows/release1-immutable-containers.yml
+          grep -F 'admin_source_digest:' .github/workflows/gcp-artifact-registry-promotion.yml
+          grep -F 'carepoint-new-admin' .github/workflows/gcp-artifact-registry-promotion.yml
+          grep -F 'AS admin' Dockerfile
+          grep -F 'CMD ["node", "apps/admin/server.js"]' Dockerfile
+          grep -F 'output: "standalone"' apps/admin/next.config.ts
+          grep -F 'AdminLoginPanel' apps/admin/app/login/page.tsx
+          grep -F 'X-Robots-Tag' apps/admin/next.config.ts
+
+      - name: Capture sanitized G5d contract evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p gcp-admin-cloud-run-deployment-contract-evidence
+          node .ci/release-gcp-admin-cloud-run-deployment-contract.mjs \
+            --contract-evidence \
+            ops/release-1/gcp-admin-cloud-run-deployment.example.json \
+            .github/workflows/gcp-admin-cloud-run-deployment.yml \
+            gcp-admin-cloud-run-deployment-contract-evidence/contract-evidence.json
+          sha256sum \
+            .ci/release-gcp-admin-cloud-run-deployment-contract.mjs \
+            .github/workflows/gcp-admin-cloud-run-deployment.yml \
+            ops/release-1/gcp-admin-cloud-run-deployment.example.json \
+            Dockerfile \
+            apps/admin/next.config.ts \
+            apps/admin/app/login/page.tsx \
+            .github/workflows/gcp-artifact-registry-promotion.yml \
+            .github/workflows/release1-immutable-containers.yml \
+            gcp-admin-cloud-run-deployment-contract-evidence/contract-evidence.json \
+            > gcp-admin-cloud-run-deployment-contract-evidence/SHA256SUMS
+          printf 'sourceSha=%s\nphase=G5d\nexplicitAdminCloudRunTopology=true\nproductionDeploymentEvidence=false\nexternalHttpsRouteEvidence=false\nproductionAcceptance=false\nworkflowPurpose=contract-validation-only\n' \
+            "$CAREPOINT_GCP_ADMIN_DEPLOYMENT_CONTRACT_SHA" \
+            > gcp-admin-cloud-run-deployment-contract-evidence/metadata.txt
+          sha256sum --check --strict gcp-admin-cloud-run-deployment-contract-evidence/SHA256SUMS
+
+      - name: Upload G5d contract evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: carepoint-gcp-admin-cloud-run-deployment-contract-${{ env.CAREPOINT_GCP_ADMIN_DEPLOYMENT_CONTRACT_SHA }}
+          path: gcp-admin-cloud-run-deployment-contract-evidence
+          if-no-files-found: error
+          retention-days: 90

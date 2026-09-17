@@ -1,0 +1,115 @@
+name: GCP Cloud SQL PITR Rehearsal Contract
+
+on:
+  pull_request:
+    paths:
+      - ".ci/release-gcp-cloud-sql-pitr-rehearsal-contract.mjs"
+      - ".github/workflows/gcp-cloud-sql-pitr-rehearsal.yml"
+      - ".github/workflows/gcp-cloud-sql-pitr-rehearsal-contract.yml"
+      - "ops/release-1/gcp-cloud-sql-pitr-rehearsal.example.json"
+      - "ops/release-1/gcp-g6a-cloud-sql-pitr-rehearsal-runbook.md"
+  push:
+    branches: [main]
+    paths:
+      - ".ci/release-gcp-cloud-sql-pitr-rehearsal-contract.mjs"
+      - ".github/workflows/gcp-cloud-sql-pitr-rehearsal.yml"
+      - ".github/workflows/gcp-cloud-sql-pitr-rehearsal-contract.yml"
+      - "ops/release-1/gcp-cloud-sql-pitr-rehearsal.example.json"
+      - "ops/release-1/gcp-g6a-cloud-sql-pitr-rehearsal-runbook.md"
+
+permissions:
+  contents: read
+
+env:
+  CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  contract:
+    name: Validate G6a Cloud SQL PITR recovery contract
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out exact candidate SHA
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ env.CANDIDATE_SHA }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+
+      - name: Verify exact checkout identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
+          test -z "$(git status --porcelain)"
+
+      - name: Run G6a deterministic contract self-tests
+        run: node .ci/release-gcp-cloud-sql-pitr-rehearsal-contract.mjs --self-test
+
+      - name: Validate non-approved G6a evidence template
+        run: node .ci/release-gcp-cloud-sql-pitr-rehearsal-contract.mjs --validate-template ops/release-1/gcp-cloud-sql-pitr-rehearsal.example.json
+
+      - name: Validate keyless live PITR workflow boundary
+        run: node .ci/release-gcp-cloud-sql-pitr-rehearsal-contract.mjs --validate-workflow .github/workflows/gcp-cloud-sql-pitr-rehearsal.yml
+
+      - name: Verify operator runbook safety and continuity boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          file="ops/release-1/gcp-g6a-cloud-sql-pitr-rehearsal-runbook.md"
+          grep -Fq 'RPO <= 900 seconds' "$file"
+          grep -Fq 'RTO <= 7200 seconds' "$file"
+          grep -Fq 'productionAcceptance=false' "$file"
+          grep -Fq 'geographicDrClaimed=false' "$file"
+          grep -Fq 'public IPv4' "$file"
+          grep -Fq 'Workload Identity Federation' "$file"
+
+      - name: Generate sanitized G6a contract evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p g6a-contract-evidence
+          node .ci/release-gcp-cloud-sql-pitr-rehearsal-contract.mjs \
+            --contract-evidence \
+            ops/release-1/gcp-cloud-sql-pitr-rehearsal.example.json \
+            .github/workflows/gcp-cloud-sql-pitr-rehearsal.yml \
+            g6a-contract-evidence/contract.json
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs';
+          const value = JSON.parse(readFileSync('g6a-contract-evidence/contract.json', 'utf8'));
+          if (value.livePitrExecuted !== false) throw new Error('CI contract evidence cannot claim live PITR execution.');
+          if (value.privateDataPlaneValidated !== false) throw new Error('CI contract evidence cannot claim private data validation.');
+          if (value.productionRecoveryEvidence !== false) throw new Error('CI contract evidence cannot claim production recovery.');
+          if (value.geographicDrProven !== false) throw new Error('CI contract evidence cannot claim geographic DR.');
+          if (value.productionAcceptance !== false) throw new Error('CI contract evidence cannot self-approve production.');
+          NODE
+          sha256sum g6a-contract-evidence/contract.json > g6a-contract-evidence/SHA256SUMS
+          sha256sum --check --strict g6a-contract-evidence/SHA256SUMS
+
+      - name: Upload sanitized G6a contract evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: gcp-g6a-cloud-sql-pitr-contract-${{ env.CANDIDATE_SHA }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: g6a-contract-evidence
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Publish contract-only summary
+        shell: bash
+        run: |
+          {
+            echo "### GCP G6a Cloud SQL PITR rehearsal contract"
+            echo "- Candidate SHA: \`$CANDIDATE_SHA\`"
+            echo "- Region contract: \`me-central2\`"
+            echo "- RPO objective: \`<= 900 seconds\`"
+            echo "- RTO objective: \`<= 7200 seconds\`"
+            echo "- Live PITR executed by this PR workflow: \`false\`"
+            echo "- Private data-plane recovery validated by this PR workflow: \`false\`"
+            echo "- Production recovery evidence: \`false\`"
+            echo "- Geographic DR proven: \`false\`"
+            echo "- Production acceptance: \`false\`"
+          } >> "$GITHUB_STEP_SUMMARY"

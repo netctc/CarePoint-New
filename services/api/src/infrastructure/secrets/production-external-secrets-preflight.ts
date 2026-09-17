@@ -19,10 +19,13 @@ export async function assertProductionExternalSecretsReady(
 
   const requiredNames = externalCredentialNames(features);
   const cloudProvider = configuredCloudProvider(env);
-  if (cloudProvider === "oci") {
+  if (cloudProvider === "oci" || cloudProvider === "gcp") {
     const inspect = options.inspectExternalCredential;
     if (!inspect) {
-      throw new Error("OCI production external credential preflight requires a live OCI Vault inspector.");
+      if (cloudProvider === "oci") {
+        throw new Error("OCI production external credential preflight requires a live OCI Vault inspector.");
+      }
+      throw new Error("GCP production external credential preflight requires a live GCP Secret Manager inspector.");
     }
 
     const contract = productionExternalSecretStoreContract(env);
@@ -67,11 +70,12 @@ function externalCredentialNames(
   });
 }
 
-function configuredCloudProvider(env: NodeJS.ProcessEnv): "aws" | "oci" {
+function configuredCloudProvider(env: NodeJS.ProcessEnv): "aws" | "oci" | "gcp" {
   const value = env.CAREPOINT_CLOUD_PROVIDER?.trim();
   if (!value || value === "aws") return "aws";
   if (value === "oci") return "oci";
-  throw new Error("CAREPOINT_CLOUD_PROVIDER must be 'aws' or 'oci' in production external credential preflight.");
+  if (value === "gcp") return "gcp";
+  throw new Error("CAREPOINT_CLOUD_PROVIDER must be 'aws', 'oci' or 'gcp' in production external credential preflight.");
 }
 
 function errorName(error: unknown): string {

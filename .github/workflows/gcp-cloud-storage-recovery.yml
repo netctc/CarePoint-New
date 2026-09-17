@@ -1,0 +1,246 @@
+name: GCP Cloud Storage Recovery Rehearsal
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: "Exact frozen Release Candidate source SHA"
+        required: true
+        type: string
+      release_version:
+        description: "Approved frozen Release Candidate version"
+        required: true
+        type: string
+      g5_bundle_evidence_ref:
+        description: "Approved restricted G5e immutable deployment bundle evidence reference"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: gcp-cloud-storage-recovery-${{ inputs.source_sha }}
+  cancel-in-progress: false
+
+env:
+  GCP_REGION: me-central2
+  SOURCE_SHA: ${{ inputs.source_sha }}
+  RELEASE_VERSION: ${{ inputs.release_version }}
+  G5_BUNDLE_EVIDENCE_REF: ${{ inputs.g5_bundle_evidence_ref }}
+  CLOUDSDK_API_ENDPOINT_OVERRIDES_STORAGE: https://storage.me-central2.rep.googleapis.com/
+
+jobs:
+  recovery:
+    name: Exercise clinical object soft-delete recovery in me-central2
+    runs-on: ubuntu-24.04
+    environment: gcp-production-equivalent
+    steps:
+      - name: Check out exact frozen RC source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ env.SOURCE_SHA }}
+
+      - name: Validate rehearsal inputs and exact checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$RELEASE_VERSION" =~ ^[0-9A-Za-z][0-9A-Za-z._+-]{0,63}$ ]]
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          [[ "$G5_BUNDLE_EVIDENCE_REF" =~ ^[A-Za-z0-9][A-Za-z0-9._:/#@+-]{0,255}$ ]]
+          test "$GCP_REGION" = "me-central2"
+          test "$CLOUDSDK_API_ENDPOINT_OVERRIDES_STORAGE" = "https://storage.me-central2.rep.googleapis.com/"
+
+      - name: Authenticate to Google Cloud with Workload Identity Federation
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_RECOVERY_SERVICE_ACCOUNT }}
+          create_credentials_file: true
+          export_environment_variables: true
+
+      - name: Set up Google Cloud CLI
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3
+
+      - name: Validate protected Cloud Storage recovery configuration
+        shell: bash
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          DOCUMENT_BUCKET: ${{ vars.CAREPOINT_DOCUMENT_BUCKET_REF }}
+          DOCUMENT_KMS_KEY: ${{ vars.CAREPOINT_DOCUMENT_STORAGE_KEY_REF }}
+          RECOVERY_SERVICE_ACCOUNT: ${{ vars.GCP_RECOVERY_SERVICE_ACCOUNT }}
+        run: |
+          set -euo pipefail
+          test -n "$GCP_PROJECT_ID"
+          test -n "$DOCUMENT_BUCKET"
+          test -n "$DOCUMENT_KMS_KEY"
+          test -n "$RECOVERY_SERVICE_ACCOUNT"
+          [[ "$GCP_PROJECT_ID" =~ ^[a-z][a-z0-9-]{4,28}[a-z0-9]$ ]]
+          [[ "$DOCUMENT_BUCKET" =~ ^[a-z0-9][a-z0-9._-]{1,61}[a-z0-9]$ ]]
+          [[ "$DOCUMENT_KMS_KEY" == "projects/$GCP_PROJECT_ID/locations/me-central2/keyRings/"*"/cryptoKeys/"* ]]
+          [[ "$RECOVERY_SERVICE_ACCOUNT" =~ @.*\.iam\.gserviceaccount\.com$ ]]
+          printf 'DOCUMENT_BUCKET=%s\nDOCUMENT_KMS_KEY=%s\n' "$DOCUMENT_BUCKET" "$DOCUMENT_KMS_KEY" >> "$GITHUB_ENV"
+
+      - name: Inspect clinical bucket recovery controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p gcp-cloud-storage-recovery-evidence .g6c-private
+          gcloud storage buckets describe "gs://$DOCUMENT_BUCKET" --format=json > .g6c-private/bucket.json
+          node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from 'node:fs';
+          import { createHash } from 'node:crypto';
+          const value = JSON.parse(readFileSync('.g6c-private/bucket.json', 'utf8'));
+          const location = String(value.location ?? '').toLowerCase();
+          const iam = value.iamConfiguration ?? {};
+          const encryption = value.encryption ?? {};
+          const softDelete = value.softDeletePolicy ?? {};
+          const retention = Number(softDelete.retentionDurationSeconds ?? 0);
+          if (String(value.name ?? '') !== process.env.DOCUMENT_BUCKET) throw new Error('Clinical bucket identity mismatch.');
+          if (location !== 'me-central2') throw new Error('Clinical bucket must remain in me-central2.');
+          if (String(iam.publicAccessPrevention ?? '').toLowerCase() !== 'enforced') throw new Error('Public access prevention must be enforced.');
+          if (iam.uniformBucketLevelAccess?.enabled !== true) throw new Error('Uniform bucket-level access must be enabled.');
+          if (String(encryption.defaultKmsKeyName ?? '') !== process.env.DOCUMENT_KMS_KEY) throw new Error('Clinical bucket default CMEK does not match the approved key.');
+          if (!Number.isSafeInteger(retention) || retention < 604800 || retention >= 7776000) throw new Error('Clinical bucket soft delete retention must be between 7 and less than 90 days.');
+          const bucketHash = `sha256:${createHash('sha256').update(String(value.name)).digest('hex')}`;
+          writeFileSync('.g6c-private/bucket-hash.txt', `${bucketHash}\n`, { mode: 0o600 });
+          writeFileSync('.g6c-private/soft-delete-seconds.txt', `${retention}\n`, { mode: 0o600 });
+          NODE
+          rm -f .g6c-private/bucket.json
+
+      - name: Create and verify synthetic non-PHI continuity object
+        shell: bash
+        run: |
+          set -euo pipefail
+          OBJECT_NAME="carepoint/clinical/continuity/g6c-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.txt"
+          OBJECT_URI="gs://$DOCUMENT_BUCKET/$OBJECT_NAME"
+          printf 'OBJECT_NAME=%s\nOBJECT_URI=%s\n' "$OBJECT_NAME" "$OBJECT_URI" >> "$GITHUB_ENV"
+          printf 'carepoint-g6c-continuity\nsource=%s\nversion=%s\nrun=%s\nattempt=%s\n' \
+            "$SOURCE_SHA" "$RELEASE_VERSION" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" > .g6c-private/marker.txt
+          chmod 600 .g6c-private/marker.txt
+          gcloud storage cp .g6c-private/marker.txt "$OBJECT_URI" --quiet
+          gcloud storage cp "$OBJECT_URI" .g6c-private/read-before.txt --quiet
+          cmp --silent .g6c-private/marker.txt .g6c-private/read-before.txt
+          sha256sum .g6c-private/read-before.txt | awk '{print "sha256:"$1}' > .g6c-private/content-before.txt
+
+      - name: Soft-delete, restore and verify exact content
+        shell: bash
+        run: |
+          set -euo pipefail
+          RECOVERY_STARTED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          RECOVERY_STARTED_EPOCH="$(date -u +%s)"
+          printf 'RECOVERY_STARTED_AT=%s\nRECOVERY_STARTED_EPOCH=%s\n' "$RECOVERY_STARTED_AT" "$RECOVERY_STARTED_EPOCH" >> "$GITHUB_ENV"
+
+          gcloud storage rm "$OBJECT_URI" --quiet
+          gcloud storage ls "$OBJECT_URI" --soft-deleted > .g6c-private/soft-deleted.txt
+          test -s .g6c-private/soft-deleted.txt
+          gcloud storage restore "$OBJECT_URI" --quiet
+          gcloud storage cp "$OBJECT_URI" .g6c-private/read-after.txt --quiet
+          cmp --silent .g6c-private/read-before.txt .g6c-private/read-after.txt
+          sha256sum .g6c-private/read-after.txt | awk '{print "sha256:"$1}' > .g6c-private/content-after.txt
+
+          RECOVERY_COMPLETED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          RECOVERY_COMPLETED_EPOCH="$(date -u +%s)"
+          MEASURED_RTO_SECONDS="$((RECOVERY_COMPLETED_EPOCH - RECOVERY_STARTED_EPOCH))"
+          test "$MEASURED_RTO_SECONDS" -le 7200
+          printf 'RECOVERY_COMPLETED_AT=%s\nMEASURED_RTO_SECONDS=%s\n' "$RECOVERY_COMPLETED_AT" "$MEASURED_RTO_SECONDS" >> "$GITHUB_ENV"
+
+      - name: Remove live synthetic object and export sanitized evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          gcloud storage rm "$OBJECT_URI" --quiet
+          if gcloud storage ls "$OBJECT_URI" >/dev/null 2>&1; then
+            echo "Synthetic continuity object is still live after cleanup." >&2
+            exit 1
+          fi
+          node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from 'node:fs';
+          import { createHash } from 'node:crypto';
+          const bucketHash = readFileSync('.g6c-private/bucket-hash.txt', 'utf8').trim();
+          const retention = Number(readFileSync('.g6c-private/soft-delete-seconds.txt', 'utf8').trim());
+          const before = readFileSync('.g6c-private/content-before.txt', 'utf8').trim();
+          const after = readFileSync('.g6c-private/content-after.txt', 'utf8').trim();
+          if (before !== after) throw new Error('Restored content digest mismatch.');
+          const objectIdentityHash = `sha256:${createHash('sha256').update(`${process.env.DOCUMENT_BUCKET}/${process.env.OBJECT_NAME}`).digest('hex')}`;
+          const evidenceRef = `github://actions/runs/${process.env.GITHUB_RUN_ID}/attempts/${process.env.GITHUB_RUN_ATTEMPT}`;
+          const evidence = {
+            schema: 'carepoint.release1-gcp-cloud-storage-recovery/v1',
+            phase: 'G6c',
+            sourceSha: process.env.SOURCE_SHA,
+            releaseVersion: process.env.RELEASE_VERSION,
+            g5BundleEvidenceRef: process.env.G5_BUNDLE_EVIDENCE_REF,
+            provider: 'gcp',
+            jurisdiction: 'SA',
+            region: 'me-central2',
+            recoveryTarget: 'clinical-documents',
+            bucketEvidenceHash: bucketHash,
+            softDeleteRetentionSeconds: retention,
+            regionalEndpoint: 'https://storage.me-central2.rep.googleapis.com/',
+            rehearsal: {
+              objectIdentityHash,
+              contentDigestBefore: before,
+              contentDigestAfter: after,
+              recoveryStartedAtUtc: process.env.RECOVERY_STARTED_AT,
+              recoveryCompletedAtUtc: process.env.RECOVERY_COMPLETED_AT,
+              measuredRpoSeconds: 0,
+              measuredRtoSeconds: Number(process.env.MEASURED_RTO_SECONDS),
+              evidenceRef,
+            },
+            controls: {
+              keylessAuthentication: true,
+              exactFrozenRcBound: true,
+              g5BundleBound: true,
+              regionalEndpointUsed: true,
+              bucketRegionVerified: true,
+              publicAccessPreventionVerified: true,
+              uniformBucketLevelAccessVerified: true,
+              cmekVerified: true,
+              softDeletePolicyVerified: true,
+              objectCreated: true,
+              objectSoftDeleted: true,
+              objectRestored: true,
+              restoredContentIntegrityVerified: true,
+              syntheticLiveObjectRemoved: true,
+              geographicDrClaimed: false,
+              productionRecoveryEvidence: true,
+              productionAcceptance: false,
+            },
+          };
+          writeFileSync('gcp-cloud-storage-recovery-evidence/recovery.json', `${JSON.stringify(evidence, null, 2)}\n`, { mode: 0o600 });
+          NODE
+          rm -rf .g6c-private
+          sha256sum gcp-cloud-storage-recovery-evidence/recovery.json > gcp-cloud-storage-recovery-evidence/SHA256SUMS
+          sha256sum --check --strict gcp-cloud-storage-recovery-evidence/SHA256SUMS
+          node .ci/release-gcp-cloud-storage-recovery-contract.mjs \
+            --validate-final gcp-cloud-storage-recovery-evidence/recovery.json "$SOURCE_SHA"
+
+      - name: Upload sanitized G6c recovery evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: carepoint-gcp-cloud-storage-recovery-${{ inputs.source_sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: gcp-cloud-storage-recovery-evidence
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Publish sanitized recovery summary
+        shell: bash
+        run: |
+          {
+            echo "### GCP G6c Cloud Storage recovery rehearsal"
+            echo "- Source SHA: \`$SOURCE_SHA\`"
+            echo "- Release version: \`$RELEASE_VERSION\`"
+            echo "- Region: \`me-central2\`"
+            echo "- Regional Storage endpoint: \`verified\`"
+            echo "- Clinical object soft-delete restore: \`verified\`"
+            echo "- Restored content integrity: \`verified\`"
+            echo "- Synthetic live object cleanup: \`verified\`"
+            echo "- Geographic DR proven: \`false\`"
+            echo "- Production recovery evidence: \`true\`"
+            echo "- Production acceptance: \`false\`"
+          } >> "$GITHUB_STEP_SUMMARY"
