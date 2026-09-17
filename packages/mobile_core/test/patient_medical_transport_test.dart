@@ -92,6 +92,11 @@ void main() {
     expect(find.text('Oxygen, Monitoring'), findsOneWidget);
     expect(find.text('Authorized pickup'), findsOneWidget);
     expect(find.text('Authorized destination'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Authorized Transport Team'),
+      180,
+      scrollable: find.byType(Scrollable).last,
+    );
     expect(find.text('Authorized Transport Team'), findsOneWidget);
     expect(find.textContaining('transport-owned'), findsNothing);
     expect(find.byKey(const ValueKey('patient-medical-transport-cancel')), findsNothing);
@@ -138,6 +143,11 @@ void main() {
       requestId: 'cancellable',
     )));
     await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('patient-medical-transport-cancel')),
+      180,
+      scrollable: find.byType(Scrollable).last,
+    );
     expect(find.byKey(const ValueKey('patient-medical-transport-cancel')), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('patient-medical-transport-cancel')));
@@ -200,6 +210,11 @@ void main() {
     expect(calls, contains('POST /api/v1/notifications/transport-event/read'));
     expect(calls, contains('GET /api/v1/medical-transport/owned-transport'));
     expect(find.text('Medical transport status'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Air Medical Team'),
+      180,
+      scrollable: find.byType(Scrollable).last,
+    );
     expect(find.text('Air Medical Team'), findsOneWidget);
     expect(find.text('Ventilation'), findsOneWidget);
     expect(find.textContaining('owned-transport'), findsNothing);
