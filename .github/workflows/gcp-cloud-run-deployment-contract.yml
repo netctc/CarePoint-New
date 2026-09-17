@@ -1,0 +1,98 @@
+name: GCP Cloud Run Deployment Contract
+
+on:
+  pull_request:
+    paths:
+      - ".ci/release-gcp-cloud-run-deployment-contract.mjs"
+      - ".github/workflows/gcp-cloud-run-deployment.yml"
+      - ".github/workflows/gcp-cloud-run-deployment-contract.yml"
+      - "ops/release-1/gcp-cloud-run-deployment.example.json"
+      - "services/api/src/main.ts"
+      - "services/api/src/modules/health/health.module.ts"
+      - "services/api/src/infrastructure/release/release-identity.ts"
+      - "services/api/src/infrastructure/http/production-gcp-edge-runtime-preflight.ts"
+  push:
+    branches: [main]
+    paths:
+      - ".ci/release-gcp-cloud-run-deployment-contract.mjs"
+      - ".github/workflows/gcp-cloud-run-deployment.yml"
+      - ".github/workflows/gcp-cloud-run-deployment-contract.yml"
+      - "ops/release-1/gcp-cloud-run-deployment.example.json"
+      - "services/api/src/main.ts"
+      - "services/api/src/modules/health/health.module.ts"
+      - "services/api/src/infrastructure/release/release-identity.ts"
+      - "services/api/src/infrastructure/http/production-gcp-edge-runtime-preflight.ts"
+
+permissions:
+  contents: read
+
+env:
+  CAREPOINT_GCP_DEPLOYMENT_CONTRACT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  contract:
+    name: G5c Cloud Run deployment evidence contract
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out exact candidate SHA
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          ref: ${{ env.CAREPOINT_GCP_DEPLOYMENT_CONTRACT_SHA }}
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+      - name: Verify exact checkout identity
+        run: test "$(git rev-parse HEAD)" = "$CAREPOINT_GCP_DEPLOYMENT_CONTRACT_SHA"
+      - name: Self-test GCP Cloud Run deployment evidence contract
+        run: node .ci/release-gcp-cloud-run-deployment-contract.mjs --self-test
+      - name: Verify non-approved G5c evidence template
+        run: >-
+          node .ci/release-gcp-cloud-run-deployment-contract.mjs
+          --validate-template ops/release-1/gcp-cloud-run-deployment.example.json
+      - name: Verify live deployment workflow remains keyless and immutable
+        run: >-
+          node .ci/release-gcp-cloud-run-deployment-contract.mjs
+          --validate-workflow .github/workflows/gcp-cloud-run-deployment.yml
+      - name: Verify runtime identity and preflight binding remain present
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -F 'CAREPOINT_RELEASE_VERSION' services/api/src/infrastructure/release/release-identity.ts
+          grep -F 'CAREPOINT_RELEASE_SHA' services/api/src/infrastructure/release/release-identity.ts
+          grep -F 'CAREPOINT_RELEASE_ARTIFACT_DIGEST' services/api/src/infrastructure/release/release-identity.ts
+          grep -F '@Get("ready")' services/api/src/modules/health/health.module.ts
+          grep -F 'release: releaseIdentity(process.env)' services/api/src/modules/health/health.module.ts
+          grep -F 'await assertProductionGcpEdgeRuntimeReady();' services/api/src/main.ts
+          grep -F 'CAREPOINT_GCP_SERVICE_ACCOUNT_EMAIL' services/api/src/infrastructure/http/production-gcp-edge-runtime-preflight.ts
+          grep -F 'CONDITION_SUCCEEDED' services/api/src/infrastructure/http/production-gcp-edge-runtime-preflight.ts
+      - name: Capture sanitized G5c contract evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p gcp-cloud-run-deployment-contract-evidence
+          node .ci/release-gcp-cloud-run-deployment-contract.mjs \
+            --contract-evidence \
+            ops/release-1/gcp-cloud-run-deployment.example.json \
+            .github/workflows/gcp-cloud-run-deployment.yml \
+            gcp-cloud-run-deployment-contract-evidence/contract-evidence.json
+          sha256sum \
+            .ci/release-gcp-cloud-run-deployment-contract.mjs \
+            .github/workflows/gcp-cloud-run-deployment.yml \
+            ops/release-1/gcp-cloud-run-deployment.example.json \
+            services/api/src/infrastructure/release/release-identity.ts \
+            services/api/src/modules/health/health.module.ts \
+            services/api/src/infrastructure/http/production-gcp-edge-runtime-preflight.ts \
+            gcp-cloud-run-deployment-contract-evidence/contract-evidence.json \
+            > gcp-cloud-run-deployment-contract-evidence/SHA256SUMS
+          printf 'sourceSha=%s\nphase=G5c\nproductionDeploymentEvidence=false\nruntimeReadinessEvidence=false\nproductionPreflightEvidence=false\nproductionAcceptance=false\nworkflowPurpose=contract-validation-only\n' \
+            "$CAREPOINT_GCP_DEPLOYMENT_CONTRACT_SHA" \
+            > gcp-cloud-run-deployment-contract-evidence/metadata.txt
+          (cd gcp-cloud-run-deployment-contract-evidence && sha256sum --check --strict SHA256SUMS)
+      - name: Upload G5c contract evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: carepoint-gcp-cloud-run-deployment-contract-${{ env.CAREPOINT_GCP_DEPLOYMENT_CONTRACT_SHA }}
+          path: gcp-cloud-run-deployment-contract-evidence
+          if-no-files-found: error
