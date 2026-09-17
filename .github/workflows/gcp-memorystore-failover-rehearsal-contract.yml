@@ -1,0 +1,97 @@
+name: GCP Memorystore Failover Rehearsal Contract
+
+on:
+  pull_request:
+    paths:
+      - ".ci/release-gcp-memorystore-failover-rehearsal-contract.mjs"
+      - ".github/workflows/gcp-memorystore-failover-rehearsal.yml"
+      - ".github/workflows/gcp-memorystore-failover-rehearsal-contract.yml"
+      - "ops/release-1/gcp-memorystore-failover-rehearsal.example.json"
+      - "ops/release-1/gcp-g6b-memorystore-failover-runbook.md"
+  push:
+    branches: [main]
+    paths:
+      - ".ci/release-gcp-memorystore-failover-rehearsal-contract.mjs"
+      - ".github/workflows/gcp-memorystore-failover-rehearsal.yml"
+      - ".github/workflows/gcp-memorystore-failover-rehearsal-contract.yml"
+      - "ops/release-1/gcp-memorystore-failover-rehearsal.example.json"
+      - "ops/release-1/gcp-g6b-memorystore-failover-runbook.md"
+
+permissions:
+  contents: read
+
+env:
+  CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  validate:
+    name: Validate G6b Memorystore failover recovery contract
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out exact candidate SHA
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ env.CANDIDATE_SHA }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+
+      - name: Verify exact checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$CANDIDATE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
+
+      - name: Run deterministic G6b contract self-tests
+        run: node .ci/release-gcp-memorystore-failover-rehearsal-contract.mjs --self-test
+
+      - name: Validate non-approved G6b evidence template
+        run: node .ci/release-gcp-memorystore-failover-rehearsal-contract.mjs --validate-template ops/release-1/gcp-memorystore-failover-rehearsal.example.json
+
+      - name: Validate protected keyless failover workflow boundary
+        run: node .ci/release-gcp-memorystore-failover-rehearsal-contract.mjs --validate-workflow .github/workflows/gcp-memorystore-failover-rehearsal.yml
+
+      - name: Emit sanitized contract-only evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p gcp-memorystore-failover-contract-evidence
+          node .ci/release-gcp-memorystore-failover-rehearsal-contract.mjs \
+            --emit-contract-result \
+            gcp-memorystore-failover-contract-evidence/contract-result.json \
+            "$CANDIDATE_SHA"
+          sha256sum \
+            .ci/release-gcp-memorystore-failover-rehearsal-contract.mjs \
+            .github/workflows/gcp-memorystore-failover-rehearsal.yml \
+            .github/workflows/gcp-memorystore-failover-rehearsal-contract.yml \
+            ops/release-1/gcp-memorystore-failover-rehearsal.example.json \
+            ops/release-1/gcp-g6b-memorystore-failover-runbook.md \
+            gcp-memorystore-failover-contract-evidence/contract-result.json \
+            > gcp-memorystore-failover-contract-evidence/SHA256SUMS
+          sha256sum --check --strict gcp-memorystore-failover-contract-evidence/SHA256SUMS
+
+      - name: Upload sanitized G6b contract evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: carepoint-gcp-g6b-contract-${{ env.CANDIDATE_SHA }}-${{ github.run_id }}
+          path: gcp-memorystore-failover-contract-evidence
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Publish contract boundary summary
+        shell: bash
+        run: |
+          {
+            echo "### GCP G6b Memorystore failover contract"
+            echo "- Candidate SHA: \`$CANDIDATE_SHA\`"
+            echo "- PR workflow authenticates to GCP: \`false\`"
+            echo "- PR workflow executes failover: \`false\`"
+            echo "- Production recovery evidence: \`false\`"
+            echo "- Geographic DR proven: \`false\`"
+            echo "- Production acceptance: \`false\`"
+          } >> "$GITHUB_STEP_SUMMARY"
