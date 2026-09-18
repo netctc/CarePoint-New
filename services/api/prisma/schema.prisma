@@ -175,6 +175,7 @@ model PatientProfile {
   consents          Consent[]
   healthProfile     PatientHealthProfile?
   questionnaireResponses QuestionnaireResponse[]
+  observations       Observation[]
 }
 
 model Provider {

@@ -1,0 +1,87 @@
+model MeasurementUnit {
+  code            String           @id
+  labels          Json
+  dimension       String
+  active          Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  conversionsFrom UnitConversion[] @relation("UnitConversionFrom")
+  conversionsTo   UnitConversion[] @relation("UnitConversionTo")
+
+  @@index([dimension, active])
+}
+
+model UnitConversion {
+  id           String          @id @default(uuid())
+  dimension    String
+  fromUnitCode String
+  toUnitCode   String
+  multiplier   Float
+  offset       Float           @default(0)
+  version      Int
+  active       Boolean         @default(true)
+  createdAt    DateTime        @default(now())
+  fromUnit     MeasurementUnit @relation("UnitConversionFrom", fields: [fromUnitCode], references: [code], onDelete: Restrict)
+  toUnit       MeasurementUnit @relation("UnitConversionTo", fields: [toUnitCode], references: [code], onDelete: Restrict)
+
+  @@unique([fromUnitCode, toUnitCode, version])
+  @@index([dimension, active])
+}
+
+model ObservationType {
+  id        String                   @id @default(uuid())
+  code      String                   @unique
+  labels    Json
+  category  String
+  active    Boolean                  @default(true)
+  createdAt DateTime                 @default(now())
+  updatedAt DateTime                 @updatedAt
+  versions  ObservationTypeVersion[]
+  observations Observation[]
+
+  @@index([category, active])
+}
+
+model ObservationTypeVersion {
+  id                String          @id @default(uuid())
+  observationTypeId String
+  version           Int
+  status            String          @default("DRAFT")
+  canonicalUnitCode String
+  allowedUnitCodes  Json
+  minCanonical      Float?
+  maxCanonical      Float?
+  precision         Int             @default(2)
+  createdByActorId  String?
+  activatedAt       DateTime?
+  retiredAt         DateTime?
+  createdAt         DateTime        @default(now())
+  observationType   ObservationType @relation(fields: [observationTypeId], references: [id], onDelete: Cascade)
+  observations      Observation[]
+
+  @@unique([observationTypeId, version])
+  @@index([status, activatedAt])
+}
+
+model Observation {
+  id                       String                 @id @default(uuid())
+  patientId                String
+  observationTypeId        String
+  observationTypeVersionId String
+  observedAt               DateTime
+  sourceType               String
+  sourceId                 String?
+  algorithm                String
+  keyId                    String
+  wrappedKey               String
+  iv                       String
+  ciphertext               String
+  createdByActorId         String?
+  createdAt                DateTime               @default(now())
+  patient                  PatientProfile         @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  observationType          ObservationType        @relation(fields: [observationTypeId], references: [id], onDelete: Restrict)
+  observationTypeVersion   ObservationTypeVersion @relation(fields: [observationTypeVersionId], references: [id], onDelete: Restrict)
+
+  @@index([patientId, observationTypeId, observedAt])
+  @@index([observationTypeVersionId, observedAt])
+}
