@@ -163,6 +163,11 @@ export class ClinicalService {
           principal,
           action: "READ",
           providerActive: true,
+          capabilityAllowed: true,
+          purpose: "TREATMENT",
+          allowedPurposes: ["TREATMENT"],
+          withinAccessWindow: true,
+          sensitivityAllowed: true,
           isAssignedProvider: true,
         });
         return decision.allowed ? decision.basis : null;
@@ -215,6 +220,11 @@ export class ClinicalService {
       principal,
       action: "READ",
       providerActive: true,
+      capabilityAllowed: true,
+      purpose: "TREATMENT",
+      allowedPurposes: ["TREATMENT"],
+      withinAccessWindow: true,
+      sensitivityAllowed: true,
       hasTreatmentRelationship: Boolean(relationship),
       hasPatientConsent: consent?.version === CLINICAL_CONSENT_VERSION,
       isResourceAuthor: Boolean(own),

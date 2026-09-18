@@ -68,3 +68,41 @@ test("admin is not implicitly granted patient clinical access", () => {
     { allowed: false, reason: "ROLE_NOT_ALLOWED" },
   );
 });
+
+test("ABAC purpose, time window and sensitivity gates are fail-closed when explicitly denied", () => {
+  assert.deepEqual(
+    decideClinicalResourceAccess({
+      principal: doctor,
+      action: "READ",
+      providerActive: true,
+      purpose: "RESEARCH",
+      allowedPurposes: ["TREATMENT"],
+      hasTreatmentRelationship: true,
+    }),
+    { allowed: false, reason: "PURPOSE_NOT_ALLOWED" },
+  );
+  assert.deepEqual(
+    decideClinicalResourceAccess({
+      principal: doctor,
+      action: "READ",
+      providerActive: true,
+      purpose: "TREATMENT",
+      allowedPurposes: ["TREATMENT"],
+      withinAccessWindow: false,
+      hasTreatmentRelationship: true,
+    }),
+    { allowed: false, reason: "OUTSIDE_ACCESS_WINDOW" },
+  );
+  assert.deepEqual(
+    decideClinicalResourceAccess({
+      principal: doctor,
+      action: "READ",
+      providerActive: true,
+      purpose: "TREATMENT",
+      allowedPurposes: ["TREATMENT"],
+      sensitivityAllowed: false,
+      hasPatientConsent: true,
+    }),
+    { allowed: false, reason: "SENSITIVITY_NOT_ALLOWED" },
+  );
+});

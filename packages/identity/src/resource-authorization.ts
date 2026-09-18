@@ -13,6 +13,9 @@ export type ClinicalAccessDenialReason =
   | "PATIENT_WRITE_NOT_ALLOWED"
   | "PROVIDER_INACTIVE"
   | "CAPABILITY_NOT_GRANTED"
+  | "PURPOSE_NOT_ALLOWED"
+  | "OUTSIDE_ACCESS_WINDOW"
+  | "SENSITIVITY_NOT_ALLOWED"
   | "WRITE_REQUIRES_ASSIGNMENT"
   | "NO_ACCESS_BASIS";
 
@@ -22,6 +25,10 @@ export interface ClinicalResourceAccessInput {
   patientOwnsTarget?: boolean;
   providerActive?: boolean;
   capabilityAllowed?: boolean;
+  purpose?: string;
+  allowedPurposes?: readonly string[];
+  withinAccessWindow?: boolean;
+  sensitivityAllowed?: boolean;
   isAssignedProvider?: boolean;
   isResourceAuthor?: boolean;
   hasTreatmentRelationship?: boolean;
@@ -41,6 +48,18 @@ export function decideClinicalResourceAccess(
     if (!input.patientOwnsTarget) return { allowed: false, reason: "PATIENT_SCOPE_MISMATCH" };
     if (action !== "READ") return { allowed: false, reason: "PATIENT_WRITE_NOT_ALLOWED" };
     return { allowed: true, basis: "PATIENT_SELF" };
+  }
+
+  if (input.allowedPurposes && input.allowedPurposes.length > 0) {
+    if (!input.purpose || !input.allowedPurposes.includes(input.purpose)) {
+      return { allowed: false, reason: "PURPOSE_NOT_ALLOWED" };
+    }
+  }
+  if (input.withinAccessWindow === false) {
+    return { allowed: false, reason: "OUTSIDE_ACCESS_WINDOW" };
+  }
+  if (input.sensitivityAllowed === false) {
+    return { allowed: false, reason: "SENSITIVITY_NOT_ALLOWED" };
   }
 
   if (principal.role !== "DOCTOR" && principal.role !== "OTHER_PROVIDER") {
