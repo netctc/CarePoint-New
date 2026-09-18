@@ -7,7 +7,7 @@ import {
 } from "@nestjs/common";
 import type { ClinicalRecord } from "@prisma/client";
 import type { EncryptedEnvelope } from "@carepoint/security";
-import type { AuthPrincipal } from "@carepoint/identity";
+import { decideClinicalResourceAccess, type AuthPrincipal, type ClinicalClinicalAccessBasis } from "@carepoint/identity";
 import { PrismaService } from "../../infrastructure/prisma/prisma.module";
 import { DatabaseAuditService } from "../../infrastructure/audit/audit.service";
 import { ClinicalEnvelopeService } from "./clinical-envelope.service";
@@ -18,7 +18,6 @@ const MAX_RECORD_BYTES = 128 * 1024;
 const TREATMENT_LOOKBACK_DAYS = 365;
 const TREATMENT_LOOKAHEAD_DAYS = 30;
 
-type AccessBasis = "PATIENT_SELF" | "OWN_AUTHORSHIP" | "TREATMENT_RELATIONSHIP" | "PATIENT_CONSENT";
 type ClinicalInput = Record<string, unknown>;
 type StoredClinicalPayload = ClinicalInput & { schemaVersion: 1; revision: number; authoredAt: string };
 
@@ -90,7 +89,7 @@ export class ClinicalService {
     const provider = await this.requireActiveProvider(principal);
     const patient = await this.prisma.patientProfile.findUnique({ where: { id: patientId }, select: { id: true } });
     if (!patient) throw new NotFoundException("Patient not found.");
-    const basis = await this.providerPatientAccessBasis(provider.id, patient.id);
+    const basis = await this.providerPatientClinicalAccessBasis(provider.id, patient.id);
     if (!basis) {
       await this.audit.write({ actorId: principal.accountId, action: "CLINICAL_TIMELINE_READ_DENIED", objectType: "PATIENT", objectId: patient.id, purpose: "TREATMENT", result: "DENIED" });
       throw new ForbiddenException("No clinical record access basis exists for this patient.");
@@ -124,7 +123,7 @@ export class ClinicalService {
     return this.getEncounter(principal, appointmentId);
   }
 
-  private async timelineForPatient(patientId: string, basis: AccessBasis, providerId?: string) {
+  private async timelineForPatient(patientId: string, basis: ClinicalAccessBasis, providerId?: string) {
     const records = await this.prisma.clinicalRecord.findMany({ where: { patientId, ...(providerId ? { providerId } : {}) }, orderBy: { createdAt: "desc" }, take: 500 });
     const latest = new Map<string, ClinicalRecord>();
     for (const record of records) if (record.encounterRef && !latest.has(record.encounterRef)) latest.set(record.encounterRef, record);
@@ -146,38 +145,84 @@ export class ClinicalService {
     return result;
   }
 
-  private async accessBasisForAppointment(principal: AuthPrincipal, appointment: any): Promise<AccessBasis | null> {
+  private async accessBasisForAppointment(principal: AuthPrincipal, appointment: any): Promise<ClinicalAccessBasis | null> {
     if (principal.role === "PATIENT") {
       const patient = await this.requirePatient(principal);
-      return patient.id === appointment.patientId ? "PATIENT_SELF" : null;
+      const decision = decideClinicalResourceAccess({
+        principal,
+        action: "READ",
+        patientOwnsTarget: patient.id === appointment.patientId,
+      });
+      return decision.allowed ? decision.basis : null;
     }
+
     if (principal.role === "DOCTOR" || principal.role === "OTHER_PROVIDER") {
       const provider = await this.requireActiveProvider(principal);
-      if (provider.id === appointment.providerId) return "OWN_AUTHORSHIP";
-      return this.providerPatientAccessBasis(provider.id, appointment.patientId);
+      if (provider.id === appointment.providerId) {
+        const decision = decideClinicalResourceAccess({
+          principal,
+          action: "READ",
+          providerActive: true,
+          isAssignedProvider: true,
+        });
+        return decision.allowed ? decision.basis : null;
+      }
+      return this.providerPatientAccessBasis(principal, provider.id, appointment.patientId);
     }
+
     return null;
   }
 
-  private async providerPatientAccessBasis(providerId: string, patientId: string): Promise<Exclude<AccessBasis, "PATIENT_SELF"> | null> {
+  private async providerPatientAccessBasis(
+    principal: AuthPrincipal,
+    providerId: string,
+    patientId: string,
+  ): Promise<Exclude<ClinicalAccessBasis, "PATIENT_SELF"> | null> {
     const now = new Date();
     const from = new Date(now.getTime() - TREATMENT_LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
     const to = new Date(now.getTime() + TREATMENT_LOOKAHEAD_DAYS * 24 * 60 * 60 * 1000);
-    const relationship = await this.prisma.appointment.findFirst({ where: { providerId, patientId, status: { in: ["CONFIRMED", "COMPLETED"] }, startsAt: { gte: from, lte: to } }, select: { id: true } });
-    if (relationship) return "TREATMENT_RELATIONSHIP";
-    const consent = await this.prisma.consent.findFirst({
-      where: {
-        patientId,
-        scope: CLINICAL_SCOPE,
-        state: "GRANTED",
-        AND: [{ OR: [{ providerId }, { providerId: null }] }, { OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] }],
-      },
-      select: { id: true, version: true },
-      orderBy: { grantedAt: "desc" },
+
+    const [relationship, consent, own] = await Promise.all([
+      this.prisma.appointment.findFirst({
+        where: {
+          providerId,
+          patientId,
+          status: { in: ["CONFIRMED", "COMPLETED"] },
+          startsAt: { gte: from, lte: to },
+        },
+        select: { id: true },
+      }),
+      this.prisma.consent.findFirst({
+        where: {
+          patientId,
+          scope: CLINICAL_SCOPE,
+          state: "GRANTED",
+          AND: [
+            { OR: [{ providerId }, { providerId: null }] },
+            { OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] },
+          ],
+        },
+        select: { id: true, version: true },
+        orderBy: { grantedAt: "desc" },
+      }),
+      this.prisma.clinicalRecord.findFirst({
+        where: { providerId, patientId },
+        select: { id: true },
+      }),
+    ]);
+
+    const decision = decideClinicalResourceAccess({
+      principal,
+      action: "READ",
+      providerActive: true,
+      hasTreatmentRelationship: Boolean(relationship),
+      hasPatientConsent: consent?.version === CLINICAL_CONSENT_VERSION,
+      isResourceAuthor: Boolean(own),
     });
-    if (consent?.version === CLINICAL_CONSENT_VERSION) return "PATIENT_CONSENT";
-    const own = await this.prisma.clinicalRecord.findFirst({ where: { providerId, patientId }, select: { id: true } });
-    return own ? "OWN_AUTHORSHIP" : null;
+
+    return decision.allowed
+      ? (decision.basis as Exclude<ClinicalAccessBasis, "PATIENT_SELF">)
+      : null;
   }
 
   private async requireAppointment(appointmentId: string) {
@@ -212,7 +257,7 @@ export class ClinicalService {
     return { id: record.id, createdAt: record.createdAt, revision: data.revision, data };
   }
 
-  private presentEncounter(appointment: any, latestRecord: any, basis: AccessBasis) {
+  private presentEncounter(appointment: any, latestRecord: any, basis: ClinicalAccessBasis) {
     return {
       appointment: { id: appointment.id, modality: appointment.modality, status: appointment.status, startsAt: appointment.startsAt, endsAt: appointment.endsAt, provider: appointment.provider, service: appointment.service },
       accessBasis: basis,
