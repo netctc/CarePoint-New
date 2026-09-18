@@ -1,0 +1,58 @@
+model ClinicalProfileEntry {
+  id                   String                         @id @default(uuid())
+  patientId            String
+  kind                 String
+  status               String                         @default("ACTIVE")
+  version              Int                            @default(1)
+  verificationStatus   String                         @default("PATIENT_DECLARED")
+  sourceType           String
+  sourceActorId        String?
+  verifiedByActorId    String?
+  verifiedAt           DateTime?
+  algorithm            String
+  keyId                String
+  wrappedKey           String
+  iv                   String
+  ciphertext           String
+  createdAt            DateTime                       @default(now())
+  updatedAt            DateTime                       @updatedAt
+  patient              PatientProfile                 @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  revisions            ClinicalProfileEntryRevision[]
+
+  @@index([patientId, kind, status])
+  @@index([patientId, verificationStatus, updatedAt])
+}
+
+model ClinicalProfileEntryRevision {
+  id                 String               @id @default(uuid())
+  entryId            String
+  version            Int
+  changedFields      Json
+  verificationStatus String
+  sourceType         String
+  sourceActorId      String?
+  algorithm          String
+  keyId              String
+  wrappedKey         String
+  iv                 String
+  ciphertext         String
+  createdAt          DateTime             @default(now())
+  entry              ClinicalProfileEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+
+  @@unique([entryId, version])
+  @@index([entryId, createdAt])
+}
+
+model MedicationReconciliation {
+  id               String         @id @default(uuid())
+  patientId        String
+  providerId       String
+  entryIds         Json
+  status           String         @default("COMPLETED")
+  createdByActorId String
+  createdAt        DateTime       @default(now())
+  patient          PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId, createdAt])
+  @@index([providerId, createdAt])
+}
