@@ -37,6 +37,19 @@ const service = new PersistentConsentService(prisma, audit);
 const patient = { accountId: 'patient-account', role: 'PATIENT' };
 const other = { accountId: 'other-account', role: 'PATIENT' };
 
+const purposeGrant = await service.grant(patient, {
+  providerId: 'provider-active',
+  scope: 'health-profile.read',
+  version: 'v1',
+  purpose: 'treatment',
+  expiresAt: new Date(now + 86400000).toISOString(),
+});
+assert.equal(purposeGrant.purpose, 'TREATMENT');
+await assert.rejects(
+  service.grant(patient, { scope: 'health-profile.read', version: 'v1', purpose: 'free text purpose' }),
+  (error) => error?.getStatus?.() === 400,
+);
+
 const listed = await service.listMine(patient);
 assert.ok(listed.every((row) => !('patientId' in row)), 'Public consent DTO must not expose patientId.');
 assert.equal(listed.find((row) => row.id === 'revoked-valid').providerName, 'Synthetic Active Provider');

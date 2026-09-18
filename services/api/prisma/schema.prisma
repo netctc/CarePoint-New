@@ -484,6 +484,7 @@ model Consent {
   providerId        String?
   scope             String
   version           String
+  purpose           String?
   state             ConsentState        @default(GRANTED)
   grantedAt         DateTime            @default(now())
   revokedAt         DateTime?
@@ -492,6 +493,7 @@ model Consent {
   telehealthSession TelehealthSession?
 
   @@index([patientId, providerId, scope, state])
+  @@index([patientId, providerId, scope, purpose, state])
 }
 
 model AuditEvent {

@@ -205,9 +205,10 @@ export class ClinicalService {
           AND: [
             { OR: [{ providerId }, { providerId: null }] },
             { OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] },
+            { OR: [{ purpose: null }, { purpose: "TREATMENT" }] },
           ],
         },
-        select: { id: true, version: true },
+        select: { id: true, version: true, purpose: true },
         orderBy: { grantedAt: "desc" },
       }),
       this.prisma.clinicalRecord.findFirst({

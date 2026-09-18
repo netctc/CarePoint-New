@@ -149,10 +149,20 @@ async function main() {
   if (wrongVersionAccess.status !== 403) throw new Error(`Unapproved consent version must not grant access; got ${wrongVersionAccess.status}.`);
   assertNoMarker(wrongVersionAccess.payload, marker, "Unapproved-consent denial response");
 
+  const wrongPurposeConsent = await request("/consents", {
+    method: "POST",
+    token: patientA.token,
+    body: { providerId: doctorB.providerId, scope: "CLINICAL_RECORD_READ", version: "clinical-record-v1", purpose: "RESEARCH" },
+  });
+  if (!wrongPurposeConsent.id) throw new Error("Wrong-purpose consent was not created.");
+  const wrongPurposeAccess = await raw(`/clinical/patients/${patientA.patientId}/timeline`, { token: doctorB.token });
+  if (wrongPurposeAccess.status !== 403) throw new Error(`Non-treatment consent must not grant treatment access; got ${wrongPurposeAccess.status}.`);
+  assertNoMarker(wrongPurposeAccess.payload, marker, "Wrong-purpose denial response");
+
   const validConsent = await request("/consents", {
     method: "POST",
     token: patientA.token,
-    body: { providerId: doctorB.providerId, scope: "CLINICAL_RECORD_READ", version: "clinical-record-v1" },
+    body: { providerId: doctorB.providerId, scope: "CLINICAL_RECORD_READ", version: "clinical-record-v1", purpose: "TREATMENT" },
   });
   const consentAccess = await request(`/clinical/patients/${patientA.patientId}/timeline`, { token: doctorB.token });
   if (consentAccess.accessBasis !== "PATIENT_CONSENT") throw new Error("Valid consent did not produce PATIENT_CONSENT access basis.");
@@ -172,7 +182,7 @@ async function main() {
   if (!deniedAudits.some((event) => event.action === "CLINICAL_RECORD_READ_DENIED")) throw new Error("Patient cross-account denial was not audited.");
   if (!deniedAudits.some((event) => event.action === "CLINICAL_TIMELINE_READ_DENIED")) throw new Error("Provider/consent denial was not audited.");
 
-  console.log(JSON.stringify({ status: "passed", twoPatients: true, twoProviders: true, patientCrossAccountDenied: true, providerCrossAccountDenied: true, consentVersionEnforced: true, consentRevocationEnforced: true, deniedResponseMarkerLeakage: false, deniedAuditMarkerLeakage: false }));
+  console.log(JSON.stringify({ status: "passed", twoPatients: true, twoProviders: true, patientCrossAccountDenied: true, providerCrossAccountDenied: true, consentVersionEnforced: true, consentPurposeEnforced: true, consentRevocationEnforced: true, deniedResponseMarkerLeakage: false, deniedAuditMarkerLeakage: false }));
 }
 
 try {
