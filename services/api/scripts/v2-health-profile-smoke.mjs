@@ -9,6 +9,7 @@ process.env.CLINICAL_ENVELOPE_KEY_BASE64 = Buffer.alloc(32, 23).toString("base64
 
 const patient = { id: "patient-profile-1", userId: "patient-account-1" };
 let current = null;
+let providerConsentEnabled = false;
 const revisions = [];
 const audits = [];
 let seq = 0;
@@ -53,7 +54,26 @@ const tx = {
 };
 const prisma = {
   patientProfile: {
-    findUnique: async ({ where }) => where.userId === patient.userId ? { id: patient.id } : null,
+    findUnique: async ({ where }) => {
+      if (where.userId) return where.userId === patient.userId ? { id: patient.id } : null;
+      if (where.id) return where.id === patient.id ? { id: patient.id } : null;
+      return null;
+    },
+  },
+  provider: {
+    findUnique: async ({ where }) => where.userId === "doctor-account-1"
+      ? { id: "provider-1", status: "ACTIVE" }
+      : where.userId === "other-provider-account-1"
+        ? { id: "provider-2", status: "ACTIVE" }
+        : null,
+  },
+  appointment: {
+    findFirst: async ({ where }) => where.patientId === patient.id ? { id: "appointment-1" } : null,
+  },
+  consent: {
+    findFirst: async ({ where }) => providerConsentEnabled && where.patientId === patient.id && where.purpose === "TREATMENT"
+      ? { id: "consent-1", version: "health-profile-v1" }
+      : null,
   },
   patientHealthProfile: {
     findUnique: async ({ include } = {}) => {
@@ -116,6 +136,23 @@ await assert.rejects(
   (error) => error?.getStatus?.() === 400,
 );
 
+const doctor = { accountId: "doctor-account-1", role: "DOCTOR", sessionId: "doctor-session-1" };
+await assert.rejects(
+  service.providerView(doctor, patient.id),
+  (error) => error?.getStatus?.() === 403,
+);
+providerConsentEnabled = true;
+const providerView = await service.providerView(doctor, patient.id);
+assert.equal(providerView.version, 2);
+assert.equal(providerView.accessBasis, "PATIENT_CONSENT");
+assert.equal(providerView.basics.relevantNeeds[0], marker);
+
+const otherProvider = { accountId: "other-provider-account-1", role: "OTHER_PROVIDER", sessionId: "provider-session-1" };
+await assert.rejects(
+  service.providerView(otherProvider, patient.id),
+  (error) => error?.getStatus?.() === 403,
+);
+
 console.log(JSON.stringify({
   status: "passed",
   encryptedAtRest: true,
@@ -123,4 +160,6 @@ console.log(JSON.stringify({
   optimisticConcurrency: true,
   provenance: true,
   auditPhiMinimized: true,
+  explicitProviderConsentRequired: true,
+  otherProviderCapabilityFailClosed: true,
 }));

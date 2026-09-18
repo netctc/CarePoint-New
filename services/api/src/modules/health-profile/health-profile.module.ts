@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Header, Module, Patch } from "@nestjs/common";
+import { Body, Controller, Get, Header, Module, Param, Patch } from "@nestjs/common";
 import type { AuthPrincipal } from "@carepoint/identity";
 import { CurrentPrincipal, RequirePermissions } from "../../security/api-security.module";
 import { ClinicalModule } from "../clinical/clinical.module";
@@ -26,9 +26,24 @@ class PatientHealthProfileController {
   }
 }
 
+@Controller("provider/patients")
+class ProviderHealthProfileController {
+  constructor(private readonly healthProfile: HealthProfileService) {}
+
+  @RequirePermissions("CLINICAL_HEALTH_PROFILE_READ")
+  @Get(":patientId/health-profile")
+  @Header("Cache-Control", "no-store")
+  view(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Param("patientId") patientId: string,
+  ) {
+    return this.healthProfile.providerView(principal, patientId);
+  }
+}
+
 @Module({
   imports: [ClinicalModule],
-  controllers: [PatientHealthProfileController],
+  controllers: [PatientHealthProfileController, ProviderHealthProfileController],
   providers: [HealthProfileService],
   exports: [HealthProfileService],
 })

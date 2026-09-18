@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
-import type { AuthPrincipal } from "@carepoint/identity";
+import { decideClinicalResourceAccess, type AuthPrincipal } from "@carepoint/identity";
 import type { EncryptedEnvelope } from "@carepoint/security";
 import { PrismaService } from "../../infrastructure/prisma/prisma.module";
 import { DatabaseAuditService } from "../../infrastructure/audit/audit.service";
@@ -41,6 +41,10 @@ const BLOOD_TYPE = new Set<BloodType>(["A", "B", "AB", "O", "UNKNOWN"]);
 const RHESUS = new Set<RhesusFactor>(["POSITIVE", "NEGATIVE", "UNKNOWN"]);
 const MAX_NEEDS = 20;
 const MAX_NEED_LENGTH = 120;
+const HEALTH_PROFILE_SCOPE = "HEALTH_PROFILE_READ";
+const HEALTH_PROFILE_CONSENT_VERSION = "health-profile-v1";
+const TREATMENT_LOOKBACK_DAYS = 365;
+const TREATMENT_LOOKAHEAD_DAYS = 30;
 
 @Injectable()
 export class HealthProfileService {
@@ -102,6 +106,156 @@ export class HealthProfileService {
       },
     });
     return this.present(row, payload, latestRevision);
+  }
+
+
+  async providerView(principal: AuthPrincipal, patientId: string) {
+    if (principal.role !== "DOCTOR" && principal.role !== "OTHER_PROVIDER") {
+      throw new ForbiddenException("A healthcare provider account is required.");
+    }
+    const provider = await this.prisma.provider.findUnique({
+      where: { userId: principal.accountId },
+      select: { id: true, status: true },
+    });
+    if (!provider || provider.status !== "ACTIVE") {
+      throw new ForbiddenException("An active healthcare provider is required.");
+    }
+
+    const patient = await this.prisma.patientProfile.findUnique({
+      where: { id: patientId },
+      select: { id: true },
+    });
+    if (!patient) throw new NotFoundException("Patient not found.");
+
+    const now = new Date();
+    const from = new Date(now.getTime() - TREATMENT_LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
+    const to = new Date(now.getTime() + TREATMENT_LOOKAHEAD_DAYS * 24 * 60 * 60 * 1000);
+    const [relationship, consent] = await Promise.all([
+      this.prisma.appointment.findFirst({
+        where: {
+          providerId: provider.id,
+          patientId: patient.id,
+          status: { in: ["CONFIRMED", "COMPLETED"] },
+          startsAt: { gte: from, lte: to },
+        },
+        select: { id: true },
+      }),
+      this.prisma.consent.findFirst({
+        where: {
+          patientId: patient.id,
+          scope: HEALTH_PROFILE_SCOPE,
+          version: HEALTH_PROFILE_CONSENT_VERSION,
+          purpose: "TREATMENT",
+          state: "GRANTED",
+          AND: [
+            { OR: [{ providerId: provider.id }, { providerId: null }] },
+            { OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] },
+          ],
+        },
+        select: { id: true, version: true },
+        orderBy: { grantedAt: "desc" },
+      }),
+    ]);
+
+    const capabilityAllowed = principal.role === "DOCTOR";
+    const access = decideClinicalResourceAccess({
+      principal,
+      action: "READ",
+      providerActive: true,
+      capabilityAllowed,
+      purpose: "TREATMENT",
+      allowedPurposes: ["TREATMENT"],
+      withinAccessWindow: Boolean(relationship),
+      sensitivityAllowed: true,
+      hasPatientConsent: Boolean(consent),
+    });
+
+    if (!relationship || !consent || !access.allowed) {
+      const denyReason = !capabilityAllowed
+        ? "CAPABILITY_NOT_GRANTED"
+        : !relationship
+          ? "OUTSIDE_ACCESS_WINDOW"
+          : !consent
+            ? "NO_ACCESS_BASIS"
+            : access.allowed
+              ? "NO_ACCESS_BASIS"
+              : access.reason;
+      await this.audit.writeClinical({
+        actorId: principal.accountId,
+        action: "HEALTH_PROFILE_READ_DENIED",
+        objectType: "PATIENT",
+        objectId: patient.id,
+        purpose: "TREATMENT",
+        result: "DENIED",
+        metadata: {
+          domain: "HEALTH_PROFILE",
+          patientId: patient.id,
+          providerId: provider.id,
+          denyReason,
+          decision: "DENY",
+          consentVersion: HEALTH_PROFILE_CONSENT_VERSION,
+        },
+      });
+      throw new ForbiddenException("Health profile access denied.");
+    }
+
+    const row = await this.prisma.patientHealthProfile.findUnique({
+      where: { patientId: patient.id },
+      include: { revisions: { orderBy: { version: "desc" }, take: 1 } },
+    });
+    if (!row) {
+      await this.audit.writeClinical({
+        actorId: principal.accountId,
+        action: "HEALTH_PROFILE_READ",
+        objectType: "PATIENT",
+        objectId: patient.id,
+        purpose: "TREATMENT",
+        result: "SUCCESS",
+        metadata: {
+          domain: "HEALTH_PROFILE",
+          accessBasis: access.basis,
+          consentVersion: HEALTH_PROFILE_CONSENT_VERSION,
+          patientId: patient.id,
+          providerId: provider.id,
+          resourceVersion: 0,
+          decision: "ALLOW",
+        },
+      });
+      return {
+        patientId: patient.id,
+        version: 0,
+        schemaVersion: 1,
+        basics: {},
+        updatedAt: null,
+        provenance: null,
+        accessBasis: access.basis,
+      };
+    }
+
+    const payload = await this.decrypt(row);
+    const latestRevision = row.revisions[0] ?? null;
+    await this.audit.writeClinical({
+      actorId: principal.accountId,
+      action: "HEALTH_PROFILE_READ",
+      objectType: "PATIENT_HEALTH_PROFILE",
+      objectId: row.id,
+      purpose: "TREATMENT",
+      result: "SUCCESS",
+      metadata: {
+        domain: "HEALTH_PROFILE",
+        accessBasis: access.basis,
+        consentVersion: HEALTH_PROFILE_CONSENT_VERSION,
+        patientId: patient.id,
+        providerId: provider.id,
+        resourceId: row.id,
+        resourceVersion: row.version,
+        decision: "ALLOW",
+      },
+    });
+    return {
+      ...this.present(row, payload, latestRevision),
+      accessBasis: access.basis,
+    };
   }
 
   async patchMine(principal: AuthPrincipal, input: PatchHealthProfileInput) {
