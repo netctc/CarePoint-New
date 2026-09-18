@@ -173,6 +173,7 @@ model PatientProfile {
   emergencyRequests EmergencyAmbulanceRequest[]
   clinicalRecords   ClinicalRecord[]
   consents          Consent[]
+  healthProfile     PatientHealthProfile?
 }
 
 model Provider {
