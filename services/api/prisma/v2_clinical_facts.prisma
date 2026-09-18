@@ -1,0 +1,60 @@
+model PatientClinicalFact {
+  id                     String                     @id @default(uuid())
+  patientId              String
+  kind                   String
+  status                 String                     @default("ACTIVE")
+  version                Int                        @default(1)
+  verificationStatus     String                     @default("PATIENT_DECLARED")
+  reconciliationStatus   String?
+  verifiedByProviderId   String?
+  verifiedByActorId      String?
+  verifiedAt             DateTime?
+  algorithm              String
+  keyId                  String
+  wrappedKey             String
+  iv                     String
+  ciphertext             String
+  sourceType             String
+  sourceActorId          String?
+  createdAt              DateTime                   @default(now())
+  updatedAt              DateTime                   @updatedAt
+  patient                PatientProfile             @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  revisions              ClinicalFactRevision[]
+  verifications          ClinicalFactVerification[]
+
+  @@index([patientId, kind, status])
+  @@index([patientId, verificationStatus, updatedAt])
+}
+
+model ClinicalFactRevision {
+  id             String              @id @default(uuid())
+  factId         String
+  version        Int
+  sourceType     String
+  sourceActorId  String?
+  changedFields  Json
+  algorithm      String
+  keyId          String
+  wrappedKey     String
+  iv             String
+  ciphertext     String
+  createdAt      DateTime            @default(now())
+  fact           PatientClinicalFact @relation(fields: [factId], references: [id], onDelete: Cascade)
+
+  @@unique([factId, version])
+  @@index([factId, createdAt])
+}
+
+model ClinicalFactVerification {
+  id          String              @id @default(uuid())
+  factId      String
+  sourceVersion Int
+  status      String
+  providerId  String
+  actorId     String
+  createdAt   DateTime            @default(now())
+  fact        PatientClinicalFact @relation(fields: [factId], references: [id], onDelete: Cascade)
+
+  @@index([factId, createdAt])
+  @@index([providerId, createdAt])
+}
