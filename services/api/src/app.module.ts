@@ -20,6 +20,7 @@ import { CommunicationsModule } from "./modules/communications/communications.mo
 import { ConsentModule } from "./modules/consent/consent.module";
 import { DataGovernanceModule } from "./modules/data-governance/data-governance.module";
 import { DocumentsModule } from "./modules/documents/documents.module";
+import { DoctorSnapshotModule } from "./modules/doctor-snapshot/doctor-snapshot.module";
 import { emergencyAmbulanceModuleEnabled } from "./modules/emergency/emergency-launch-policy";
 import { EmergencyModule } from "./modules/emergency/emergency.module";
 import { FhirModule } from "./modules/fhir/fhir.module";
@@ -74,6 +75,7 @@ const isolatedSyntheticPilot = isolatedSyntheticPrivatePilotActive(process.env);
     ...(runtimeFeatures.telehealth ? [TelehealthModule] : []),
     ClinicalModule,
     ClinicalProfileModule,
+    DoctorSnapshotModule,
     OrdersModule,
     DocumentsModule,
     ...(runtimeFeatures.payments ? [BillingModule, ClaimsModule] : []),
