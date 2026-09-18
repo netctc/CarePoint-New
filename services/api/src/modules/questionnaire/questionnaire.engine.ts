@@ -282,7 +282,7 @@ function normalizeLabels(input: unknown, label: string): QuestionnaireLabels {
     output[locale] = normalized;
   }
   if (!output.en) throw new BadRequestException(`${label}.en is required.`);
-  return output as QuestionnaireLabels;
+  return output as unknown as QuestionnaireLabels;
 }
 
 function requiredToken(input: unknown, label: string, pattern: RegExp): string {
