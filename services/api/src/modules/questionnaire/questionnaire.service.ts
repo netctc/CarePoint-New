@@ -516,7 +516,7 @@ export class QuestionnaireService {
       result[locale] = normalized;
     }
     if (!result.en) throw new BadRequestException(`${field}.en is required.`);
-    return result as QuestionnaireLabels;
+    return result as unknown as QuestionnaireLabels;
   }
 
   private nonNegativeInteger(value: unknown, field: string): number {
