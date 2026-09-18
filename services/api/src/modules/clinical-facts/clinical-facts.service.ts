@@ -70,7 +70,7 @@ export class ClinicalFactsService {
       orderBy: [{ kind: "asc" }, { updatedAt: "desc" }],
       take: MAX_FACTS,
     });
-    const items = await Promise.all(rows.map((row) => this.present(row, await this.decrypt(row), row.revisions[0] ?? null, "PATIENT_SELF")));
+    const items = await Promise.all(rows.map(async (row) => this.present(row, await this.decrypt(row), row.revisions[0] ?? null, "PATIENT_SELF")));
     await this.audit.writeClinical({
       actorId: principal.accountId,
       action: "CLINICAL_FACT_LIST_READ",
@@ -203,11 +203,10 @@ export class ClinicalFactsService {
       facts.map(async (row) => this.present(row, await this.decrypt(row), row.revisions[0] ?? null, access.basis)),
     );
     const since = previousConsult?.endsAt ?? previousConsult?.startsAt ?? null;
-    const sinceFilter = since ? { gt: since } : undefined;
     const [factChanges, questionnaireChanges, observationChanges] = await Promise.all([
-      since ? this.prisma.patientClinicalFact.count({ where: { patientId, updatedAt: sinceFilter } }) : Promise.resolve(facts.length),
-      since ? this.prisma.questionnaireResponse.count({ where: { patientId, completedAt: sinceFilter } }) : Promise.resolve(questionnaireCount),
-      since ? this.prisma.observation.count({ where: { patientId, observedAt: sinceFilter } }) : Promise.resolve(observationCount),
+      since ? this.prisma.patientClinicalFact.count({ where: { patientId, updatedAt: { gt: since } } }) : Promise.resolve(facts.length),
+      since ? this.prisma.questionnaireResponse.count({ where: { patientId, completedAt: { gt: since } } }) : Promise.resolve(questionnaireCount),
+      since ? this.prisma.observation.count({ where: { patientId, observedAt: { gt: since } } }) : Promise.resolve(observationCount),
     ]);
 
     await this.audit.writeClinical({
