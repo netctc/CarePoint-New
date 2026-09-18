@@ -89,7 +89,7 @@ export class ClinicalService {
     const provider = await this.requireActiveProvider(principal);
     const patient = await this.prisma.patientProfile.findUnique({ where: { id: patientId }, select: { id: true } });
     if (!patient) throw new NotFoundException("Patient not found.");
-    const basis = await this.providerPatientAccessBasis(provider.id, patient.id);
+    const basis = await this.providerPatientAccessBasis(principal, provider.id, patient.id);
     if (!basis) {
       await this.audit.write({ actorId: principal.accountId, action: "CLINICAL_TIMELINE_READ_DENIED", objectType: "PATIENT", objectId: patient.id, purpose: "TREATMENT", result: "DENIED" });
       throw new ForbiddenException("No clinical record access basis exists for this patient.");
