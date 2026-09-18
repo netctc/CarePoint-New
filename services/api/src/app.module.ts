@@ -15,6 +15,7 @@ import { AuditModule } from "./modules/audit/audit.module";
 import { BillingModule } from "./modules/billing/billing.module";
 import { ClaimsModule } from "./modules/claims/claims.module";
 import { ClinicalModule } from "./modules/clinical/clinical.module";
+import { ClinicalProfileModule } from "./modules/clinical-profile/clinical-profile.module";
 import { CommunicationsModule } from "./modules/communications/communications.module";
 import { ConsentModule } from "./modules/consent/consent.module";
 import { DataGovernanceModule } from "./modules/data-governance/data-governance.module";
@@ -72,6 +73,7 @@ const isolatedSyntheticPilot = isolatedSyntheticPrivatePilotActive(process.env);
     AvailabilityRequestsModule,
     ...(runtimeFeatures.telehealth ? [TelehealthModule] : []),
     ClinicalModule,
+    ClinicalProfileModule,
     OrdersModule,
     DocumentsModule,
     ...(runtimeFeatures.payments ? [BillingModule, ClaimsModule] : []),
