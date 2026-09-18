@@ -52,7 +52,7 @@ export class ClinicalService {
         ciphertext: encrypted.ciphertext,
       },
     });
-    await this.audit.write({
+    await this.audit.writeClinical({
       actorId: principal.accountId,
       action: "CLINICAL_RECORD_WRITTEN",
       objectType: "CLINICAL_RECORD",
@@ -68,12 +68,12 @@ export class ClinicalService {
     const appointment = await this.requireAppointment(appointmentId);
     const basis = await this.accessBasisForAppointment(principal, appointment);
     if (!basis) {
-      await this.audit.write({ actorId: principal.accountId, action: "CLINICAL_RECORD_READ_DENIED", objectType: "APPOINTMENT", objectId: appointment.id, purpose: "TREATMENT", result: "DENIED" });
+      await this.audit.writeClinical({ actorId: principal.accountId, action: "CLINICAL_RECORD_READ_DENIED", objectType: "APPOINTMENT", objectId: appointment.id, purpose: "TREATMENT", result: "DENIED" });
       throw new ForbiddenException("Clinical record access denied.");
     }
     const record = await this.prisma.clinicalRecord.findFirst({ where: { encounterRef: appointment.id }, orderBy: { createdAt: "desc" } });
     const latestRecord = record ? await this.presentRecord(record) : null;
-    await this.audit.write({ actorId: principal.accountId, action: "CLINICAL_RECORD_READ", objectType: "APPOINTMENT", objectId: appointment.id, purpose: "TREATMENT", result: "SUCCESS", metadata: { basis } });
+    await this.audit.writeClinical({ actorId: principal.accountId, action: "CLINICAL_RECORD_READ", objectType: "APPOINTMENT", objectId: appointment.id, purpose: "TREATMENT", result: "SUCCESS", metadata: { basis } });
     return this.presentEncounter(appointment, latestRecord, basis);
   }
 
@@ -81,7 +81,7 @@ export class ClinicalService {
     if (principal.role !== "PATIENT") throw new ForbiddenException("Patient clinical timeline access requires a patient account.");
     const patient = await this.requirePatient(principal);
     const items = await this.timelineForPatient(patient.id, "PATIENT_SELF");
-    await this.audit.write({ actorId: principal.accountId, action: "CLINICAL_TIMELINE_READ", objectType: "PATIENT", objectId: patient.id, purpose: "PATIENT_ACCESS", result: "SUCCESS", metadata: { basis: "PATIENT_SELF", itemCount: items.length } });
+    await this.audit.writeClinical({ actorId: principal.accountId, action: "CLINICAL_TIMELINE_READ", objectType: "PATIENT", objectId: patient.id, purpose: "PATIENT_ACCESS", result: "SUCCESS", metadata: { basis: "PATIENT_SELF", itemCount: items.length } });
     return { patientId: patient.id, accessBasis: "PATIENT_SELF" as const, items };
   }
 
@@ -91,11 +91,11 @@ export class ClinicalService {
     if (!patient) throw new NotFoundException("Patient not found.");
     const basis = await this.providerPatientAccessBasis(principal, provider.id, patient.id);
     if (!basis) {
-      await this.audit.write({ actorId: principal.accountId, action: "CLINICAL_TIMELINE_READ_DENIED", objectType: "PATIENT", objectId: patient.id, purpose: "TREATMENT", result: "DENIED" });
+      await this.audit.writeClinical({ actorId: principal.accountId, action: "CLINICAL_TIMELINE_READ_DENIED", objectType: "PATIENT", objectId: patient.id, purpose: "TREATMENT", result: "DENIED" });
       throw new ForbiddenException("No clinical record access basis exists for this patient.");
     }
     const items = await this.timelineForPatient(patient.id, basis, basis === "OWN_AUTHORSHIP" ? provider.id : undefined);
-    await this.audit.write({ actorId: principal.accountId, action: "CLINICAL_TIMELINE_READ", objectType: "PATIENT", objectId: patient.id, purpose: "TREATMENT", result: "SUCCESS", metadata: { basis, itemCount: items.length } });
+    await this.audit.writeClinical({ actorId: principal.accountId, action: "CLINICAL_TIMELINE_READ", objectType: "PATIENT", objectId: patient.id, purpose: "TREATMENT", result: "SUCCESS", metadata: { basis, itemCount: items.length } });
     return { patientId: patient.id, accessBasis: basis, items };
   }
 
@@ -119,7 +119,7 @@ export class ClinicalService {
         await tx.telehealthSession.update({ where: { appointmentId: appointment.id }, data: { status: "ENDED", endedAt: new Date() } });
       }
     });
-    await this.audit.write({ actorId: principal.accountId, action: "CLINICAL_ENCOUNTER_FINALIZED", objectType: "APPOINTMENT", objectId: appointment.id, purpose: "TREATMENT", result: "SUCCESS" });
+    await this.audit.writeClinical({ actorId: principal.accountId, action: "CLINICAL_ENCOUNTER_FINALIZED", objectType: "APPOINTMENT", objectId: appointment.id, purpose: "TREATMENT", result: "SUCCESS" });
     return this.getEncounter(principal, appointmentId);
   }
 

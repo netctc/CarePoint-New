@@ -4,6 +4,7 @@ import { isolatedSyntheticPrivatePilotActive } from "../release/private-pilot-in
 import { PrismaService } from "../prisma/prisma.module";
 import { SiemAuditOutboxStoreService } from "../siem/siem-audit-outbox-store.service";
 import { SiemOutboxWorkerService } from "../siem/siem-outbox-worker.service";
+import { sanitizeClinicalAuditMetadata } from "./clinical-audit-metadata";
 
 export type AuditResult = "SUCCESS" | "DENIED" | "FAILED";
 export interface AuditWrite {
@@ -30,6 +31,20 @@ export class DatabaseAuditService {
     } });
     if (this.siemExportEnabled()) await this.siemOutbox.enqueueInTransaction(tx, event.id);
   }
+  async writeClinicalInTransaction(tx: Prisma.TransactionClient, input: AuditWrite): Promise<void> {
+    await this.writeInTransaction(tx, {
+      ...input,
+      metadata: sanitizeClinicalAuditMetadata(input.metadata),
+    });
+  }
+
+  async writeClinical(input: AuditWrite): Promise<void> {
+    await this.write({
+      ...input,
+      metadata: sanitizeClinicalAuditMetadata(input.metadata),
+    });
+  }
+
   async write(input: AuditWrite): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
       await this.writeInTransaction(tx, input);
