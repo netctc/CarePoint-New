@@ -32,6 +32,7 @@ import { QuestionnaireModule } from "./modules/questionnaire/questionnaire.modul
 import { OnboardingModule } from "./modules/onboarding/onboarding.module";
 import { ObservationModule } from "./modules/observation/observation.module";
 import { OrdersModule } from "./modules/orders/orders.module";
+import { OtherProviderWorkspaceModule } from "./modules/other-provider-workspace/other-provider-workspace.module";
 import { ProvidersModule } from "./modules/providers/providers.module";
 import { SchedulingModule } from "./modules/scheduling/scheduling.module";
 import { AvailabilityRequestsModule } from "./modules/scheduling/availability-requests.module";
@@ -60,6 +61,7 @@ const isolatedSyntheticPilot = isolatedSyntheticPrivatePilotActive(process.env);
     ...(runtimeFeatures.telehealth ? [AdminTelehealthModule] : []),
     DataGovernanceModule,
     ProvidersModule,
+    OtherProviderWorkspaceModule,
     ...(emergencyAmbulanceModuleEnabled(process.env) ? [EmergencyModule] : []),
     TransportModule,
     IamModule,
