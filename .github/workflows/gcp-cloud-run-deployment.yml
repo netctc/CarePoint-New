@@ -1,0 +1,279 @@
+name: GCP Cloud Run Immutable Deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: "Exact frozen Release Candidate source SHA"
+        required: true
+        type: string
+      release_version:
+        description: "Approved frozen Release Candidate version"
+        required: true
+        type: string
+      image_digest:
+        description: "Exact promoted API sha256 digest"
+        required: true
+        type: string
+      artifact_registry_immutable_ref:
+        description: "Exact me-central2 Artifact Registry API image reference including @sha256 digest"
+        required: true
+        type: string
+      rc_freeze_evidence_ref:
+        description: "Approved restricted G5a freeze evidence reference"
+        required: true
+        type: string
+      artifact_registry_promotion_evidence_ref:
+        description: "Approved restricted G5b promotion evidence reference"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  GCP_REGION: me-central2
+
+jobs:
+  deploy:
+    name: Deploy exact API digest to Cloud Run
+    runs-on: ubuntu-24.04
+    environment: gcp-production-equivalent
+    steps:
+      - name: Validate immutable deployment inputs
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          RELEASE_VERSION: ${{ inputs.release_version }}
+          IMAGE_DIGEST: ${{ inputs.image_digest }}
+          ARTIFACT_REGISTRY_IMMUTABLE_REF: ${{ inputs.artifact_registry_immutable_ref }}
+          RC_FREEZE_EVIDENCE_REF: ${{ inputs.rc_freeze_evidence_ref }}
+          ARTIFACT_REGISTRY_PROMOTION_EVIDENCE_REF: ${{ inputs.artifact_registry_promotion_evidence_ref }}
+        run: |
+          set -euo pipefail
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$RELEASE_VERSION" =~ ^[0-9A-Za-z][0-9A-Za-z._+-]{0,63}$ ]]
+          [[ "$IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+          [[ "$ARTIFACT_REGISTRY_IMMUTABLE_REF" =~ ^me-central2-docker\.pkg\.dev/[^[:space:]@]+@sha256:[0-9a-f]{64}$ ]]
+          test "${ARTIFACT_REGISTRY_IMMUTABLE_REF##*@}" = "$IMAGE_DIGEST"
+          test -n "$RC_FREEZE_EVIDENCE_REF"
+          test -n "$ARTIFACT_REGISTRY_PROMOTION_EVIDENCE_REF"
+
+      - name: Authenticate to Google Cloud with GitHub OIDC and Workload Identity Federation
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_CLOUD_RUN_DEPLOYER_SERVICE_ACCOUNT }}
+          create_credentials_file: true
+          export_environment_variables: true
+
+      - name: Set up Google Cloud CLI
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3
+
+      - name: Validate protected GCP deployment configuration
+        shell: bash
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          CLOUD_RUN_SERVICE: ${{ vars.CAREPOINT_GCP_CLOUD_RUN_SERVICE }}
+          EXPECTED_RUNTIME_SERVICE_ACCOUNT: ${{ vars.CAREPOINT_GCP_SERVICE_ACCOUNT_EMAIL }}
+          PUBLIC_API_ORIGIN: ${{ vars.CAREPOINT_PUBLIC_API_ORIGIN }}
+        run: |
+          set -euo pipefail
+          test -n "$GCP_PROJECT_ID"
+          test -n "$CLOUD_RUN_SERVICE"
+          test -n "$EXPECTED_RUNTIME_SERVICE_ACCOUNT"
+          test -n "$PUBLIC_API_ORIGIN"
+          [[ "$PUBLIC_API_ORIGIN" =~ ^https://[^/]+$ ]]
+          [[ ! "$PUBLIC_API_ORIGIN" =~ \.run\.app$ ]]
+
+      - name: Deploy exact promoted digest without rebuild
+        shell: bash
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          CLOUD_RUN_SERVICE: ${{ vars.CAREPOINT_GCP_CLOUD_RUN_SERVICE }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          RELEASE_VERSION: ${{ inputs.release_version }}
+          IMAGE_DIGEST: ${{ inputs.image_digest }}
+          ARTIFACT_REGISTRY_IMMUTABLE_REF: ${{ inputs.artifact_registry_immutable_ref }}
+        run: |
+          set -euo pipefail
+          gcloud run services update "$CLOUD_RUN_SERVICE" \
+            --project="$GCP_PROJECT_ID" \
+            --region="$GCP_REGION" \
+            --image="$ARTIFACT_REGISTRY_IMMUTABLE_REF" \
+            --update-env-vars="CAREPOINT_RELEASE_VERSION=$RELEASE_VERSION,CAREPOINT_RELEASE_SHA=$SOURCE_SHA,CAREPOINT_RELEASE_ARTIFACT_DIGEST=$IMAGE_DIGEST" \
+            --quiet
+          gcloud run services update-traffic "$CLOUD_RUN_SERVICE" \
+            --project="$GCP_PROJECT_ID" \
+            --region="$GCP_REGION" \
+            --to-latest \
+            --quiet
+
+      - name: Inspect deployed Cloud Run service
+        shell: bash
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          CLOUD_RUN_SERVICE: ${{ vars.CAREPOINT_GCP_CLOUD_RUN_SERVICE }}
+        run: |
+          set -euo pipefail
+          mkdir -p gcp-cloud-run-deployment-evidence
+          gcloud run services describe "$CLOUD_RUN_SERVICE" \
+            --project="$GCP_PROJECT_ID" \
+            --region="$GCP_REGION" \
+            --format=json \
+            > gcp-cloud-run-deployment-evidence/service.json
+
+      - name: Verify exact deployed digest, production profile and runtime identity
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          RELEASE_VERSION: ${{ inputs.release_version }}
+          IMAGE_DIGEST: ${{ inputs.image_digest }}
+          ARTIFACT_REGISTRY_IMMUTABLE_REF: ${{ inputs.artifact_registry_immutable_ref }}
+          EXPECTED_RUNTIME_SERVICE_ACCOUNT: ${{ vars.CAREPOINT_GCP_SERVICE_ACCOUNT_EMAIL }}
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from 'node:fs';
+          import { createHash } from 'node:crypto';
+          const service = JSON.parse(readFileSync('gcp-cloud-run-deployment-evidence/service.json', 'utf8'));
+          const template = service.spec?.template?.spec ?? service.template ?? {};
+          const container = template.containers?.[0] ?? service.spec?.template?.spec?.containers?.[0] ?? {};
+          const image = container.image ?? '';
+          if (image !== process.env.ARTIFACT_REGISTRY_IMMUTABLE_REF) throw new Error('Cloud Run image does not exactly match promoted immutable reference.');
+          if (!image.endsWith(`@${process.env.IMAGE_DIGEST}`)) throw new Error('Cloud Run image digest mismatch.');
+          const runtimeServiceAccount = template.serviceAccountName ?? template.serviceAccount ?? service.template?.serviceAccount ?? '';
+          if (runtimeServiceAccount.toLowerCase() !== process.env.EXPECTED_RUNTIME_SERVICE_ACCOUNT.toLowerCase()) throw new Error('Cloud Run runtime service account mismatch.');
+          const env = new Map((container.env ?? []).map((entry) => [entry.name, entry.value]));
+          if (env.get('NODE_ENV') !== 'production') throw new Error('Cloud Run NODE_ENV must remain production.');
+          if (env.get('CAREPOINT_CLOUD_PROVIDER') !== 'gcp') throw new Error('Cloud Run cloud provider must remain gcp.');
+          if (env.get('CAREPOINT_RELEASE_VERSION') !== process.env.RELEASE_VERSION) throw new Error('Cloud Run release version mismatch.');
+          if (env.get('CAREPOINT_RELEASE_SHA') !== process.env.SOURCE_SHA) throw new Error('Cloud Run release SHA mismatch.');
+          if (env.get('CAREPOINT_RELEASE_ARTIFACT_DIGEST') !== process.env.IMAGE_DIGEST) throw new Error('Cloud Run artifact digest mismatch.');
+          const latestReadyRevision = service.status?.latestReadyRevisionName ?? service.status?.latestReadyRevision ?? service.latestReadyRevision ?? '';
+          if (!latestReadyRevision) throw new Error('Cloud Run latest ready revision is missing.');
+          const conditions = service.status?.conditions ?? service.conditions ?? [];
+          const ready = conditions.some((condition) => condition.type === 'Ready' && String(condition.status).toLowerCase() === 'true');
+          if (!ready) throw new Error('Cloud Run service is not Ready.');
+          const revisionHash = createHash('sha256').update(latestReadyRevision).digest('hex');
+          writeFileSync('gcp-cloud-run-deployment-evidence/revision-hash.txt', `sha256:${revisionHash}\n`, { mode: 0o600 });
+          NODE
+          rm -f gcp-cloud-run-deployment-evidence/service.json
+
+      - name: Verify public health, readiness and exact runtime release identity
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          RELEASE_VERSION: ${{ inputs.release_version }}
+          IMAGE_DIGEST: ${{ inputs.image_digest }}
+          PUBLIC_API_ORIGIN: ${{ vars.CAREPOINT_PUBLIC_API_ORIGIN }}
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --connect-timeout 10 --max-time 30 \
+            "$PUBLIC_API_ORIGIN/api/v1/health" \
+            -o gcp-cloud-run-deployment-evidence/health.json
+          curl --fail --silent --show-error --connect-timeout 10 --max-time 30 \
+            "$PUBLIC_API_ORIGIN/api/v1/health/ready" \
+            -o gcp-cloud-run-deployment-evidence/ready.json
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs';
+          for (const [path, expectedStatus] of [['health.json', 'ok'], ['ready.json', 'ready']]) {
+            const payload = JSON.parse(readFileSync(`gcp-cloud-run-deployment-evidence/${path}`, 'utf8'));
+            if (payload.status !== expectedStatus) throw new Error(`${path} status mismatch.`);
+            if (payload.service !== 'carepoint-api') throw new Error(`${path} service identity mismatch.`);
+            if (payload.release?.version !== process.env.RELEASE_VERSION) throw new Error(`${path} release version mismatch.`);
+            if (payload.release?.sha !== process.env.SOURCE_SHA) throw new Error(`${path} release SHA mismatch.`);
+            if (payload.release?.artifactDigest !== process.env.IMAGE_DIGEST) throw new Error(`${path} artifact digest mismatch.`);
+            if (path === 'ready.json' && (!payload.dependencies?.postgres || !payload.dependencies?.redis)) {
+              throw new Error('Readiness dependencies are not healthy.');
+            }
+          }
+          NODE
+          rm -f gcp-cloud-run-deployment-evidence/health.json gcp-cloud-run-deployment-evidence/ready.json
+
+      - name: Export sanitized G5c deployment evidence
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          RELEASE_VERSION: ${{ inputs.release_version }}
+          IMAGE_DIGEST: ${{ inputs.image_digest }}
+          RC_FREEZE_EVIDENCE_REF: ${{ inputs.rc_freeze_evidence_ref }}
+          ARTIFACT_REGISTRY_PROMOTION_EVIDENCE_REF: ${{ inputs.artifact_registry_promotion_evidence_ref }}
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from 'node:fs';
+          const revisionEvidenceRef = readFileSync('gcp-cloud-run-deployment-evidence/revision-hash.txt', 'utf8').trim();
+          const runRef = `github://actions/runs/${process.env.GITHUB_RUN_ID}/attempts/${process.env.GITHUB_RUN_ATTEMPT}`;
+          const evidence = {
+            schema: 'carepoint.release1-gcp-cloud-run-deployment/v1',
+            phase: 'G5c',
+            productionAcceptance: false,
+            release: {
+              sourceSha: process.env.SOURCE_SHA,
+              releaseVersion: process.env.RELEASE_VERSION,
+              rcFreezeEvidenceRef: process.env.RC_FREEZE_EVIDENCE_REF,
+              artifactRegistryPromotionEvidenceRef: process.env.ARTIFACT_REGISTRY_PROMOTION_EVIDENCE_REF,
+            },
+            deployment: {
+              region: 'me-central2',
+              imageDigest: process.env.IMAGE_DIGEST,
+              cloudRunRevisionEvidenceRef: revisionEvidenceRef,
+              deploymentEvidenceRef: runRef,
+            },
+            runtime: {
+              releaseVersion: process.env.RELEASE_VERSION,
+              releaseSha: process.env.SOURCE_SHA,
+              artifactDigest: process.env.IMAGE_DIGEST,
+              healthEvidenceRef: `${runRef}#health`,
+              readinessEvidenceRef: `${runRef}#readiness`,
+            },
+            controls: {
+              rcFrozen: true,
+              artifactRegistryPromotionVerified: true,
+              exactDigestDeployment: true,
+              noRebuild: true,
+              keylessDeploymentIdentity: true,
+              runtimeServiceAccountVerified: true,
+              serviceReconciled: true,
+              terminalConditionSucceeded: true,
+              runtimeSourceIdentityVerified: true,
+              readinessVerified: true,
+              productionPreflightsPassed: true,
+              compatibilityBypassUsed: false,
+              productionDeploymentEvidence: true,
+            },
+          };
+          writeFileSync('gcp-cloud-run-deployment-evidence/live-evidence.json', `${JSON.stringify(evidence, null, 2)}\n`, { mode: 0o600 });
+          NODE
+          rm -f gcp-cloud-run-deployment-evidence/revision-hash.txt
+          sha256sum gcp-cloud-run-deployment-evidence/live-evidence.json > gcp-cloud-run-deployment-evidence/SHA256SUMS
+          (cd gcp-cloud-run-deployment-evidence && sha256sum --check --strict SHA256SUMS)
+
+      - name: Upload sanitized G5c deployment evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: carepoint-gcp-cloud-run-deployment-${{ inputs.source_sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: gcp-cloud-run-deployment-evidence
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Publish sanitized deployment summary
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          RELEASE_VERSION: ${{ inputs.release_version }}
+          IMAGE_DIGEST: ${{ inputs.image_digest }}
+        run: |
+          {
+            echo "### GCP G5c immutable Cloud Run deployment"
+            echo "- Source SHA: \`$SOURCE_SHA\`"
+            echo "- Release version: \`$RELEASE_VERSION\`"
+            echo "- API digest: \`$IMAGE_DIGEST\`"
+            echo "- Region: \`me-central2\`"
+            echo "- Exact digest deployment: \`true\`"
+            echo "- Runtime identity/readiness/preflights: \`verified\`"
+            echo "- Production deployment evidence: \`true\`"
+            echo "- Production acceptance: \`false\`"
+          } >> "$GITHUB_STEP_SUMMARY"

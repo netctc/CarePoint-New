@@ -1,0 +1,47 @@
+{
+  "schema": "carepoint.release1-gcp-immutable-rc-freeze/v1",
+  "phase": "G5a",
+  "productionAcceptance": false,
+  "release": {
+    "sourceSha": "REPLACE_WITH_FINAL_40_HEX_RC_SHA",
+    "releaseVersion": "REPLACE_WITH_APPROVED_RELEASE_VERSION",
+    "rcEvidenceRef": "REPLACE_WITH_RESTRICTED_OR_SANITIZED_RC_EVIDENCE_REFERENCE",
+    "immutableContainerEvidenceRef": "REPLACE_WITH_IMMUTABLE_CONTAINER_MANIFEST_REFERENCE"
+  },
+  "build": {
+    "workflow": "Release 1 Immutable Containers",
+    "workflowRunRef": "REPLACE_WITH_IMMUTABLE_CONTAINER_WORKFLOW_RUN_REFERENCE",
+    "published": false
+  },
+  "images": {
+    "api": {
+      "name": "ghcr.io/netctc/carepoint-new-api",
+      "digest": "REPLACE_WITH_API_SHA256_DIGEST",
+      "immutableRef": "REPLACE_WITH_API_IMMUTABLE_GHCR_REFERENCE"
+    },
+    "admin": {
+      "name": "ghcr.io/netctc/carepoint-new-admin",
+      "digest": "REPLACE_WITH_ADMIN_SHA256_DIGEST",
+      "immutableRef": "REPLACE_WITH_ADMIN_IMMUTABLE_GHCR_REFERENCE"
+    }
+  },
+  "controls": {
+    "exactSourceCheckout": false,
+    "buildOncePromoteByDigest": false,
+    "runtimeArtifactSmokeVerified": false,
+    "sbomAttestationVerified": false,
+    "provenanceAttestationVerified": false,
+    "noMutableLatestTag": true,
+    "rebuildAfterFreeze": false,
+    "artifactRegistryPromotionEvidence": false,
+    "productionDeploymentEvidence": false
+  },
+  "evidenceRefs": {
+    "sourceIdentity": "REPLACE_WITH_EXACT_SOURCE_IDENTITY_EVIDENCE_REFERENCE",
+    "apiDigest": "REPLACE_WITH_API_DIGEST_EVIDENCE_REFERENCE",
+    "adminDigest": "REPLACE_WITH_ADMIN_DIGEST_EVIDENCE_REFERENCE",
+    "apiProvenance": "REPLACE_WITH_API_PROVENANCE_ATTESTATION_REFERENCE",
+    "adminProvenance": "REPLACE_WITH_ADMIN_PROVENANCE_ATTESTATION_REFERENCE",
+    "sbom": "REPLACE_WITH_SBOM_EVIDENCE_REFERENCE"
+  }
+}

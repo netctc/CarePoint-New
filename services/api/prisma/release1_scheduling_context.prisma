@@ -1,0 +1,92 @@
+enum AvailabilityExceptionKind {
+  UNAVAILABLE
+  VACATION
+}
+
+model ProviderLocation {
+  id                  String   @id @default(uuid())
+  providerId          String
+  label               String
+  addressLine1        String
+  addressLine2        String?
+  city                String
+  region              String?
+  postalCode          String?
+  countryCode         String
+  latitude            Decimal  @db.Decimal(9, 6)
+  longitude           Decimal  @db.Decimal(9, 6)
+  arrivalInstructions String?
+  addressValidatedAt  DateTime?
+  active              Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([providerId, active])
+  @@index([city, countryCode, active])
+}
+
+model ServiceDeliveryContext {
+  id                          String              @id @default(uuid())
+  serviceId                   String
+  modality                    AppointmentModality
+  clinicLocationId            String?
+  clinicArrivalInstructions   String?
+  homeCoverageCenterLatitude  Decimal?            @db.Decimal(9, 6)
+  homeCoverageCenterLongitude Decimal?            @db.Decimal(9, 6)
+  homeCoverageRadiusKm        Decimal?            @db.Decimal(8, 3)
+  createdAt                   DateTime            @default(now())
+  updatedAt                   DateTime            @updatedAt
+
+  @@unique([serviceId, modality])
+  @@index([clinicLocationId])
+}
+
+model AvailabilityRulePolicy {
+  id                  String   @id @default(uuid())
+  ruleId              String   @unique
+  bufferBeforeMinutes Int      @default(0)
+  bufferAfterMinutes  Int      @default(0)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model AvailabilityException {
+  id         String                    @id @default(uuid())
+  providerId String
+  serviceId  String?
+  modality   AppointmentModality?
+  kind       AvailabilityExceptionKind @default(UNAVAILABLE)
+  startsAt   DateTime
+  endsAt     DateTime
+  reason     String?
+  active     Boolean                   @default(true)
+  createdAt  DateTime                  @default(now())
+  updatedAt  DateTime                  @updatedAt
+
+  @@index([providerId, active, startsAt, endsAt])
+  @@index([serviceId, active, startsAt, endsAt])
+}
+
+model AppointmentVisitContext {
+  id                       String              @id @default(uuid())
+  appointmentId            String              @unique
+  modality                 AppointmentModality
+  sourceProviderLocationId String?
+  addressLine1             String
+  addressLine2             String?
+  city                     String
+  region                   String?
+  postalCode               String?
+  countryCode              String
+  latitude                 Decimal             @db.Decimal(9, 6)
+  longitude                Decimal             @db.Decimal(9, 6)
+  instructions             String?
+  contactPhone             String?
+  contactConfirmedAt       DateTime?
+  addressValidatedAt       DateTime?
+  createdAt                DateTime            @default(now())
+  updatedAt                DateTime            @updatedAt
+
+  @@index([modality, createdAt])
+  @@index([sourceProviderLocationId])
+}

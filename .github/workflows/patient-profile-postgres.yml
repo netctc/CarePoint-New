@@ -1,0 +1,66 @@
+name: Patient Profile PostgreSQL
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: patient-profile-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  postgres-profile-acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: carepoint
+          POSTGRES_PASSWORD: carepoint
+          POSTGRES_DB: carepoint_f7_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd="pg_isready -U carepoint -d carepoint_f7_test"
+          --health-interval=5s --health-timeout=5s --health-retries=10
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://carepoint:carepoint@127.0.0.1:5432/carepoint_f7_test?schema=public
+    steps:
+      - name: Check out exact candidate
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Verify source and dependency identity
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          npm install --global npm@10.9.2
+          npm install --package-lock-only --ignore-scripts
+          node .ci/verify-npm-lock.mjs
+          npm ci
+          npm audit --audit-level=high
+      - run: npm run build
+      - run: npm run db:deploy
+      - name: Start API against real PostgreSQL
+        run: |
+          npm --workspace @carepoint/api run start > /tmp/carepoint-f7-api.log 2>&1 &
+          echo $! > /tmp/carepoint-f7-api.pid
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:4000/api/v1/health > /dev/null; then exit 0; fi
+            if ! kill -0 "$(cat /tmp/carepoint-f7-api.pid)" 2>/dev/null; then
+              cat /tmp/carepoint-f7-api.log
+              exit 1
+            fi
+            sleep 1
+          done
+          cat /tmp/carepoint-f7-api.log
+          exit 1
+      - name: Real PostgreSQL patient profile ownership and concurrency acceptance
+        run: node services/api/scripts/f7-patient-profile-postgres.mjs
+      - name: Print API log on failure
+        if: failure()
+        run: cat /tmp/carepoint-f7-api.log || true

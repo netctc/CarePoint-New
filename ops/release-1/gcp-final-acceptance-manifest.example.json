@@ -1,0 +1,23 @@
+{
+  "schema": "carepoint.release1-gcp-final-acceptance-manifest/v1",
+  "phase": "G7",
+  "release": {
+    "sourceSha": "REPLACE_WITH_FINAL_40_HEX_RC_SHA",
+    "releaseVersion": "REPLACE_WITH_RELEASE_VERSION",
+    "g5BundleEvidenceRef": "REPLACE_WITH_RESTRICTED_G5E_BUNDLE_REFERENCE"
+  },
+  "scope": {
+    "provider": "gcp",
+    "jurisdiction": "SA",
+    "region": "me-central2",
+    "secondSaudiRegionApproved": false,
+    "geographicDrClaimed": false
+  },
+  "evidenceRefs": {
+    "infrastructure": "REPLACE_WITH_RESTRICTED_FINAL_INFRASTRUCTURE_EVIDENCE_REFERENCE",
+    "g6aCloudSql": "REPLACE_WITH_RESTRICTED_G6A_CLOUD_SQL_EVIDENCE_REFERENCE",
+    "g6bMemorystore": "REPLACE_WITH_RESTRICTED_G6B_MEMORYSTORE_EVIDENCE_REFERENCE",
+    "g6cCloudStorage": "REPLACE_WITH_RESTRICTED_G6C_CLOUD_STORAGE_EVIDENCE_REFERENCE",
+    "finalRecord": "REPLACE_WITH_RESTRICTED_G7_FINAL_ACCEPTANCE_RECORD_REFERENCE"
+  }
+}

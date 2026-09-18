@@ -1,0 +1,63 @@
+{
+  "schema": "carepoint.release1-gcp-artifact-registry-promotion/v1",
+  "phase": "G5b",
+  "productionAcceptance": false,
+  "productionDeploymentEvidence": false,
+  "release": {
+    "sourceSha": "REPLACE_WITH_FROZEN_RC_40_HEX_SHA",
+    "releaseVersion": "REPLACE_WITH_APPROVED_RELEASE_VERSION",
+    "g5aFreezeEvidenceRef": "REPLACE_WITH_G5A_FREEZE_EVIDENCE_REFERENCE"
+  },
+  "target": {
+    "provider": "gcp",
+    "region": "me-central2",
+    "projectRef": "REPLACE_WITH_GCP_PROJECT_REFERENCE",
+    "repositoryRef": "REPLACE_WITH_ARTIFACT_REGISTRY_REFERENCE"
+  },
+  "auth": {
+    "mode": "workload-identity-federation",
+    "workloadIdentityProviderRef": "REPLACE_WITH_WORKLOAD_IDENTITY_PROVIDER_REFERENCE",
+    "serviceAccountRef": "REPLACE_WITH_PROMOTION_IDENTITY_REFERENCE",
+    "staticCredentialsUsed": false,
+    "serviceAccountKeyUsed": false
+  },
+  "sourceImages": {
+    "api": {
+      "name": "ghcr.io/netctc/carepoint-new-api",
+      "digest": "REPLACE_WITH_FROZEN_API_SHA256_DIGEST",
+      "immutableRef": "REPLACE_WITH_FROZEN_API_GHCR_DIGEST_REFERENCE"
+    },
+    "admin": {
+      "name": "ghcr.io/netctc/carepoint-new-admin",
+      "digest": "REPLACE_WITH_FROZEN_ADMIN_SHA256_DIGEST",
+      "immutableRef": "REPLACE_WITH_FROZEN_ADMIN_GHCR_DIGEST_REFERENCE"
+    }
+  },
+  "promotedImages": {
+    "api": {
+      "digest": "REPLACE_WITH_PROMOTED_API_SHA256_DIGEST",
+      "immutableRef": "REPLACE_WITH_API_ARTIFACT_REGISTRY_DIGEST_REFERENCE"
+    },
+    "admin": {
+      "digest": "REPLACE_WITH_PROMOTED_ADMIN_SHA256_DIGEST",
+      "immutableRef": "REPLACE_WITH_ADMIN_ARTIFACT_REGISTRY_DIGEST_REFERENCE"
+    }
+  },
+  "controls": {
+    "exactFrozenRcUsed": false,
+    "sourceDigestsVerified": false,
+    "noRebuild": true,
+    "digestPreservingCopy": false,
+    "apiTargetDigestMatchesSource": false,
+    "adminTargetDigestMatchesSource": false,
+    "mutableLatestTagUsed": false,
+    "keylessAuthentication": true
+  },
+  "evidenceRefs": {
+    "promotionRun": "REPLACE_WITH_PROMOTION_RUN_REFERENCE",
+    "sourceDigestVerification": "REPLACE_WITH_SOURCE_DIGEST_VERIFICATION_REFERENCE",
+    "apiPromotion": "REPLACE_WITH_API_PROMOTION_REFERENCE",
+    "adminPromotion": "REPLACE_WITH_ADMIN_PROMOTION_REFERENCE",
+    "targetDigestVerification": "REPLACE_WITH_TARGET_DIGEST_VERIFICATION_REFERENCE"
+  }
+}

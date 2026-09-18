@@ -1,0 +1,48 @@
+// F3/F4 operational models: scalar foreign keys are enforced by additive SQL migrations.
+model PatientAvailabilityRequest {
+  id                    String              @id @default(uuid())
+  patientId             String
+  providerId            String
+  serviceId             String
+  modality              AppointmentModality
+  fromAt                DateTime
+  toAt                  DateTime
+  status                String              @default("WAITING")
+  activeKey             String?             @unique
+  noticeConsentVersion  String
+  noticeConsentAt       DateTime            @default(now())
+  acceptedKeyHash       String?
+  acceptedRequestHash   String?
+  bookedAppointmentId   String?
+  closedAt              DateTime?
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+  notice                PatientAvailabilityNotice?
+
+  @@index([patientId, status, createdAt, id], map: "f3_request_patient_idx")
+  @@index([patientId, serviceId, modality, status, fromAt, toAt], map: "f3_request_scope_idx")
+  @@index([providerId, status, toAt], map: "f3_request_provider_idx")
+  @@index([status, toAt, id], map: "f4_request_scan_idx")
+}
+
+// One latest observation per request; no patient contact/address/clinical payload.
+model PatientAvailabilityNotice {
+  id                  String   @id @default(uuid())
+  requestId           String   @unique
+  patientId           String
+  active              Boolean  @default(true)
+  version             Int      @default(1)
+  lastNotifiedVersion Int      @default(0)
+  matchHash           String
+  matchCount          Int
+  firstAvailableAt    DateTime?
+  truncated           Boolean  @default(false)
+  checkedAt           DateTime
+  readAt              DateTime?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  request             PatientAvailabilityRequest @relation(fields: [requestId], references: [id], onDelete: Cascade, map: "f3_notice_request_fk")
+
+  @@index([patientId, active, checkedAt, id], map: "f3_notice_patient_idx")
+  @@index([active, checkedAt, id], map: "f4_notice_scan_idx")
+}

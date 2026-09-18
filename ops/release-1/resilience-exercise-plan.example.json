@@ -1,0 +1,86 @@
+{
+  "schema": "carepoint.release-resilience-plan/v1",
+  "approved": false,
+  "sensitiveDataIncluded": false,
+  "note": "Draft catalog only. No fault is enabled and no production or production-equivalent execution is authorized by this file.",
+  "scenarioCatalog": [
+    {
+      "id": "notification-provider-outage",
+      "enabled": false,
+      "ownerRole": "PENDING_OPERATIONS_OWNER",
+      "executionRunbookRef": "PENDING_RESTRICTED_RUNBOOK",
+      "evidenceOwnerRef": "PENDING_EVIDENCE_OWNER"
+    },
+    {
+      "id": "notification-worker-lease-recovery",
+      "enabled": false,
+      "ownerRole": "PENDING_OPERATIONS_OWNER",
+      "executionRunbookRef": "PENDING_RESTRICTED_RUNBOOK",
+      "evidenceOwnerRef": "PENDING_EVIDENCE_OWNER"
+    },
+    {
+      "id": "psp-timeout-retry-webhook-replay",
+      "enabled": false,
+      "ownerRole": "PENDING_FINANCE_PLATFORM_OWNER",
+      "executionRunbookRef": "PENDING_RESTRICTED_RUNBOOK",
+      "evidenceOwnerRef": "PENDING_EVIDENCE_OWNER"
+    },
+    {
+      "id": "redis-loss-failover",
+      "enabled": false,
+      "ownerRole": "PENDING_SRE_OWNER",
+      "executionRunbookRef": "PENDING_RESTRICTED_RUNBOOK",
+      "evidenceOwnerRef": "PENDING_EVIDENCE_OWNER"
+    },
+    {
+      "id": "postgres-primary-failover",
+      "enabled": false,
+      "ownerRole": "PENDING_DATABASE_OWNER",
+      "executionRunbookRef": "PENDING_RESTRICTED_RUNBOOK",
+      "evidenceOwnerRef": "PENDING_EVIDENCE_OWNER"
+    },
+    {
+      "id": "postgres-replica-lag",
+      "enabled": false,
+      "ownerRole": "PENDING_DATABASE_OWNER",
+      "executionRunbookRef": "PENDING_RESTRICTED_RUNBOOK",
+      "evidenceOwnerRef": "PENDING_EVIDENCE_OWNER"
+    },
+    {
+      "id": "postgres-pitr-restore",
+      "enabled": false,
+      "ownerRole": "PENDING_DATABASE_OWNER",
+      "executionRunbookRef": "PENDING_RESTRICTED_RUNBOOK",
+      "evidenceOwnerRef": "PENDING_EVIDENCE_OWNER"
+    },
+    {
+      "id": "telehealth-provider-network-outage",
+      "enabled": false,
+      "ownerRole": "PENDING_TELEHEALTH_OWNER",
+      "executionRunbookRef": "PENDING_RESTRICTED_RUNBOOK",
+      "evidenceOwnerRef": "PENDING_EVIDENCE_OWNER"
+    },
+    {
+      "id": "otlp-collector-outage",
+      "enabled": false,
+      "ownerRole": "PENDING_OBSERVABILITY_OWNER",
+      "executionRunbookRef": "PENDING_RESTRICTED_RUNBOOK",
+      "evidenceOwnerRef": "PENDING_EVIDENCE_OWNER"
+    },
+    {
+      "id": "critical-workflow-failure-safety",
+      "enabled": false,
+      "ownerRole": "PENDING_RELEASE_OWNER",
+      "executionRunbookRef": "PENDING_RESTRICTED_RUNBOOK",
+      "evidenceOwnerRef": "PENDING_EVIDENCE_OWNER"
+    }
+  ],
+  "dependencies": {
+    "productionEquivalentTopology": "#79",
+    "realProviderConfiguration": "#80",
+    "nativeMobileWhereRequired": "#81",
+    "performanceTargetLoad": "#89",
+    "releaseCandidateArtifact": "#97",
+    "deploymentRollbackRehearsal": "#98"
+  }
+}

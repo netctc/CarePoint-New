@@ -1,0 +1,68 @@
+name: Performance Harness Contract
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    name: R8 performance harness contract
+    runs-on: ubuntu-24.04
+    env:
+      CAREPOINT_PERF_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Check out exact candidate SHA
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          ref: ${{ env.CAREPOINT_PERF_SOURCE_SHA }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+
+      - name: Verify exact checkout identity
+        run: test "$(git rev-parse HEAD)" = "$CAREPOINT_PERF_SOURCE_SHA"
+
+      - name: Self-test Release 1 performance harness
+        run: node .ci/release-performance-harness.mjs --self-test
+
+      - name: Validate disabled draft traffic-model catalog
+        run: node .ci/release-performance-harness.mjs --validate-draft ops/release-1/performance-traffic-model.example.json
+
+      - name: Generate exact-SHA harness contract evidence
+        run: |
+          mkdir -p performance-harness-contract
+          node .ci/release-performance-harness.mjs \
+            --contract-out ops/release-1/performance-traffic-model.example.json \
+            performance-harness-contract/contract.json
+
+      - name: Create and verify evidence checksums
+        run: |
+          (cd performance-harness-contract && sha256sum contract.json > SHA256SUMS)
+          (cd performance-harness-contract && sha256sum --check --strict SHA256SUMS)
+
+      - name: Upload immutable performance-harness contract evidence
+        id: upload
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: carepoint-performance-harness-contract-${{ env.CAREPOINT_PERF_SOURCE_SHA }}
+          path: performance-harness-contract
+          if-no-files-found: error
+
+      - name: Publish sanitized contract summary
+        run: |
+          {
+            echo "### Release 1 performance harness contract"
+            echo "- Source SHA: \`$CAREPOINT_PERF_SOURCE_SHA\`"
+            echo "- Harness self-test: PASS"
+            echo "- Mandatory scenario catalog: PASS"
+            echo "- Source p95 gates: common reads < 500 ms; search < 800 ms"
+            echo "- Immutable workflow artifact digest: \`${{ steps.upload.outputs.artifact-digest }}\`"
+            echo "- This validates the harness contract only. It does not execute target load or close #89."
+          } >> "$GITHUB_STEP_SUMMARY"

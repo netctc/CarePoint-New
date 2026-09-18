@@ -1,0 +1,184 @@
+{
+  "schema": "carepoint.release-performance-model/v1",
+  "approved": false,
+  "approvedTrafficModelRef": "PENDING_PRODUCT_OPERATIONS_INFRA_APPROVAL",
+  "environment": {
+    "classification": "production-equivalent",
+    "id": "PENDING_ENVIRONMENT_ID",
+    "topologyRef": "PENDING_R3_TOPOLOGY_EVIDENCE_REF",
+    "evidenceRef": "PENDING_R3_ENVIRONMENT_EVIDENCE_REF"
+  },
+  "release": {
+    "version": "PENDING_RELEASE_VERSION",
+    "sourceSha": "0000000000000000000000000000000000000000",
+    "buildRef": "PENDING_RC_BUILD_REF",
+    "artifactDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "baseUrl": "${CAREPOINT_PERF_BASE_URL}",
+  "timeoutMs": 10000,
+  "observability": {
+    "otlpWindowRef": "PENDING_OTLP_WINDOW_REF",
+    "saturationEvidenceRef": "PENDING_DB_REDIS_API_SATURATION_REF",
+    "autoscalingEvidenceRef": "PENDING_AUTOSCALING_REPLICA_REF"
+  },
+  "scenarios": [
+    {
+      "id": "patient-common-read-mix",
+      "kind": "common-read",
+      "enabled": false,
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/bookings/me",
+          "headers": { "authorization": "Bearer ${CAREPOINT_PERF_PATIENT_TOKEN}" },
+          "expectedStatus": [200]
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/billing/me",
+          "headers": { "authorization": "Bearer ${CAREPOINT_PERF_PATIENT_TOKEN}" },
+          "expectedStatus": [200]
+        }
+      ],
+      "load": { "stages": [] },
+      "thresholds": { "maxErrorRate": null, "maxTimeoutRate": null }
+    },
+    {
+      "id": "provider-service-discovery",
+      "kind": "search",
+      "enabled": false,
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/services/discovery?specialty=${CAREPOINT_PERF_SPECIALTY}&providerClass=${CAREPOINT_PERF_PROVIDER_CLASS}&service=${CAREPOINT_PERF_SERVICE_QUERY}&modality=${CAREPOINT_PERF_MODALITY}&location=${CAREPOINT_PERF_LOCATION}&page=1&limit=20",
+          "expectedStatus": [200]
+        }
+      ],
+      "load": { "stages": [] },
+      "thresholds": { "maxErrorRate": null, "maxTimeoutRate": null }
+    },
+    {
+      "id": "availability-slot-read",
+      "kind": "availability-read",
+      "enabled": false,
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/availability?serviceId=${CAREPOINT_PERF_SERVICE_ID}&modality=${CAREPOINT_PERF_MODALITY}",
+          "expectedStatus": [200]
+        }
+      ],
+      "load": { "stages": [] },
+      "thresholds": { "maxErrorRate": null, "maxTimeoutRate": null }
+    },
+    {
+      "id": "final-slot-concurrency",
+      "kind": "booking-race",
+      "enabled": false,
+      "requests": [
+        {
+          "method": "POST",
+          "path": "/api/v1/bookings",
+          "headers": { "authorization": "Bearer ${CAREPOINT_PERF_PATIENT_TOKEN}" },
+          "body": {
+            "slotId": "${CAREPOINT_PERF_FINAL_SLOT_ID}",
+            "idempotencyKey": "perf-${CAREPOINT_PERF_REQUEST_ID}"
+          },
+          "expectedStatus": [201, 409, 422]
+        }
+      ],
+      "race": {
+        "attempts": null,
+        "expectedSuccesses": 1,
+        "successStatuses": [200, 201],
+        "rejectionStatuses": [409, 422]
+      },
+      "thresholds": { "maxErrorRate": null, "maxTimeoutRate": null },
+      "integrityEvidenceRef": "PENDING_APPOINTMENT_DB_INTEGRITY_REF"
+    },
+    {
+      "id": "booking-lifecycle-burst",
+      "kind": "booking-lifecycle",
+      "enabled": false,
+      "requests": [
+        {
+          "method": "POST",
+          "path": "/api/v1/bookings/${CAREPOINT_PERF_LIFECYCLE_APPOINTMENT_ID}/cancel",
+          "headers": { "authorization": "Bearer ${CAREPOINT_PERF_PATIENT_TOKEN}" },
+          "body": { "reason": "synthetic performance fixture" },
+          "expectedStatus": [200, 201, 204, 409]
+        }
+      ],
+      "load": { "stages": [] },
+      "thresholds": { "maxErrorRate": null, "maxTimeoutRate": null }
+    },
+    {
+      "id": "livekit-webhook-replay",
+      "kind": "webhook-replay",
+      "enabled": false,
+      "requests": [
+        {
+          "method": "POST",
+          "path": "/api/v1/telehealth/webhooks/livekit",
+          "headers": {
+            "authorization": "${CAREPOINT_PERF_LIVEKIT_WEBHOOK_AUTHORIZATION}",
+            "content-type": "application/webhook+json"
+          },
+          "body": "${CAREPOINT_PERF_LIVEKIT_WEBHOOK_BODY}",
+          "expectedStatus": [204]
+        }
+      ],
+      "load": { "stages": [] },
+      "thresholds": { "maxErrorRate": null, "maxTimeoutRate": null },
+      "idempotencyIntegrityEvidenceRef": "PENDING_WEBHOOK_REPLAY_INTEGRITY_REF"
+    },
+    {
+      "id": "notification-outbox-trigger",
+      "kind": "notification-event",
+      "enabled": false,
+      "requests": [
+        {
+          "method": "POST",
+          "path": "/api/v1/bookings/${CAREPOINT_PERF_NOTIFICATION_APPOINTMENT_ID}/cancel",
+          "headers": { "authorization": "Bearer ${CAREPOINT_PERF_PATIENT_TOKEN}" },
+          "body": { "reason": "synthetic notification performance fixture" },
+          "expectedStatus": [200, 201, 204, 409]
+        }
+      ],
+      "load": { "stages": [] },
+      "thresholds": { "maxErrorRate": null, "maxTimeoutRate": null },
+      "outboxEvidenceRef": "PENDING_NOTIFICATION_OUTBOX_EVIDENCE_REF"
+    },
+    {
+      "id": "telehealth-start-spike",
+      "kind": "telehealth-start",
+      "enabled": false,
+      "requests": [
+        {
+          "method": "POST",
+          "path": "/api/v1/telehealth/appointments/${CAREPOINT_PERF_TELEHEALTH_APPOINTMENT_ID}/join",
+          "headers": { "authorization": "Bearer ${CAREPOINT_PERF_PROVIDER_TOKEN}" },
+          "expectedStatus": [200, 201]
+        }
+      ],
+      "load": { "stages": [] },
+      "thresholds": { "maxErrorRate": null, "maxTimeoutRate": null },
+      "providerCapacityEvidenceRef": "PENDING_REAL_LIVEKIT_ROOM_JOIN_CAPACITY_REF"
+    },
+    {
+      "id": "admin-operational-read",
+      "kind": "admin-read",
+      "enabled": false,
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/operations/analytics/workspace?days=30",
+          "headers": { "authorization": "Bearer ${CAREPOINT_PERF_ADMIN_TOKEN}" },
+          "expectedStatus": [200]
+        }
+      ],
+      "load": { "stages": [] },
+      "thresholds": { "maxErrorRate": null, "maxTimeoutRate": null }
+    }
+  ]
+}
