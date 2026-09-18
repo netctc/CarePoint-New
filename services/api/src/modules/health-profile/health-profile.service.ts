@@ -167,6 +167,10 @@ export class HealthProfileService {
       allowedPurposes: ["TREATMENT"],
       withinAccessWindow: Boolean(relationship),
       sensitivityAllowed: true,
+      // A current care relationship is enforced above as a time/context gate.
+      // Access to the longitudinal profile itself still requires explicit consent,
+      // so the policy basis remains PATIENT_CONSENT rather than relationship-only.
+      hasTreatmentRelationship: false,
       hasPatientConsent: Boolean(consent),
     });
 
