@@ -26,7 +26,9 @@ void main() {
       if (request.url.path.endsWith('/medical-transport')) {
         expect(body['mode'], 'GROUND');
         expect(body['assistance'], 'WHEELCHAIR');
-        return http.Response(jsonEncode({'request': {'id': 'tr1', 'status': 'REQUESTED'}}), 201, headers: {'content-type': 'application/json'});
+        expect(body['companionCount'], 2);
+        expect(body['equipment'], ['OXYGEN', 'MONITORING']);
+        return http.Response(jsonEncode({'request': {'id': 'tr1', 'status': 'REQUESTED', 'companionCount': 2, 'equipment': ['OXYGEN', 'MONITORING']}}), 201, headers: {'content-type': 'application/json'});
       }
       return http.Response('{}', 404, headers: {'content-type': 'application/json'});
     });
@@ -45,6 +47,8 @@ void main() {
       destinationLatitude: 33.88,
       destinationLongitude: 35.52,
       assistance: 'WHEELCHAIR',
+      companionCount: 2,
+      equipment: const ['OXYGEN', 'MONITORING'],
     );
     expect((transport['request'] as Map)['id'], 'tr1');
     expect(requests.length, 2);
@@ -73,7 +77,7 @@ void main() {
     expect((await api.updateProviderMedicalTransportStatus('tr1', status: 'EN_ROUTE'))['status'], 'EN_ROUTE');
   });
 
-  testWidgets('Other Provider transport workspace renders eligible scheduled transport queue', (tester) async {
+  testWidgets('Other Provider transport workspace renders eligible scheduled transport queue and logistics', (tester) async {
     final client = MockClient((request) async {
       expect(request.headers['authorization'], 'Bearer workspace-transport-access');
       final path = request.url.path;
@@ -82,7 +86,17 @@ void main() {
       }
       if (path.endsWith('/provider/medical-transport/available')) {
         return http.Response(jsonEncode([
-          {'id': 'tr1', 'mode': 'GROUND', 'status': 'REQUESTED', 'scheduledFor': '2031-01-15T10:00:00Z', 'pickupAddress': 'Pickup', 'destinationAddress': 'Destination', 'patient': {'firstName': 'CI', 'lastName': 'Patient'}}
+          {
+            'id': 'tr1',
+            'mode': 'GROUND',
+            'status': 'REQUESTED',
+            'scheduledFor': '2031-01-15T10:00:00Z',
+            'pickupAddress': 'Pickup',
+            'destinationAddress': 'Destination',
+            'companionCount': 2,
+            'equipment': ['OXYGEN', 'MONITORING'],
+            'patient': {'firstName': 'CI', 'lastName': 'Patient'}
+          }
         ]), 200, headers: {'content-type': 'application/json'});
       }
       if (path.endsWith('/provider/medical-transport')) {
@@ -100,6 +114,8 @@ void main() {
     expect(find.text('Transport operations'), findsOneWidget);
     expect(find.text('Available requests'), findsOneWidget);
     expect(find.text('CI Patient'), findsOneWidget);
+    expect(find.text('Companions: 2'), findsOneWidget);
+    expect(find.text('Requested equipment: Oxygen, Monitoring'), findsOneWidget);
     expect(find.text('Accept job'), findsOneWidget);
   });
 }

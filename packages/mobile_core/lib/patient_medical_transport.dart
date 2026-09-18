@@ -25,6 +25,17 @@ String patientMedicalTransportAssistanceText(CarePointLocale locale, dynamic raw
       _ => transportText(locale, 'standard'),
     };
 
+String patientMedicalTransportEquipmentText(CarePointLocale locale, dynamic raw) {
+  final values = raw is List ? raw.map((value) => value.toString()).toList(growable: false) : const <String>[];
+  if (values.isEmpty) return transportText(locale, 'none');
+  return values.map((value) => switch (value) {
+    'OXYGEN' => transportText(locale, 'oxygen'),
+    'MONITORING' => transportText(locale, 'monitoring'),
+    'VENTILATION' => transportText(locale, 'ventilation'),
+    _ => value,
+  }).join(', ');
+}
+
 String patientMedicalTransportModeText(CarePointLocale locale, dynamic raw) =>
     raw?.toString() == 'AIR' ? transportText(locale, 'air') : transportText(locale, 'ground');
 
@@ -81,8 +92,6 @@ class _PatientMedicalTransportStatusPageState extends State<PatientMedicalTransp
     if (widget.session.account['role'] != 'PATIENT' || requestId.isEmpty) return;
     if (mounted) setState(() { busy = true; error = null; });
     try {
-      // List/notification data is never authorization. This endpoint derives
-      // the Patient from the authenticated principal and rejects other owners.
       final next = await widget.session.api.medicalTransportRequest(requestId).timeout(const Duration(seconds: 30));
       if (mounted) setState(() => value = next);
     } catch (_) {
@@ -162,6 +171,8 @@ class _PatientMedicalTransportStatusPageState extends State<PatientMedicalTransp
                             _detail(transportText(widget.locale, 'scheduledFor'), patientMedicalTransportDateTime(request['scheduledFor'])),
                             _detail(transportText(widget.locale, 'mode'), patientMedicalTransportModeText(widget.locale, request['mode'])),
                             _detail(transportText(widget.locale, 'assistance'), patientMedicalTransportAssistanceText(widget.locale, request['assistance'])),
+                            _detail(transportText(widget.locale, 'companions'), '${request['companionCount'] ?? 0}'),
+                            _detail(transportText(widget.locale, 'equipment'), patientMedicalTransportEquipmentText(widget.locale, request['equipment'])),
                             _detail(transportText(widget.locale, 'pickup'), _location(request, pickup: true)),
                             _detail(transportText(widget.locale, 'destination'), _location(request, pickup: false)),
                             if (provider['displayName'] != null) _detail(patientMedicalTransportText(widget.locale, 'provider'), provider['displayName'].toString()),

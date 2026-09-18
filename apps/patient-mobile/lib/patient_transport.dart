@@ -147,6 +147,8 @@ class _PatientMedicalTransportPageState extends State<PatientMedicalTransportPag
           Text('${transportText(widget.locale, 'scheduledFor')}: ${patientMedicalTransportDateTime(item['scheduledFor'])}'),
           Text('${transportText(widget.locale, 'pickup')}: ${item['pickupAddress'] ?? '${item['pickupLatitude']}, ${item['pickupLongitude']}'}'),
           Text('${transportText(widget.locale, 'destination')}: ${item['destinationAddress'] ?? '${item['destinationLatitude']}, ${item['destinationLongitude']}'}'),
+          Text('${transportText(widget.locale, 'companions')}: ${item['companionCount'] ?? 0}'),
+          Text('${transportText(widget.locale, 'equipment')}: ${_equipmentText(widget.locale, item['equipment'])}'),
           if (provider['displayName'] != null) Text(provider['displayName'].toString(), style: const TextStyle(fontWeight: FontWeight.w700)),
           if (item['etaMinutes'] != null) Text('${transportText(widget.locale, 'eta')}: ${item['etaMinutes']} ${transportText(widget.locale, 'minutes')}'),
           const SizedBox(height: 8),
@@ -213,6 +215,8 @@ class _PatientMedicalTransportPageState extends State<PatientMedicalTransportPag
         destinationLongitude: result.destinationLongitude,
         destinationAddress: result.destinationAddress,
         assistance: result.assistance,
+        companionCount: result.companionCount,
+        equipment: result.equipment,
       );
       if (!mounted) return;
       setState(() => busy = false);
@@ -235,6 +239,8 @@ class _TransportDraft {
   const _TransportDraft({
     required this.mode,
     required this.assistance,
+    required this.companionCount,
+    required this.equipment,
     required this.scheduledFor,
     required this.destinationLatitude,
     required this.destinationLongitude,
@@ -243,6 +249,8 @@ class _TransportDraft {
   });
   final String mode;
   final String assistance;
+  final int companionCount;
+  final List<String> equipment;
   final DateTime scheduledFor;
   final double destinationLatitude;
   final double destinationLongitude;
@@ -265,6 +273,8 @@ class _TransportDialogState extends State<_TransportDialog> {
   final destinationLongitude = TextEditingController();
   String mode = 'GROUND';
   String assistance = 'STANDARD';
+  int companionCount = 0;
+  final Set<String> equipment = <String>{};
   DateTime scheduledFor = DateTime.now().add(const Duration(hours: 2));
 
   @override
@@ -304,6 +314,33 @@ class _TransportDialogState extends State<_TransportDialog> {
                 onChanged: (value) => setState(() => assistance = value ?? assistance),
               ),
               const SizedBox(height: 10),
+              DropdownButtonFormField<int>(
+                initialValue: companionCount,
+                decoration: InputDecoration(labelText: transportText(widget.locale, 'companions')),
+                items: List.generate(9, (value) => DropdownMenuItem(value: value, child: Text('$value'))),
+                onChanged: (value) => setState(() => companionCount = value ?? companionCount),
+              ),
+              const SizedBox(height: 10),
+              Align(alignment: AlignmentDirectional.centerStart, child: Text(transportText(widget.locale, 'equipment'), style: const TextStyle(fontWeight: FontWeight.w700))),
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                value: equipment.contains('OXYGEN'),
+                title: Text(transportText(widget.locale, 'oxygen')),
+                onChanged: (value) => _toggleEquipment('OXYGEN', value == true),
+              ),
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                value: equipment.contains('MONITORING'),
+                title: Text(transportText(widget.locale, 'monitoring')),
+                onChanged: (value) => _toggleEquipment('MONITORING', value == true),
+              ),
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                value: equipment.contains('VENTILATION'),
+                title: Text(transportText(widget.locale, 'ventilation')),
+                onChanged: (value) => _toggleEquipment('VENTILATION', value == true),
+              ),
+              const SizedBox(height: 10),
               TextField(controller: pickupAddress, decoration: InputDecoration(labelText: '${transportText(widget.locale, 'pickup')} · ${transportText(widget.locale, 'address')}')),
               const SizedBox(height: 10),
               TextField(controller: destinationAddress, decoration: InputDecoration(labelText: '${transportText(widget.locale, 'destination')} · ${transportText(widget.locale, 'address')}')),
@@ -328,6 +365,16 @@ class _TransportDialogState extends State<_TransportDialog> {
         ],
       );
 
+  void _toggleEquipment(String value, bool selected) {
+    setState(() {
+      if (selected) {
+        equipment.add(value);
+      } else {
+        equipment.remove(value);
+      }
+    });
+  }
+
   Future<void> _pickDateTime() async {
     final date = await showDatePicker(context: context, firstDate: DateTime.now(), lastDate: DateTime.now().add(const Duration(days: 365)), initialDate: scheduledFor);
     if (date == null || !mounted) return;
@@ -346,6 +393,8 @@ class _TransportDialogState extends State<_TransportDialog> {
     Navigator.pop(context, _TransportDraft(
       mode: mode,
       assistance: assistance,
+      companionCount: companionCount,
+      equipment: equipment.toList(growable: false),
       scheduledFor: scheduledFor,
       destinationLatitude: lat,
       destinationLongitude: lng,
@@ -353,6 +402,17 @@ class _TransportDialogState extends State<_TransportDialog> {
       destinationAddress: destinationAddress.text.trim().isEmpty ? null : destinationAddress.text.trim(),
     ));
   }
+}
+
+String _equipmentText(CarePointLocale locale, dynamic raw) {
+  final values = raw is List ? raw.map((value) => value.toString()).toList(growable: false) : const <String>[];
+  if (values.isEmpty) return transportText(locale, 'none');
+  return values.map((value) => switch (value) {
+    'OXYGEN' => transportText(locale, 'oxygen'),
+    'MONITORING' => transportText(locale, 'monitoring'),
+    'VENTILATION' => transportText(locale, 'ventilation'),
+    _ => value,
+  }).join(', ');
 }
 
 Map<String, dynamic> _map(dynamic value) {

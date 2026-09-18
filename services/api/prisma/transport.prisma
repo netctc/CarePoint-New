@@ -19,18 +19,26 @@ enum MedicalTransportAssistance {
   STRETCHER
 }
 
+enum MedicalTransportEquipment {
+  OXYGEN
+  MONITORING
+  VENTILATION
+}
+
 model MedicalTransportRequest {
-  id                   String                     @id @default(uuid())
+  id                   String                      @id @default(uuid())
   patientId            String
   mode                 MedicalTransportMode
-  status               MedicalTransportStatus     @default(REQUESTED)
-  assistance           MedicalTransportAssistance @default(STANDARD)
+  status               MedicalTransportStatus      @default(REQUESTED)
+  assistance           MedicalTransportAssistance  @default(STANDARD)
+  companionCount       Int                         @default(0)
+  equipment             MedicalTransportEquipment[] @default([])
   scheduledFor         DateTime
-  pickupLatitude       Decimal                    @db.Decimal(9, 6)
-  pickupLongitude      Decimal                    @db.Decimal(9, 6)
+  pickupLatitude       Decimal                     @db.Decimal(9, 6)
+  pickupLongitude      Decimal                     @db.Decimal(9, 6)
   pickupAddress        String?
-  destinationLatitude  Decimal                    @db.Decimal(9, 6)
-  destinationLongitude Decimal                    @db.Decimal(9, 6)
+  destinationLatitude  Decimal                     @db.Decimal(9, 6)
+  destinationLongitude Decimal                     @db.Decimal(9, 6)
   destinationAddress   String?
   callbackPhone        String?
   assignedProviderId   String?
@@ -43,8 +51,8 @@ model MedicalTransportRequest {
   arrivedAt            DateTime?
   transportingAt       DateTime?
   completedAt          DateTime?
-  requestedAt          DateTime                   @default(now())
-  updatedAt            DateTime                   @updatedAt
+  requestedAt          DateTime                    @default(now())
+  updatedAt            DateTime                    @updatedAt
 
   @@unique([patientId, clientRequestId])
   @@index([patientId, requestedAt])

@@ -51,6 +51,8 @@ extension CarePointTransportApi on CarePointApi {
     required double destinationLongitude,
     String? destinationAddress,
     String assistance = 'STANDARD',
+    int companionCount = 0,
+    List<String> equipment = const [],
     String? callbackPhone,
   }) async =>
       _asMap(await _send('POST', '/medical-transport', body: {
@@ -64,6 +66,8 @@ extension CarePointTransportApi on CarePointApi {
         'destinationLongitude': destinationLongitude,
         if (destinationAddress?.trim().isNotEmpty == true) 'destinationAddress': destinationAddress!.trim(),
         'assistance': assistance,
+        'companionCount': companionCount,
+        'equipment': equipment,
         if (callbackPhone?.trim().isNotEmpty == true) 'callbackPhone': callbackPhone!.trim(),
       }));
 
