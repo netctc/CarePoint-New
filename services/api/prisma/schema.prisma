@@ -177,6 +177,7 @@ model PatientProfile {
   questionnaireResponses QuestionnaireResponse[]
   observations       Observation[]
   clinicalFacts      PatientClinicalFact[]
+  categoryFormResponses ProviderCategoryFormResponse[]
 }
 
 model Provider {
@@ -197,6 +198,7 @@ model Provider {
   slots                     AvailabilitySlot[]
   appointments              Appointment[]
   assignedEmergencyRequests EmergencyAmbulanceRequest[] @relation("EmergencyAssignedProvider")
+  categoryFormResponses     ProviderCategoryFormResponse[]
 }
 
 model ProviderOnboarding {
@@ -283,6 +285,7 @@ model ProviderCategory {
   updatedAt               DateTime               @updatedAt
   providers               OtherProviderProfile[]
   onboardings             ProviderOnboarding[]
+  formDefinitions         ProviderCategoryFormDefinition[]
 }
 
 model OtherProviderProfile {
