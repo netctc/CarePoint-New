@@ -105,7 +105,9 @@ function assertNoMarker(payload, marker, label) {
 
 async function main() {
   const suffix = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-  const adminToken = await login("admin-ci@carepoint.test", "CarePoint-CI-Admin#2026");
+  const adminPassword = process.env.BOOTSTRAP_ADMIN_PASSWORD;
+  if (!adminPassword) throw new Error("R6 CI admin credential is required.");
+  const adminToken = await login("admin-ci@carepoint.test", adminPassword);
   const specialties = await request("/doctors/specialties");
   const specialtyId = specialties.items?.[0]?.id;
   if (!specialtyId) throw new Error("No specialty available for R6 authorization acceptance.");
