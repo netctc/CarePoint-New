@@ -5,6 +5,8 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const engine = require("../dist/modules/patient-health-summary/patient-health-summary.engine.js");
 
+await import("./v2-provider-observations-smoke.mjs");
+
 const observation = (id, code, at, value = 1, unitCode = "UNIT", sourceType = "MANUAL") => ({
   id,
   code,
