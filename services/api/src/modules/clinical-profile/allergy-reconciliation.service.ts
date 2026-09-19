@@ -130,11 +130,12 @@ export class AllergyReconciliationService {
 
   async createForDoctor(principal: AuthPrincipal, patientId: string, input: CreateAllergyInput) {
     const reasonCode = this.reason(input?.reasonCode);
-    const created = await this.profile.createForDoctor(principal, patientId, {
+    const createInput: CreateClinicalProfileEntryInput = {
       kind: "ALLERGY",
-      status: input?.status,
-      data: input?.data,
-    } satisfies CreateClinicalProfileEntryInput);
+      data: input.data,
+      ...(input.status !== undefined ? { status: input.status } : {}),
+    };
+    const created = await this.profile.createForDoctor(principal, patientId, createInput);
     await this.annotate(created.id, created.version, reasonCode, principal.accountId);
     return { ...created, data: this.presentAllergyData(created.data as ClinicalProfilePayload), reasonCode };
   }
@@ -147,11 +148,12 @@ export class AllergyReconciliationService {
   ) {
     await this.requireAllergy(patientId, entryId);
     const reasonCode = this.reason(input?.reasonCode);
-    const updated = await this.profile.updateForDoctor(principal, patientId, entryId, {
-      expectedVersion: input?.expectedVersion,
-      status: input?.status,
-      data: input?.data,
-    } satisfies UpdateClinicalProfileEntryInput);
+    const updateInput: UpdateClinicalProfileEntryInput = {
+      expectedVersion: input.expectedVersion,
+      data: input.data,
+      ...(input.status !== undefined ? { status: input.status } : {}),
+    };
+    const updated = await this.profile.updateForDoctor(principal, patientId, entryId, updateInput);
     await this.annotate(updated.id, updated.version, reasonCode, principal.accountId);
     return { ...updated, data: this.presentAllergyData(updated.data as ClinicalProfilePayload), reasonCode };
   }
@@ -165,8 +167,8 @@ export class AllergyReconciliationService {
     await this.requireAllergy(patientId, entryId);
     const reasonCode = this.reason(input?.reasonCode ?? "CONFIRMED");
     const updated = await this.profile.verifyForDoctor(principal, patientId, entryId, {
-      expectedVersion: input?.expectedVersion,
-      decision: input?.decision,
+      expectedVersion: input.expectedVersion,
+      decision: input.decision,
     });
     await this.annotate(updated.id, updated.version, reasonCode, principal.accountId);
     return { ...updated, data: this.presentAllergyData(updated.data as ClinicalProfilePayload), reasonCode };
