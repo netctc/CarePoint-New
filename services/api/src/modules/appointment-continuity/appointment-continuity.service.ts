@@ -6,6 +6,7 @@ import { PrismaService } from "../../infrastructure/prisma/prisma.module";
 import { DatabaseAuditService } from "../../infrastructure/audit/audit.service";
 import { ClinicalEnvelopeService } from "../clinical/clinical-envelope.service";
 import { NotificationsService } from "../communications/notifications.service";
+import { PatientContextService } from "../dependents/dependents.service";
 import {
   normalizeDueAt,
   normalizeFollowUpPayload,
@@ -30,24 +31,25 @@ export class AppointmentContinuityService {
     private readonly audit: DatabaseAuditService,
     private readonly envelope: ClinicalEnvelopeService,
     private readonly notifications: NotificationsService,
+    private readonly contexts: PatientContextService,
   ) {}
 
   async patientPrep(principal: AuthPrincipal, appointmentId: string) {
-    const appointment = await this.patientAppointment(principal, appointmentId);
+    const appointment = await this.patientAppointment(principal, appointmentId, "BOOKING_MANAGE");
     await this.ensureDefaultPrepTasks(appointment, principal.accountId);
     return this.prepProjection(appointment.id, appointment.patientId);
   }
 
   async updatePatientPrep(principal: AuthPrincipal, appointmentId: string, taskCode: string, input: UpdatePrepTaskInput) {
-    const appointment = await this.patientAppointment(principal, appointmentId);
+    const appointment = await this.patientAppointment(principal, appointmentId, "BOOKING_MANAGE");
     const code = this.token(taskCode, "taskCode");
     const status = normalizePrepTaskStatus(input?.status);
     const sourceRef = normalizeSourceRef(input?.sourceRef);
-    if (status === "COMPLETED" && this.referenceRequired(code) && !sourceRef) {
-      throw new BadRequestException("This preparation task requires sourceRef evidence.");
-    }
     const row = await this.prisma.appointmentPrepTask.findUnique({ where: { appointmentId_code: { appointmentId: appointment.id, code } } });
     if (!row || row.patientId !== appointment.patientId) throw new NotFoundException("Appointment preparation task not found.");
+    if (status === "COMPLETED" && this.referenceRequired(row.taskType) && !sourceRef) {
+      throw new BadRequestException("This preparation task requires sourceRef evidence.");
+    }
     if (appointment.status === "COMPLETED" || appointment.status === "CANCELLED" || appointment.status === "NO_SHOW") throw new ConflictException("Appointment preparation can no longer be changed.");
     const completed = status === "COMPLETED" || status === "NOT_APPLICABLE";
     const updated = await this.prisma.appointmentPrepTask.update({
@@ -59,7 +61,7 @@ export class AppointmentContinuityService {
   }
 
   async configurePrep(principal: AuthPrincipal, appointmentId: string, input: ConfigurePrepInput) {
-    const { appointment, provider } = await this.providerAppointment(principal, appointmentId, false);
+    const { appointment, provider } = await this.providerAppointment(principal, appointmentId, true);
     if (!Array.isArray(input?.tasks) || input.tasks.length > 30) throw new BadRequestException("tasks must be an array with at most 30 items.");
     const tasks = input.tasks.map((item) => normalizePrepTask(item));
     if (new Set(tasks.map((item) => item.code)).size !== tasks.length) throw new BadRequestException("Preparation task codes must be unique.");
@@ -77,7 +79,7 @@ export class AppointmentContinuityService {
   }
 
   async providerReadiness(principal: AuthPrincipal, appointmentId: string) {
-    const { appointment } = await this.providerAppointment(principal, appointmentId, false);
+    const { appointment } = await this.providerAppointment(principal, appointmentId, true);
     await this.ensureDefaultPrepTasks(appointment, principal.accountId);
     return this.prepProjection(appointment.id, appointment.patientId);
   }
@@ -109,6 +111,7 @@ export class AppointmentContinuityService {
     const { appointment, provider } = await this.providerAppointment(principal, appointmentId, true);
     if (appointment.status !== "COMPLETED") throw new ConflictException("Follow-up can be released only after the appointment is completed.");
     const payload = normalizeFollowUpPayload(input?.followUp);
+    await this.validateCareTaskReferences(payload.careTaskIds, appointment.patientId, provider.id);
     const encrypted = await this.envelope.encryptRecord({ schemaVersion: 1, ...payload });
     const existing = await this.prisma.encounterFollowUp.findUnique({ where: { appointmentId: appointment.id } });
     const release = input?.release === true;
@@ -131,17 +134,18 @@ export class AppointmentContinuityService {
       await tx.$queryRaw(Prisma.sql`SELECT id FROM "EncounterFollowUp" WHERE id = ${existing.id} FOR UPDATE`);
       const current = await tx.encounterFollowUp.findUnique({ where: { id: existing.id } });
       if (!current || current.version !== expectedVersion) throw new ConflictException({ message: "Follow-up version conflict.", currentVersion: current?.version ?? null });
-      const row = await tx.encounterFollowUp.update({ where: { id: existing.id }, data: { version: nextVersion, status: release ? "RELEASED" : current.status, ...(release ? { releasedAt: new Date() } : {}), ...this.envelopeData(encrypted) } });
+      const effectiveRelease = release || current.status === "RELEASED";
+      const row = await tx.encounterFollowUp.update({ where: { id: existing.id }, data: { version: nextVersion, status: effectiveRelease ? "RELEASED" : current.status, ...(effectiveRelease ? { releasedAt: current.releasedAt ?? new Date() } : {}), ...this.envelopeData(encrypted) } });
       await tx.encounterFollowUpRevision.create({ data: { followUpId: row.id, version: nextVersion, authorActorId: principal.accountId, ...(reasonCode ? { reasonCode } : {}), ...this.envelopeData(encrypted) } });
       await this.audit.writeClinicalInTransaction(tx, { actorId: principal.accountId, action: "ENCOUNTER_FOLLOW_UP_REVISED", objectType: "ENCOUNTER_FOLLOW_UP", objectId: row.id, purpose: "TREATMENT", result: "SUCCESS", metadata: { domain: "FOLLOW_UP", patientId: row.patientId, providerId: row.providerId, appointmentId: row.appointmentId, resourceId: row.id, resourceVersion: nextVersion, decision: "ALLOW" } });
       return row;
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
-    if (release) await this.notifyFollowUpPatient(updated.patientId, updated.id, updated.version);
+    if (release || existing.status === "RELEASED") await this.notifyFollowUpPatient(updated.patientId, updated.id, updated.version);
     return this.presentFollowUp(updated, payload);
   }
 
   async patientFollowUp(principal: AuthPrincipal, appointmentId: string) {
-    const appointment = await this.patientAppointment(principal, appointmentId);
+    const appointment = await this.patientAppointment(principal, appointmentId, "CLINICAL_READ");
     if (appointment.status !== "COMPLETED") throw new NotFoundException("Released follow-up is not available.");
     const row = await this.prisma.encounterFollowUp.findFirst({ where: { appointmentId: appointment.id, patientId: appointment.patientId, status: "RELEASED" } });
     if (!row) throw new NotFoundException("Released follow-up is not available.");
@@ -165,15 +169,14 @@ export class AppointmentContinuityService {
     }
   }
 
-  private referenceRequired(code: string) {
-    return code === "REVIEW_DOCUMENTS" || code === "UPDATE_MEASUREMENTS" || code.startsWith("QUESTIONNAIRE_");
+  private referenceRequired(taskType: string) {
+    return taskType === "QUESTIONNAIRE" || taskType === "OBSERVATION" || taskType === "DOCUMENT";
   }
 
-  private async patientAppointment(principal: AuthPrincipal, appointmentId: string) {
+  private async patientAppointment(principal: AuthPrincipal, appointmentId: string, requiredScope: "BOOKING_MANAGE" | "CLINICAL_READ") {
     if (principal.role !== "PATIENT") throw new ForbiddenException("Patient appointment context is required.");
-    const patient = await this.prisma.patientProfile.findUnique({ where: { userId: principal.accountId }, select: { id: true } });
-    if (!patient) throw new NotFoundException("Patient profile not found.");
-    const appointment = await this.prisma.appointment.findFirst({ where: { id: this.id(appointmentId, "appointmentId"), patientId: patient.id }, select: { id: true, patientId: true, providerId: true, modality: true, status: true, startsAt: true } });
+    const context = await this.contexts.resolveEffectivePatient(principal, requiredScope);
+    const appointment = await this.prisma.appointment.findFirst({ where: { id: this.id(appointmentId, "appointmentId"), patientId: context.patientId }, select: { id: true, patientId: true, providerId: true, modality: true, status: true, startsAt: true } });
     if (!appointment) throw new NotFoundException("Appointment not found.");
     return appointment;
   }
@@ -194,6 +197,18 @@ export class AppointmentContinuityService {
     if (!provider || provider.status !== "ACTIVE") throw new ForbiddenException("An active provider profile is required.");
     if (requireDoctor && provider.class !== "DOCTOR") throw new ForbiddenException("Doctor provider profile is required.");
     return provider;
+  }
+
+  private async validateCareTaskReferences(careTaskIds: string[], patientId: string, providerId: string) {
+    if (careTaskIds.length === 0) return;
+    const count = await this.prisma.careTask.count({
+      where: {
+        id: { in: careTaskIds },
+        ownerProviderId: providerId,
+        carePlan: { is: { patientId } },
+      },
+    });
+    if (count !== careTaskIds.length) throw new BadRequestException("Each careTaskId must belong to this patient and responsible doctor.");
   }
 
   private async hasCurrentRelationship(providerId: string, patientId: string) {
