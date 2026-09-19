@@ -5,6 +5,8 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const engine = require("../dist/modules/observation/provider-observation.engine.js");
 
+await import("./v2-observation-trends-smoke.mjs");
+
 test("provider observation input normalizes catalog tokens and optional encounter", () => {
   assert.deepEqual(engine.normalizeProviderObservationInput({
     code: "blood_pressure_systolic",
