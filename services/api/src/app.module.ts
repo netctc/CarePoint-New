@@ -23,6 +23,7 @@ import { DataGovernanceModule } from "./modules/data-governance/data-governance.
 import { DependentsModule } from "./modules/dependents/dependents.module";
 import { AppointmentContinuityModule } from "./modules/appointment-continuity/appointment-continuity.module";
 import { RefillModule } from "./modules/refill/refill.module";
+import { ReferralsModule } from "./modules/referrals/referrals.module";
 import { DocumentsModule } from "./modules/documents/documents.module";
 import { DoctorSnapshotModule } from "./modules/doctor-snapshot/doctor-snapshot.module";
 import { emergencyAmbulanceModuleEnabled } from "./modules/emergency/emergency-launch-policy";
@@ -70,6 +71,7 @@ const isolatedSyntheticPilot = isolatedSyntheticPrivatePilotActive(process.env);
     DependentsModule,
     AppointmentContinuityModule,
     RefillModule,
+    ReferralsModule,
     ProvidersModule,
     ProviderCategoryFormsModule,
     ProviderWorkflowModule,
