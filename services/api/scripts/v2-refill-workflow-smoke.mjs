@@ -5,6 +5,8 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const engine = require("../dist/modules/refill/refill.engine.js");
 
+await import("./v2-imaging-orders-smoke.mjs");
+
 test("refill allowance is deterministic and bounded by the source prescription", () => {
   assert.deepEqual(engine.refillAllowance(2, 0), { refillsAllowed: 2, approvedCount: 0, remaining: 2, eligible: true });
   assert.deepEqual(engine.refillAllowance(2, 2), { refillsAllowed: 2, approvedCount: 2, remaining: 0, eligible: false });
