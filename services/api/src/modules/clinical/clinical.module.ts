@@ -3,6 +3,8 @@ import type { AuthPrincipal } from "@carepoint/identity";
 import { CurrentPrincipal, RequirePermissions } from "../../security/api-security.module";
 import { DocumentsModule } from "../documents/documents.module";
 import { OrdersModule } from "../orders/orders.module";
+import { CarePlanService } from "../care-plan/care-plan.service";
+import { PatientCarePlanController, PatientCareTaskController, ProviderCarePlanController } from "../care-plan/care-plan.controller";
 import { ClinicalEnvelopeService } from "./clinical-envelope.service";
 import { ClinicalService } from "./clinical.service";
 import { ClinicalSystemExportService } from "./clinical-system-export.service";
@@ -64,8 +66,8 @@ class ClinicalController {
 
 @Module({
   imports: [OrdersModule, DocumentsModule],
-  controllers: [ClinicalController],
-  providers: [ClinicalService, ClinicalEnvelopeService, ClinicalSystemExportService, ClinicalWorkspaceService],
-  exports: [ClinicalService, ClinicalEnvelopeService, ClinicalSystemExportService],
+  controllers: [ClinicalController, PatientCarePlanController, PatientCareTaskController, ProviderCarePlanController],
+  providers: [ClinicalService, ClinicalEnvelopeService, ClinicalSystemExportService, ClinicalWorkspaceService, CarePlanService],
+  exports: [ClinicalService, ClinicalEnvelopeService, ClinicalSystemExportService, CarePlanService],
 })
 export class ClinicalModule {}
