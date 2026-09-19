@@ -88,7 +88,16 @@ class ProviderCatalogService {
       throw new BadRequestException("Doctors cannot be added to the Other Provider taxonomy.");
     }
 
-    const capabilities = this.normalizeCapabilities(input);
+    const defaultWorkflowCapabilities = input.workflowCapabilities
+      ?? (input.family === "MEDICAL_TRANSPORT_GROUND" || input.family === "MEDICAL_TRANSPORT_AIR"
+        ? ["TRANSPORT"]
+        : input.enabledModalities?.includes("HOME_VISIT")
+          ? ["HOME_VISIT"]
+          : []);
+    const capabilities = this.normalizeCapabilities({
+      ...input,
+      workflowCapabilities: defaultWorkflowCapabilities,
+    });
     return this.prisma.providerCategory.create({
       data: {
         slug: input.slug.trim().toLowerCase(),
