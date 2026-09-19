@@ -123,15 +123,71 @@ export class RefillService {
     const allowance = refillAllowance(source.refills, approvedCount);
     if (!allowance.eligible) throw new ConflictException("No refill allowance remains on this prescription.");
 
-    const createdPrescription = await this.orders.createPrescriptionFromRefill(
+    const prepared = await this.orders.preparePrescriptionFromRefill(
       principal,
       source.id,
       row.id,
       row.patientId,
     );
     const encrypted = await this.envelope.encryptRecord({ schemaVersion: 1, reason: review.reason });
-    const updated = await this.updateOutcome(row, review.expectedVersion, "APPROVED", principal.accountId, encrypted, createdPrescription.id);
-    await this.auditOutcome(principal, updated, "REFILL_REQUEST_APPROVED");
+    const updated = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw(Prisma.sql`SELECT id FROM "RefillRequest" WHERE id = ${row.id} FOR UPDATE`);
+      const current = await tx.refillRequest.findUnique({ where: { id: row.id } });
+      if (!current || current.requestedProviderId !== provider.id) throw new NotFoundException("Refill request not found.");
+      if (current.status !== "REQUESTED") throw new ConflictException("Refill request has already been reviewed.");
+      if (current.version !== review.expectedVersion) throw new ConflictException({ message: "Refill request version conflict.", currentVersion: current.version });
+
+      const currentSource = await tx.clinicalOrder.findUnique({
+        where: { id: source.id },
+        select: { id: true, patientId: true, providerId: true, type: true, status: true },
+      });
+      if (!currentSource || currentSource.patientId !== row.patientId || currentSource.providerId !== provider.id || currentSource.type !== "PRESCRIPTION" || currentSource.status !== "SIGNED") {
+        throw new ConflictException("The source prescription is no longer refill-eligible.");
+      }
+      const currentApproved = await tx.refillRequest.count({ where: { sourcePrescriptionId: source.id, status: "APPROVED" } });
+      if (!refillAllowance(source.refills, currentApproved).eligible) throw new ConflictException("No refill allowance remains on this prescription.");
+
+      let prescription = await tx.clinicalOrder.findUnique({ where: { idempotencyKey: prepared.idempotencyKey } });
+      if (prescription) {
+        if (prescription.patientId !== row.patientId || prescription.providerId !== provider.id || prescription.type !== "PRESCRIPTION") {
+          throw new ConflictException("Refill idempotency key is bound to another order.");
+        }
+      } else {
+        prescription = await tx.clinicalOrder.create({ data: prepared.orderData });
+      }
+
+      const outcome = await tx.refillRequest.update({
+        where: { id: current.id },
+        data: {
+          status: "APPROVED",
+          version: current.version + 1,
+          reviewedByActorId: principal.accountId,
+          reviewedAt: new Date(),
+          approvedPrescriptionId: prescription.id,
+          ...this.reviewEnvelopeData(encrypted),
+        },
+      });
+      await this.audit.writeClinicalInTransaction(tx, {
+        actorId: principal.accountId,
+        action: "CLINICAL_REFILL_PRESCRIPTION_SIGNED",
+        objectType: "CLINICAL_ORDER",
+        objectId: prescription.id,
+        purpose: "TREATMENT",
+        result: "SUCCESS",
+        metadata: { patientId: row.patientId, providerId: provider.id, resourceId: prescription.id, decision: "ALLOW" },
+      });
+      await this.audit.writeClinicalInTransaction(tx, {
+        actorId: principal.accountId,
+        action: "REFILL_REQUEST_APPROVED",
+        objectType: "REFILL_REQUEST",
+        objectId: outcome.id,
+        purpose: "TREATMENT",
+        result: "SUCCESS",
+        metadata: { patientId: row.patientId, providerId: provider.id, resourceId: outcome.id, resourceVersion: outcome.version, decision: "ALLOW" },
+      });
+      return outcome;
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+
     await this.notifyPatient(updated.patientId, updated.id, updated.version, "approved");
     return this.presentRow(updated);
   }
@@ -200,7 +256,7 @@ export class RefillService {
     const requestPayload = await this.decryptRequest(row);
     const reviewPayload = await this.decryptReview(row);
     const approvedCount = await this.prisma.refillRequest.count({ where: { sourcePrescriptionId: row.sourcePrescriptionId, status: "APPROVED" } });
-    const source = await this.orders.getPrescriptionRefillSource(row.sourcePrescriptionId, row.patientId);
+    const source = await this.orders.getPrescriptionRefillSource(row.sourcePrescriptionId, row.patientId, false);
     return this.present(row, requestPayload, reviewPayload, refillAllowance(source.refills, approvedCount));
   }
 
