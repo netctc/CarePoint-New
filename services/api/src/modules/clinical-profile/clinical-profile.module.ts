@@ -3,6 +3,8 @@ import type { AuthPrincipal } from "@carepoint/identity";
 import { CurrentPrincipal, RequirePermissions } from "../../security/api-security.module";
 import { ClinicalModule } from "../clinical/clinical.module";
 import { OrdersModule } from "../orders/orders.module";
+import { ProviderAllergyReconciliationController } from "./allergy-reconciliation.controller";
+import { AllergyReconciliationService } from "./allergy-reconciliation.service";
 import {
   ClinicalProfileService,
   type CreateClinicalProfileEntryInput,
@@ -166,8 +168,19 @@ class ProviderDataCorrectionController {
     ProviderDataCorrectionController,
     ProviderMedicationReconciliationController,
     PatientMedicationReconciliationController,
+    ProviderAllergyReconciliationController,
   ],
-  providers: [ClinicalProfileService, DataCorrectionService, MedicationReconciliationService],
-  exports: [ClinicalProfileService, DataCorrectionService, MedicationReconciliationService],
+  providers: [
+    ClinicalProfileService,
+    DataCorrectionService,
+    MedicationReconciliationService,
+    AllergyReconciliationService,
+  ],
+  exports: [
+    ClinicalProfileService,
+    DataCorrectionService,
+    MedicationReconciliationService,
+    AllergyReconciliationService,
+  ],
 })
 export class ClinicalProfileModule {}
