@@ -11,6 +11,7 @@ import {
   normalizeObservedAt,
   normalizeUnitCode,
   type ConversionRule,
+  type GlucoseContext,
 } from "./observation.engine";
 import {
   assertProviderEncounterBinding,
@@ -33,6 +34,7 @@ type StoredProviderObservation = {
   verificationStatus: "PROVIDER_VERIFIED";
   providerId: string;
   encounterId: string | null;
+  glucoseContext?: GlucoseContext | null;
   automatedDiagnosis: false;
 };
 
@@ -132,6 +134,7 @@ export class ProviderObservationService {
       verificationStatus: provenance.verificationStatus,
       providerId: provider.id,
       encounterId: provenance.encounterId,
+      glucoseContext: input.glucoseContext,
       automatedDiagnosis: false,
     };
     const encrypted = await this.envelope.encryptRecord(payload);
@@ -178,6 +181,7 @@ export class ProviderObservationService {
       unitCode: payload.originalUnitCode,
       canonicalValue: payload.canonicalValue,
       canonicalUnitCode: payload.canonicalUnitCode,
+      glucoseContext: payload.glucoseContext ?? null,
       verificationStatus: payload.verificationStatus,
       observedAt: row.observedAt,
       sourceType: row.sourceType,
