@@ -178,6 +178,7 @@ model PatientProfile {
   observations       Observation[]
   clinicalFacts      PatientClinicalFact[]
   categoryFormResponses ProviderCategoryFormResponse[]
+  homeVisitExecutions    HomeVisitExecution[]
 }
 
 model Provider {
@@ -199,6 +200,7 @@ model Provider {
   appointments              Appointment[]
   assignedEmergencyRequests EmergencyAmbulanceRequest[] @relation("EmergencyAssignedProvider")
   categoryFormResponses     ProviderCategoryFormResponse[]
+  homeVisitExecutions       HomeVisitExecution[]
 }
 
 model ProviderOnboarding {
@@ -414,6 +416,7 @@ model Appointment {
   service            Service             @relation(fields: [serviceId], references: [id], onDelete: Restrict)
   slot               AvailabilitySlot?   @relation(fields: [slotId], references: [id], onDelete: SetNull)
   telehealthSession  TelehealthSession?
+  homeVisitExecution HomeVisitExecution?
 
   @@index([providerId, startsAt, status])
   @@index([patientId, startsAt, status])
