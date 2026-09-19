@@ -12,6 +12,7 @@ const {
 } = require("../dist/modules/observation/observation.engine.js");
 
 await import("./v2-provider-observations-smoke.mjs");
+await import("./v2-lab-series-smoke.mjs");
 
 const conversions = [
   { fromUnitCode: "LB", toUnitCode: "KG", multiplier: 0.45359237, offset: 0 },
