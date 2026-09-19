@@ -35,16 +35,19 @@ export function buildObservationTrend(items: TrendObservation[], sourceType: Tre
     groups.set(item.canonicalUnitCode, bucket);
   }
 
-  const series = [...groups.entries()].map(([canonicalUnitCode, points]) => {
+  const series = [...groups.entries()].flatMap(([canonicalUnitCode, points]) => {
+    const first = points.at(0);
+    const last = points.at(-1);
+    if (!first || !last) return [];
     const values = points.map((point) => point.canonicalValue);
-    return {
+    return [{
       canonicalUnitCode,
       count: points.length,
       minimum: Math.min(...values),
       maximum: Math.max(...values),
       average: round(values.reduce((sum, value) => sum + value, 0) / values.length),
-      firstObservedAt: points[0].observedAt,
-      lastObservedAt: points[points.length - 1].observedAt,
+      firstObservedAt: first.observedAt,
+      lastObservedAt: last.observedAt,
       points: points.map((point) => ({
         observationId: point.id,
         observedAt: point.observedAt,
@@ -52,7 +55,7 @@ export function buildObservationTrend(items: TrendObservation[], sourceType: Tre
         canonicalUnitCode: point.canonicalUnitCode,
         sourceType: point.sourceType,
       })),
-    };
+    }];
   });
 
   return {
