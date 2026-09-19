@@ -5,6 +5,8 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const engine = require("../dist/modules/referrals/referral.engine.js");
 
+await import("./v2-encounter-addenda-smoke.mjs");
+
 const now = new Date("2026-09-19T09:00:00.000Z");
 
 test("referral normalization requires an explicit destination and least-data scopes", () => {

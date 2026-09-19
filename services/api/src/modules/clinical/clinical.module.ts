@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Module, Param, Post } from "@nestjs/common";
+import { Body, Controller, Get, Header, Module, Param, Post } from "@nestjs/common";
 import type { AuthPrincipal } from "@carepoint/identity";
 import { CurrentPrincipal, RequirePermissions } from "../../security/api-security.module";
 import { DocumentsModule } from "../documents/documents.module";
@@ -11,6 +11,7 @@ import { ClinicalEnvelopeService } from "./clinical-envelope.service";
 import { ClinicalService } from "./clinical.service";
 import { ClinicalSystemExportService } from "./clinical-system-export.service";
 import { ClinicalWorkspaceService } from "./clinical-workspace.service";
+import { EncounterAddendaService } from "./encounter-addenda.service";
 
 @Controller("clinical")
 class ClinicalController {
@@ -66,10 +67,27 @@ class ClinicalController {
   }
 }
 
+@Controller("provider/encounters")
+class ProviderEncounterAddendaController {
+  constructor(private readonly addenda: EncounterAddendaService) {}
+
+  @RequirePermissions("CLINICAL_RECORD_WRITE")
+  @Post(":encounterId/addenda")
+  @Header("Cache-Control", "no-store")
+  create(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Param("encounterId") encounterId: string,
+    @Body() body: Record<string, unknown>,
+  ) {
+    return this.addenda.create(principal, encounterId, body);
+  }
+}
+
 @Module({
   imports: [OrdersModule, DocumentsModule],
   controllers: [
     ClinicalController,
+    ProviderEncounterAddendaController,
     PatientCarePlanController,
     PatientCareTaskController,
     ProviderCarePlanController,
@@ -81,6 +99,7 @@ class ClinicalController {
     ClinicalEnvelopeService,
     ClinicalSystemExportService,
     ClinicalWorkspaceService,
+    EncounterAddendaService,
     CarePlanService,
     CarePlanTemplateService,
   ],
