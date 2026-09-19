@@ -141,22 +141,24 @@ async function main() {
   const doctorBCrossWrite = await raw(`/clinical/appointments/${appointment.id}/records`, { method: "POST", token: doctorB.token, body: { assessment: "Synthetic unauthorized write" } });
   if (doctorBCrossWrite.status !== 403) throw new Error(`Doctor B cross-provider write expected 403, got ${doctorBCrossWrite.status}.`);
 
-  const wrongVersionConsent = await request("/consents", {
+  const wrongVersionConsent = await raw("/consents", {
     method: "POST",
     token: patientA.token,
-    body: { providerId: doctorB.providerId, scope: "CLINICAL_RECORD_READ", version: "r6-unapproved-version" },
+    body: { providerId: doctorB.providerId, scope: "CLINICAL_RECORD_READ", version: "r6-unapproved-version", purpose: "TREATMENT" },
   });
-  if (!wrongVersionConsent.id) throw new Error("Negative-test consent was not created.");
+  if (wrongVersionConsent.status !== 400) throw new Error(`Unapproved consent version grant expected 400, got ${wrongVersionConsent.status}.`);
+  assertNoMarker(wrongVersionConsent.payload, marker, "Unapproved-consent grant denial response");
   const wrongVersionAccess = await raw(`/clinical/patients/${patientA.patientId}/timeline`, { token: doctorB.token });
   if (wrongVersionAccess.status !== 403) throw new Error(`Unapproved consent version must not grant access; got ${wrongVersionAccess.status}.`);
   assertNoMarker(wrongVersionAccess.payload, marker, "Unapproved-consent denial response");
 
-  const wrongPurposeConsent = await request("/consents", {
+  const wrongPurposeConsent = await raw("/consents", {
     method: "POST",
     token: patientA.token,
     body: { providerId: doctorB.providerId, scope: "CLINICAL_RECORD_READ", version: "clinical-record-v1", purpose: "RESEARCH" },
   });
-  if (!wrongPurposeConsent.id) throw new Error("Wrong-purpose consent was not created.");
+  if (wrongPurposeConsent.status !== 400) throw new Error(`Non-treatment consent grant expected 400, got ${wrongPurposeConsent.status}.`);
+  assertNoMarker(wrongPurposeConsent.payload, marker, "Wrong-purpose grant denial response");
   const wrongPurposeAccess = await raw(`/clinical/patients/${patientA.patientId}/timeline`, { token: doctorB.token });
   if (wrongPurposeAccess.status !== 403) throw new Error(`Non-treatment consent must not grant treatment access; got ${wrongPurposeAccess.status}.`);
   assertNoMarker(wrongPurposeAccess.payload, marker, "Wrong-purpose denial response");
