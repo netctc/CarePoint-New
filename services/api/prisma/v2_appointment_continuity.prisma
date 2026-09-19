@@ -1,0 +1,77 @@
+model AppointmentPrepTask {
+  id                 String   @id @default(uuid())
+  appointmentId      String
+  patientId          String
+  providerId         String
+  code               String
+  taskType           String
+  required           Boolean  @default(false)
+  status             String   @default("PENDING")
+  sourceRef          String?
+  dueAt              DateTime?
+  createdByActorId   String?
+  completedByActorId String?
+  completedAt        DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@unique([appointmentId, code])
+  @@index([patientId, status, dueAt])
+  @@index([providerId, appointmentId, status])
+}
+
+model QuestionnaireRequest {
+  id                     String   @id @default(uuid())
+  patientId              String
+  providerId             String
+  appointmentId          String?
+  questionnaireVersionId String
+  status                 String   @default("REQUESTED")
+  dueAt                  DateTime?
+  responseId             String?
+  createdByActorId       String
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@index([patientId, status, dueAt])
+  @@index([providerId, status, createdAt])
+  @@index([appointmentId, status])
+  @@index([questionnaireVersionId])
+}
+
+model EncounterFollowUp {
+  id              String   @id @default(uuid())
+  appointmentId   String   @unique
+  patientId       String
+  providerId      String
+  version         Int      @default(1)
+  status          String   @default("DRAFT")
+  algorithm       String
+  keyId           String
+  wrappedKey      String
+  iv              String
+  ciphertext      String
+  releasedAt      DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([patientId, status, releasedAt])
+  @@index([providerId, status, updatedAt])
+}
+
+model EncounterFollowUpRevision {
+  id            String   @id @default(uuid())
+  followUpId    String
+  version       Int
+  algorithm     String
+  keyId         String
+  wrappedKey    String
+  iv            String
+  ciphertext    String
+  authorActorId String
+  reasonCode    String?
+  createdAt     DateTime @default(now())
+
+  @@unique([followUpId, version])
+  @@index([followUpId, createdAt])
+}
