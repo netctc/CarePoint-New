@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
@@ -81,4 +82,34 @@ const recent = evaluateQuestionnaireActivation(
 assert.equal(recent.due, false);
 assert.equal(recent.askHealthChanged, true);
 
-console.log("V2 questionnaire engine acceptance passed");
+const reviewModel = readFileSync(new URL("../prisma/v2_questionnaire_reviews.prisma", import.meta.url), "utf8");
+const reviewMigration = readFileSync(
+  new URL("../prisma/migrations/20260919111000_v2_questionnaire_reviews/migration.sql", import.meta.url),
+  "utf8",
+);
+const reviewService = readFileSync(
+  new URL("../src/modules/questionnaire/questionnaire-review.service.ts", import.meta.url),
+  "utf8",
+);
+const questionnaireModule = readFileSync(
+  new URL("../src/modules/questionnaire/questionnaire.module.ts", import.meta.url),
+  "utf8",
+);
+
+assert.match(reviewModel, /@@unique\(\[responseId, providerId\]\)/);
+assert.match(reviewModel, /responseSequence\s+Int/);
+assert.match(reviewMigration, /FOREIGN KEY \("responseId"\) REFERENCES "QuestionnaireResponse"\("id"\)/);
+assert.match(reviewMigration, /FOREIGN KEY \("patientId"\) REFERENCES "PatientProfile"\("id"\)/);
+assert.match(reviewMigration, /FOREIGN KEY \("providerId"\) REFERENCES "Provider"\("id"\)/);
+assert.doesNotMatch(reviewMigration, /\bDROP\b/i);
+assert.match(reviewService, /questionnaireResponseReview\.upsert/);
+assert.match(reviewService, /update:\s*\{\}/);
+assert.match(reviewService, /responseSequence:\s*context\.response\.sequence/);
+assert.match(reviewService, /QUESTIONNAIRE_RESPONSE_REVIEWED/);
+assert.doesNotMatch(reviewService, /questionnaireResponse\.update/);
+assert.doesNotMatch(reviewService, /\banswers\b/);
+assert.doesNotMatch(reviewService, /\bciphertext\b/);
+assert.match(questionnaireModule, /@Get\(":patientId\/questionnaires\/:code\/responses\/:responseId\/review"\)/);
+assert.match(questionnaireModule, /@Post\(":patientId\/questionnaires\/:code\/responses\/:responseId\/review"\)/);
+
+console.log("V2 questionnaire engine and immutable review acceptance passed");
