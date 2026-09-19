@@ -36,52 +36,55 @@ export class RefillService {
     const prescriber = await this.prisma.provider.findUnique({ where: { id: source.providerId }, select: { id: true, status: true, userId: true } });
     if (!prescriber || prescriber.status !== "ACTIVE") throw new ConflictException("The responsible prescriber is not currently available for refill review.");
 
-    const approvedCount = await this.prisma.refillRequest.count({ where: { sourcePrescriptionId: source.id, status: "APPROVED" } });
-    const allowance = refillAllowance(source.refills, approvedCount);
-    if (!allowance.eligible) throw new ConflictException("No refill allowance remains on this prescription.");
-    const open = await this.prisma.refillRequest.findFirst({ where: { sourcePrescriptionId: source.id, status: "REQUESTED" }, select: { id: true } });
-    if (open) throw new ConflictException("A refill request is already awaiting review.");
-
     const normalized = normalizeRefillRequestInput(input);
     const encrypted = await this.envelope.encryptRecord({ schemaVersion: 1, reason: normalized.reason });
-    let created;
+    let result;
     try {
-      created = await this.prisma.refillRequest.create({
-        data: {
-          sourcePrescriptionId: source.id,
-          patientId: context.patientId,
-          requestedProviderId: source.providerId,
-          ...this.requestEnvelopeData(encrypted),
-        },
-      });
+      result = await this.prisma.$transaction(async (tx) => {
+        const approvedCount = await tx.refillRequest.count({ where: { sourcePrescriptionId: source.id, status: "APPROVED" } });
+        const allowance = refillAllowance(source.refills, approvedCount);
+        if (!allowance.eligible) throw new ConflictException("No refill allowance remains on this prescription.");
+        const open = await tx.refillRequest.findFirst({ where: { sourcePrescriptionId: source.id, status: "REQUESTED" }, select: { id: true } });
+        if (open) throw new ConflictException("A refill request is already awaiting review.");
+
+        const created = await tx.refillRequest.create({
+          data: {
+            sourcePrescriptionId: source.id,
+            patientId: context.patientId,
+            requestedProviderId: source.providerId,
+            ...this.requestEnvelopeData(encrypted),
+          },
+        });
+        await this.audit.writeClinicalInTransaction(tx, {
+          actorId: principal.accountId,
+          action: "REFILL_REQUEST_CREATED",
+          objectType: "REFILL_REQUEST",
+          objectId: created.id,
+          purpose: context.mode === "DEPENDENT" ? "PROXY_PATIENT_ACCESS" : "PATIENT_ACCESS",
+          result: "SUCCESS",
+          metadata: { patientId: context.patientId, providerId: source.providerId, resourceId: created.id, decision: "ALLOW" },
+        });
+        if (prescriber.userId) {
+          await this.notifications.enqueueAccountInTransaction(tx, {
+            accountId: prescriber.userId,
+            dedupeKey: "refill-request:" + created.id,
+            type: "CARE_COORDINATION",
+            entityType: "REFILL_REQUEST",
+            entityId: created.id,
+            safeTitleKey: "notification.refill_request.title",
+            safeBodyKey: "notification.refill_request.body",
+          });
+        }
+        return { created, allowance };
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
         throw new ConflictException("A refill request is already awaiting review.");
       }
       throw error;
     }
-
-    await this.audit.writeClinical({
-      actorId: principal.accountId,
-      action: "REFILL_REQUEST_CREATED",
-      objectType: "REFILL_REQUEST",
-      objectId: created.id,
-      purpose: context.mode === "DEPENDENT" ? "PROXY_PATIENT_ACCESS" : "PATIENT_ACCESS",
-      result: "SUCCESS",
-      metadata: { patientId: context.patientId, providerId: source.providerId, resourceId: created.id, decision: "ALLOW" },
-    });
-    if (prescriber.userId) {
-      await this.notifications.notifyAccount({
-        accountId: prescriber.userId,
-        dedupeKey: "refill-request:" + created.id,
-        type: "CARE_COORDINATION",
-        entityType: "REFILL_REQUEST",
-        entityId: created.id,
-        safeTitleKey: "notification.refill_request.title",
-        safeBodyKey: "notification.refill_request.body",
-      });
-    }
-    return this.present(created, normalized, null, allowance);
+    if (prescriber.userId) this.notifications.wakeOutbox();
+    return this.present(result.created, normalized, null, result.allowance);
   }
 
   async patientList(principal: AuthPrincipal) {
@@ -111,9 +114,35 @@ export class RefillService {
 
     if (review.action === "DECLINE") {
       const encrypted = await this.envelope.encryptRecord({ schemaVersion: 1, reason: review.reason });
-      const updated = await this.updateOutcome(row, review.expectedVersion, "DECLINED", principal.accountId, encrypted, null);
-      await this.auditOutcome(principal, updated, "REFILL_REQUEST_DECLINED");
-      await this.notifyPatient(updated.patientId, updated.id, updated.version, "declined");
+      const updated = await this.prisma.$transaction(async (tx) => {
+        await tx.$queryRaw(Prisma.sql`SELECT id FROM "RefillRequest" WHERE id = ${row.id} FOR UPDATE`);
+        const current = await tx.refillRequest.findUnique({ where: { id: row.id } });
+        if (!current || current.requestedProviderId !== provider.id) throw new NotFoundException("Refill request not found.");
+        if (current.status !== "REQUESTED") throw new ConflictException("Refill request has already been reviewed.");
+        if (current.version !== review.expectedVersion) throw new ConflictException({ message: "Refill request version conflict.", currentVersion: current.version });
+        const outcome = await tx.refillRequest.update({
+          where: { id: current.id },
+          data: {
+            status: "DECLINED",
+            version: current.version + 1,
+            reviewedByActorId: principal.accountId,
+            reviewedAt: new Date(),
+            ...this.reviewEnvelopeData(encrypted),
+          },
+        });
+        await this.audit.writeClinicalInTransaction(tx, {
+          actorId: principal.accountId,
+          action: "REFILL_REQUEST_DECLINED",
+          objectType: "REFILL_REQUEST",
+          objectId: outcome.id,
+          purpose: "TREATMENT",
+          result: "SUCCESS",
+          metadata: { patientId: outcome.patientId, providerId: provider.id, resourceId: outcome.id, resourceVersion: outcome.version, decision: "ALLOW" },
+        });
+        await this.enqueuePatientOutcome(tx, outcome.patientId, outcome.id, outcome.version, "declined");
+        return outcome;
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+      this.notifications.wakeOutbox();
       return this.presentRow(updated);
     }
 
@@ -185,63 +214,24 @@ export class RefillService {
         result: "SUCCESS",
         metadata: { patientId: row.patientId, providerId: provider.id, resourceId: outcome.id, resourceVersion: outcome.version, decision: "ALLOW" },
       });
+      await this.enqueuePatientOutcome(tx, outcome.patientId, outcome.id, outcome.version, "approved");
       return outcome;
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
-    await this.notifyPatient(updated.patientId, updated.id, updated.version, "approved");
+    this.notifications.wakeOutbox();
     return this.presentRow(updated);
   }
 
-  private async updateOutcome(
-    row: any,
-    expectedVersion: number,
-    status: "APPROVED" | "DECLINED",
-    actorId: string,
-    reviewEnvelope: EncryptedEnvelope,
-    approvedPrescriptionId: string | null,
+  private async enqueuePatientOutcome(
+    tx: Prisma.TransactionClient,
+    patientId: string,
+    requestId: string,
+    version: number,
+    outcome: "approved" | "declined",
   ) {
-    const result = await this.prisma.refillRequest.updateMany({
-      where: { id: row.id, status: "REQUESTED", version: expectedVersion },
-      data: {
-        status,
-        version: expectedVersion + 1,
-        reviewedByActorId: actorId,
-        reviewedAt: new Date(),
-        approvedPrescriptionId,
-        ...this.reviewEnvelopeData(reviewEnvelope),
-      },
-    });
-    if (result.count !== 1) {
-      const current = await this.prisma.refillRequest.findUnique({ where: { id: row.id }, select: { version: true, status: true } });
-      throw new ConflictException({ message: "Refill request changed concurrently.", currentVersion: current?.version ?? null, status: current?.status ?? null });
-    }
-    const updated = await this.prisma.refillRequest.findUnique({ where: { id: row.id } });
-    if (!updated) throw new NotFoundException("Refill request not found.");
-    return updated;
-  }
-
-  private async auditOutcome(principal: AuthPrincipal, row: any, action: string) {
-    await this.audit.writeClinical({
-      actorId: principal.accountId,
-      action,
-      objectType: "REFILL_REQUEST",
-      objectId: row.id,
-      purpose: "TREATMENT",
-      result: "SUCCESS",
-      metadata: {
-        patientId: row.patientId,
-        providerId: row.requestedProviderId,
-        resourceId: row.id,
-        resourceVersion: row.version,
-        decision: "ALLOW",
-      },
-    });
-  }
-
-  private async notifyPatient(patientId: string, requestId: string, version: number, outcome: "approved" | "declined") {
-    const patient = await this.prisma.patientProfile.findUnique({ where: { id: patientId }, select: { userId: true } });
-    if (!patient) return;
-    await this.notifications.notifyAccount({
+    const patient = await tx.patientProfile.findUnique({ where: { id: patientId }, select: { userId: true } });
+    if (!patient) throw new NotFoundException("Patient profile not found.");
+    await this.notifications.enqueueAccountInTransaction(tx, {
       accountId: patient.userId,
       dedupeKey: "refill-outcome:" + requestId + ":v" + version,
       type: "CARE_COORDINATION",
