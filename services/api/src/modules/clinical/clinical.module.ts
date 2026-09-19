@@ -5,6 +5,8 @@ import { DocumentsModule } from "../documents/documents.module";
 import { OrdersModule } from "../orders/orders.module";
 import { CarePlanService } from "../care-plan/care-plan.service";
 import { PatientCarePlanController, PatientCareTaskController, ProviderCarePlanController } from "../care-plan/care-plan.controller";
+import { CarePlanTemplateService } from "../care-plan/care-plan-template.service";
+import { AdminCarePlanTemplateController, ProviderCarePlanTemplateController } from "../care-plan/care-plan-template.controller";
 import { ClinicalEnvelopeService } from "./clinical-envelope.service";
 import { ClinicalService } from "./clinical.service";
 import { ClinicalSystemExportService } from "./clinical-system-export.service";
@@ -66,8 +68,22 @@ class ClinicalController {
 
 @Module({
   imports: [OrdersModule, DocumentsModule],
-  controllers: [ClinicalController, PatientCarePlanController, PatientCareTaskController, ProviderCarePlanController],
-  providers: [ClinicalService, ClinicalEnvelopeService, ClinicalSystemExportService, ClinicalWorkspaceService, CarePlanService],
-  exports: [ClinicalService, ClinicalEnvelopeService, ClinicalSystemExportService, CarePlanService],
+  controllers: [
+    ClinicalController,
+    PatientCarePlanController,
+    PatientCareTaskController,
+    ProviderCarePlanController,
+    AdminCarePlanTemplateController,
+    ProviderCarePlanTemplateController,
+  ],
+  providers: [
+    ClinicalService,
+    ClinicalEnvelopeService,
+    ClinicalSystemExportService,
+    ClinicalWorkspaceService,
+    CarePlanService,
+    CarePlanTemplateService,
+  ],
+  exports: [ClinicalService, ClinicalEnvelopeService, ClinicalSystemExportService, CarePlanService, CarePlanTemplateService],
 })
 export class ClinicalModule {}
