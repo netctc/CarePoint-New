@@ -38,6 +38,18 @@ const condition = normalizeClinicalProfilePayload("CONDITION", {
   clinicalStatus: "active",
   onsetDate: "2024-02-01",
 });
+const linkedCondition = normalizeClinicalProfilePayload("CONDITION", {
+  display: "Hypertension",
+  clinicalStatus: "active",
+  encounterId: "enc-1",
+  documentIds: ["doc-1", "doc-1", "doc-2"],
+  carePlanIds: ["plan-1"],
+});
+assert.equal(linkedCondition.kind, "CONDITION");
+assert.equal(linkedCondition.encounterId, "enc-1");
+assert.deepEqual(linkedCondition.documentIds, ["doc-1", "doc-2"]);
+assert.deepEqual(linkedCondition.carePlanIds, ["plan-1"]);
+
 const updatedCondition = normalizeClinicalProfilePayload("CONDITION", {
   clinicalStatus: "resolved",
 }, condition);
@@ -65,6 +77,10 @@ assert.throws(
 assert.throws(
   () => normalizeClinicalProfilePayload("CONDITION", { display: "" }),
   /display is invalid/,
+);
+assert.throws(
+  () => normalizeClinicalProfilePayload("CONDITION", { display: "X", documentIds: ["bad id with spaces"] }),
+  /documentIds\[0\] is invalid/,
 );
 assert.throws(
   () => normalizeClinicalProfileStatus("deleted"),
@@ -133,4 +149,28 @@ assert.match(allergyController, /@Post\(":patientId\/allergies"\)/);
 assert.match(allergyController, /@Patch\(":patientId\/allergies\/:entryId"\)/);
 assert.match(allergyController, /@Post\(":patientId\/allergies\/:entryId\/verify"\)/);
 
-console.log("V2 longitudinal clinical profile, medication reconciliation and allergy reconciliation validation passed");
+const problemService = readFileSync(
+  new URL("../src/modules/clinical-profile/problem-list.service.ts", import.meta.url),
+  "utf8",
+);
+const problemController = readFileSync(
+  new URL("../src/modules/clinical-profile/problem-list.controller.ts", import.meta.url),
+  "utf8",
+);
+
+assert.match(problemService, /listForDoctor\(principal, patientId, "CONDITION"\)/);
+assert.match(problemService, /clinicalProfileEntryRevision\.findMany/);
+assert.match(problemService, /clinicalRecord\.findFirst/);
+assert.match(problemService, /clinicalDocument\.findMany/);
+assert.match(problemService, /carePlan\.findMany/);
+assert.match(problemService, /data\.clinicalStatus = normalized/);
+assert.match(problemService, /groups:\s*\{ active, resolved, inactive \}/);
+assert.match(problemService, /PROBLEM_LIST_READ/);
+assert.doesNotMatch(problemService, /clinicalProfileEntry\.delete/);
+assert.doesNotMatch(problemService, /clinicalProfileEntryRevision\.update/);
+assert.match(problemController, /@Get\(":patientId\/conditions"\)/);
+assert.match(problemController, /@Post\(":patientId\/conditions"\)/);
+assert.match(problemController, /@Patch\(":patientId\/conditions\/:entryId"\)/);
+assert.doesNotMatch(problemController, /@Delete/);
+
+console.log("V2 longitudinal clinical profile, medication reconciliation, allergy reconciliation and structured problem list validation passed");
