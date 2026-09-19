@@ -35,11 +35,12 @@ export function normalizeCreateDataCorrectionInput(input: Record<string, unknown
 export function normalizeDecideDataCorrectionInput(input: Record<string, unknown>): DecideDataCorrectionInput {
   const action = enumValue(input.action, DataCorrectionActions, "action");
   const correctedData = optionalObject(input.correctedData, "correctedData");
+  const correctedStatus = optionalCode(input.correctedStatus, "correctedStatus");
   if (action === "RESOLVE_CORRECTION" && !correctedData) {
     throw new Error("correctedData is required for RESOLVE_CORRECTION.");
   }
-  if (action !== "RESOLVE_CORRECTION" && correctedData) {
-    throw new Error("correctedData is only allowed for RESOLVE_CORRECTION.");
+  if (action !== "RESOLVE_CORRECTION" && (correctedData || correctedStatus)) {
+    throw new Error("correctedData and correctedStatus are only allowed for RESOLVE_CORRECTION.");
   }
   return {
     requestId: identifier(input.requestId, "requestId"),
@@ -48,7 +49,7 @@ export function normalizeDecideDataCorrectionInput(input: Record<string, unknown
     expectedEntryVersion: positiveInteger(input.expectedEntryVersion, "expectedEntryVersion"),
     reason: requiredText(input.reason, 1, 4000, "reason"),
     correctedData,
-    correctedStatus: optionalCode(input.correctedStatus, "correctedStatus"),
+    correctedStatus,
   };
 }
 
