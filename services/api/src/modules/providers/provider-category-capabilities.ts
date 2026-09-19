@@ -12,6 +12,7 @@ export const OtherProviderWorkflowCapabilities = [
   "HOME_VISIT_ARRIVAL",
   "SERVICE_COMPLETION_CHECKLIST",
   "TRANSPORT_EQUIPMENT_CHECKLIST",
+  "TRANSPORT_REJECT",
 ] as const;
 
 export type OtherProviderWorkflowCapability =

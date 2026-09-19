@@ -179,6 +179,7 @@ model PatientProfile {
   clinicalProfileEntries ClinicalProfileEntry[]
   medicationReconciliations MedicationReconciliation[]
   providerFormResponses ProviderCategoryFormResponse[]
+  providerWorkflowEvents ProviderWorkflowEvent[]
 }
 
 model Provider {
@@ -200,6 +201,7 @@ model Provider {
   appointments              Appointment[]
   assignedEmergencyRequests EmergencyAmbulanceRequest[] @relation("EmergencyAssignedProvider")
   providerFormResponses     ProviderCategoryFormResponse[]
+  providerWorkflowEvents    ProviderWorkflowEvent[]
 }
 
 model ProviderOnboarding {
