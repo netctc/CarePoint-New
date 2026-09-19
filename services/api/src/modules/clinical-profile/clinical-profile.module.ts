@@ -2,6 +2,7 @@ import { Body, Controller, Get, Header, Module, Param, Patch, Post, Query } from
 import type { AuthPrincipal } from "@carepoint/identity";
 import { CurrentPrincipal, RequirePermissions } from "../../security/api-security.module";
 import { ClinicalModule } from "../clinical/clinical.module";
+import { OrdersModule } from "../orders/orders.module";
 import {
   ClinicalProfileService,
   type CreateClinicalProfileEntryInput,
@@ -10,6 +11,11 @@ import {
   type VerifyClinicalProfileEntryInput,
 } from "./clinical-profile.service";
 import { DataCorrectionService } from "./data-correction.service";
+import {
+  PatientMedicationReconciliationController,
+  ProviderMedicationReconciliationController,
+} from "./medication-reconciliation.controller";
+import { MedicationReconciliationService } from "./medication-reconciliation.service";
 
 @Controller("patient/clinical-profile/entries")
 class PatientClinicalProfileController {
@@ -152,14 +158,16 @@ class ProviderDataCorrectionController {
 }
 
 @Module({
-  imports: [ClinicalModule],
+  imports: [ClinicalModule, OrdersModule],
   controllers: [
     PatientClinicalProfileController,
     PatientDataCorrectionController,
     DoctorClinicalProfileController,
     ProviderDataCorrectionController,
+    ProviderMedicationReconciliationController,
+    PatientMedicationReconciliationController,
   ],
-  providers: [ClinicalProfileService, DataCorrectionService],
-  exports: [ClinicalProfileService, DataCorrectionService],
+  providers: [ClinicalProfileService, DataCorrectionService, MedicationReconciliationService],
+  exports: [ClinicalProfileService, DataCorrectionService, MedicationReconciliationService],
 })
 export class ClinicalProfileModule {}
