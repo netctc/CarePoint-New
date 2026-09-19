@@ -11,6 +11,8 @@ const {
   normalizeObservedAt,
 } = require("../dist/modules/observation/observation.engine.js");
 
+await import("./v2-provider-observations-smoke.mjs");
+
 const conversions = [
   { fromUnitCode: "LB", toUnitCode: "KG", multiplier: 0.45359237, offset: 0 },
   { fromUnitCode: "DEG_F", toUnitCode: "CEL", multiplier: 5 / 9, offset: -17.7777777778 },
