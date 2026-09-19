@@ -2,6 +2,10 @@ import { Body, Controller, Get, Header, Module, Param, Post, Query } from "@nest
 import type { AuthPrincipal } from "@carepoint/identity";
 import { CurrentPrincipal, RequirePermissions } from "../../security/api-security.module";
 import { ClinicalModule } from "../clinical/clinical.module";
+import { ClinicalProfileModule } from "../clinical-profile/clinical-profile.module";
+import { OrdersModule } from "../orders/orders.module";
+import { ProviderGlucoseTrendController } from "./glucose-trend.controller";
+import { GlucoseTrendService } from "./glucose-trend.service";
 import {
   ObservationService,
   type CreateConversionInput,
@@ -160,14 +164,15 @@ class ProviderObservationController {
 }
 
 @Module({
-  imports: [ClinicalModule],
+  imports: [ClinicalModule, ClinicalProfileModule, OrdersModule],
   controllers: [
     AdminClinicalMetricController,
     PatientObservationController,
     DoctorObservationController,
     ProviderObservationController,
+    ProviderGlucoseTrendController,
   ],
-  providers: [ObservationService, ProviderObservationService, ObservationTrendService],
-  exports: [ObservationService, ProviderObservationService, ObservationTrendService],
+  providers: [ObservationService, ProviderObservationService, ObservationTrendService, GlucoseTrendService],
+  exports: [ObservationService, ProviderObservationService, ObservationTrendService, GlucoseTrendService],
 })
 export class ObservationModule {}
