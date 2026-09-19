@@ -60,7 +60,7 @@ export class ProviderCategoryFormsService {
 
   async adminList(categoryId?: string) {
     return this.prisma.providerCategoryForm.findMany({
-      where: categoryId?.trim() ? { categoryId: categoryId.trim() } : undefined,
+      ...(categoryId?.trim() ? { where: { categoryId: categoryId.trim() } } : {}),
       include: { versions: { orderBy: { version: "desc" } } },
       orderBy: [{ categoryId: "asc" }, { code: "asc" }],
     });

@@ -128,6 +128,52 @@ export class ProviderWorkflowService {
     return this.present(event);
   }
 
+  async acceptAssignedTransport(
+    principal: AuthPrincipal,
+    requestId: string,
+  ) {
+    const provider = await this.capabilities.assertWorkflowCapability(
+      principal,
+      "TRANSPORT_ACCEPT",
+    );
+    const id = this.requiredId(requestId, "requestId");
+    const request = await this.prisma.medicalTransportRequest.findFirst({
+      where: {
+        id,
+        assignedProviderId: provider.providerId,
+        status: "ASSIGNED",
+      },
+      select: { id: true, patientId: true, status: true },
+    });
+    if (!request) {
+      throw new NotFoundException("Assigned medical transport request not found.");
+    }
+
+    const event = await this.recordOnce({
+      providerId: provider.providerId,
+      patientId: request.patientId,
+      contextType: "MEDICAL_TRANSPORT",
+      contextId: request.id,
+      eventType: "TRANSPORT_ASSIGNMENT_ACCEPTED",
+      evidence: { transportStatus: request.status },
+      actorId: principal.accountId,
+      idempotencyKey: `transport-accept:${provider.providerId}:${request.id}`,
+    });
+    await this.auditWorkflow(
+      principal,
+      provider.providerId,
+      request.patientId,
+      event,
+      "TRANSPORT_ASSIGNMENT_ACCEPTED",
+    );
+    return {
+      requestId: request.id,
+      status: request.status,
+      assignmentAccepted: true,
+      workflowEvent: this.present(event),
+    };
+  }
+
   async rejectAssignedTransport(
     principal: AuthPrincipal,
     requestId: string,

@@ -35,6 +35,16 @@ class ProviderWorkflowController {
   }
 
   @RequirePermissions("OTHER_PROVIDER_WORKFLOW_EXECUTE")
+  @Post("medical-transport/:requestId/accept-assignment")
+  @Header("Cache-Control", "no-store")
+  acceptAssignment(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Param("requestId") requestId: string,
+  ) {
+    return this.workflows.acceptAssignedTransport(principal, requestId);
+  }
+
+  @RequirePermissions("OTHER_PROVIDER_WORKFLOW_EXECUTE")
   @Post("medical-transport/:requestId/reject")
   @Header("Cache-Control", "no-store")
   reject(
