@@ -10,6 +10,7 @@ import {
   type CreateObservationInput,
   type CreateUnitInput,
 } from "./observation.service";
+import { ProviderObservationService } from "./provider-observation.service";
 
 @Controller("admin/clinical-metrics")
 class AdminClinicalMetricController {
@@ -124,14 +125,31 @@ class DoctorObservationController {
   }
 }
 
+@Controller("provider/patients")
+class ProviderObservationController {
+  constructor(private readonly observations: ProviderObservationService) {}
+
+  @RequirePermissions("CLINICAL_RECORD_WRITE")
+  @Post(":patientId/observations")
+  @Header("Cache-Control", "no-store")
+  record(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Param("patientId") patientId: string,
+    @Body() body: Record<string, unknown>,
+  ) {
+    return this.observations.record(principal, patientId, body);
+  }
+}
+
 @Module({
   imports: [ClinicalModule],
   controllers: [
     AdminClinicalMetricController,
     PatientObservationController,
     DoctorObservationController,
+    ProviderObservationController,
   ],
-  providers: [ObservationService],
-  exports: [ObservationService],
+  providers: [ObservationService, ProviderObservationService],
+  exports: [ObservationService, ProviderObservationService],
 })
 export class ObservationModule {}
