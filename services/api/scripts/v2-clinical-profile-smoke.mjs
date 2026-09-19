@@ -20,10 +20,16 @@ const allergy = normalizeClinicalProfilePayload("ALLERGY", {
 });
 assert.deepEqual(allergy, {
   kind: "ALLERGY",
+  classification: "ALLERGY",
   substance: "Penicillin",
   reaction: "Rash",
   severity: "MODERATE",
 });
+const intolerance = normalizeClinicalProfilePayload("ALLERGY", {
+  classification: "intolerance",
+  substance: "Synthetic ingredient",
+});
+assert.equal(intolerance.classification, "INTOLERANCE");
 
 const condition = normalizeClinicalProfilePayload("CONDITION", {
   display: "Hypertension",
@@ -51,6 +57,10 @@ assert.equal(medication.medicationStatus, "ACTIVE");
 assert.throws(
   () => normalizeClinicalProfilePayload("ALLERGY", { substance: "A", secretExtra: "x" }),
   /Unsupported clinical profile field/,
+);
+assert.throws(
+  () => normalizeClinicalProfilePayload("ALLERGY", { classification: "sensitivity", substance: "A" }),
+  /classification is invalid/,
 );
 assert.throws(
   () => normalizeClinicalProfilePayload("CONDITION", { display: "" }),
@@ -91,4 +101,36 @@ assert.doesNotMatch(reconciliationService, /clinicalOrder\.update/);
 assert.match(reconciliationController, /@Post\(":patientId\/medication-reconciliation"\)/);
 assert.match(reconciliationController, /@Get\("reconciliation-status"\)/);
 
-console.log("V2 longitudinal clinical-profile and signed medication reconciliation validation passed");
+const allergyAnnotationModel = readFileSync(
+  new URL("../prisma/v2_clinical_profile_revision_annotations.prisma", import.meta.url),
+  "utf8",
+);
+const allergyMigration = readFileSync(
+  new URL("../prisma/migrations/20260919114500_v2_allergy_reconciliation/migration.sql", import.meta.url),
+  "utf8",
+);
+const allergyService = readFileSync(
+  new URL("../src/modules/clinical-profile/allergy-reconciliation.service.ts", import.meta.url),
+  "utf8",
+);
+const allergyController = readFileSync(
+  new URL("../src/modules/clinical-profile/allergy-reconciliation.controller.ts", import.meta.url),
+  "utf8",
+);
+
+assert.match(allergyAnnotationModel, /@@unique\(\[entryId, entryVersion, domain\]\)/);
+assert.match(allergyMigration, /ALLERGY_RECONCILIATION/);
+assert.match(allergyMigration, /FOREIGN KEY \("entryId"\) REFERENCES "ClinicalProfileEntry"\("id"\)/);
+assert.doesNotMatch(allergyMigration, /\bDROP\b/i);
+assert.match(allergyService, /listForDoctor\(principal, patientId, "ALLERGY"\)/);
+assert.match(allergyService, /clinicalProfileEntryRevision\.findMany/);
+assert.match(allergyService, /classification:\s*payload\.classification \?\? "ALLERGY"/);
+assert.match(allergyService, /clinicalProfileRevisionAnnotation\.create/);
+assert.doesNotMatch(allergyService, /clinicalProfileEntryRevision\.update/);
+assert.doesNotMatch(allergyService, /clinicalProfileEntry\.delete/);
+assert.match(allergyController, /@Get\(":patientId\/allergies"\)/);
+assert.match(allergyController, /@Post\(":patientId\/allergies"\)/);
+assert.match(allergyController, /@Patch\(":patientId\/allergies\/:entryId"\)/);
+assert.match(allergyController, /@Post\(":patientId\/allergies\/:entryId\/verify"\)/);
+
+console.log("V2 longitudinal clinical profile, medication reconciliation and allergy reconciliation validation passed");
