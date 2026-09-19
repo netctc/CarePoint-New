@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import type { AuthPrincipal } from "@carepoint/identity";
 import type { EncryptedEnvelope } from "@carepoint/security";
 import { PrismaService } from "../../infrastructure/prisma/prisma.module";
@@ -8,6 +8,15 @@ import { ProviderCategoryCapabilityService } from "../providers/provider-categor
 
 const LOOKBACK_DAYS = 365;
 const LOOKAHEAD_DAYS = 30;
+
+export interface CompleteHomeVisitInput {
+  checklist: {
+    patientIdentityConfirmed: boolean;
+    serviceCompleted: boolean;
+    followUpCommunicated: boolean;
+  };
+  formResponseId?: string | null;
+}
 
 @Injectable()
 export class ProviderCapabilityWorkspaceService {
@@ -151,6 +160,158 @@ export class ProviderCapabilityWorkspaceService {
     };
   }
 
+
+  async arriveHomeVisit(principal: AuthPrincipal, appointmentId: string) {
+    const context = await this.capabilities.assertWorkflowCapability(principal, "HOME_VISIT");
+    const appointment = await this.prisma.appointment.findFirst({
+      where: {
+        id: appointmentId,
+        providerId: context.providerId,
+        modality: "HOME_VISIT",
+        status: "CONFIRMED",
+      },
+      select: { id: true, patientId: true },
+    });
+    if (!appointment) throw new NotFoundException("Assigned home visit not found.");
+
+    const current = await this.prisma.homeVisitExecution.findUnique({
+      where: { appointmentId: appointment.id },
+    });
+    if (current?.status === "COMPLETED") {
+      throw new ConflictException("Completed home visit cannot be checked in again.");
+    }
+
+    const arrivedAt = current?.arrivedAt ?? new Date();
+    const execution = await this.prisma.homeVisitExecution.upsert({
+      where: { appointmentId: appointment.id },
+      create: {
+        appointmentId: appointment.id,
+        providerId: context.providerId,
+        patientId: appointment.patientId,
+        status: "ARRIVED",
+        arrivedAt,
+      },
+      update: {
+        status: "ARRIVED",
+        arrivedAt,
+      },
+    });
+
+    await this.audit.writeClinical({
+      actorId: principal.accountId,
+      action: "HOME_VISIT_ARRIVED",
+      objectType: "HOME_VISIT_EXECUTION",
+      objectId: execution.id,
+      purpose: "SERVICE_DELIVERY",
+      result: "SUCCESS",
+      metadata: {
+        domain: "PROVIDER_WORKSPACE",
+        providerId: context.providerId,
+        categoryId: context.categoryId,
+        patientId: appointment.patientId,
+        appointmentId: appointment.id,
+        resourceId: execution.id,
+        decision: "ALLOW",
+      },
+    });
+    return execution;
+  }
+
+  async completeHomeVisit(
+    principal: AuthPrincipal,
+    appointmentId: string,
+    input: CompleteHomeVisitInput,
+  ) {
+    const context = await this.capabilities.assertWorkflowCapability(principal, "HOME_VISIT");
+    const appointment = await this.prisma.appointment.findFirst({
+      where: {
+        id: appointmentId,
+        providerId: context.providerId,
+        modality: "HOME_VISIT",
+        status: "CONFIRMED",
+      },
+      select: { id: true, patientId: true },
+    });
+    if (!appointment) throw new NotFoundException("Assigned home visit not found.");
+
+    const checklist = this.completionChecklist(input?.checklist);
+    const execution = await this.prisma.homeVisitExecution.findUnique({
+      where: { appointmentId: appointment.id },
+    });
+    if (!execution || execution.providerId !== context.providerId || execution.status !== "ARRIVED") {
+      throw new ConflictException("Home visit must be checked in before completion.");
+    }
+
+    const requiredForm = await this.prisma.providerCategoryFormDefinition.findFirst({
+      where: {
+        categoryId: context.categoryId,
+        active: true,
+        purpose: "HOME_VISIT_COMPLETION",
+        versions: { some: { status: "ACTIVE" } },
+      },
+      select: { id: true },
+    });
+
+    let formResponseId: string | null = null;
+    if (requiredForm) {
+      if (!input?.formResponseId?.trim()) {
+        throw new ConflictException("Active home-visit completion form must be submitted first.");
+      }
+      const response = await this.prisma.providerCategoryFormResponse.findFirst({
+        where: {
+          id: input.formResponseId.trim(),
+          formDefinitionId: requiredForm.id,
+          providerId: context.providerId,
+          patientId: appointment.patientId,
+          contextType: "HOME_VISIT",
+          contextId: appointment.id,
+        },
+        select: { id: true },
+      });
+      if (!response) throw new ConflictException("Valid home-visit completion form response is required.");
+      formResponseId = response.id;
+    }
+
+    const changed = await this.prisma.homeVisitExecution.updateMany({
+      where: {
+        id: execution.id,
+        providerId: context.providerId,
+        status: "ARRIVED",
+      },
+      data: {
+        status: "COMPLETED",
+        completedAt: new Date(),
+        completionChecklist: checklist,
+        completionFormResponseId: formResponseId,
+      },
+    });
+    if (changed.count !== 1) {
+      throw new ConflictException("Home visit changed concurrently. Refresh and retry.");
+    }
+    const completed = await this.prisma.homeVisitExecution.findUniqueOrThrow({
+      where: { id: execution.id },
+    });
+
+    await this.audit.writeClinical({
+      actorId: principal.accountId,
+      action: "HOME_VISIT_COMPLETED",
+      objectType: "HOME_VISIT_EXECUTION",
+      objectId: completed.id,
+      purpose: "SERVICE_DELIVERY",
+      result: "SUCCESS",
+      metadata: {
+        domain: "PROVIDER_WORKSPACE",
+        providerId: context.providerId,
+        categoryId: context.categoryId,
+        patientId: appointment.patientId,
+        appointmentId: appointment.id,
+        resourceId: completed.id,
+        decision: "ALLOW",
+      },
+    });
+    return completed;
+  }
+
   private async factSection(providerId: string, patientId: string) {
     const consent = await this.currentConsent(
       patientId,
@@ -268,6 +429,22 @@ export class ProviderCapabilityWorkspaceService {
       select: { id: true },
       orderBy: { grantedAt: "desc" },
     });
+  }
+
+
+  private completionChecklist(value: CompleteHomeVisitInput["checklist"]) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      throw new BadRequestException("completion checklist is required.");
+    }
+    const checklist = {
+      patientIdentityConfirmed: value.patientIdentityConfirmed === true,
+      serviceCompleted: value.serviceCompleted === true,
+      followUpCommunicated: value.followUpCommunicated === true,
+    };
+    if (!checklist.patientIdentityConfirmed || !checklist.serviceCompleted || !checklist.followUpCommunicated) {
+      throw new BadRequestException("All home-visit completion checklist items must be confirmed.");
+    }
+    return checklist;
   }
 
   private decrypt<T>(row: {
