@@ -33,6 +33,9 @@ model MedicalTransportRequest {
   assistance           MedicalTransportAssistance  @default(STANDARD)
   companionCount       Int                         @default(0)
   equipment             MedicalTransportEquipment[] @default([])
+  equipmentChecklist    Json?
+  equipmentConfirmedAt  DateTime?
+  equipmentConfirmedByProviderId String?
   scheduledFor         DateTime
   pickupLatitude       Decimal                     @db.Decimal(9, 6)
   pickupLongitude      Decimal                     @db.Decimal(9, 6)
