@@ -139,3 +139,50 @@ export function normalizeScope(scope: string): string {
   }
   return normalized;
 }
+
+
+export function validateClinicalConsentGrantContract(input: {
+  scope: string;
+  version: string;
+  purpose: string | null;
+  providerRole?: IdentityRole | null;
+}): { scope: string; version: string; purpose: string | null } {
+  const rawScope = input.scope.trim();
+  const candidate = rawScope.toUpperCase();
+  const isV2ClinicalScope =
+    candidate === "CLINICAL_RECORD_READ" ||
+    candidate === "HEALTH_PROFILE_READ" ||
+    candidate === "QUESTIONNAIRE_READ" ||
+    candidate === "OBSERVATION_READ" ||
+    candidate.startsWith("OBSERVATION_READ:") ||
+    candidate === "CLINICAL_PROFILE_READ" ||
+    candidate === "CLINICAL_PROFILE_WRITE";
+
+  if (!isV2ClinicalScope) {
+    return {
+      scope: rawScope,
+      version: input.version.trim(),
+      purpose: input.purpose,
+    };
+  }
+
+  const scope = normalizeScope(candidate);
+  const policy = resolveClinicalConsentPolicy(scope);
+  if (!policy) throw new BadRequestException("Clinical consent scope is not registered.");
+  if (input.version.trim() !== policy.version) {
+    throw new BadRequestException(
+      `Clinical consent version for '${scope}' must be '${policy.version}'.`,
+    );
+  }
+  if (input.purpose !== "TREATMENT") {
+    throw new BadRequestException(
+      `Clinical consent purpose for '${scope}' must be TREATMENT.`,
+    );
+  }
+  if (input.providerRole && !policy.eligibleRoles.includes(input.providerRole)) {
+    throw new BadRequestException(
+      `Target provider role is not eligible for clinical consent scope '${scope}'.`,
+    );
+  }
+  return { scope, version: policy.version, purpose: "TREATMENT" };
+}

@@ -7,6 +7,7 @@ const {
   resolveClinicalConsentPolicy,
   normalizeTemporaryShareScopes,
   normalizeTemporaryShareExpiry,
+  validateClinicalConsentGrantContract,
 } = require("../dist/modules/clinical-governance/clinical-consent-policy.js");
 
 test("known V2 consent scopes resolve to explicit versions", () => {
@@ -46,3 +47,51 @@ test("temporary shares are strictly time bounded", () => {
 });
 
 console.log("V2 consent governance acceptance passed");
+
+
+test("direct V2 consent grants enforce registered version, purpose and provider role", () => {
+  assert.deepEqual(
+    validateClinicalConsentGrantContract({
+      scope: "health_profile_read",
+      version: "health-profile-v1",
+      purpose: "TREATMENT",
+      providerRole: "DOCTOR",
+    }),
+    {
+      scope: "HEALTH_PROFILE_READ",
+      version: "health-profile-v1",
+      purpose: "TREATMENT",
+    },
+  );
+  assert.throws(
+    () => validateClinicalConsentGrantContract({
+      scope: "HEALTH_PROFILE_READ",
+      version: "legacy-v0",
+      purpose: "TREATMENT",
+      providerRole: "DOCTOR",
+    }),
+    /must be 'health-profile-v1'/,
+  );
+  assert.throws(
+    () => validateClinicalConsentGrantContract({
+      scope: "QUESTIONNAIRE_READ",
+      version: "questionnaire-read-v1",
+      purpose: "TREATMENT",
+      providerRole: "OTHER_PROVIDER",
+    }),
+    /not eligible/,
+  );
+  assert.deepEqual(
+    validateClinicalConsentGrantContract({
+      scope: "LEGACY_NON_CLINICAL_SCOPE",
+      version: "legacy-v1",
+      purpose: null,
+      providerRole: null,
+    }),
+    {
+      scope: "LEGACY_NON_CLINICAL_SCOPE",
+      version: "legacy-v1",
+      purpose: null,
+    },
+  );
+});
