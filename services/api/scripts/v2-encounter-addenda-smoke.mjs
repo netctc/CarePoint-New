@@ -5,6 +5,8 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const engine = require("../dist/modules/clinical/encounter-addendum.engine.js");
 
+await import("./v2-data-corrections-smoke.mjs");
+
 test("encounter addendum requires explicit reason and clinical text", () => {
   assert.deepEqual(engine.normalizeEncounterAddendumInput({
     reason: "Correct a documented date after chart review.",
