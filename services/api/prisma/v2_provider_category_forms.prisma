@@ -1,0 +1,57 @@
+model ProviderCategoryFormDefinition {
+  id          String                         @id @default(uuid())
+  categoryId  String
+  code        String
+  labels      Json
+  purpose     String
+  active      Boolean                        @default(true)
+  createdAt   DateTime                       @default(now())
+  updatedAt   DateTime                       @updatedAt
+  category    ProviderCategory               @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  versions    ProviderCategoryFormVersion[]
+  responses   ProviderCategoryFormResponse[]
+
+  @@unique([categoryId, code])
+  @@index([categoryId, active])
+}
+
+model ProviderCategoryFormVersion {
+  id               String                         @id @default(uuid())
+  formDefinitionId String
+  version          Int
+  status           String                         @default("DRAFT")
+  schema           Json
+  createdByActorId String?
+  activatedAt      DateTime?
+  retiredAt        DateTime?
+  createdAt        DateTime                       @default(now())
+  definition       ProviderCategoryFormDefinition @relation(fields: [formDefinitionId], references: [id], onDelete: Cascade)
+  responses        ProviderCategoryFormResponse[]
+
+  @@unique([formDefinitionId, version])
+  @@index([status, activatedAt])
+}
+
+model ProviderCategoryFormResponse {
+  id               String                         @id @default(uuid())
+  formDefinitionId String
+  formVersionId    String
+  providerId       String
+  patientId        String?
+  contextType      String
+  contextId        String?
+  algorithm        String
+  keyId            String
+  wrappedKey       String
+  iv               String
+  ciphertext       String
+  submittedAt      DateTime                       @default(now())
+  definition       ProviderCategoryFormDefinition @relation(fields: [formDefinitionId], references: [id], onDelete: Restrict)
+  formVersion      ProviderCategoryFormVersion    @relation(fields: [formVersionId], references: [id], onDelete: Restrict)
+  provider         Provider                       @relation(fields: [providerId], references: [id], onDelete: Restrict)
+  patient          PatientProfile?                @relation(fields: [patientId], references: [id], onDelete: SetNull)
+
+  @@index([providerId, submittedAt])
+  @@index([patientId, submittedAt])
+  @@index([contextType, contextId])
+}

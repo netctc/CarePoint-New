@@ -8,6 +8,8 @@ const SAFE_CLINICAL_AUDIT_KEYS = new Set([
   "appointmentId",
   "patientId",
   "providerId",
+  "contextType",
+  "categoryId",
   "resourceId",
   "resourceVersion",
   "revision",
@@ -36,7 +38,7 @@ function safeString(key: string, value: string): string | undefined {
   const trimmed = value.trim();
   if (!trimmed) return undefined;
   if (key === "domain" || key === "accessBasis" || key === "decision" || key === "denyReason" ||
-      key === "sourceType" || key === "verificationStatus" || key === "reconciliationStatus" || key === "factKind" || key === "scope") {
+      key === "sourceType" || key === "verificationStatus" || key === "reconciliationStatus" || key === "factKind" || key === "contextType" || key === "scope") {
     return SAFE_ENUM.test(trimmed) ? trimmed : undefined;
   }
   return SAFE_TOKEN.test(trimmed) ? trimmed : undefined;
