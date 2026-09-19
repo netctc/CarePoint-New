@@ -10,6 +10,7 @@ import {
   type CreateObservationInput,
   type CreateUnitInput,
 } from "./observation.service";
+import { ObservationTrendService } from "./observation-trend.service";
 import { ProviderObservationService } from "./provider-observation.service";
 
 @Controller("admin/clinical-metrics")
@@ -127,7 +128,10 @@ class DoctorObservationController {
 
 @Controller("provider/patients")
 class ProviderObservationController {
-  constructor(private readonly observations: ProviderObservationService) {}
+  constructor(
+    private readonly observations: ProviderObservationService,
+    private readonly trends: ObservationTrendService,
+  ) {}
 
   @RequirePermissions("CLINICAL_RECORD_WRITE")
   @Post(":patientId/observations")
@@ -139,6 +143,20 @@ class ProviderObservationController {
   ) {
     return this.observations.record(principal, patientId, body);
   }
+
+  @RequirePermissions("CLINICAL_OBSERVATION_READ")
+  @Get(":patientId/observations/trends")
+  @Header("Cache-Control", "no-store")
+  trend(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Param("patientId") patientId: string,
+    @Query("code") code: string,
+    @Query("from") from?: string,
+    @Query("to") to?: string,
+    @Query("sourceType") sourceType?: string,
+  ) {
+    return this.trends.providerTrend(principal, patientId, code, from, to, sourceType);
+  }
 }
 
 @Module({
@@ -149,7 +167,7 @@ class ProviderObservationController {
     DoctorObservationController,
     ProviderObservationController,
   ],
-  providers: [ObservationService, ProviderObservationService],
-  exports: [ObservationService, ProviderObservationService],
+  providers: [ObservationService, ProviderObservationService, ObservationTrendService],
+  exports: [ObservationService, ProviderObservationService, ObservationTrendService],
 })
 export class ObservationModule {}
