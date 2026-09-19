@@ -5,6 +5,8 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const engine = require("../dist/modules/observation/observation-trend.engine.js");
 
+await import("./v2-changes-since-last-visit-smoke.mjs");
+
 const reading = (id, at, value, unit, canonicalValue, canonicalUnit, sourceType = "MANUAL") => ({
   id,
   observedAt: new Date(at),
