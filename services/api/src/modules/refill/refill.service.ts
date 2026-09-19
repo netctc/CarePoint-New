@@ -1,0 +1,273 @@
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
+import type { AuthPrincipal } from "@carepoint/identity";
+import type { EncryptedEnvelope } from "@carepoint/security";
+import { PrismaService } from "../../infrastructure/prisma/prisma.module";
+import { DatabaseAuditService } from "../../infrastructure/audit/audit.service";
+import { ClinicalEnvelopeService } from "../clinical/clinical-envelope.service";
+import { NotificationsService } from "../communications/notifications.service";
+import { PatientContextService } from "../dependents/dependents.service";
+import { OrdersService } from "../orders/orders.service";
+import { normalizeRefillRequestInput, normalizeRefillReviewInput, refillAllowance } from "./refill.engine";
+
+type EnvelopeFields = {
+  algorithm: string;
+  keyId: string;
+  wrappedKey: string;
+  iv: string;
+  ciphertext: string;
+};
+
+@Injectable()
+export class RefillService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: DatabaseAuditService,
+    private readonly envelope: ClinicalEnvelopeService,
+    private readonly notifications: NotificationsService,
+    private readonly contexts: PatientContextService,
+    private readonly orders: OrdersService,
+  ) {}
+
+  async request(principal: AuthPrincipal, prescriptionId: string, input: unknown) {
+    if (principal.role !== "PATIENT") throw new ForbiddenException("Patient account is required.");
+    const context = await this.contexts.resolveEffectivePatient(principal, "CLINICAL_WRITE");
+    const source = await this.orders.getPrescriptionRefillSource(this.id(prescriptionId, "prescriptionId"), context.patientId);
+    const prescriber = await this.prisma.provider.findUnique({ where: { id: source.providerId }, select: { id: true, status: true, userId: true } });
+    if (!prescriber || prescriber.status !== "ACTIVE") throw new ConflictException("The responsible prescriber is not currently available for refill review.");
+
+    const approvedCount = await this.prisma.refillRequest.count({ where: { sourcePrescriptionId: source.id, status: "APPROVED" } });
+    const allowance = refillAllowance(source.refills, approvedCount);
+    if (!allowance.eligible) throw new ConflictException("No refill allowance remains on this prescription.");
+    const open = await this.prisma.refillRequest.findFirst({ where: { sourcePrescriptionId: source.id, status: "REQUESTED" }, select: { id: true } });
+    if (open) throw new ConflictException("A refill request is already awaiting review.");
+
+    const normalized = normalizeRefillRequestInput(input);
+    const encrypted = await this.envelope.encryptRecord({ schemaVersion: 1, reason: normalized.reason });
+    let created;
+    try {
+      created = await this.prisma.refillRequest.create({
+        data: {
+          sourcePrescriptionId: source.id,
+          patientId: context.patientId,
+          requestedProviderId: source.providerId,
+          ...this.requestEnvelopeData(encrypted),
+        },
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        throw new ConflictException("A refill request is already awaiting review.");
+      }
+      throw error;
+    }
+
+    await this.audit.writeClinical({
+      actorId: principal.accountId,
+      action: "REFILL_REQUEST_CREATED",
+      objectType: "REFILL_REQUEST",
+      objectId: created.id,
+      purpose: context.mode === "DEPENDENT" ? "PROXY_PATIENT_ACCESS" : "PATIENT_ACCESS",
+      result: "SUCCESS",
+      metadata: { patientId: context.patientId, providerId: source.providerId, resourceId: created.id, decision: "ALLOW" },
+    });
+    if (prescriber.userId) {
+      await this.notifications.notifyAccount({
+        accountId: prescriber.userId,
+        dedupeKey: "refill-request:" + created.id,
+        type: "CARE_COORDINATION",
+        entityType: "REFILL_REQUEST",
+        entityId: created.id,
+        safeTitleKey: "notification.refill_request.title",
+        safeBodyKey: "notification.refill_request.body",
+      });
+    }
+    return this.present(created, normalized, null, allowance);
+  }
+
+  async patientList(principal: AuthPrincipal) {
+    if (principal.role !== "PATIENT") throw new ForbiddenException("Patient account is required.");
+    const context = await this.contexts.resolveEffectivePatient(principal, "CLINICAL_READ");
+    const rows = await this.prisma.refillRequest.findMany({ where: { patientId: context.patientId }, orderBy: { requestedAt: "desc" }, take: 200 });
+    const items = [];
+    for (const row of rows) items.push(await this.presentRow(row));
+    return { patientId: context.patientId, mode: context.mode, items };
+  }
+
+  async providerList(principal: AuthPrincipal) {
+    const provider = await this.orders.requirePrescriptionRefillProvider(principal);
+    const rows = await this.prisma.refillRequest.findMany({ where: { requestedProviderId: provider.id }, orderBy: { requestedAt: "desc" }, take: 200 });
+    const items = [];
+    for (const row of rows) items.push(await this.presentRow(row));
+    return { providerId: provider.id, items };
+  }
+
+  async review(principal: AuthPrincipal, requestId: string, input: unknown) {
+    const provider = await this.orders.requirePrescriptionRefillProvider(principal);
+    const review = normalizeRefillReviewInput(input);
+    const row = await this.prisma.refillRequest.findUnique({ where: { id: this.id(requestId, "requestId") } });
+    if (!row || row.requestedProviderId !== provider.id) throw new NotFoundException("Refill request not found.");
+    if (row.status !== "REQUESTED") throw new ConflictException("Refill request has already been reviewed.");
+    if (row.version !== review.expectedVersion) throw new ConflictException({ message: "Refill request version conflict.", currentVersion: row.version });
+
+    if (review.action === "DECLINE") {
+      const encrypted = await this.envelope.encryptRecord({ schemaVersion: 1, reason: review.reason });
+      const updated = await this.updateOutcome(row, review.expectedVersion, "DECLINED", principal.accountId, encrypted, null);
+      await this.auditOutcome(principal, updated, "REFILL_REQUEST_DECLINED");
+      await this.notifyPatient(updated.patientId, updated.id, updated.version, "declined");
+      return this.presentRow(updated);
+    }
+
+    const source = await this.orders.getPrescriptionRefillSource(row.sourcePrescriptionId, row.patientId);
+    if (source.providerId !== provider.id) throw new ForbiddenException("Only the responsible prescriber can approve this refill.");
+    const approvedCount = await this.prisma.refillRequest.count({ where: { sourcePrescriptionId: source.id, status: "APPROVED" } });
+    const allowance = refillAllowance(source.refills, approvedCount);
+    if (!allowance.eligible) throw new ConflictException("No refill allowance remains on this prescription.");
+
+    const createdPrescription = await this.orders.createPrescriptionFromRefill(
+      principal,
+      source.id,
+      row.id,
+      row.patientId,
+    );
+    const encrypted = await this.envelope.encryptRecord({ schemaVersion: 1, reason: review.reason });
+    const updated = await this.updateOutcome(row, review.expectedVersion, "APPROVED", principal.accountId, encrypted, createdPrescription.id);
+    await this.auditOutcome(principal, updated, "REFILL_REQUEST_APPROVED");
+    await this.notifyPatient(updated.patientId, updated.id, updated.version, "approved");
+    return this.presentRow(updated);
+  }
+
+  private async updateOutcome(
+    row: any,
+    expectedVersion: number,
+    status: "APPROVED" | "DECLINED",
+    actorId: string,
+    reviewEnvelope: EncryptedEnvelope,
+    approvedPrescriptionId: string | null,
+  ) {
+    const result = await this.prisma.refillRequest.updateMany({
+      where: { id: row.id, status: "REQUESTED", version: expectedVersion },
+      data: {
+        status,
+        version: expectedVersion + 1,
+        reviewedByActorId: actorId,
+        reviewedAt: new Date(),
+        approvedPrescriptionId,
+        ...this.reviewEnvelopeData(reviewEnvelope),
+      },
+    });
+    if (result.count !== 1) {
+      const current = await this.prisma.refillRequest.findUnique({ where: { id: row.id }, select: { version: true, status: true } });
+      throw new ConflictException({ message: "Refill request changed concurrently.", currentVersion: current?.version ?? null, status: current?.status ?? null });
+    }
+    const updated = await this.prisma.refillRequest.findUnique({ where: { id: row.id } });
+    if (!updated) throw new NotFoundException("Refill request not found.");
+    return updated;
+  }
+
+  private async auditOutcome(principal: AuthPrincipal, row: any, action: string) {
+    await this.audit.writeClinical({
+      actorId: principal.accountId,
+      action,
+      objectType: "REFILL_REQUEST",
+      objectId: row.id,
+      purpose: "TREATMENT",
+      result: "SUCCESS",
+      metadata: {
+        patientId: row.patientId,
+        providerId: row.requestedProviderId,
+        resourceId: row.id,
+        resourceVersion: row.version,
+        decision: "ALLOW",
+      },
+    });
+  }
+
+  private async notifyPatient(patientId: string, requestId: string, version: number, outcome: "approved" | "declined") {
+    const patient = await this.prisma.patientProfile.findUnique({ where: { id: patientId }, select: { userId: true } });
+    if (!patient) return;
+    await this.notifications.notifyAccount({
+      accountId: patient.userId,
+      dedupeKey: "refill-outcome:" + requestId + ":v" + version,
+      type: "CARE_COORDINATION",
+      entityType: "REFILL_REQUEST",
+      entityId: requestId,
+      safeTitleKey: "notification.refill_" + outcome + ".title",
+      safeBodyKey: "notification.refill_" + outcome + ".body",
+    });
+  }
+
+  private async presentRow(row: any) {
+    const requestPayload = await this.decryptRequest(row);
+    const reviewPayload = await this.decryptReview(row);
+    const approvedCount = await this.prisma.refillRequest.count({ where: { sourcePrescriptionId: row.sourcePrescriptionId, status: "APPROVED" } });
+    const source = await this.orders.getPrescriptionRefillSource(row.sourcePrescriptionId, row.patientId);
+    return this.present(row, requestPayload, reviewPayload, refillAllowance(source.refills, approvedCount));
+  }
+
+  private present(row: any, requestPayload: any, reviewPayload: any, allowance: ReturnType<typeof refillAllowance>) {
+    return {
+      id: row.id,
+      sourcePrescriptionId: row.sourcePrescriptionId,
+      patientId: row.patientId,
+      requestedProviderId: row.requestedProviderId,
+      status: row.status,
+      version: row.version,
+      requestedAt: row.requestedAt,
+      reviewedAt: row.reviewedAt,
+      approvedPrescriptionId: row.approvedPrescriptionId,
+      request: { reason: requestPayload?.reason ?? null },
+      review: reviewPayload ? { reason: reviewPayload.reason ?? null } : null,
+      refillAllowance: allowance,
+    };
+  }
+
+  private async decryptRequest(row: any) {
+    return this.envelope.decryptRecord<Record<string, unknown>>({
+      version: 1,
+      algorithm: row.requestAlgorithm,
+      keyId: row.requestKeyId,
+      wrappedKey: row.requestWrappedKey,
+      iv: row.requestIv,
+      ciphertext: row.requestCiphertext,
+    });
+  }
+
+  private async decryptReview(row: any) {
+    if (!row.reviewAlgorithm || !row.reviewKeyId || !row.reviewWrappedKey || !row.reviewIv || !row.reviewCiphertext) return null;
+    return this.envelope.decryptRecord<Record<string, unknown>>({
+      version: 1,
+      algorithm: row.reviewAlgorithm,
+      keyId: row.reviewKeyId,
+      wrappedKey: row.reviewWrappedKey,
+      iv: row.reviewIv,
+      ciphertext: row.reviewCiphertext,
+    });
+  }
+
+  private requestEnvelopeData(envelope: EncryptedEnvelope) {
+    return {
+      requestAlgorithm: envelope.algorithm,
+      requestKeyId: envelope.keyId,
+      requestWrappedKey: envelope.wrappedKey,
+      requestIv: envelope.iv,
+      requestCiphertext: envelope.ciphertext,
+    };
+  }
+
+  private reviewEnvelopeData(envelope: EncryptedEnvelope) {
+    return {
+      reviewAlgorithm: envelope.algorithm,
+      reviewKeyId: envelope.keyId,
+      reviewWrappedKey: envelope.wrappedKey,
+      reviewIv: envelope.iv,
+      reviewCiphertext: envelope.ciphertext,
+    };
+  }
+
+  private id(value: unknown, field: string) {
+    if (typeof value !== "string") throw new BadRequestException(field + " is required.");
+    const normalized = value.trim();
+    if (!/^[A-Za-z0-9_.:-]{1,180}$/.test(normalized)) throw new BadRequestException(field + " is invalid.");
+    return normalized;
+  }
+}

@@ -1,0 +1,27 @@
+model RefillRequest {
+  id                     String   @id @default(uuid())
+  sourcePrescriptionId   String
+  patientId              String
+  requestedProviderId    String
+  status                 String   @default("REQUESTED")
+  version                Int      @default(1)
+  requestAlgorithm       String
+  requestKeyId           String
+  requestWrappedKey      String
+  requestIv              String
+  requestCiphertext      String
+  reviewAlgorithm        String?
+  reviewKeyId            String?
+  reviewWrappedKey       String?
+  reviewIv               String?
+  reviewCiphertext       String?
+  reviewedByActorId      String?
+  reviewedAt             DateTime?
+  approvedPrescriptionId String?  @unique
+  requestedAt            DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@index([patientId, status, requestedAt])
+  @@index([requestedProviderId, status, requestedAt])
+  @@index([sourcePrescriptionId, status])
+}

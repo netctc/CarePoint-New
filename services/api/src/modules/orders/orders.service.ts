@@ -123,6 +123,82 @@ export class OrdersService {
     return { patientId: patient.id, accessBasis: basis, items };
   }
 
+  async requirePrescriptionRefillProvider(principal: AuthPrincipal) {
+    const provider = await this.requireActiveProvider(principal);
+    this.assertOrderCapability(provider, "PRESCRIPTION");
+    return provider;
+  }
+
+  async getPrescriptionRefillSource(sourcePrescriptionId: string, expectedPatientId: string) {
+    const order = await this.requireOrder(sourcePrescriptionId);
+    if (order.patientId !== expectedPatientId) throw new NotFoundException("Prescription not found.");
+    if (order.type !== "PRESCRIPTION") throw new ConflictException("Refill requests require a prescription order.");
+    if (order.status !== "SIGNED") throw new ConflictException("Only an active signed prescription can be refilled.");
+    const payload = await this.envelope.decrypt<JsonObject>(this.orderEnvelope(order));
+    const refills = Number.isInteger(payload.refills) ? Number(payload.refills) : 0;
+    return { id: order.id, patientId: order.patientId, providerId: order.providerId, status: order.status, refills };
+  }
+
+  async createPrescriptionFromRefill(
+    principal: AuthPrincipal,
+    sourcePrescriptionId: string,
+    refillRequestId: string,
+    expectedPatientId: string,
+  ) {
+    const provider = await this.requirePrescriptionRefillProvider(principal);
+    const source = await this.requireOrder(sourcePrescriptionId);
+    if (source.patientId !== expectedPatientId) throw new NotFoundException("Prescription not found.");
+    if (source.type !== "PRESCRIPTION" || source.status !== "SIGNED") throw new ConflictException("The source prescription is not refill-eligible.");
+    if (source.providerId !== provider.id) throw new ForbiddenException("Only the responsible prescriber can approve this refill.");
+
+    const idempotencyKey = "refill:" + refillRequestId;
+    const existing = await this.prisma.clinicalOrder.findUnique({ where: { idempotencyKey }, include: { labResult: true } });
+    if (existing) {
+      if (existing.type !== "PRESCRIPTION" || existing.patientId !== source.patientId || existing.providerId !== provider.id) {
+        throw new ConflictException("Refill idempotency key is already bound to another order.");
+      }
+      return this.presentOrder(existing, "OWN_AUTHORSHIP", false);
+    }
+
+    const sourcePayload = await this.envelope.decrypt<JsonObject>(this.orderEnvelope(source));
+    const payload = this.validatePrescription({ ...sourcePayload, refills: 0 });
+    const encrypted = await this.envelope.encrypt({ schemaVersion: 1, type: "PRESCRIPTION", ...payload });
+    const encounterRef = idempotencyKey;
+    const material = this.orderAttestationMaterial("PRESCRIPTION", source.patientId, provider.id, encounterRef, encrypted);
+    const signature = await this.attestation.attest(material);
+    const created = await this.prisma.clinicalOrder.create({
+      data: {
+        idempotencyKey,
+        type: "PRESCRIPTION",
+        status: "SIGNED",
+        patientId: source.patientId,
+        providerId: provider.id,
+        encounterRef,
+        algorithm: encrypted.algorithm,
+        keyId: encrypted.keyId,
+        wrappedKey: encrypted.wrappedKey,
+        iv: encrypted.iv,
+        ciphertext: encrypted.ciphertext,
+        payloadDigest: signature.payloadDigest,
+        signatureAlgorithm: signature.algorithm,
+        signatureKeyId: signature.keyId,
+        signature: signature.signature,
+        signedAt: signature.signedAt,
+      },
+      include: { labResult: true },
+    });
+    await this.audit.write({
+      actorId: principal.accountId,
+      action: "CLINICAL_REFILL_PRESCRIPTION_SIGNED",
+      objectType: "CLINICAL_ORDER",
+      objectId: created.id,
+      purpose: "TREATMENT",
+      result: "SUCCESS",
+      metadata: { sourcePrescriptionId: source.id, refillRequestId },
+    });
+    return this.presentOrder(created, "OWN_AUTHORSHIP", false);
+  }
+
   async getOrder(principal: AuthPrincipal, orderId: string) {
     const order = await this.requireOrder(orderId);
     const access = await this.orderAccessBasis(principal, order);
