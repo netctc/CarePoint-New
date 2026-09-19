@@ -57,7 +57,6 @@ class ProviderCatalogService {
     const items = await this.prisma.providerCategory.findMany({ where: { active: true }, orderBy: { slug: "asc" } });
     return items.map((item) => ({
       ...item,
-      enabledModalities: this.enabledModalities(item.capabilities),
       ...parseProviderCategoryCapabilities(item.capabilities),
     }));
   }
