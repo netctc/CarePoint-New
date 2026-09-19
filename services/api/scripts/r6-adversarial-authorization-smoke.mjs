@@ -18,7 +18,7 @@ async function raw(path, { method = "GET", token, body } = {}) {
 async function request(path, options = {}) {
   const result = await raw(path, options);
   if (result.status < 200 || result.status >= 300) {
-    throw new Error(`${options.method || "GET""} ${path} -> ${result.status} ${JSON.stringify(result.payload)}`);
+    throw new Error(`${options.method || "GET"} ${path} -> ${result.status} ${JSON.stringify(result.payload)}`);
   }
   return result.payload;
 }
