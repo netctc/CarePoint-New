@@ -3,12 +3,13 @@ import { Prisma } from "@prisma/client";
 import { roleHasPermission, type AuthPrincipal } from "@carepoint/identity";
 import { PrismaService } from "../../infrastructure/prisma/prisma.module";
 import { DatabaseAuditService } from "../../infrastructure/audit/audit.service";
+import { validateClinicalConsentGrantContract } from "../clinical-governance/clinical-consent-policy";
 
 type ConsentRow = {
   id: string; patientId: string; providerId: string | null; scope: string; version: string; purpose?: string | null; state: "GRANTED" | "REVOKED";
   grantedAt: Date; revokedAt: Date | null; expiresAt: Date | null;
 };
-type ProviderView = { displayName: string; status: string } | null;
+type ProviderView = { displayName: string; status: string; class: "DOCTOR" | "OTHER_PROVIDER" } | null;
 
 @Injectable()
 export class PersistentConsentService {
@@ -22,10 +23,16 @@ export class PersistentConsentService {
     const providerId = input.providerId?.trim() || null;
     const provider = providerId ? await this.provider(providerId) : null;
     if (providerId && (!provider || provider.status !== "ACTIVE")) throw new BadRequestException("Consent target provider must be active.");
+    const contract = validateClinicalConsentGrantContract({
+      scope: input.scope,
+      version: input.version,
+      purpose,
+      providerRole: provider?.class ?? null,
+    });
     const expiresAt = input.expiresAt ? new Date(input.expiresAt) : null;
     if (expiresAt && (!Number.isFinite(expiresAt.getTime()) || expiresAt.getTime() <= Date.now())) throw new BadRequestException("Consent expiry must be a future date.");
     const consent = await this.prisma.consent.create({
-      data: { patientId: patient.id, providerId, scope: input.scope.trim(), version: input.version.trim(), purpose, state: "GRANTED", expiresAt },
+      data: { patientId: patient.id, providerId, scope: contract.scope, version: contract.version, purpose: contract.purpose, state: "GRANTED", expiresAt },
     });
     await this.audit.write({ actorId: principal.accountId, action: "CONSENT_GRANTED", objectType: "CONSENT", objectId: consent.id, result: "SUCCESS", metadata: { scope: consent.scope, providerId: consent.providerId, ...(consent.purpose ? { purpose: consent.purpose } : {}) } });
     return this.present(consent, provider);
@@ -36,8 +43,8 @@ export class PersistentConsentService {
     const patient = await this.patientForPrincipal(principal);
     const rows = await this.prisma.consent.findMany({ where: { patientId: patient.id }, orderBy: { grantedAt: "desc" } });
     const providerIds = [...new Set(rows.map((row) => row.providerId).filter((id): id is string => Boolean(id)))];
-    const providers = providerIds.length ? await this.prisma.provider.findMany({ where: { id: { in: providerIds } }, select: { id: true, displayName: true, status: true } }) : [];
-    const byId = new Map(providers.map((row) => [row.id, { displayName: row.displayName, status: row.status }]));
+    const providers = providerIds.length ? await this.prisma.provider.findMany({ where: { id: { in: providerIds } }, select: { id: true, displayName: true, status: true, class: true } }) : [];
+    const byId = new Map(providers.map((row) => [row.id, { displayName: row.displayName, status: row.status, class: row.class }]));
     return rows.map((row) => this.present(row, row.providerId ? byId.get(row.providerId) ?? null : null));
   }
 
@@ -72,8 +79,18 @@ export class PersistentConsentService {
       if (!source || source.patientId !== patient.id) throw new ConflictException("Consent changed. Refresh before trying again.");
       const now = new Date();
       if (source.expiresAt && source.expiresAt.getTime() <= now.getTime()) throw new ConflictException("This historical consent has expired. A current consent version must be presented before granting again.");
-      const provider = source.providerId ? await tx.provider.findUnique({ where: { id: source.providerId }, select: { displayName: true, status: true } }) : null;
+      const provider = source.providerId ? await tx.provider.findUnique({ where: { id: source.providerId }, select: { displayName: true, status: true, class: true } }) : null;
       if (source.providerId && (!provider || provider.status !== "ACTIVE")) throw new ConflictException("The consent target provider is not active.");
+      try {
+        validateClinicalConsentGrantContract({
+          scope: source.scope,
+          version: source.version,
+          purpose: source.purpose ?? null,
+          providerRole: provider?.class ?? null,
+        });
+      } catch {
+        throw new ConflictException("This clinical consent no longer matches the active scope/version/purpose policy. Grant a new current consent instead.");
+      }
       if (source.state === "GRANTED") return this.present(source, provider);
       const equivalent = await tx.consent.findFirst({ where: {
         patientId: patient.id, providerId: source.providerId, scope: source.scope, version: source.version, purpose: source.purpose ?? null, state: "GRANTED",
@@ -111,7 +128,7 @@ export class PersistentConsentService {
   }
 
   private async provider(providerId: string): Promise<ProviderView> {
-    return this.prisma.provider.findUnique({ where: { id: providerId }, select: { displayName: true, status: true } });
+    return this.prisma.provider.findUnique({ where: { id: providerId }, select: { displayName: true, status: true, class: true } });
   }
 
   private requirePatientConsentPermission(principal: AuthPrincipal): void {
