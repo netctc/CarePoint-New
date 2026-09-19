@@ -6,6 +6,8 @@ import { ProviderCategoryCapabilityService } from "../providers/provider-categor
 import { ProvidersModule } from "../providers/providers.module";
 import { ImagingOrdersController } from "./imaging-orders.controller";
 import { ImagingOrdersService } from "./imaging-orders.service";
+import { ProviderLabSeriesController } from "./lab-series.controller";
+import { LabSeriesService } from "./lab-series.service";
 import { OrdersService } from "./orders.service";
 import { OrdersEnvelopeService } from "./orders-envelope.service";
 import { OrdersAttestationService } from "./orders-attestation.service";
@@ -97,8 +99,16 @@ class OrdersController {
 
 @Module({
   imports: [ProvidersModule, CommunicationsModule],
-  controllers: [OrdersController, ImagingOrdersController],
-  providers: [OrdersService, ImagingOrdersService, OrdersEnvelopeService, OrdersAttestationService, OrdersSystemExportService, PrescriptionNotificationService],
-  exports: [OrdersService, OrdersEnvelopeService, OrdersAttestationService, OrdersSystemExportService],
+  controllers: [OrdersController, ImagingOrdersController, ProviderLabSeriesController],
+  providers: [
+    OrdersService,
+    ImagingOrdersService,
+    LabSeriesService,
+    OrdersEnvelopeService,
+    OrdersAttestationService,
+    OrdersSystemExportService,
+    PrescriptionNotificationService,
+  ],
+  exports: [OrdersService, LabSeriesService, OrdersEnvelopeService, OrdersAttestationService, OrdersSystemExportService],
 })
 export class OrdersModule {}
