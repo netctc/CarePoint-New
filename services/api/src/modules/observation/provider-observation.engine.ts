@@ -1,9 +1,12 @@
+import { normalizeGlucoseContext, type GlucoseContext } from "./observation.engine";
+
 export type ProviderObservationInput = {
   code: string;
   value: number;
   unitCode: string;
   observedAt: string;
   encounterId: string | null;
+  glucoseContext: GlucoseContext | null;
 };
 
 export type EncounterBinding = {
@@ -14,12 +17,14 @@ export type EncounterBinding = {
 };
 
 export function normalizeProviderObservationInput(input: Record<string, unknown>): ProviderObservationInput {
+  const code = token(input.code, "code", 80);
   return {
-    code: token(input.code, "code", 80),
+    code,
     value: finite(input.value, "value"),
     unitCode: token(input.unitCode, "unitCode", 40),
     observedAt: iso(input.observedAt, "observedAt"),
     encounterId: optionalId(input.encounterId, "encounterId"),
+    glucoseContext: normalizeGlucoseContext(code, input.glucoseContext),
   };
 }
 

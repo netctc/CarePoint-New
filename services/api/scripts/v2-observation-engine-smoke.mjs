@@ -6,8 +6,12 @@ const {
   convertMeasurement,
   assertCanonicalRange,
   calculateBmi,
+  isGlucoseMetricCode,
+  normalizeGlucoseContext,
   normalizeObservedAt,
 } = require("../dist/modules/observation/observation.engine.js");
+
+await import("./v2-provider-observations-smoke.mjs");
 
 const conversions = [
   { fromUnitCode: "LB", toUnitCode: "KG", multiplier: 0.45359237, offset: 0 },
@@ -23,7 +27,23 @@ const temp = convertMeasurement(98.6, "DEG_F", "CEL", 1, conversions);
 assert.equal(temp.canonicalValue, 37);
 
 const glucose = convertMeasurement(5.5, "MMOL_L", "MG_DL", 0, conversions);
+assert.equal(glucose.originalValue, 5.5);
+assert.equal(glucose.originalUnitCode, "MMOL_L");
 assert.equal(glucose.canonicalValue, 99);
+assert.equal(glucose.canonicalUnitCode, "MG_DL");
+
+assert.equal(isGlucoseMetricCode("glucose"), true);
+assert.equal(isGlucoseMetricCode("blood_glucose"), true);
+assert.equal(isGlucoseMetricCode("capillary_glucose"), true);
+assert.equal(isGlucoseMetricCode("heart_rate"), false);
+assert.equal(normalizeGlucoseContext("BLOOD_GLUCOSE", "fasting"), "FASTING");
+assert.equal(normalizeGlucoseContext("GLUCOSE", "preprandial"), "PREPRANDIAL");
+assert.equal(normalizeGlucoseContext("CAPILLARY_GLUCOSE", "postprandial"), "POSTPRANDIAL");
+assert.equal(normalizeGlucoseContext("GLUCOSE", "random"), "RANDOM");
+assert.equal(normalizeGlucoseContext("HEART_RATE", undefined), null);
+assert.throws(() => normalizeGlucoseContext("BLOOD_GLUCOSE", undefined), /required for glucose/);
+assert.throws(() => normalizeGlucoseContext("BLOOD_GLUCOSE", "bedtime"), /FASTING, PREPRANDIAL, POSTPRANDIAL, or RANDOM/);
+assert.throws(() => normalizeGlucoseContext("HEART_RATE", "FASTING"), /only valid for glucose/);
 
 const reverseWeight = convertMeasurement(100, "KG", "LB", 2, conversions);
 assert.ok(Math.abs(reverseWeight.canonicalValue - 220.46) < 0.01);
@@ -41,4 +61,4 @@ assert.throws(
   /five minutes in the future/,
 );
 
-console.log("V2 observation conversion and validation acceptance passed");
+console.log("V2 observation conversion, contextual glucose and validation acceptance passed");
