@@ -43,8 +43,8 @@ export class PersistentConsentService {
     const patient = await this.patientForPrincipal(principal);
     const rows = await this.prisma.consent.findMany({ where: { patientId: patient.id }, orderBy: { grantedAt: "desc" } });
     const providerIds = [...new Set(rows.map((row) => row.providerId).filter((id): id is string => Boolean(id)))];
-    const providers = providerIds.length ? await this.prisma.provider.findMany({ where: { id: { in: providerIds } }, select: { id: true, displayName: true, status: true } }) : [];
-    const byId = new Map(providers.map((row) => [row.id, { displayName: row.displayName, status: row.status }]));
+    const providers = providerIds.length ? await this.prisma.provider.findMany({ where: { id: { in: providerIds } }, select: { id: true, displayName: true, status: true, class: true } }) : [];
+    const byId = new Map(providers.map((row) => [row.id, { displayName: row.displayName, status: row.status, class: row.class }]));
     return rows.map((row) => this.present(row, row.providerId ? byId.get(row.providerId) ?? null : null));
   }
 
