@@ -180,6 +180,7 @@ model PatientProfile {
   medicationReconciliations MedicationReconciliation[]
   providerFormResponses ProviderCategoryFormResponse[]
   providerWorkflowEvents ProviderWorkflowEvent[]
+  temporaryClinicalShares TemporaryClinicalShare[]
 }
 
 model Provider {
@@ -202,6 +203,7 @@ model Provider {
   assignedEmergencyRequests EmergencyAmbulanceRequest[] @relation("EmergencyAssignedProvider")
   providerFormResponses     ProviderCategoryFormResponse[]
   providerWorkflowEvents    ProviderWorkflowEvent[]
+  temporaryClinicalShares   TemporaryClinicalShare[]
 }
 
 model ProviderOnboarding {
