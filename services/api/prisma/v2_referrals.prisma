@@ -1,0 +1,57 @@
+model Referral {
+  id                    String   @id @default(uuid())
+  idempotencyKey        String   @unique
+  patientId             String
+  referringProviderId   String
+  destinationProviderId String
+  specialtyCode         String?
+  priority              String   @default("ROUTINE")
+  status                String   @default("REQUESTED")
+  version               Int      @default(1)
+  algorithm             String
+  keyId                 String
+  wrappedKey            String
+  iv                     String
+  ciphertext             String
+  acceptedAt             DateTime?
+  startedAt              DateTime?
+  completedAt            DateTime?
+  declinedAt             DateTime?
+  cancelledAt            DateTime?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@index([patientId, createdAt])
+  @@index([referringProviderId, status, createdAt])
+  @@index([destinationProviderId, status, createdAt])
+}
+
+model ClinicalShareGrant {
+  id                    String   @id @default(uuid())
+  referralId            String   @unique
+  patientId             String
+  destinationProviderId String
+  scopes                Json
+  documentIds           Json
+  purpose               String   @default("TREATMENT")
+  expiresAt             DateTime?
+  revokedAt             DateTime?
+  createdByProviderId   String
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@index([patientId, createdAt])
+  @@index([destinationProviderId, expiresAt, revokedAt])
+}
+
+model ReferralStatusEvent {
+  id             String   @id @default(uuid())
+  referralId     String
+  fromStatus     String?
+  toStatus       String
+  actorAccountId String
+  reasonCode     String?
+  createdAt      DateTime @default(now())
+
+  @@index([referralId, createdAt])
+}
