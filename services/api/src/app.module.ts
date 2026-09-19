@@ -23,6 +23,7 @@ import { emergencyAmbulanceModuleEnabled } from "./modules/emergency/emergency-l
 import { EmergencyModule } from "./modules/emergency/emergency.module";
 import { FhirModule } from "./modules/fhir/fhir.module";
 import { HealthModule } from "./modules/health/health.module";
+import { HealthProfileModule } from "./modules/health-profile/health-profile.module";
 import { IamModule } from "./modules/iam/iam.module";
 import { PatientProfileModule } from "./modules/patient-profile/patient-profile.module";
 import { OnboardingModule } from "./modules/onboarding/onboarding.module";
@@ -59,6 +60,7 @@ const isolatedSyntheticPilot = isolatedSyntheticPrivatePilotActive(process.env);
     TransportModule,
     IamModule,
     PatientProfileModule,
+    HealthProfileModule,
     OnboardingModule,
     ConsentModule,
     AuditModule,

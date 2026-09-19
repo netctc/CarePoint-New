@@ -3,7 +3,7 @@ import type { AuthPrincipal } from "@carepoint/identity";
 import { CurrentPrincipal, RequirePermissions } from "../../security/api-security.module";
 import { PersistentConsentService } from "./persistent-consent.service";
 
-interface GrantConsentBody { providerId?: string; scope: string; version: string; expiresAt?: string; }
+interface GrantConsentBody { providerId?: string; scope: string; version: string; purpose?: string; expiresAt?: string; }
 
 @RequirePermissions("PATIENT_MANAGE_CONSENT")
 @Controller("consents")
