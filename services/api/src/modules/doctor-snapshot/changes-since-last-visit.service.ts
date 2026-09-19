@@ -17,9 +17,8 @@ export class ChangesSinceLastVisitService {
     const snapshot = await this.snapshot.patientSnapshot(principal, patientId);
     const restrictedSections = this.restrictedSections(snapshot);
     const previous = snapshot.previousConsult;
-    const since = previous ? (previous.endsAt ?? previous.startsAt) : null;
 
-    if (!since) {
+    if (!previous) {
       const projection = buildChangesSinceLastVisit({
         patientId,
         since: null,
@@ -36,6 +35,7 @@ export class ChangesSinceLastVisitService {
       };
     }
 
+    const since = previous.endsAt ?? previous.startsAt;
     const healthProfileId = snapshot.healthProfile.state === "AVAILABLE"
       ? this.text(this.object(snapshot.healthProfile.value).id)
       : null;
