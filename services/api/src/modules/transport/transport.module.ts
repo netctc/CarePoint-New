@@ -40,6 +40,10 @@ const RESPONDER_NEXT: Partial<Record<MedicalTransportStatus, MedicalTransportSta
   TRANSPORTING: "COMPLETED",
 };
 
+interface MedicalTransportEquipmentCheckInput {
+  equipment: string[];
+}
+
 @Injectable()
 class MedicalTransportService {
   constructor(
@@ -177,6 +181,96 @@ class MedicalTransportService {
     return this.assignProvider(principal, current.id, provider, undefined, "PROVIDER_ACCEPT");
   }
 
+  async providerReject(principal: AuthPrincipal, requestId: string) {
+    const provider = await this.requireTransportResponder(principal.accountId);
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const current = await tx.medicalTransportRequest.findUnique({ where: { id: requestId } });
+      if (!current || current.assignedProviderId !== provider.id || current.mode !== provider.mode) {
+        throw new NotFoundException("Assigned medical transport job not found.");
+      }
+      if (current.status !== "ASSIGNED") {
+        throw new ConflictException("Only an assigned transport can be rejected before departure.");
+      }
+      const changed = await tx.medicalTransportRequest.updateMany({
+        where: { id: current.id, assignedProviderId: provider.id, status: "ASSIGNED" },
+        data: {
+          status: "REQUESTED",
+          assignedProviderId: null,
+          assignedAt: null,
+          etaMinutes: null,
+          equipmentChecklist: Prisma.DbNull,
+          equipmentConfirmedAt: null,
+          equipmentConfirmedByProviderId: null,
+        },
+      });
+      if (changed.count !== 1) {
+        throw new ConflictException("Medical transport changed concurrently. Refresh and retry.");
+      }
+      await tx.medicalTransportEvent.create({
+        data: {
+          transportRequestId: current.id,
+          actorAccountId: principal.accountId,
+          fromStatus: "ASSIGNED",
+          toStatus: "REQUESTED",
+          providerId: provider.id,
+        },
+      });
+      return tx.medicalTransportRequest.findUniqueOrThrow({ where: { id: current.id } });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+
+    await this.audit.write({
+      actorId: principal.accountId,
+      action: "MEDICAL_TRANSPORT_REJECTED",
+      objectType: "MEDICAL_TRANSPORT_REQUEST",
+      objectId: updated.id,
+      purpose: "MEDICAL_TRANSPORT",
+      result: "SUCCESS",
+      metadata: { providerId: provider.id },
+    });
+    await this.notifyPatientById(updated.patientId, updated.id, "provider_rejected");
+    return this.operationalEnvelope(updated.id);
+  }
+
+  async providerConfirmEquipment(
+    principal: AuthPrincipal,
+    requestId: string,
+    input: MedicalTransportEquipmentCheckInput,
+  ) {
+    const provider = await this.requireTransportResponder(principal.accountId);
+    const current = await this.prisma.medicalTransportRequest.findUnique({ where: { id: requestId } });
+    if (!current || current.assignedProviderId !== provider.id || current.mode !== provider.mode) {
+      throw new NotFoundException("Assigned medical transport job not found.");
+    }
+    if (current.status !== "ASSIGNED") {
+      throw new ConflictException("Equipment must be confirmed before departure.");
+    }
+    const confirmed = this.equipment(input?.equipment ?? []);
+    const required = [...current.equipment].sort();
+    const actual = [...confirmed].sort();
+    if (JSON.stringify(required) !== JSON.stringify(actual)) {
+      throw new BadRequestException("Confirmed equipment must exactly match the transport requirements.");
+    }
+
+    const updated = await this.prisma.medicalTransportRequest.update({
+      where: { id: current.id },
+      data: {
+        equipmentChecklist: confirmed as unknown as Prisma.InputJsonValue,
+        equipmentConfirmedAt: new Date(),
+        equipmentConfirmedByProviderId: provider.id,
+      },
+    });
+    await this.audit.write({
+      actorId: principal.accountId,
+      action: "MEDICAL_TRANSPORT_EQUIPMENT_CONFIRMED",
+      objectType: "MEDICAL_TRANSPORT_REQUEST",
+      objectId: updated.id,
+      purpose: "MEDICAL_TRANSPORT",
+      result: "SUCCESS",
+      metadata: { providerId: provider.id, itemCount: confirmed.length },
+    });
+    return this.operationalEnvelope(updated.id);
+  }
+
   async providerJobs(principal: AuthPrincipal) {
     const provider = await this.requireTransportResponder(principal.accountId);
     const rows = await this.prisma.medicalTransportRequest.findMany({ where: { assignedProviderId: provider.id }, orderBy: { scheduledFor: "desc" }, take: 100 });
@@ -195,6 +289,9 @@ class MedicalTransportService {
         return current;
       }
       if (RESPONDER_NEXT[current.status] !== target) throw new ConflictException(`Medical transport status must progress from ${current.status} to ${RESPONDER_NEXT[current.status] ?? "a terminal state"}.`);
+      if (target === "EN_ROUTE" && current.equipment.length > 0 && !current.equipmentConfirmedAt) {
+        throw new ConflictException("Equipment confirmation is required before departure.");
+      }
       const timestampData = target === "EN_ROUTE" ? { enRouteAt: new Date() }
         : target === "ARRIVED" ? { arrivedAt: new Date() }
         : target === "TRANSPORTING" ? { transportingAt: new Date() }
@@ -231,7 +328,15 @@ class MedicalTransportService {
       if (current.status !== "REQUESTED" || current.assignedProviderId !== null) throw new ConflictException("Medical transport request has already been assigned or is no longer available.");
       const changed = await tx.medicalTransportRequest.updateMany({
         where: { id: current.id, status: "REQUESTED", assignedProviderId: null },
-        data: { status: "ASSIGNED", assignedProviderId: provider.id, assignedAt: new Date(), ...(etaMinutes !== undefined ? { etaMinutes } : {}) },
+        data: {
+          status: "ASSIGNED",
+          assignedProviderId: provider.id,
+          assignedAt: new Date(),
+          equipmentChecklist: Prisma.DbNull,
+          equipmentConfirmedAt: null,
+          equipmentConfirmedByProviderId: null,
+          ...(etaMinutes !== undefined ? { etaMinutes } : {}),
+        },
       });
       if (changed.count !== 1) throw new ConflictException("Medical transport was assigned concurrently to another provider.");
       await tx.medicalTransportEvent.create({ data: { transportRequestId: current.id, actorAccountId: principal.accountId, fromStatus: "REQUESTED", toStatus: "ASSIGNED", providerId: provider.id, ...(etaMinutes !== undefined ? { etaMinutes } : {}) } });
@@ -279,6 +384,9 @@ class MedicalTransportService {
       assistance: row.assistance,
       companionCount: row.companionCount,
       equipment: row.equipment ?? [],
+      equipmentChecklist: row.equipmentChecklist ?? null,
+      equipmentConfirmedAt: row.equipmentConfirmedAt ? this.iso(row.equipmentConfirmedAt) : null,
+      equipmentConfirmedByProviderId: row.equipmentConfirmedByProviderId ?? null,
       scheduledFor: this.iso(row.scheduledFor),
       pickupLatitude: Number(row.pickupLatitude),
       pickupLongitude: Number(row.pickupLongitude),
@@ -303,9 +411,15 @@ class MedicalTransportService {
 
   private async requireTransportResponder(accountId: string) {
     const provider = await this.prisma.provider.findUnique({ where: { userId: accountId }, include: { otherProviderProfile: { include: { category: true } } } });
-    const family = provider?.otherProviderProfile?.category.family;
-    if (!provider || provider.class !== "OTHER_PROVIDER" || provider.status !== "ACTIVE" || (family !== "MEDICAL_TRANSPORT_GROUND" && family !== "MEDICAL_TRANSPORT_AIR")) {
-      throw new ForbiddenException("This Other Provider account is not authorized for scheduled medical transport.");
+    const category = provider?.otherProviderProfile?.category;
+    const family = category?.family;
+    const capabilities = category?.capabilities;
+    const workflowCapabilities = capabilities && typeof capabilities === "object" && !Array.isArray(capabilities)
+      ? (capabilities as { workflowCapabilities?: unknown }).workflowCapabilities
+      : undefined;
+    const transportCapability = Array.isArray(workflowCapabilities) && workflowCapabilities.includes("TRANSPORT");
+    if (!provider || provider.class !== "OTHER_PROVIDER" || provider.status !== "ACTIVE" || !transportCapability || (family !== "MEDICAL_TRANSPORT_GROUND" && family !== "MEDICAL_TRANSPORT_AIR")) {
+      throw new ForbiddenException("This Other Provider account requires the TRANSPORT workflow capability.");
     }
     return { id: provider.id, userId: accountId, mode: family === "MEDICAL_TRANSPORT_AIR" ? "AIR" as const : "GROUND" as const };
   }
@@ -452,6 +566,20 @@ class MedicalTransportResponderController {
   @Post(":id/accept")
   accept(@CurrentPrincipal() principal: AuthPrincipal, @Param("id") id: string) {
     return this.service.providerAccept(principal, id);
+  }
+
+  @Post(":id/reject")
+  reject(@CurrentPrincipal() principal: AuthPrincipal, @Param("id") id: string) {
+    return this.service.providerReject(principal, id);
+  }
+
+  @Post(":id/equipment-check")
+  equipment(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Param("id") id: string,
+    @Body() input: MedicalTransportEquipmentCheckInput,
+  ) {
+    return this.service.providerConfirmEquipment(principal, id, input);
   }
 
   @Post(":id/status")
