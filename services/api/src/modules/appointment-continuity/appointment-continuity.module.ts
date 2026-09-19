@@ -3,6 +3,7 @@ import type { AuthPrincipal } from "@carepoint/identity";
 import { CurrentPrincipal, RequirePermissions } from "../../security/api-security.module";
 import { ClinicalModule } from "../clinical/clinical.module";
 import { CommunicationsModule } from "../communications/communications.module";
+import { DependentsModule } from "../dependents/dependents.module";
 import {
   AppointmentContinuityService,
   type ConfigurePrepInput,
@@ -70,7 +71,7 @@ class PatientFollowUpController {
 }
 
 @Module({
-  imports: [ClinicalModule, CommunicationsModule],
+  imports: [ClinicalModule, CommunicationsModule, DependentsModule],
   controllers: [PatientAppointmentPrepController, ProviderAppointmentPrepController, ProviderQuestionnaireRequestController, ProviderFollowUpController, PatientFollowUpController],
   providers: [AppointmentContinuityService],
   exports: [AppointmentContinuityService],
