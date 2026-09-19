@@ -25,8 +25,8 @@ async function login(email, password) {
 
 async function createApprovedDoctor(adminToken, suffix, specialtyId) {
   const email = `doctor-clinical-${suffix}@carepoint.test`;
-  const password = process.env.SLICE31_DOCTOR_PASSWORD;
-  if (!password) throw new Error('SLICE31_DOCTOR_PASSWORD is required for the Slice 3.1 smoke test.');
+  const password = process.env.SLICE6_DOCTOR_PASSWORD;
+  if (!password) throw new Error('SLICE6_DOCTOR_PASSWORD is required for the Slice 3.1 smoke test.');
   await request('/iam/accounts', { method: 'POST', token: adminToken, body: { email, password, role: 'DOCTOR' } });
   const token = await login(email, password);
   const onboarding = await request('/onboarding/doctors', { method: 'POST', token, body: { specialtyId } });
@@ -73,8 +73,8 @@ async function main() {
   if (!slots[0]?.id) throw new Error('Clinical smoke slot not generated.');
 
   const patientEmail = 'patient-clinical@carepoint.test';
-  const patientPassword = process.env.SLICE31_PATIENT_PASSWORD;
-  if (!patientPassword) throw new Error('SLICE31_PATIENT_PASSWORD is required for the Slice 3.1 smoke test.');
+  const patientPassword = process.env.SLICE6_PATIENT_PASSWORD;
+  if (!patientPassword) throw new Error('SLICE6_PATIENT_PASSWORD is required for the Slice 3.1 smoke test.');
   await request('/iam/register/patient', { method: 'POST', body: { email: patientEmail, password: patientPassword, firstName: 'Clinical', lastName: 'Patient' } });
   const patientToken = await login(patientEmail, patientPassword);
   const appointment = await request('/bookings', { method: 'POST', token: patientToken, body: { slotId: slots[0].id, idempotencyKey: 'slice31-clinical-booking-0001' } });
