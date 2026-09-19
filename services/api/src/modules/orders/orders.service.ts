@@ -129,17 +129,17 @@ export class OrdersService {
     return provider;
   }
 
-  async getPrescriptionRefillSource(sourcePrescriptionId: string, expectedPatientId: string) {
+  async getPrescriptionRefillSource(sourcePrescriptionId: string, expectedPatientId: string, requireActive = true) {
     const order = await this.requireOrder(sourcePrescriptionId);
     if (order.patientId !== expectedPatientId) throw new NotFoundException("Prescription not found.");
     if (order.type !== "PRESCRIPTION") throw new ConflictException("Refill requests require a prescription order.");
-    if (order.status !== "SIGNED") throw new ConflictException("Only an active signed prescription can be refilled.");
+    if (requireActive && order.status !== "SIGNED") throw new ConflictException("Only an active signed prescription can be refilled.");
     const payload = await this.envelope.decrypt<JsonObject>(this.orderEnvelope(order));
     const refills = Number.isInteger(payload.refills) ? Number(payload.refills) : 0;
     return { id: order.id, patientId: order.patientId, providerId: order.providerId, status: order.status, refills };
   }
 
-  async createPrescriptionFromRefill(
+  async preparePrescriptionFromRefill(
     principal: AuthPrincipal,
     sourcePrescriptionId: string,
     refillRequestId: string,
@@ -151,26 +151,22 @@ export class OrdersService {
     if (source.type !== "PRESCRIPTION" || source.status !== "SIGNED") throw new ConflictException("The source prescription is not refill-eligible.");
     if (source.providerId !== provider.id) throw new ForbiddenException("Only the responsible prescriber can approve this refill.");
 
-    const idempotencyKey = "refill:" + refillRequestId;
-    const existing = await this.prisma.clinicalOrder.findUnique({ where: { idempotencyKey }, include: { labResult: true } });
-    if (existing) {
-      if (existing.type !== "PRESCRIPTION" || existing.patientId !== source.patientId || existing.providerId !== provider.id) {
-        throw new ConflictException("Refill idempotency key is already bound to another order.");
-      }
-      return this.presentOrder(existing, "OWN_AUTHORSHIP", false);
-    }
-
     const sourcePayload = await this.envelope.decrypt<JsonObject>(this.orderEnvelope(source));
     const payload = this.validatePrescription({ ...sourcePayload, refills: 0 });
     const encrypted = await this.envelope.encrypt({ schemaVersion: 1, type: "PRESCRIPTION", ...payload });
+    const idempotencyKey = "refill:" + refillRequestId;
     const encounterRef = idempotencyKey;
     const material = this.orderAttestationMaterial("PRESCRIPTION", source.patientId, provider.id, encounterRef, encrypted);
     const signature = await this.attestation.attest(material);
-    const created = await this.prisma.clinicalOrder.create({
-      data: {
+    return {
+      sourcePrescriptionId: source.id,
+      patientId: source.patientId,
+      providerId: provider.id,
+      idempotencyKey,
+      orderData: {
         idempotencyKey,
-        type: "PRESCRIPTION",
-        status: "SIGNED",
+        type: "PRESCRIPTION" as const,
+        status: "SIGNED" as const,
         patientId: source.patientId,
         providerId: provider.id,
         encounterRef,
@@ -185,18 +181,7 @@ export class OrdersService {
         signature: signature.signature,
         signedAt: signature.signedAt,
       },
-      include: { labResult: true },
-    });
-    await this.audit.write({
-      actorId: principal.accountId,
-      action: "CLINICAL_REFILL_PRESCRIPTION_SIGNED",
-      objectType: "CLINICAL_ORDER",
-      objectId: created.id,
-      purpose: "TREATMENT",
-      result: "SUCCESS",
-      metadata: { sourcePrescriptionId: source.id, refillRequestId },
-    });
-    return this.presentOrder(created, "OWN_AUTHORSHIP", false);
+    };
   }
 
   async getOrder(principal: AuthPrincipal, orderId: string) {
