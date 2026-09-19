@@ -99,7 +99,8 @@ export class GlucoseTrendService {
         return false;
       }
     });
-    if (availableMetricCodes.length === 0) {
+    const fallback = availableMetricCodes[0];
+    if (!fallback) {
       throw new NotFoundException("No active glucose observation metric is configured.");
     }
 
@@ -113,7 +114,7 @@ export class GlucoseTrendService {
 
     const code = availableMetricCodes.find((item) => item === "BLOOD_GLUCOSE")
       ?? availableMetricCodes.find((item) => item === "GLUCOSE")
-      ?? availableMetricCodes[0];
+      ?? fallback;
     return { code, availableMetricCodes };
   }
 
