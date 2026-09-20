@@ -5,7 +5,7 @@ import { PrismaService } from "../../infrastructure/prisma/prisma.module";
 import { DatabaseAuditService } from "../../infrastructure/audit/audit.service";
 
 type ConsentRow = {
-  id: string; patientId: string; providerId: string | null; scope: string; version: string; state: "GRANTED" | "REVOKED";
+  id: string; patientId: string; providerId: string | null; scope: string; version: string; purpose?: string | null; state: "GRANTED" | "REVOKED";
   grantedAt: Date; revokedAt: Date | null; expiresAt: Date | null;
 };
 type ProviderView = { displayName: string; status: string } | null;
@@ -14,19 +14,20 @@ type ProviderView = { displayName: string; status: string } | null;
 export class PersistentConsentService {
   constructor(private readonly prisma: PrismaService, private readonly audit: DatabaseAuditService) {}
 
-  async grant(principal: AuthPrincipal, input: { providerId?: string; scope: string; version: string; expiresAt?: string }) {
+  async grant(principal: AuthPrincipal, input: { providerId?: string; scope: string; version: string; purpose?: string; expiresAt?: string }) {
     this.requirePatientConsentPermission(principal);
     if (!input.scope?.trim() || !input.version?.trim()) throw new BadRequestException("scope and version are required.");
     const patient = await this.patientForPrincipal(principal);
+    const purpose = this.normalizePurpose(input.purpose);
     const providerId = input.providerId?.trim() || null;
     const provider = providerId ? await this.provider(providerId) : null;
     if (providerId && (!provider || provider.status !== "ACTIVE")) throw new BadRequestException("Consent target provider must be active.");
     const expiresAt = input.expiresAt ? new Date(input.expiresAt) : null;
     if (expiresAt && (!Number.isFinite(expiresAt.getTime()) || expiresAt.getTime() <= Date.now())) throw new BadRequestException("Consent expiry must be a future date.");
     const consent = await this.prisma.consent.create({
-      data: { patientId: patient.id, providerId, scope: input.scope.trim(), version: input.version.trim(), state: "GRANTED", expiresAt },
+      data: { patientId: patient.id, providerId, scope: input.scope.trim(), version: input.version.trim(), purpose, state: "GRANTED", expiresAt },
     });
-    await this.audit.write({ actorId: principal.accountId, action: "CONSENT_GRANTED", objectType: "CONSENT", objectId: consent.id, result: "SUCCESS", metadata: { scope: consent.scope, providerId: consent.providerId } });
+    await this.audit.write({ actorId: principal.accountId, action: "CONSENT_GRANTED", objectType: "CONSENT", objectId: consent.id, result: "SUCCESS", metadata: { scope: consent.scope, providerId: consent.providerId, ...(consent.purpose ? { purpose: consent.purpose } : {}) } });
     return this.present(consent, provider);
   }
 
@@ -75,13 +76,13 @@ export class PersistentConsentService {
       if (source.providerId && (!provider || provider.status !== "ACTIVE")) throw new ConflictException("The consent target provider is not active.");
       if (source.state === "GRANTED") return this.present(source, provider);
       const equivalent = await tx.consent.findFirst({ where: {
-        patientId: patient.id, providerId: source.providerId, scope: source.scope, version: source.version, state: "GRANTED",
+        patientId: patient.id, providerId: source.providerId, scope: source.scope, version: source.version, purpose: source.purpose ?? null, state: "GRANTED",
         OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
       }, orderBy: { grantedAt: "desc" } });
       if (equivalent) return this.present(equivalent, provider);
       const created = await tx.consent.create({ data: {
         patientId: patient.id, providerId: source.providerId, scope: source.scope, version: source.version,
-        state: "GRANTED", expiresAt: source.expiresAt,
+        purpose: source.purpose ?? null, state: "GRANTED", expiresAt: source.expiresAt,
       } });
       await this.audit.writeInTransaction(tx, { actorId: principal.accountId, action: "CONSENT_REGRANTED", objectType: "CONSENT", objectId: created.id, result: "SUCCESS", metadata: { scope: created.scope, providerId: created.providerId, sourceConsentId: source.id } });
       return this.present(created, provider);
@@ -94,10 +95,19 @@ export class PersistentConsentService {
     const providerActive = row.providerId == null || provider?.status === "ACTIVE";
     return {
       id: row.id, providerId: row.providerId, providerName: provider?.displayName ?? null,
-      scope: row.scope, version: row.version, state: row.state, effectiveState,
+      scope: row.scope, version: row.version, purpose: row.purpose ?? null, state: row.state, effectiveState,
       grantedAt: row.grantedAt, revokedAt: row.revokedAt, expiresAt: row.expiresAt,
       regrantable: row.state === "REVOKED" && !expired && providerActive,
     };
+  }
+
+  private normalizePurpose(value: string | undefined): string | null {
+    if (value == null || value.trim() === "") return null;
+    const normalized = value.trim().toUpperCase();
+    if (!/^[A-Z][A-Z0-9_:-]{1,63}$/.test(normalized)) {
+      throw new BadRequestException("purpose must be a structured token.");
+    }
+    return normalized;
   }
 
   private async provider(providerId: string): Promise<ProviderView> {

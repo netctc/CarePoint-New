@@ -66,6 +66,6 @@ class ClinicalController {
   imports: [OrdersModule, DocumentsModule],
   controllers: [ClinicalController],
   providers: [ClinicalService, ClinicalEnvelopeService, ClinicalSystemExportService, ClinicalWorkspaceService],
-  exports: [ClinicalService, ClinicalSystemExportService],
+  exports: [ClinicalService, ClinicalEnvelopeService, ClinicalSystemExportService],
 })
 export class ClinicalModule {}
