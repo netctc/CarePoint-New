@@ -18,6 +18,8 @@ import {
   ProviderMedicationReconciliationController,
 } from "./medication-reconciliation.controller";
 import { MedicationReconciliationService } from "./medication-reconciliation.service";
+import { ProviderProblemListController } from "./problem-list.controller";
+import { ProblemListService } from "./problem-list.service";
 
 @Controller("patient/clinical-profile/entries")
 class PatientClinicalProfileController {
@@ -169,18 +171,21 @@ class ProviderDataCorrectionController {
     ProviderMedicationReconciliationController,
     PatientMedicationReconciliationController,
     ProviderAllergyReconciliationController,
+    ProviderProblemListController,
   ],
   providers: [
     ClinicalProfileService,
     DataCorrectionService,
     MedicationReconciliationService,
     AllergyReconciliationService,
+    ProblemListService,
   ],
   exports: [
     ClinicalProfileService,
     DataCorrectionService,
     MedicationReconciliationService,
     AllergyReconciliationService,
+    ProblemListService,
   ],
 })
 export class ClinicalProfileModule {}

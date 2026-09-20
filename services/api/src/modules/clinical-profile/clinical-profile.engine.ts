@@ -5,7 +5,7 @@ export type ClinicalProfileEntryStatus = "ACTIVE" | "RESOLVED" | "INACTIVE";
 
 export type ClinicalProfilePayload =
   | { kind: "ALLERGY"; classification?: "ALLERGY" | "INTOLERANCE"; substance: string; reaction?: string; severity?: "MILD" | "MODERATE" | "SEVERE" | "UNKNOWN"; onsetDate?: string }
-  | { kind: "CONDITION"; display: string; codeSystem?: string; code?: string; clinicalStatus?: "ACTIVE" | "RESOLVED" | "REMISSION" | "INACTIVE" | "UNKNOWN"; onsetDate?: string }
+  | { kind: "CONDITION"; display: string; codeSystem?: string; code?: string; clinicalStatus?: "ACTIVE" | "RESOLVED" | "REMISSION" | "INACTIVE" | "UNKNOWN"; onsetDate?: string; encounterId?: string; documentIds?: string[]; carePlanIds?: string[] }
   | { kind: "PROCEDURE"; display: string; performedDate?: string; facility?: string }
   | { kind: "MEDICATION"; name: string; dose?: string; route?: string; frequency?: string; medicationStatus?: "ACTIVE" | "STOPPED" | "COMPLETED" | "UNKNOWN"; startedOn?: string; endedOn?: string };
 
@@ -52,7 +52,7 @@ export function normalizeClinicalProfilePayload(
   }
 
   if (kind === "CONDITION") {
-    rejectUnknown(raw, ["display", "codeSystem", "code", "clinicalStatus", "onsetDate"]);
+    rejectUnknown(raw, ["display", "codeSystem", "code", "clinicalStatus", "onsetDate", "encounterId", "documentIds", "carePlanIds"]);
     return compact({
       kind,
       display: requiredText(merged.display, "display", 300),
@@ -60,6 +60,9 @@ export function normalizeClinicalProfilePayload(
       code: optionalText(merged.code, "code", 100),
       clinicalStatus: optionalEnum(merged.clinicalStatus, ["ACTIVE", "RESOLVED", "REMISSION", "INACTIVE", "UNKNOWN"], "clinicalStatus"),
       onsetDate: optionalDate(merged.onsetDate, "onsetDate"),
+      encounterId: optionalIdentifier(merged.encounterId, "encounterId"),
+      documentIds: optionalIdentifierArray(merged.documentIds, "documentIds", 20),
+      carePlanIds: optionalIdentifierArray(merged.carePlanIds, "carePlanIds", 20),
     }) as ClinicalProfilePayload;
   }
 
@@ -134,6 +137,22 @@ function optionalDate(value: unknown, field: string): string | undefined {
     throw new BadRequestException(`${field} is invalid.`);
   }
   return value;
+}
+
+function optionalIdentifier(value: unknown, field: string): string | undefined {
+  if (value === undefined || value === null || value === "") return undefined;
+  if (typeof value !== "string") throw new BadRequestException(`${field} is invalid.`);
+  const normalized = value.trim();
+  if (!/^[A-Za-z0-9_.:-]{1,180}$/.test(normalized)) throw new BadRequestException(`${field} is invalid.`);
+  return normalized;
+}
+
+function optionalIdentifierArray(value: unknown, field: string, max: number): string[] | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (!Array.isArray(value) || value.length > max) throw new BadRequestException(`${field} is invalid.`);
+  const normalized = value.map((item, index) => optionalIdentifier(item, `${field}[${index}]`));
+  if (normalized.some((item) => item === undefined)) throw new BadRequestException(`${field} is invalid.`);
+  return [...new Set(normalized as string[])];
 }
 
 function compact<T extends Record<string, unknown>>(value: T): T {
