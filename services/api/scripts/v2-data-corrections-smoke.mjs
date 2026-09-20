@@ -5,6 +5,8 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const engine = require("../dist/modules/clinical-profile/data-correction.engine.js");
 
+await import("./v2-patient-health-summary-smoke.mjs");
+
 test("patient correction request binds to an exact clinical entry version", () => {
   assert.deepEqual(engine.normalizeCreateDataCorrectionInput({
     entryId: "entry-1",
