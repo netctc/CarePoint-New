@@ -7,13 +7,14 @@ const engine = require("../dist/modules/observation/observation-trend.engine.js"
 
 await import("./v2-changes-since-last-visit-smoke.mjs");
 
-const reading = (id, at, value, unit, canonicalValue, canonicalUnit, sourceType = "MANUAL") => ({
+const reading = (id, at, value, unit, canonicalValue, canonicalUnit, sourceType = "MANUAL", glucoseContext = null) => ({
   id,
   observedAt: new Date(at),
   value,
   unitCode: unit,
   canonicalValue,
   canonicalUnitCode: canonicalUnit,
+  glucoseContext,
   sourceType,
   sourceId: sourceType === "PROVIDER" ? "provider-1" : null,
   verificationStatus: sourceType === "PROVIDER" ? "PROVIDER_VERIFIED" : "PATIENT_DECLARED",
@@ -42,6 +43,17 @@ test("trend projection never averages incompatible canonical units together", ()
   assert.deepEqual(result.series.map((series) => series.canonicalUnitCode).sort(), ["MG_DL", "MMOL_L"]);
 });
 
+test("trend projection preserves glucose meal context in table and chart points", () => {
+  const result = engine.buildObservationTrend([
+    reading("fasting", "2026-09-18T07:00:00.000Z", 5.4, "MMOL_L", 97, "MG_DL", "MANUAL", "FASTING"),
+    reading("post", "2026-09-18T09:00:00.000Z", 7.2, "MMOL_L", 130, "MG_DL", "MANUAL", "POSTPRANDIAL"),
+  ]);
+  assert.equal(result.table[0].glucoseContext, "FASTING");
+  assert.equal(result.table[1].glucoseContext, "POSTPRANDIAL");
+  assert.equal(result.series[0].points[0].glucoseContext, "FASTING");
+  assert.equal(result.series[0].points[1].glucoseContext, "POSTPRANDIAL");
+});
+
 test("trend source filter is explicit and preserves provenance in accessible table", () => {
   const result = engine.buildObservationTrend([
     reading("patient", "2026-09-18T10:00:00.000Z", 70, "BPM", 70, "BPM", "MANUAL"),
@@ -52,6 +64,7 @@ test("trend source filter is explicit and preserves provenance in accessible tab
   assert.equal(result.table[0].sourceType, "PROVIDER");
   assert.equal(result.table[0].sourceId, "provider-1");
   assert.equal(result.table[0].verificationStatus, "PROVIDER_VERIFIED");
+  assert.equal(result.table[0].glucoseContext, null);
   assert.equal(result.automatedDiagnosis, false);
 });
 
@@ -69,4 +82,4 @@ test("empty trend is explicit and carries no inferred normality", () => {
   assert.equal(result.automatedDiagnosis, false);
 });
 
-console.log("V2 observation trend acceptance passed");
+console.log("V2 observation trend and contextual glucose acceptance passed");
