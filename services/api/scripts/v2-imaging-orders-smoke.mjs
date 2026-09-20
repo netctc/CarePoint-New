@@ -5,6 +5,8 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const engine = require("../dist/modules/orders/imaging-order.engine.js");
 
+await import("./v2-referrals-smoke.mjs");
+
 test("imaging order normalization keeps modality and defaults priority", () => {
   const result = engine.normalizeImagingOrderInput({
     idempotencyKey: "imaging-acceptance-0001",
