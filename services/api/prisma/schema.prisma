@@ -176,6 +176,8 @@ model PatientProfile {
   healthProfile     PatientHealthProfile?
   questionnaireResponses QuestionnaireResponse[]
   observations       Observation[]
+  clinicalProfileEntries ClinicalProfileEntry[]
+  medicationReconciliations MedicationReconciliation[]
 }
 
 model Provider {
