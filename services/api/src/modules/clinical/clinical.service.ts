@@ -11,6 +11,7 @@ import { decideClinicalResourceAccess, type AuthPrincipal, type ClinicalAccessBa
 import { PrismaService } from "../../infrastructure/prisma/prisma.module";
 import { DatabaseAuditService } from "../../infrastructure/audit/audit.service";
 import { ClinicalEnvelopeService } from "./clinical-envelope.service";
+import { EncounterAddendaService } from "./encounter-addenda.service";
 
 const CLINICAL_SCOPE = "CLINICAL_RECORD_READ";
 const CLINICAL_CONSENT_VERSION = "clinical-record-v1";
@@ -27,6 +28,7 @@ export class ClinicalService {
     private readonly prisma: PrismaService,
     private readonly audit: DatabaseAuditService,
     private readonly envelope: ClinicalEnvelopeService,
+    private readonly addenda: EncounterAddendaService,
   ) {}
 
   async writeRecord(principal: AuthPrincipal, appointmentId: string, input: ClinicalInput) {
@@ -72,9 +74,12 @@ export class ClinicalService {
       throw new ForbiddenException("Clinical record access denied.");
     }
     const record = await this.prisma.clinicalRecord.findFirst({ where: { encounterRef: appointment.id }, orderBy: { createdAt: "desc" } });
-    const latestRecord = record ? await this.presentRecord(record) : null;
-    await this.audit.writeClinical({ actorId: principal.accountId, action: "CLINICAL_RECORD_READ", objectType: "APPOINTMENT", objectId: appointment.id, purpose: "TREATMENT", result: "SUCCESS", metadata: { basis } });
-    return this.presentEncounter(appointment, latestRecord, basis);
+    const [latestRecord, addenda] = await Promise.all([
+      record ? this.presentRecord(record) : Promise.resolve(null),
+      this.addenda.listForEncounter(appointment.id),
+    ]);
+    await this.audit.writeClinical({ actorId: principal.accountId, action: "CLINICAL_RECORD_READ", objectType: "APPOINTMENT", objectId: appointment.id, purpose: "TREATMENT", result: "SUCCESS", metadata: { basis, addendumCount: addenda.length } });
+    return this.presentEncounter(appointment, latestRecord, basis, addenda);
   }
 
   async patientTimeline(principal: AuthPrincipal) {
@@ -129,18 +134,21 @@ export class ClinicalService {
     for (const record of records) if (record.encounterRef && !latest.has(record.encounterRef)) latest.set(record.encounterRef, record);
     const appointmentIds = [...latest.keys()];
     if (appointmentIds.length === 0) return [];
-    const appointments = await this.prisma.appointment.findMany({
-      where: { id: { in: appointmentIds } },
-      include: {
-        provider: { select: { id: true, class: true, displayName: true } },
-        service: { select: { id: true, name: true, labels: true } },
-      },
-      orderBy: { startsAt: "desc" },
-    });
+    const [appointments, addendaByEncounter] = await Promise.all([
+      this.prisma.appointment.findMany({
+        where: { id: { in: appointmentIds } },
+        include: {
+          provider: { select: { id: true, class: true, displayName: true } },
+          service: { select: { id: true, name: true, labels: true } },
+        },
+        orderBy: { startsAt: "desc" },
+      }),
+      this.addenda.listForEncounters(appointmentIds),
+    ]);
     const result = [];
     for (const appointment of appointments) {
       const record = latest.get(appointment.id);
-      if (record) result.push(this.presentEncounter(appointment, await this.presentRecord(record), basis));
+      if (record) result.push(this.presentEncounter(appointment, await this.presentRecord(record), basis, addendaByEncounter.get(appointment.id) ?? []));
     }
     return result;
   }
@@ -268,11 +276,12 @@ export class ClinicalService {
     return { id: record.id, createdAt: record.createdAt, revision: data.revision, data };
   }
 
-  private presentEncounter(appointment: any, latestRecord: any, basis: ClinicalAccessBasis) {
+  private presentEncounter(appointment: any, latestRecord: any, basis: ClinicalAccessBasis, addenda: unknown[]) {
     return {
       appointment: { id: appointment.id, modality: appointment.modality, status: appointment.status, startsAt: appointment.startsAt, endsAt: appointment.endsAt, provider: appointment.provider, service: appointment.service },
       accessBasis: basis,
       latestRecord,
+      addenda,
       finalized: appointment.status === "COMPLETED",
     };
   }
