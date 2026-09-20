@@ -1,0 +1,13 @@
+model ClinicalProfileRevisionAnnotation {
+  id               String   @id @default(uuid())
+  entryId          String
+  entryVersion     Int
+  domain           String
+  reasonCode       String
+  createdByActorId String
+  createdAt        DateTime @default(now())
+
+  @@unique([entryId, entryVersion, domain])
+  @@index([entryId, createdAt])
+  @@index([domain, createdAt])
+}
