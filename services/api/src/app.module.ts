@@ -11,6 +11,7 @@ import { AdminOperationsModule } from "./modules/admin-operations/admin-operatio
 import { AdminReschedulingModule } from "./modules/admin-rescheduling/admin-rescheduling.module";
 import { AdminSecurityModule } from "./modules/admin-security/admin-security.module";
 import { AdminTelehealthModule } from "./modules/admin-telehealth/admin-telehealth.module";
+import { AppointmentContinuityModule } from "./modules/appointment-continuity/appointment-continuity.module";
 import { AuditModule } from "./modules/audit/audit.module";
 import { BillingModule } from "./modules/billing/billing.module";
 import { ClaimsModule } from "./modules/claims/claims.module";
@@ -64,6 +65,7 @@ const isolatedSyntheticPilot = isolatedSyntheticPrivatePilotActive(process.env);
     AdminReschedulingModule,
     AdminSecurityModule,
     ...(runtimeFeatures.telehealth ? [AdminTelehealthModule] : []),
+    AppointmentContinuityModule,
     DataGovernanceModule,
     DependentsModule,
     ProvidersModule,
