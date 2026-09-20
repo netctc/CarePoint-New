@@ -1,0 +1,116 @@
+model CarePlan {
+  id               String             @id @default(uuid())
+  patientId        String
+  ownerProviderId  String
+  status           String             @default("ACTIVE")
+  version          Int                @default(1)
+  effectiveFrom    DateTime
+  effectiveUntil   DateTime?
+  reviewAt         DateTime?
+  createdByActorId String
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  revisions        CarePlanRevision[]
+  goals            CarePlanGoal[]
+  tasks            CareTask[]
+
+  @@index([patientId, status, effectiveFrom])
+  @@index([ownerProviderId, status, reviewAt])
+}
+
+model CarePlanRevision {
+  id            String   @id @default(uuid())
+  carePlanId    String
+  version       Int
+  algorithm     String
+  keyId         String
+  wrappedKey    String
+  iv            String
+  ciphertext    String
+  authorActorId String
+  reasonCode    String?
+  createdAt     DateTime @default(now())
+  carePlan      CarePlan @relation(fields: [carePlanId], references: [id], onDelete: Cascade)
+
+  @@unique([carePlanId, version])
+  @@index([carePlanId, createdAt])
+}
+
+model CarePlanGoal {
+  id              String                 @id @default(uuid())
+  carePlanId      String
+  ownerProviderId String
+  metricCode      String?
+  status          String                 @default("ACTIVE")
+  version         Int                    @default(1)
+  periodStart     DateTime
+  periodEnd       DateTime?
+  algorithm       String
+  keyId           String
+  wrappedKey      String
+  iv              String
+  ciphertext      String
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  carePlan        CarePlan               @relation(fields: [carePlanId], references: [id], onDelete: Cascade)
+  revisions       CarePlanGoalRevision[]
+
+  @@index([carePlanId, status])
+  @@index([metricCode, status])
+}
+
+model CarePlanGoalRevision {
+  id            String       @id @default(uuid())
+  goalId        String
+  version       Int
+  algorithm     String
+  keyId         String
+  wrappedKey    String
+  iv            String
+  ciphertext    String
+  authorActorId String
+  reasonCode    String?
+  createdAt     DateTime     @default(now())
+  goal          CarePlanGoal @relation(fields: [goalId], references: [id], onDelete: Cascade)
+
+  @@unique([goalId, version])
+  @@index([goalId, createdAt])
+}
+
+model CareTask {
+  id              String               @id @default(uuid())
+  carePlanId      String
+  ownerProviderId String
+  assigneeType    String
+  status          String               @default("ACTIVE")
+  version         Int                  @default(1)
+  dueAt           DateTime?
+  recurrence      Json?
+  algorithm       String
+  keyId           String
+  wrappedKey      String
+  iv              String
+  ciphertext      String
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  carePlan        CarePlan             @relation(fields: [carePlanId], references: [id], onDelete: Cascade)
+  completions     CareTaskCompletion[]
+
+  @@index([carePlanId, status, dueAt])
+  @@index([assigneeType, status, dueAt])
+}
+
+model CareTaskCompletion {
+  id            String   @id @default(uuid())
+  taskId        String
+  occurrenceKey String
+  outcome       String
+  reasonCode    String?
+  actorId       String
+  actorRole     String
+  occurredAt    DateTime @default(now())
+  task          CareTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, occurrenceKey])
+  @@index([taskId, occurredAt])
+}
