@@ -40,9 +40,14 @@ async function web(path, { method = 'GET', cookie, body } = {}) {
 }
 
 async function main() {
-  const doctorToken = await login('doctor-clinical-a@carepoint.test', 'CarePoint-Clinical-Doctor#2026');
-  const patientToken = await login('patient-clinical@carepoint.test', 'CarePoint-Clinical-Patient#2026');
-  const adminToken = await login('admin-ci@carepoint.test', 'CarePoint-CI-Admin#2026');
+  const doctorPassword = process.env.SLICE6_DOCTOR_PASSWORD;
+  const patientPassword = process.env.SLICE6_PATIENT_PASSWORD;
+  const adminPassword = process.env.BOOTSTRAP_ADMIN_PASSWORD;
+  if (!doctorPassword || !patientPassword || !adminPassword) throw new Error('WEB-05 CI smoke credentials are required.');
+
+  const doctorToken = await login('doctor-clinical-a@carepoint.test', doctorPassword);
+  const patientToken = await login('patient-clinical@carepoint.test', patientPassword);
+  const adminToken = await login('admin-ci@carepoint.test', adminPassword);
   const patient = await prisma.user.findUnique({ where: { email: 'patient-clinical@carepoint.test' }, include: { patientProfile: true } });
   if (!patient?.patientProfile?.id) throw new Error('WEB-05 patient fixture is missing.');
   const patientId = patient.patientProfile.id;
@@ -75,10 +80,10 @@ async function main() {
   const patientRoleDenied = await apiRaw(`/clinical/patients/${patientId}/workspace`, { token: patientToken });
   if (patientRoleDenied.status !== 403) throw new Error(`Expected Patient provider-workspace denial 403, got ${patientRoleDenied.status}.`);
 
-  const adminClinicalLogin = await web('/api/clinical/auth/login', { method: 'POST', body: { email: 'admin-ci@carepoint.test', password: 'CarePoint-CI-Admin#2026' } });
+  const adminClinicalLogin = await web('/api/clinical/auth/login', { method: 'POST', body: { email: 'admin-ci@carepoint.test', password: adminPassword } });
   if (adminClinicalLogin.status !== 403) throw new Error(`Expected clinical BFF Admin login denial 403, got ${adminClinicalLogin.status}.`);
 
-  const clinicalLogin = await web('/api/clinical/auth/login', { method: 'POST', body: { email: 'doctor-clinical-a@carepoint.test', password: 'CarePoint-Clinical-Doctor#2026' } });
+  const clinicalLogin = await web('/api/clinical/auth/login', { method: 'POST', body: { email: 'doctor-clinical-a@carepoint.test', password: doctorPassword } });
   if (clinicalLogin.status !== 200 || clinicalLogin.payload?.authenticated !== true) throw new Error(`Clinical BFF login failed: ${clinicalLogin.status} ${JSON.stringify(clinicalLogin.payload)}`);
   const cookie = cookieHeader(clinicalLogin.response);
   if (!cookie.includes('carepoint_clinical_access=') || !cookie.includes('carepoint_clinical_refresh=') || !cookie.includes('carepoint_clinical_session=')) throw new Error('Clinical BFF did not issue the isolated HttpOnly session cookie family.');
