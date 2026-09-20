@@ -126,11 +126,29 @@ async function main() {
     destinationLongitude: 35.52,
     destinationAddress: 'SLICE8-GROUND-DESTINATION',
     assistance: 'WHEELCHAIR',
+    companionCount: 2,
+    equipment: ['OXYGEN', 'MONITORING'],
     callbackPhone: '+96170000018',
   };
   const groundRequest = await request('/medical-transport', { method: 'POST', token: patientA.token, body: groundInput });
+  if (groundRequest.request?.companionCount !== 2) throw new Error('Scheduled transport companion count was not persisted.');
+  if (JSON.stringify(groundRequest.request?.equipment) !== JSON.stringify(['OXYGEN', 'MONITORING'])) throw new Error('Scheduled transport equipment requirements were not persisted.');
   const groundRepeat = await request('/medical-transport', { method: 'POST', token: patientA.token, body: groundInput });
   if (groundRepeat.request?.id !== groundRequest.request?.id) throw new Error('Scheduled transport idempotency failed.');
+  if (groundRepeat.request?.companionCount !== 2 || JSON.stringify(groundRepeat.request?.equipment) !== JSON.stringify(['OXYGEN', 'MONITORING'])) throw new Error('Scheduled transport logistics changed on idempotent replay.');
+
+  const invalidCompanion = await raw('/medical-transport', {
+    method: 'POST', token: patientA.token, body: { ...groundInput, clientRequestId: 'slice8-ground-invalid-companion', companionCount: 9 },
+  });
+  if (invalidCompanion.status !== 400) throw new Error(`Expected companionCount validation 400, got ${invalidCompanion.status}.`);
+  const invalidEquipment = await raw('/medical-transport', {
+    method: 'POST', token: patientA.token, body: { ...groundInput, clientRequestId: 'slice8-ground-invalid-equipment', equipment: ['OXYGEN', 'UNLISTED_DEVICE'] },
+  });
+  if (invalidEquipment.status !== 400) throw new Error(`Expected equipment allowlist validation 400, got ${invalidEquipment.status}.`);
+  const duplicateEquipment = await raw('/medical-transport', {
+    method: 'POST', token: patientA.token, body: { ...groundInput, clientRequestId: 'slice8-ground-duplicate-equipment', equipment: ['OXYGEN', 'OXYGEN'] },
+  });
+  if (duplicateEquipment.status !== 400) throw new Error(`Expected duplicate equipment validation 400, got ${duplicateEquipment.status}.`);
 
   const doctorTransport = await raw('/provider/medical-transport/available', { token: doctor.token });
   if (doctorTransport.status !== 403) throw new Error(`Doctor gained medical transport responder access (${doctorTransport.status}).`);
@@ -140,7 +158,9 @@ async function main() {
   if (airWrongAccept.status !== 404) throw new Error(`Air provider accepted Ground request (${airWrongAccept.status}).`);
 
   const groundAvailableA = await request('/provider/medical-transport/available', { token: groundA.token });
-  if (!groundAvailableA.some((item) => item.id === groundRequest.request.id)) throw new Error('Ground request not visible to eligible Ground provider.');
+  const visibleGround = groundAvailableA.find((item) => item.id === groundRequest.request.id);
+  if (!visibleGround) throw new Error('Ground request not visible to eligible Ground provider.');
+  if (visibleGround.companionCount !== 2 || JSON.stringify(visibleGround.equipment) !== JSON.stringify(['OXYGEN', 'MONITORING'])) throw new Error('Ground provider cannot see scheduled transport logistics requirements.');
 
   const [acceptA, acceptB] = await Promise.all([
     raw(`/provider/medical-transport/${groundRequest.request.id}/accept`, { method: 'POST', token: groundA.token, body: {} }),
@@ -193,6 +213,8 @@ async function main() {
     emergencyFamilyBoundary: true,
     emergencyLifecycle: emergencyFinal.request.status,
     scheduledTransportIdempotency: true,
+    transportLogisticsCaptured: true,
+    transportLogisticsAllowlisted: true,
     transportFamilyBoundary: true,
     concurrentTransportWinner: winnerProvider.provider.id,
     transportConflictStatus: conflicts[0].status,

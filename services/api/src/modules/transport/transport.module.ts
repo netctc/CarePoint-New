@@ -14,6 +14,7 @@ import {
 } from "@nestjs/common";
 import {
   MedicalTransportAssistanceLevels,
+  MedicalTransportEquipmentOptions,
   MedicalTransportModes,
   MedicalTransportStatuses,
   assertValidEmergencyLocation,
@@ -52,6 +53,8 @@ class MedicalTransportService {
     const clientRequestId = this.requiredText(input.clientRequestId, 8, 180, "clientRequestId");
     const mode = this.transportMode(input.mode);
     const assistance = this.assistance(input.assistance ?? "STANDARD");
+    const companionCount = this.companionCount(input.companionCount ?? 0);
+    const equipment = this.equipment(input.equipment ?? []);
     assertValidEmergencyLocation(input.pickupLatitude, input.pickupLongitude);
     assertValidEmergencyLocation(input.destinationLatitude, input.destinationLongitude);
     const scheduledFor = new Date(input.scheduledFor);
@@ -71,6 +74,8 @@ class MedicalTransportService {
             patientId: patient.id,
             mode,
             assistance,
+            companionCount,
+            equipment,
             scheduledFor,
             pickupLatitude: input.pickupLatitude,
             pickupLongitude: input.pickupLongitude,
@@ -272,6 +277,8 @@ class MedicalTransportService {
       mode: row.mode,
       status: row.status,
       assistance: row.assistance,
+      companionCount: row.companionCount,
+      equipment: row.equipment ?? [],
       scheduledFor: this.iso(row.scheduledFor),
       pickupLatitude: Number(row.pickupLatitude),
       pickupLongitude: Number(row.pickupLongitude),
@@ -323,6 +330,22 @@ class MedicalTransportService {
   private assistance(value: unknown): "STANDARD" | "WHEELCHAIR" | "STRETCHER" {
     if (typeof value !== "string" || !(MedicalTransportAssistanceLevels as readonly string[]).includes(value)) throw new BadRequestException("Unsupported medical transport assistance level.");
     return value as "STANDARD" | "WHEELCHAIR" | "STRETCHER";
+  }
+
+  private companionCount(value: unknown): number {
+    if (!Number.isInteger(value) || Number(value) < 0 || Number(value) > 8) throw new BadRequestException("companionCount must be an integer between 0 and 8.");
+    return Number(value);
+  }
+
+  private equipment(value: unknown): ("OXYGEN" | "MONITORING" | "VENTILATION")[] {
+    if (!Array.isArray(value)) throw new BadRequestException("equipment must be an array.");
+    const values = value.map((item) => {
+      if (typeof item !== "string" || !(MedicalTransportEquipmentOptions as readonly string[]).includes(item)) throw new BadRequestException("Unsupported medical transport equipment requirement.");
+      return item as "OXYGEN" | "MONITORING" | "VENTILATION";
+    });
+    if (new Set(values).size !== values.length) throw new BadRequestException("equipment cannot contain duplicate requirements.");
+    if (values.length > MedicalTransportEquipmentOptions.length) throw new BadRequestException("Too many medical transport equipment requirements.");
+    return values;
   }
 
   private optionalEta(value: unknown): number | undefined {

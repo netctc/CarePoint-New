@@ -1,3 +1,4 @@
+import { assertProductionTelemetryDestinationRegion } from "../cloud/production-telemetry-destination";
 import {
   otlpHttpConfiguration,
   sendOtlpJson,
@@ -15,6 +16,7 @@ export async function assertProductionOtlpReady(options: ProductionOtlpPreflight
   if (!config.enabled || !config.tracesEndpoint || !config.metricsEndpoint) {
     throw new Error("Production OpenTelemetry must configure both traces and metrics OTLP/HTTP endpoints.");
   }
+  assertProductionTelemetryDestinationRegion(process.env, "CAREPOINT_OTEL_DESTINATION_REGION");
   if (config.exportMode === "best-effort") return;
 
   const send = options.send ?? sendOtlpJson;

@@ -4,6 +4,10 @@ import {
   KMSClient,
   ListAliasesCommand,
 } from "@aws-sdk/client-kms";
+import {
+  assertProductionKeyManagementInspectionReady,
+  type InspectProductionManagedKey,
+} from "../cloud/production-key-management";
 import { PRODUCTION_KMS_REQUIREMENTS } from "./production-kms-preflight";
 
 const DEFAULT_ALIAS_PREFIX = "alias/carepoint/";
@@ -33,11 +37,21 @@ export interface ProductionKmsRotationPreflightOptions {
   resolveAlias?: ResolveProductionKmsAlias;
   getRotationStatus?: GetProductionKmsRotationStatus;
   describeTargetKey?: DescribeProductionKmsRotationTarget;
+  inspectManagedKey?: InspectProductionManagedKey;
   now?: Date;
 }
 
 export async function assertProductionKmsRotationReady(options: ProductionKmsRotationPreflightOptions = {}): Promise<void> {
   if (process.env.NODE_ENV !== "production") return;
+
+  const cloudProvider = configuredCloudProvider();
+  if (cloudProvider === "oci" || cloudProvider === "gcp") {
+    if (!options.inspectManagedKey) {
+      throw new Error(`${cloudProvider.toUpperCase()} production KMS rotation preflight requires a live managed-key inspector.`);
+    }
+    await assertProductionKeyManagementInspectionReady(options.inspectManagedKey, process.env);
+    return;
+  }
 
   const region = required("AWS_REGION");
   if (process.env.AWS_ENDPOINT_URL_KMS?.trim()) {
@@ -116,6 +130,14 @@ export async function assertProductionKmsRotationReady(options: ProductionKmsRot
       throw new Error(`${requirement.keyEnv} HMAC rollover target exceeds AWS_KMS_HMAC_MAX_KEY_AGE_DAYS (${hmacMaxKeyAgeDays}).`);
     }
   }
+}
+
+function configuredCloudProvider(): "aws" | "oci" | "gcp" {
+  const value = process.env.CAREPOINT_CLOUD_PROVIDER?.trim();
+  if (!value || value === "aws") return "aws";
+  if (value === "oci") return "oci";
+  if (value === "gcp") return "gcp";
+  throw new Error("CAREPOINT_CLOUD_PROVIDER must be 'aws', 'oci' or 'gcp' in production KMS rotation preflight.");
 }
 
 function rotationAliasPrefix(): string {

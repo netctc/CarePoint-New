@@ -1,6 +1,7 @@
 import { Injectable, type OnModuleDestroy, type OnModuleInit } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../../infrastructure/prisma/prisma.module";
+import { isolatedSyntheticPrivatePilotActive } from "../../infrastructure/release/private-pilot-infrastructure-profile";
 import { NotificationsService } from "./notifications.service";
 
 const DEFAULT_POLL_MS = 1_000;
@@ -39,7 +40,11 @@ export function appointmentNotificationConfiguration(env: NodeJS.ProcessEnv = pr
     throw new Error("APPOINTMENT_NOTIFICATION_WORKER_ENABLED=false is forbidden in production for Release 1 booking/status notifications.");
   }
   const reminderOffsetsMinutes = reminderOffsets(env.APPOINTMENT_REMINDER_OFFSETS_MINUTES);
-  if (env.NODE_ENV === "production" && reminderOffsetsMinutes.length === 0) {
+  if (
+    env.NODE_ENV === "production"
+    && reminderOffsetsMinutes.length === 0
+    && !isolatedSyntheticPrivatePilotActive(env)
+  ) {
     throw new Error("APPOINTMENT_REMINDER_OFFSETS_MINUTES must explicitly define the approved Release 1 reminder timing policy in production.");
   }
   return {

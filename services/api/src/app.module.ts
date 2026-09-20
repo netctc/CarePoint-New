@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { ObservabilityModule } from "./infrastructure/observability/observability.module";
+import { PilotStructuredObservabilityModule } from "./infrastructure/observability/pilot-structured-observability.module";
 import { RedisSecurityModule } from "./infrastructure/redis/redis-security.module";
 import { ExternalSecretsModule } from "./infrastructure/secrets/external-secrets.module";
 import { SiemExportModule } from "./infrastructure/siem/siem-export.module";
@@ -32,21 +33,26 @@ import { AvailabilityRequestsModule } from "./modules/scheduling/availability-re
 import { SmartModule } from "./modules/smart/smart.module";
 import { TelehealthModule } from "./modules/telehealth/telehealth.module";
 import { TransportModule } from "./modules/transport/transport.module";
+import { isolatedSyntheticPrivatePilotActive } from "./infrastructure/release/private-pilot-infrastructure-profile";
+import { carePointRuntimeFeatures } from "./infrastructure/release/private-pilot-policy";
+
+const runtimeFeatures = carePointRuntimeFeatures(process.env);
+const isolatedSyntheticPilot = isolatedSyntheticPrivatePilotActive(process.env);
 
 @Module({
   imports: [
-    ObservabilityModule,
+    ...(isolatedSyntheticPilot ? [PilotStructuredObservabilityModule] : [ObservabilityModule]),
     RedisSecurityModule,
     ExternalSecretsModule,
     SiemExportModule,
     ApiSecurityModule,
     HealthModule,
     AdminAnalyticsModule,
-    AdminFinanceModule,
+    ...(runtimeFeatures.payments ? [AdminFinanceModule] : []),
     AdminOperationsModule,
     AdminReschedulingModule,
     AdminSecurityModule,
-    AdminTelehealthModule,
+    ...(runtimeFeatures.telehealth ? [AdminTelehealthModule] : []),
     DataGovernanceModule,
     ProvidersModule,
     ...(emergencyAmbulanceModuleEnabled(process.env) ? [EmergencyModule] : []),
@@ -58,15 +64,13 @@ import { TransportModule } from "./modules/transport/transport.module";
     AuditModule,
     SchedulingModule,
     AvailabilityRequestsModule,
-    TelehealthModule,
+    ...(runtimeFeatures.telehealth ? [TelehealthModule] : []),
     ClinicalModule,
     OrdersModule,
     DocumentsModule,
-    BillingModule,
-    ClaimsModule,
+    ...(runtimeFeatures.payments ? [BillingModule, ClaimsModule] : []),
     CommunicationsModule,
-    SmartModule,
-    FhirModule,
+    ...(!isolatedSyntheticPilot ? [SmartModule, FhirModule] : []),
   ],
 })
 export class AppModule {}

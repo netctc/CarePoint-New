@@ -1,3 +1,4 @@
+import { assertProductionTelemetryDestinationRegion } from "../cloud/production-telemetry-destination";
 import { siemGatewayConfiguration } from "./siem-gateway.service";
 import { siemWorkerConfiguration } from "./siem-outbox-worker.service";
 
@@ -9,6 +10,7 @@ export function assertProductionSiemReady(env: NodeJS.ProcessEnv = process.env):
   const worker = siemWorkerConfiguration(env);
   if (!gateway.enabled) throw new Error("Phase C9 production SIEM export must be enabled.");
   if (!worker.enabled) throw new Error("Phase C9 production SIEM worker must be enabled.");
+  assertProductionTelemetryDestinationRegion(env, "CAREPOINT_SIEM_DESTINATION_REGION");
   if (worker.leaseSeconds * 1000 < gateway.timeoutMs + MIN_LEASE_TIMEOUT_MARGIN_MS) {
     throw new Error("SIEM_WORKER_LEASE_SECONDS must exceed SIEM_EXPORT_TIMEOUT_MS by at least 5 seconds.");
   }

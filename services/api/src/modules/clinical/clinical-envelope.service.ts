@@ -1,5 +1,6 @@
 import { Injectable, InternalServerErrorException } from "@nestjs/common";
 import { PhiEnvelopeEncryption, StaticAesKwKeyProvider, type EncryptedEnvelope, type KeyEncryptionKeyProvider } from "@carepoint/security";
+import { localSyntheticPilotProvidersAllowed } from "../../infrastructure/release/private-pilot-infrastructure-profile";
 import { AwsKmsKeyProvider } from "../../infrastructure/security/aws-kms-key-provider";
 
 @Injectable()
@@ -27,7 +28,9 @@ export class ClinicalEnvelopeService {
       return new AwsKmsKeyProvider(keyId, "carepoint-clinical-record-dek", process.env.AWS_REGION, process.env.AWS_ENDPOINT_URL_KMS);
     }
     if (provider !== "local") throw new InternalServerErrorException(`Unsupported clinical key provider '${provider}'.`);
-    if (process.env.NODE_ENV === "production") throw new InternalServerErrorException("Local clinical envelope keys are forbidden in production.");
+    if (process.env.NODE_ENV === "production" && !localSyntheticPilotProvidersAllowed(process.env)) {
+      throw new InternalServerErrorException("Local clinical envelope keys are forbidden in production.");
+    }
     const encoded = process.env.CLINICAL_ENVELOPE_KEY_BASE64;
     const keyId = process.env.CLINICAL_ENVELOPE_KEY_ID ?? "local-clinical-kek-v1";
     if (!encoded) throw new InternalServerErrorException("Clinical envelope encryption is not configured.");

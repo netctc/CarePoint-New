@@ -1,6 +1,7 @@
 import { Controller, Get, Module, ServiceUnavailableException } from "@nestjs/common";
 import { PrismaService } from "../../infrastructure/prisma/prisma.module";
 import { RedisSecurityService } from "../../infrastructure/redis/redis-security.module";
+import { privatePilotInfrastructureProfile } from "../../infrastructure/release/private-pilot-infrastructure-profile";
 import { releaseIdentity } from "../../infrastructure/release/release-identity";
 import { Public } from "../../security/api-security.module";
 
@@ -19,6 +20,7 @@ class HealthController {
       service: "carepoint-api",
       architecture: "modular-monolith",
       release: releaseIdentity(process.env),
+      pilotInfrastructureProfile: privatePilotInfrastructureProfile(process.env),
       timestamp: new Date().toISOString(),
     };
   }
@@ -38,6 +40,7 @@ class HealthController {
       status: database && redis ? "ready" : "not-ready",
       service: "carepoint-api",
       release: releaseIdentity(process.env),
+      pilotInfrastructureProfile: privatePilotInfrastructureProfile(process.env),
       dependencies: { postgres: database, redis },
       timestamp: new Date().toISOString(),
     };

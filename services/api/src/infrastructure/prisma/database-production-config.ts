@@ -1,3 +1,5 @@
+import { isolatedSyntheticPrivatePilotActive } from "../release/private-pilot-infrastructure-profile";
+
 export type DatabasePoolMode = "direct" | "pgbouncer" | "managed";
 export type DatabaseHaMode = "replicated" | "managed";
 export type DatabasePitrMode = "native" | "managed";
@@ -30,6 +32,11 @@ export function databaseRuntimeConfiguration(env: NodeJS.ProcessEnv = process.en
   let pitrMode: DatabasePitrMode | null = null;
 
   if (env.NODE_ENV === "production") {
+    if (isolatedSyntheticPrivatePilotActive(env)) {
+      if (!connectionLimit) throw new Error("Isolated synthetic pilot DATABASE_URL must set an explicit positive connection_limit.");
+      return { url: raw, poolMode: "direct", haMode: null, pitrMode: null, connectionLimit };
+    }
+
     if (!parsed.username || !parsed.password) throw new Error("Production DATABASE_URL must include database authentication credentials.");
     if (isLocalHost(parsed.hostname)) throw new Error("Production DATABASE_URL must not target a local loopback host.");
 

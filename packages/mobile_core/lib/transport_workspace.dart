@@ -164,9 +164,22 @@ class _ProviderTransportWorkspaceState extends State<ProviderTransportWorkspace>
       if (!emergency && scheduled != null) Text('${transportText(widget.locale, 'scheduledFor')}: ${_displayDate(scheduled)}'),
       if (!emergency) Text('${transportText(widget.locale, 'pickup')}: ${request['pickupAddress'] ?? '${request['pickupLatitude']}, ${request['pickupLongitude']}'}'),
       if (!emergency) Text('${transportText(widget.locale, 'destination')}: ${request['destinationAddress'] ?? '${request['destinationLatitude']}, ${request['destinationLongitude']}'}'),
+      if (!emergency) Text('${transportText(widget.locale, 'companions')}: ${request['companionCount'] ?? 0}'),
+      if (!emergency) Text('${transportText(widget.locale, 'equipment')}: ${_equipmentText(request['equipment'])}'),
       if (emergency) Text('${transportText(widget.locale, 'pickup')}: ${request['pickupAddress'] ?? '${request['latitude']}, ${request['longitude']}'}'),
       if (eta != null) Text('${transportText(widget.locale, 'eta')}: $eta ${transportText(widget.locale, 'minutes')}'),
     ]);
+  }
+
+  String _equipmentText(dynamic raw) {
+    final values = raw is List ? raw.map((value) => value.toString()).toList(growable: false) : const <String>[];
+    if (values.isEmpty) return transportText(widget.locale, 'none');
+    return values.map((value) => switch (value) {
+      'OXYGEN' => transportText(widget.locale, 'oxygen'),
+      'MONITORING' => transportText(widget.locale, 'monitoring'),
+      'VENTILATION' => transportText(widget.locale, 'ventilation'),
+      _ => value,
+    }).join(', ');
   }
 
   Future<void> _accept(String requestId) async {

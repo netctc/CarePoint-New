@@ -1,5 +1,6 @@
 import { Injectable, type OnModuleDestroy, type OnModuleInit } from "@nestjs/common";
 import { randomBytes } from "node:crypto";
+import { isolatedSyntheticPrivatePilotActive } from "../release/private-pilot-infrastructure-profile";
 import { SiemAuditOutboxStoreService, type DurableSiemAuditWorkItem } from "./siem-audit-outbox-store.service";
 import { SiemEventPresenterService } from "./siem-event-presenter.service";
 import { SiemGatewayHttpError, SiemGatewayService } from "./siem-gateway.service";
@@ -29,7 +30,8 @@ export interface SiemWorkerRunResult {
 
 export function siemWorkerConfiguration(env: NodeJS.ProcessEnv = process.env): SiemWorkerConfiguration {
   const enabled = booleanEnv(env.SIEM_WORKER_ENABLED, true, "SIEM_WORKER_ENABLED");
-  if (env.NODE_ENV === "production" && !enabled) {
+  const isolatedSyntheticPilot = env.NODE_ENV === "production" && isolatedSyntheticPrivatePilotActive(env);
+  if (env.NODE_ENV === "production" && !enabled && !isolatedSyntheticPilot) {
     throw new Error("SIEM_WORKER_ENABLED=false is forbidden in production for Phase C9 durable audit forwarding.");
   }
   return {
@@ -112,10 +114,7 @@ export class SiemOutboxWorkerService implements OnModuleInit, OnModuleDestroy {
         if (await this.store.markFailed(item.id, this.workerId, errorCode)) result.failed += 1;
         return;
       }
-      const delaySeconds = Math.min(
-        MAX_RETRY_SECONDS,
-        config.retryBaseSeconds * (2 ** Math.max(0, item.attemptCount - 1)),
-      );
+      const delaySeconds = Math.min(MAX_RETRY_SECONDS, config.retryBaseSeconds * (2 ** Math.max(0, item.attemptCount - 1)));
       const availableAt = new Date(Date.now() + delaySeconds * 1000);
       if (await this.store.requeue(item.id, this.workerId, availableAt, errorCode)) result.requeued += 1;
     }

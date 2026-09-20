@@ -48,7 +48,10 @@ class ProviderServicesController {
   @RequirePermissions("PROVIDER_MANAGE_SERVICES") @Patch(":serviceId/status")
   async setStatus(@CurrentPrincipal() principal: AuthPrincipal, @Param("serviceId") serviceId: string, @Body() body: { active: boolean }) {
     const active = body.active === true;
-    if (active) await this.capabilities.assertServiceActivation(principal, serviceId);
+    if (active) {
+      await this.capabilities.assertServiceActivation(principal, serviceId);
+      await this.release1.assertServiceReadyForActivation(principal, serviceId);
+    }
     return this.scheduling.setServiceActive(principal, serviceId, active);
   }
   @RequirePermissions("PROVIDER_MANAGE_SERVICES") @Patch(":serviceId/delivery-context/:modality")

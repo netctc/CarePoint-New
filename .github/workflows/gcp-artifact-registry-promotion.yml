@@ -1,0 +1,237 @@
+name: GCP Artifact Registry Promotion
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: "Frozen Release Candidate full 40-hex source SHA"
+        required: true
+        type: string
+      release_version:
+        description: "Approved Release Candidate version"
+        required: true
+        type: string
+      api_source_digest:
+        description: "Frozen GHCR API sha256 digest"
+        required: true
+        type: string
+      admin_source_digest:
+        description: "Frozen GHCR Admin sha256 digest"
+        required: true
+        type: string
+      g5a_freeze_evidence_ref:
+        description: "Approved restricted G5a freeze evidence reference"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: read
+  id-token: write
+
+concurrency:
+  group: gcp-artifact-registry-promotion-${{ inputs.source_sha }}
+  cancel-in-progress: false
+
+env:
+  AR_HOST: me-central2-docker.pkg.dev
+  GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  GCP_WIF_PROVIDER: ${{ vars.GCP_WIF_PROVIDER }}
+  GCP_PROMOTION_SERVICE_ACCOUNT: ${{ vars.GCP_PROMOTION_SERVICE_ACCOUNT }}
+  GCP_ARTIFACT_REGISTRY_REPOSITORY: ${{ vars.GCP_ARTIFACT_REGISTRY_REPOSITORY }}
+  SOURCE_SHA: ${{ inputs.source_sha }}
+  RELEASE_VERSION: ${{ inputs.release_version }}
+  API_SOURCE_DIGEST: ${{ inputs.api_source_digest }}
+  ADMIN_SOURCE_DIGEST: ${{ inputs.admin_source_digest }}
+  G5A_FREEZE_EVIDENCE_REF: ${{ inputs.g5a_freeze_evidence_ref }}
+  API_SOURCE_IMAGE: ghcr.io/netctc/carepoint-new-api
+  ADMIN_SOURCE_IMAGE: ghcr.io/netctc/carepoint-new-admin
+
+jobs:
+  promote:
+    name: Promote frozen RC digests without rebuild
+    runs-on: ubuntu-24.04
+    environment: gcp-production-equivalent
+    steps:
+      - name: Check out exact frozen RC source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ env.SOURCE_SHA }}
+
+      - name: Validate immutable promotion inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$API_SOURCE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+          [[ "$ADMIN_SOURCE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          test -n "$RELEASE_VERSION"
+          test -n "$G5A_FREEZE_EVIDENCE_REF"
+          [[ "$G5A_FREEZE_EVIDENCE_REF" != REPLACE_WITH_* ]]
+          test -n "$GCP_PROJECT_ID"
+          test -n "$GCP_WIF_PROVIDER"
+          test -n "$GCP_PROMOTION_SERVICE_ACCOUNT"
+          test -n "$GCP_ARTIFACT_REGISTRY_REPOSITORY"
+
+      - name: Authenticate to GHCR for immutable source reads
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Authenticate to Google Cloud with Workload Identity Federation
+        id: gcp-auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ env.GCP_WIF_PROVIDER }}
+          service_account: ${{ env.GCP_PROMOTION_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3
+
+      - name: Configure Artifact Registry Docker authentication
+        shell: bash
+        run: |
+          set -euo pipefail
+          gcloud auth configure-docker "$AR_HOST" --quiet
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Verify frozen GHCR source digests
+        shell: bash
+        run: |
+          set -euo pipefail
+          api_source_ref="$API_SOURCE_IMAGE@$API_SOURCE_DIGEST"
+          admin_source_ref="$ADMIN_SOURCE_IMAGE@$ADMIN_SOURCE_DIGEST"
+          api_observed="sha256:$(docker buildx imagetools inspect "$api_source_ref" --raw | sha256sum | awk '{print $1}')"
+          admin_observed="sha256:$(docker buildx imagetools inspect "$admin_source_ref" --raw | sha256sum | awk '{print $1}')"
+          test "$api_observed" = "$API_SOURCE_DIGEST"
+          test "$admin_observed" = "$ADMIN_SOURCE_DIGEST"
+
+      - name: Promote immutable manifests to Artifact Registry without rebuild
+        shell: bash
+        run: |
+          set -euo pipefail
+          api_source_ref="$API_SOURCE_IMAGE@$API_SOURCE_DIGEST"
+          admin_source_ref="$ADMIN_SOURCE_IMAGE@$ADMIN_SOURCE_DIGEST"
+          target_repository="$AR_HOST/$GCP_PROJECT_ID/$GCP_ARTIFACT_REGISTRY_REPOSITORY"
+          api_target_repo="$target_repository/carepoint-new-api"
+          admin_target_repo="$target_repository/carepoint-new-admin"
+          api_target_tag="$api_target_repo:rc-$SOURCE_SHA"
+          admin_target_tag="$admin_target_repo:rc-$SOURCE_SHA"
+
+          docker buildx imagetools create --tag "$api_target_tag" "$api_source_ref"
+          docker buildx imagetools create --tag "$admin_target_tag" "$admin_source_ref"
+
+          api_target_digest="sha256:$(docker buildx imagetools inspect "$api_target_tag" --raw | sha256sum | awk '{print $1}')"
+          admin_target_digest="sha256:$(docker buildx imagetools inspect "$admin_target_tag" --raw | sha256sum | awk '{print $1}')"
+          test "$api_target_digest" = "$API_SOURCE_DIGEST"
+          test "$admin_target_digest" = "$ADMIN_SOURCE_DIGEST"
+
+          printf 'API_TARGET_DIGEST=%s\nADMIN_TARGET_DIGEST=%s\nTARGET_REPOSITORY=%s\n' \
+            "$api_target_digest" "$admin_target_digest" "$target_repository" >> "$GITHUB_ENV"
+
+      - name: Capture and validate contract-compatible promotion evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p gcp-artifact-registry-promotion-evidence
+          node --input-type=module <<'NODE'
+          import { writeFileSync } from 'node:fs';
+          const runRef = `github://actions/runs/${process.env.GITHUB_RUN_ID}/attempts/${process.env.GITHUB_RUN_ATTEMPT}`;
+          const apiSourceRef = `${process.env.API_SOURCE_IMAGE}@${process.env.API_SOURCE_DIGEST}`;
+          const adminSourceRef = `${process.env.ADMIN_SOURCE_IMAGE}@${process.env.ADMIN_SOURCE_DIGEST}`;
+          const apiTargetRef = `${process.env.TARGET_REPOSITORY}/carepoint-new-api@${process.env.API_TARGET_DIGEST}`;
+          const adminTargetRef = `${process.env.TARGET_REPOSITORY}/carepoint-new-admin@${process.env.ADMIN_TARGET_DIGEST}`;
+          const evidence = {
+            schema: 'carepoint.release1-gcp-artifact-registry-promotion/v1',
+            phase: 'G5b',
+            productionAcceptance: false,
+            productionDeploymentEvidence: false,
+            release: {
+              sourceSha: process.env.SOURCE_SHA,
+              releaseVersion: process.env.RELEASE_VERSION,
+              g5aFreezeEvidenceRef: process.env.G5A_FREEZE_EVIDENCE_REF,
+            },
+            target: {
+              provider: 'gcp',
+              region: 'me-central2',
+              projectRef: `projects/${process.env.GCP_PROJECT_ID}`,
+              repositoryRef: process.env.TARGET_REPOSITORY,
+            },
+            auth: {
+              mode: 'workload-identity-federation',
+              workloadIdentityProviderRef: process.env.GCP_WIF_PROVIDER,
+              serviceAccountRef: process.env.GCP_PROMOTION_SERVICE_ACCOUNT,
+              staticCredentialsUsed: false,
+              serviceAccountKeyUsed: false,
+            },
+            sourceImages: {
+              api: { name: process.env.API_SOURCE_IMAGE, digest: process.env.API_SOURCE_DIGEST, immutableRef: apiSourceRef },
+              admin: { name: process.env.ADMIN_SOURCE_IMAGE, digest: process.env.ADMIN_SOURCE_DIGEST, immutableRef: adminSourceRef },
+            },
+            promotedImages: {
+              api: { digest: process.env.API_TARGET_DIGEST, immutableRef: apiTargetRef },
+              admin: { digest: process.env.ADMIN_TARGET_DIGEST, immutableRef: adminTargetRef },
+            },
+            controls: {
+              exactFrozenRcUsed: true,
+              sourceDigestsVerified: true,
+              noRebuild: true,
+              digestPreservingCopy: true,
+              apiTargetDigestMatchesSource: process.env.API_TARGET_DIGEST === process.env.API_SOURCE_DIGEST,
+              adminTargetDigestMatchesSource: process.env.ADMIN_TARGET_DIGEST === process.env.ADMIN_SOURCE_DIGEST,
+              mutableLatestTagUsed: false,
+              keylessAuthentication: true,
+            },
+            evidenceRefs: {
+              promotionRun: runRef,
+              sourceDigestVerification: `${runRef}#source-digest-verification`,
+              apiPromotion: `${runRef}#api-promotion`,
+              adminPromotion: `${runRef}#admin-promotion`,
+              targetDigestVerification: `${runRef}#target-digest-verification`,
+            },
+          };
+          writeFileSync('gcp-artifact-registry-promotion-evidence/promotion.json', `${JSON.stringify(evidence, null, 2)}\n`, { mode: 0o600 });
+          NODE
+          node .ci/release-gcp-artifact-registry-promotion-contract.mjs \
+            --validate gcp-artifact-registry-promotion-evidence/promotion.json \
+            --out gcp-artifact-registry-promotion-evidence/validation.json
+          sha256sum \
+            gcp-artifact-registry-promotion-evidence/promotion.json \
+            gcp-artifact-registry-promotion-evidence/validation.json \
+            > gcp-artifact-registry-promotion-evidence/SHA256SUMS
+          sha256sum --check --strict gcp-artifact-registry-promotion-evidence/SHA256SUMS
+          printf 'productionDeploymentEvidence=false\nproductionAcceptance=false\n' > gcp-artifact-registry-promotion-evidence/metadata.txt
+
+      - name: Upload sanitized promotion evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: carepoint-gcp-artifact-registry-promotion-${{ env.SOURCE_SHA }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: gcp-artifact-registry-promotion-evidence
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Publish sanitized promotion summary
+        shell: bash
+        run: |
+          {
+            echo "### GCP Artifact Registry immutable promotion"
+            echo "- Source SHA: \`$SOURCE_SHA\`"
+            echo "- Release version: \`$RELEASE_VERSION\`"
+            echo "- Region: \`me-central2\`"
+            echo "- API digest preserved: \`$API_TARGET_DIGEST\`"
+            echo "- Admin digest preserved: \`$ADMIN_TARGET_DIGEST\`"
+            echo "- Evidence schema: \`carepoint.release1-gcp-artifact-registry-promotion/v1\`"
+            echo "- G5b validator: \`passed\`"
+            echo "- Authentication: Workload Identity Federation / keyless"
+            echo "- Rebuild performed: \`false\`"
+            echo "- Production deployment evidence: \`false\`"
+            echo "- Production acceptance: \`false\`"
+          } >> "$GITHUB_STEP_SUMMARY"

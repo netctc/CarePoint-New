@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, InternalServerErrorException } from "@nestjs/common";
+import { localSyntheticPilotProvidersAllowed } from "../../infrastructure/release/private-pilot-infrastructure-profile";
 
 const UID = /^\d+(?:\.\d+)+$/;
 
@@ -15,7 +16,9 @@ export class DicomWebService {
   normalizeReference(input: Record<string, unknown>): string {
     const provider = this.providerName();
     if (provider === "mock") {
-      if (process.env.NODE_ENV === "production") throw new InternalServerErrorException("Mock DICOMweb references are forbidden in production.");
+      if (process.env.NODE_ENV === "production" && !localSyntheticPilotProvidersAllowed(process.env)) {
+        throw new InternalServerErrorException("Mock DICOMweb references are forbidden in production.");
+      }
       const reference = typeof input.externalReference === "string" ? input.externalReference.trim() : "";
       if (!reference) throw new BadRequestException("externalReference is required for the mock DICOMweb provider.");
       return reference;
@@ -60,26 +63,17 @@ export class DicomWebService {
     if (segments[0] !== "studies") throw new BadRequestException("Stored DICOMweb reference does not identify a study.");
     const studyInstanceUid = this.requiredUid(segments[1], "studyInstanceUid");
 
-    if (segments.length === 2) {
-      return { scope: "STUDY", studyInstanceUid, proxyRequired: true };
-    }
+    if (segments.length === 2) return { scope: "STUDY", studyInstanceUid, proxyRequired: true };
     if (segments[2] !== "series") throw new BadRequestException("Stored DICOMweb reference does not identify a supported series path.");
     const seriesInstanceUid = this.requiredUid(segments[3], "seriesInstanceUid");
-    if (segments.length === 4) {
-      return { scope: "SERIES", studyInstanceUid, seriesInstanceUid, proxyRequired: true };
-    }
+    if (segments.length === 4) return { scope: "SERIES", studyInstanceUid, seriesInstanceUid, proxyRequired: true };
     if (segments[4] !== "instances") throw new BadRequestException("Stored DICOMweb reference does not identify a supported instance path.");
     const sopInstanceUid = this.requiredUid(segments[5], "sopInstanceUid");
     return { scope: "INSTANCE", studyInstanceUid, seriesInstanceUid, sopInstanceUid, proxyRequired: true };
   }
 
-  descriptor(): { provider: "DICOMWEB"; proxyRequired: true } {
-    return { provider: "DICOMWEB", proxyRequired: true };
-  }
-
-  private providerName(): string {
-    return process.env.DICOMWEB_PROVIDER ?? (process.env.NODE_ENV === "production" ? "dicomweb" : "mock");
-  }
+  descriptor(): { provider: "DICOMWEB"; proxyRequired: true } { return { provider: "DICOMWEB", proxyRequired: true }; }
+  private providerName(): string { return process.env.DICOMWEB_PROVIDER ?? (process.env.NODE_ENV === "production" ? "dicomweb" : "mock"); }
 
   private parseAllowedReference(reference: string, baseValue: string): URL {
     let parsed: URL;
