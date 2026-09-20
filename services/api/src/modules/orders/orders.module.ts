@@ -99,6 +99,6 @@ class OrdersController {
   imports: [ProvidersModule, CommunicationsModule],
   controllers: [OrdersController, ImagingOrdersController],
   providers: [OrdersService, ImagingOrdersService, OrdersEnvelopeService, OrdersAttestationService, OrdersSystemExportService, PrescriptionNotificationService],
-  exports: [OrdersService, OrdersSystemExportService],
+  exports: [OrdersService, OrdersEnvelopeService, OrdersSystemExportService],
 })
 export class OrdersModule {}
