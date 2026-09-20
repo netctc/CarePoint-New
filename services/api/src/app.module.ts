@@ -34,6 +34,8 @@ import { ObservationModule } from "./modules/observation/observation.module";
 import { OrdersModule } from "./modules/orders/orders.module";
 import { OtherProviderWorkspaceModule } from "./modules/other-provider-workspace/other-provider-workspace.module";
 import { ProvidersModule } from "./modules/providers/providers.module";
+import { ProviderCategoryFormsModule } from "./modules/provider-category-forms/provider-category-forms.module";
+import { ProviderWorkflowModule } from "./modules/provider-workflow/provider-workflow.module";
 import { SchedulingModule } from "./modules/scheduling/scheduling.module";
 import { AvailabilityRequestsModule } from "./modules/scheduling/availability-requests.module";
 import { SmartModule } from "./modules/smart/smart.module";
@@ -61,6 +63,8 @@ const isolatedSyntheticPilot = isolatedSyntheticPrivatePilotActive(process.env);
     ...(runtimeFeatures.telehealth ? [AdminTelehealthModule] : []),
     DataGovernanceModule,
     ProvidersModule,
+    ProviderCategoryFormsModule,
+    ProviderWorkflowModule,
     OtherProviderWorkspaceModule,
     ...(emergencyAmbulanceModuleEnabled(process.env) ? [EmergencyModule] : []),
     TransportModule,

@@ -24,6 +24,14 @@ const SAFE_CLINICAL_AUDIT_KEYS = new Set([
   "shareId",
   "deviceId",
   "mergeId",
+  "equipmentCount",
+  "reasonCode",
+  "workflowEventType",
+  "formResponseId",
+  "contextId",
+  "contextType",
+  "formPurpose",
+  "formCode",
 ]);
 
 const SAFE_TOKEN = /^[A-Za-z0-9_.:@/-]{1,160}$/;
@@ -33,7 +41,7 @@ function safeString(key: string, value: string): string | undefined {
   const trimmed = value.trim();
   if (!trimmed) return undefined;
   if (key === "domain" || key === "accessBasis" || key === "decision" || key === "denyReason" ||
-      key === "sourceType" || key === "verificationStatus" || key === "scope") {
+      key === "sourceType" || key === "verificationStatus" || key === "scope" || key === "formPurpose" || key === "contextType" || key === "workflowEventType" || key === "reasonCode") {
     return SAFE_ENUM.test(trimmed) ? trimmed : undefined;
   }
   return SAFE_TOKEN.test(trimmed) ? trimmed : undefined;
