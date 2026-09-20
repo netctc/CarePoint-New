@@ -1,0 +1,126 @@
+import { Body, Controller, Get, Header, Module, Param, Post } from "@nestjs/common";
+import type { AuthPrincipal } from "@carepoint/identity";
+import { CurrentPrincipal, RequirePermissions } from "../../security/api-security.module";
+import { ClinicalModule } from "../clinical/clinical.module";
+import {
+  QuestionnaireService,
+  type CreateQuestionnaireInput,
+  type CreateQuestionnaireVersionInput,
+  type SubmitQuestionnaireInput,
+} from "./questionnaire.service";
+
+@Controller("admin/questionnaires")
+class AdminQuestionnaireController {
+  constructor(private readonly questionnaires: QuestionnaireService) {}
+
+  @RequirePermissions("CATALOG_MANAGE")
+  @Get()
+  list() {
+    return this.questionnaires.adminList();
+  }
+
+  @RequirePermissions("CATALOG_MANAGE")
+  @Post()
+  create(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Body() body: CreateQuestionnaireInput,
+  ) {
+    return this.questionnaires.createDefinition(principal, body);
+  }
+
+  @RequirePermissions("CATALOG_MANAGE")
+  @Post(":questionnaireId/versions")
+  createVersion(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Param("questionnaireId") questionnaireId: string,
+    @Body() body: CreateQuestionnaireVersionInput,
+  ) {
+    return this.questionnaires.createVersion(principal, questionnaireId, body);
+  }
+
+  @RequirePermissions("CATALOG_MANAGE")
+  @Post(":questionnaireId/versions/:version/activate")
+  activate(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Param("questionnaireId") questionnaireId: string,
+    @Param("version") version: string,
+  ) {
+    return this.questionnaires.activateVersion(principal, questionnaireId, Number(version));
+  }
+}
+
+@Controller("patient/questionnaires")
+class PatientQuestionnaireController {
+  constructor(private readonly questionnaires: QuestionnaireService) {}
+
+  @RequirePermissions("PATIENT_MANAGE_QUESTIONNAIRE")
+  @Get("due")
+  @Header("Cache-Control", "no-store")
+  due(@CurrentPrincipal() principal: AuthPrincipal) {
+    return this.questionnaires.dueMine(principal);
+  }
+
+  @RequirePermissions("PATIENT_MANAGE_QUESTIONNAIRE")
+  @Post(":code/responses")
+  @Header("Cache-Control", "no-store")
+  submit(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Param("code") code: string,
+    @Body() body: SubmitQuestionnaireInput,
+  ) {
+    return this.questionnaires.submitMine(principal, code, body);
+  }
+
+  @RequirePermissions("PATIENT_MANAGE_QUESTIONNAIRE")
+  @Get(":code/latest")
+  @Header("Cache-Control", "no-store")
+  latest(@CurrentPrincipal() principal: AuthPrincipal, @Param("code") code: string) {
+    return this.questionnaires.latestMine(principal, code);
+  }
+
+  @RequirePermissions("PATIENT_MANAGE_QUESTIONNAIRE")
+  @Get(":code/diff")
+  @Header("Cache-Control", "no-store")
+  diff(@CurrentPrincipal() principal: AuthPrincipal, @Param("code") code: string) {
+    return this.questionnaires.diffMine(principal, code);
+  }
+}
+
+@Controller("doctor/patients")
+class DoctorQuestionnaireController {
+  constructor(private readonly questionnaires: QuestionnaireService) {}
+
+  @RequirePermissions("CLINICAL_QUESTIONNAIRE_READ")
+  @Get(":patientId/questionnaires/:code/latest")
+  @Header("Cache-Control", "no-store")
+  latest(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Param("patientId") patientId: string,
+    @Param("code") code: string,
+  ) {
+    return this.questionnaires.latestForDoctor(principal, patientId, code);
+  }
+
+  @RequirePermissions("CLINICAL_QUESTIONNAIRE_READ")
+  @Get(":patientId/questionnaires/:code/diff")
+  @Header("Cache-Control", "no-store")
+  diff(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Param("patientId") patientId: string,
+    @Param("code") code: string,
+  ) {
+    return this.questionnaires.diffForDoctor(principal, patientId, code);
+  }
+}
+
+@Module({
+  imports: [ClinicalModule],
+  controllers: [
+    AdminQuestionnaireController,
+    PatientQuestionnaireController,
+    DoctorQuestionnaireController,
+  ],
+  providers: [QuestionnaireService],
+  exports: [QuestionnaireService],
+})
+export class QuestionnaireModule {}

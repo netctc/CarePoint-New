@@ -1,0 +1,58 @@
+model QuestionnaireDefinition {
+  id                String                 @id @default(uuid())
+  code              String                 @unique
+  labels            Json
+  descriptionLabels Json?
+  active            Boolean                @default(true)
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+  versions          QuestionnaireVersion[]
+  responses         QuestionnaireResponse[]
+
+  @@index([active, code])
+}
+
+model QuestionnaireVersion {
+  id               String                  @id @default(uuid())
+  questionnaireId  String
+  version          Int
+  status           String                  @default("DRAFT")
+  schema           Json
+  activationRules  Json?
+  createdByActorId String?
+  activatedAt      DateTime?
+  retiredAt        DateTime?
+  createdAt        DateTime                @default(now())
+  questionnaire    QuestionnaireDefinition @relation(fields: [questionnaireId], references: [id], onDelete: Cascade)
+  responses        QuestionnaireResponse[]
+
+  @@unique([questionnaireId, version])
+  @@index([status, activatedAt])
+}
+
+model QuestionnaireResponse {
+  id                     String                  @id @default(uuid())
+  questionnaireId        String
+  questionnaireVersionId String
+  patientId              String
+  sequence               Int
+  previousResponseId     String?
+  healthChanged          Boolean?
+  changedQuestionIds     Json
+  algorithm              String
+  keyId                  String
+  wrappedKey             String
+  iv                     String
+  ciphertext             String
+  completedAt            DateTime                @default(now())
+  sourceType             String                  @default("PATIENT")
+  sourceActorId          String?
+  createdAt              DateTime                @default(now())
+  questionnaire          QuestionnaireDefinition @relation(fields: [questionnaireId], references: [id], onDelete: Restrict)
+  questionnaireVersion   QuestionnaireVersion    @relation(fields: [questionnaireVersionId], references: [id], onDelete: Restrict)
+  patient                PatientProfile          @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@unique([patientId, questionnaireId, sequence])
+  @@index([patientId, questionnaireId, completedAt])
+  @@index([questionnaireVersionId, completedAt])
+}
