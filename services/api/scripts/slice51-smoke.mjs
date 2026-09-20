@@ -23,10 +23,14 @@ async function login(email, password) {
 }
 
 async function main() {
-  const doctorAToken = await login('doctor-clinical-a@carepoint.test', 'CarePoint-Clinical-Doctor#2026');
-  const doctorBToken = await login('doctor-clinical-b@carepoint.test', 'CarePoint-Clinical-Doctor#2026');
-  const patientToken = await login('patient-clinical@carepoint.test', 'CarePoint-Clinical-Patient#2026');
-  const adminToken = await login('admin-ci@carepoint.test', 'CarePoint-CI-Admin#2026');
+  const doctorPassword = process.env.SLICE6_DOCTOR_PASSWORD;
+  const patientPassword = process.env.SLICE6_PATIENT_PASSWORD;
+  const adminPassword = process.env.BOOTSTRAP_ADMIN_PASSWORD;
+  if (!doctorPassword || !patientPassword || !adminPassword) throw new Error('CI smoke credentials are required.');
+  const doctorAToken = await login('doctor-clinical-a@carepoint.test', doctorPassword);
+  const doctorBToken = await login('doctor-clinical-b@carepoint.test', doctorPassword);
+  const patientToken = await login('patient-clinical@carepoint.test', patientPassword);
+  const adminToken = await login('admin-ci@carepoint.test', adminPassword);
 
   const doctorA = await prisma.user.findUnique({ where: { email: 'doctor-clinical-a@carepoint.test' }, include: { provider: true } });
   const doctorB = await prisma.user.findUnique({ where: { email: 'doctor-clinical-b@carepoint.test' }, include: { provider: true } });
