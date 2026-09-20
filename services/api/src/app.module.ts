@@ -22,6 +22,7 @@ import { ConsentModule } from "./modules/consent/consent.module";
 import { ClinicalGovernanceModule } from "./modules/clinical-governance/clinical-governance.module";
 import { DataGovernanceModule } from "./modules/data-governance/data-governance.module";
 import { DependentsModule } from "./modules/dependents/dependents.module";
+import { RefillModule } from "./modules/refill/refill.module";
 import { DocumentsModule } from "./modules/documents/documents.module";
 import { DoctorSnapshotModule } from "./modules/doctor-snapshot/doctor-snapshot.module";
 import { emergencyAmbulanceModuleEnabled } from "./modules/emergency/emergency-launch-policy";
@@ -66,6 +67,7 @@ const isolatedSyntheticPilot = isolatedSyntheticPrivatePilotActive(process.env);
     AdminSecurityModule,
     ...(runtimeFeatures.telehealth ? [AdminTelehealthModule] : []),
     AppointmentContinuityModule,
+    RefillModule,
     DataGovernanceModule,
     DependentsModule,
     ProvidersModule,
