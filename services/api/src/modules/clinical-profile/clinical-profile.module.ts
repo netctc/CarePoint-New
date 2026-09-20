@@ -9,6 +9,7 @@ import {
   type UpdateClinicalProfileEntryInput,
   type VerifyClinicalProfileEntryInput,
 } from "./clinical-profile.service";
+import { DataCorrectionService } from "./data-correction.service";
 
 @Controller("patient/clinical-profile/entries")
 class PatientClinicalProfileController {
@@ -37,6 +38,28 @@ class PatientClinicalProfileController {
     @Body() body: UpdateClinicalProfileEntryInput,
   ) {
     return this.profile.updateMine(principal, entryId, body);
+  }
+}
+
+@Controller("patient/data-correction-requests")
+class PatientDataCorrectionController {
+  constructor(private readonly corrections: DataCorrectionService) {}
+
+  @RequirePermissions("PATIENT_MANAGE_CLINICAL_PROFILE")
+  @Get()
+  @Header("Cache-Control", "no-store")
+  list(@CurrentPrincipal() principal: AuthPrincipal) {
+    return this.corrections.listMine(principal);
+  }
+
+  @RequirePermissions("PATIENT_MANAGE_CLINICAL_PROFILE")
+  @Post()
+  @Header("Cache-Control", "no-store")
+  create(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Body() body: Record<string, unknown>,
+  ) {
+    return this.corrections.createMine(principal, body);
   }
 }
 
@@ -102,10 +125,41 @@ class DoctorClinicalProfileController {
   }
 }
 
+@Controller("provider")
+class ProviderDataCorrectionController {
+  constructor(private readonly corrections: DataCorrectionService) {}
+
+  @RequirePermissions("CLINICAL_PROFILE_READ")
+  @Get("patients/:patientId/data-correction-requests")
+  @Header("Cache-Control", "no-store")
+  list(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Param("patientId") patientId: string,
+  ) {
+    return this.corrections.listForDoctor(principal, patientId);
+  }
+
+  @RequirePermissions("CLINICAL_PROFILE_WRITE")
+  @Post("patient-data/:entryId/verification")
+  @Header("Cache-Control", "no-store")
+  decide(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Param("entryId") entryId: string,
+    @Body() body: Record<string, unknown>,
+  ) {
+    return this.corrections.decide(principal, entryId, body);
+  }
+}
+
 @Module({
   imports: [ClinicalModule],
-  controllers: [PatientClinicalProfileController, DoctorClinicalProfileController],
-  providers: [ClinicalProfileService],
-  exports: [ClinicalProfileService],
+  controllers: [
+    PatientClinicalProfileController,
+    PatientDataCorrectionController,
+    DoctorClinicalProfileController,
+    ProviderDataCorrectionController,
+  ],
+  providers: [ClinicalProfileService, DataCorrectionService],
+  exports: [ClinicalProfileService, DataCorrectionService],
 })
 export class ClinicalProfileModule {}
