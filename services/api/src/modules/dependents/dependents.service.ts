@@ -127,7 +127,7 @@ export class PatientContextService {
     const context = await this.current(principal);
     if (context.mode === "SELF") return { patientId: context.patientId, mode: context.mode, relationId: null };
     const relation = await this.effectiveRelation(principal.accountId, context.patientId, requiredScope);
-    return { patientId: relation.dependentPatientId, mode: "DEPENDENDENT" as const, relationId: relation.id };
+    return { patientId: relation.dependentPatientId, mode: "DEPENDENT" as const, relationId: relation.id };
   }
 
   async effectiveRelation(guardianAccountId: string, patientId: string, requiredScope?: DependentAuthorityScope) {
