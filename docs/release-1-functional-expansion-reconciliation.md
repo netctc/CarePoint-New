@@ -2,60 +2,72 @@
 
 ## Purpose
 
-This document reconciles the functional-expansion line with the current Release 1 candidate without re-merging source that is already present.
+This document reconciles the functional-expansion line with the current protected Release 1 candidate without re-merging source that is already present.
 
 Authoritative refs for this review:
 
 - Release 1 branch: `release/release-1-integration-go-live-readiness`
-- Release 1 head: `5f508d95b387507ba3ef2b8ac44af3792764205d`
+- Current Release 1 head: `604f522412c8da6668ee2df42ce58ec3994798c5`
 - Functional-expansion branch: `feature/functional-expansion-care-journeys`
 - Functional-expansion head: `2251cc4dac6afde735034c3e31962ad2041934f9`
 - F1 validated head: `49ae51360776c38b9494a51d749bf789c62ad366`
 
-Git ancestry is decisive for source reconciliation:
+Git ancestry is decisive for source reconciliation. The functional-expansion head is an ancestor of the current Release 1 head. The current Release 1 head is 329 commits ahead and 0 behind that source head. F1 is also already contained in the Release 1 ancestry. Therefore F1–F17 do not require a cherry-pick or re-merge.
 
-- `2251cc4dac6afde735034c3e31962ad2041934f9` is an ancestor of the current Release 1 head.
-- `49ae51360776c38b9494a51d749bf789c62ad366` is an ancestor of the current Release 1 head.
-- Release 1 is ahead of the functional-expansion head and does not require any F1–F17 cherry-pick or re-merge.
-
-Therefore the functional-expansion source through F17 is already contained in Release 1. Re-integrating those commits would create unnecessary conflict risk and could duplicate migrations or invalidate later fixes.
-
-Source inclusion is not release acceptance. Production infrastructure, mobile signing, external providers, security-owner acceptance, human UAT, performance/resilience, KSA regulatory approval, deployment/rollback and CAB approval remain independent gates.
+Re-integrating those commits would create unnecessary conflict risk and could duplicate migrations or invalidate later fixes. Source inclusion is not release acceptance.
 
 ## Reconciliation rules
 
 1. Do not re-integrate a slice when its source commit is already in Release 1 ancestry.
 2. Close or advance a Release 1 requirement only from its own acceptance criteria and evidence, not ancestry alone.
-3. Preserve server-side authorization, consent, PHI minimization, audit, idempotency and clinical finalization semantics during follow-up work.
+3. Preserve server-side authorization, consent, PHI minimization, audit, idempotency and clinical-finalization semantics during follow-up work.
 4. Keep `main` unchanged until formal Go/No-Go promotion.
 5. Keep production deployment separate from source reconciliation.
-6. Treat external, human and regulatory evidence as independent acceptance evidence.
+6. Treat external-provider, physical-device, human, security-assessor and regulatory evidence as independent acceptance evidence.
+7. Bind final acceptance evidence to the same exact frozen RC SHA and immutable artifacts; evidence from older RCs is historical/mechanical evidence only.
 
 ## Current exact-RC automated baseline
 
-On authoritative Release 1 SHA `5f508d95b387507ba3ef2b8ac44af3792764205d`, the established repository workflows are green, including CI, Security Analysis, PostgreSQL Recovery, Slice 10 FHIR, Availability Journeys PostgreSQL, Patient Profile PostgreSQL, Mobile Native Compatibility, Release Candidate Evidence, Container Compatibility, Immutable Containers, Production Infrastructure Acceptance Contract, External Integration Acceptance Contract, Mobile Release Evidence Contract, UAT Evidence Contract, Performance Harness Contract, Resilience Rehearsal Contract, Deployment Rehearsal Contract, Market Readiness Evidence Contract and Promotion Policy Evidence Contract.
+On current protected Release 1 SHA `604f522412c8da6668ee2df42ce58ec3994798c5`, all 29 triggered repository workflows completed successfully. The green matrix includes:
 
-This proves repository-side automated compatibility for the current RC. It does not prove external provider activation, physical-device release acceptance, production-equivalent infrastructure, target-load capacity, penetration testing, human UAT or KSA Go-Live approval.
+- CI, Security Analysis and PostgreSQL Recovery;
+- Slice 10 FHIR, Availability Journeys PostgreSQL and Patient Profile PostgreSQL;
+- Mobile Native Compatibility and Mobile Release Evidence Contract;
+- Release Candidate Evidence, Container Compatibility and Immutable Containers;
+- Production Infrastructure, External Integration, UAT, Market Readiness and Promotion Policy evidence contracts;
+- Performance Harness, Resilience Rehearsal and Deployment Rehearsal contracts;
+- GCP immutable-freeze, Artifact Registry, API/Admin Cloud Run, Cloud SQL PITR, Memorystore failover, Cloud Storage recovery, continuity-bundle and final-acceptance contract workflows.
+
+The current immutable API/Admin publication is also complete from workflow run `35290318388`:
+
+- release version: `release1-604f522412c8da6668ee2df42ce58ec3994798c5`;
+- API digest: `sha256:e4574a786d21b251b3032c04cfc74e91fcc7f15385f9fdc6ac94e9163b9adc6f`;
+- Admin digest: `sha256:f36e79f7a4d6e5a89c16d3dc11f4b441c0bff161b9cc4db0cbad56615c3f2820`;
+- immutable evidence artifact: `10525773892`.
+
+These facts prove repository-side compatibility and current API/Admin artifact identity. They do **not** prove real provider activation, signed-store mobile acceptance, physical-device acceptance, production-equivalent infrastructure, independent penetration testing, human clinical UAT, target-load capacity, KSA regulatory approval or final production deployment/rollback acceptance.
+
+The recorded R3 launch architecture remains OCI/KSA primary (Riyadh primary with Jeddah DR). Google Cloud Dammam remains fallback/portability work unless a later formally approved architecture decision supersedes that baseline. Green GCP contract workflows therefore do not by themselves establish production acceptance.
 
 ## Controlled reconciliation matrix
 
 | Slice | Tracker | Source status in Release 1 | Functional scope | Release 1 relationship | Remaining release acceptance |
 | --- | --- | --- | --- | --- | --- |
-| F1 | #140 | **Contained; tracker CLOSED / COMPLETED** | Structured discovery; clinic/home booking context; provider locations/coverage; buffers; vacations/exceptions; slot controls | Primary functional line for #75 | #75 is **CODE COMPLETE / RELEASE ACCEPTANCE CONDITIONAL**. Remaining work is production-equivalent/native UAT and the approved launch decision for any real maps/geocoding/routing dependency. Do not re-merge F1. |
-| F2 | #142 | **Contained; tracker CLOSED / COMPLETED** | Patient rescheduling, earlier-appointment waitlist and change history | Booking lifecycle, notification/status continuity, R7 | Dedicated PostgreSQL 16 acceptance passed with 35 tests including F2 concurrency, rollback, financial-snapshot preservation and stale-state handling. Remaining physical-device/provider/launch acceptance is outside the slice source tracker. |
-| F3 | #143 | **Contained; tracker CLOSED / COMPLETED** | Unbooked-patient availability requests and in-app notice centre | Scheduling/notification continuity | Preserve separation between in-app observation and real external notification/provider acceptance. |
-| F4 | #144 | **Contained; tracker CLOSED / COMPLETED** | Automatic availability detection and consent-scoped in-app alerts | Worker/notification behavior, R7/R8 | Worker production cadence/capacity and external channels remain deployment/integration acceptance. |
+| F1 | #140 | **Contained; tracker CLOSED / COMPLETED** | Structured discovery; clinic/home booking context; provider locations/coverage; buffers; vacations/exceptions; slot controls | Primary functional line for #75 | #75 remains **CODE COMPLETE / RELEASE ACCEPTANCE CONDITIONAL**. Production-equivalent/native UAT and the approved maps/geocoding/routing operating model remain external. |
+| F2 | #142 | **Contained; tracker CLOSED / COMPLETED** | Patient rescheduling, earlier-appointment waitlist and change history | Booking lifecycle, notification/status continuity, R7 | Real-device/provider/launch acceptance remains outside source completion. |
+| F3 | #143 | **Contained; tracker CLOSED / COMPLETED** | Unbooked-patient availability requests and in-app notice centre | Scheduling/notification continuity | Real external notification channels remain R4/R7 acceptance. |
+| F4 | #144 | **Contained; tracker CLOSED / COMPLETED** | Automatic availability detection and consent-scoped in-app alerts | Worker/notification behavior, R7/R8 | Production worker cadence/capacity and external delivery remain environment acceptance. |
 | F5 | #145 | **Contained; tracker CLOSED / COMPLETED** | Actionable availability alerts and focused navigation | Patient UX continuity | External push/deep-link entitlement remains R4/R5 work. |
-| F6 | #146 | **Contained; tracker CLOSED / COMPLETED** | Patient secure messaging and appointment-context handoff | M14/R7 | Production provider/endpoints and final UAT remain separate. |
-| F7 | #147 | **Contained; tracker CLOSED / COMPLETED** | Patient profile self-service with optimistic concurrency | M02/R7 | Exact-RC ownership/concurrency regressions are part of the retained baseline; KYC/demographic expansion remains out of scope. |
-| F8 | #148 | **Contained; tracker CLOSED / COMPLETED** | Unified Patient notification centre and safe entity-aware routing | M14/R7; complements #78 UX | #78 scheduled reminder runtime/channel acceptance remains independent. |
-| F9 | #149 | **Contained; tracker CLOSED / COMPLETED** | Emergency continuity and safe notification routing | Emergency UAT / R9 | Emergency ambulance remains disabled unless jurisdiction, licensed operator, local approval and 24x7 operating requirements are accepted. |
+| F6 | #146 | **Contained; tracker CLOSED / COMPLETED** | Patient secure messaging and appointment-context handoff | M14/R7 | Real provider/endpoints and final human UAT remain separate. |
+| F7 | #147 | **Contained; tracker CLOSED / COMPLETED** | Patient profile self-service with optimistic concurrency | M02/R7 | Ownership/concurrency regression remains in retained automated gates; broader identity/KYC expansion is not inferred. |
+| F8 | #148 | **Contained; tracker CLOSED / COMPLETED** | Unified Patient notification centre and safe entity-aware routing | M14/R7; complements #78 UX | #78 production scheduler/channel/timing/UAT acceptance remains independent. |
+| F9 | #149 | **Contained; tracker CLOSED / COMPLETED** | Emergency continuity and safe notification routing | Emergency UAT / R9 | Emergency operations require jurisdiction, licensed-operator and market approval; code does not establish those facts. |
 | F10 | #150 | **Contained; tracker CLOSED / COMPLETED** | Medical transport detail, status history and safe notification routing | M12/R7 | Real transport provider/dispatch operations remain R4/R9 dependent. |
 | F11 | #151 | **Contained; tracker CLOSED / COMPLETED** | Released laboratory-result notification and safe clinical-order routing | M13/M14/R7 | External laboratory integration and final clinical UAT remain separate. |
-| F12 | #152 | **Contained; tracker CLOSED / COMPLETED** | Released diagnostic-report notification and safe report re-authorization | M13/M14/R7 | PACS/DICOM external activation remains R4 dependent. |
-| F13 | — | **No canonical slice identified** | No authoritative F13 issue was found | None can be asserted | Do not invent F13. Add it only if an authoritative tracker/commit is later identified. |
+| F12 | #152 | **Contained; tracker CLOSED / COMPLETED** | Released diagnostic-report notification and safe report re-authorization | M13/M14/R7 | PACS/DICOM launch scope and real provider acceptance remain R4 dependent. |
+| F13 | — | **No canonical slice identified** | No authoritative F13 tracker was found | None can be asserted | Do not invent F13; add only if authoritative evidence is later identified. |
 | F14 | #153 | **Contained; tracker CLOSED / COMPLETED** | Patient clinical document centre and one-time secure downloads | M13/R6/R7 | Storage residency, malware scanning and external PACS evidence remain R3/R4/R9 dependent. |
-| F15 | #154 | **Contained; tracker CLOSED / COMPLETED** | Document inbox, personal uploads, opened/acknowledged lifecycle and document notifications | M13/M14/R7 | Retention/deletion and storage-residency acceptance remain governed by #77/R9. |
+| F15 | #154 | **Contained; tracker CLOSED / COMPLETED** | Document inbox, personal uploads, opened/acknowledged lifecycle and document notifications | M13/M14/R7 | Retention/deletion and storage-residency acceptance remain governed by #77/R3/R9. |
 | F16 | #155 | **Contained; tracker CLOSED / COMPLETED** | Patient consent lifecycle self-service and safe re-grant | Consent, R6/R7/R9 | Legal consent text/scope/version approval remains market-specific and independent from source completion. |
 | F17 | #156 | **Contained; tracker CLOSED / COMPLETED** | Full Patient encounter detail and secure clinical attachment navigation | M13/R7 | Human clinical UAT and production acceptance remain required. |
 
@@ -63,45 +75,63 @@ This proves repository-side automated compatibility for the current RC. It does 
 
 ### #75 — Discovery, scheduling and visit context
 
-F1 is already integrated and #75 is now **CODE COMPLETE / RELEASE ACCEPTANCE CONDITIONAL**. The code-side scope covers structured discovery, buffers/exceptions, clinic/home context, coverage behavior, concurrency/idempotency and Patient/provider mobile adoption. Remaining conditions are release-environment acceptance, including production-equivalent/native UAT and the launch decision for maps/geocoding/routing. If provider-backed routing is not a launch requirement, the approved coordinate/address/manual-navigation operating model must be documented instead.
+F1 is already integrated and #75 is **CODE COMPLETE / RELEASE ACCEPTANCE CONDITIONAL**. Code covers structured discovery, buffers/exceptions, clinic/home context, coverage behavior, concurrency/idempotency and Patient/provider mobile adoption. Final closure still depends on production-equivalent/native UAT and the launch decision/evidence for maps/geocoding/routing, or a formally approved manual coordinate/address/navigation operating model.
 
 ### #76 — WEB-05 Patient Clinical Workspace
 
-#76 is **CODE COMPLETE / RELEASE UAT CONDITIONAL**. The dedicated clinical workspace, authorization boundaries, patient-context clinical reads, secure documents and the F17 encounter-detail/attachment re-authorization path are present. Final production-equivalent R7 human clinical/operational UAT and sign-off remain required.
+#76 is **CODE COMPLETE / RELEASE UAT CONDITIONAL**. The clinical workspace, authorization boundaries, Patient-scoped reads, secure documents and F17 encounter-detail/attachment re-authorization are present. Final production-equivalent human clinical/operational UAT remains required.
 
 ### #77 — Data residency and retention/deletion
 
-#77 is **CODE COMPLETE / R3 + REGULATORY ACCEPTANCE CONDITIONAL**. Repository controls implement fail-closed residency declarations, versioned retention rules, preserve-only safeguards, purge/legal-hold paths and PHI-minimized audit evidence. Final closure requires real infrastructure/residency evidence and approved KSA privacy/legal/clinical governance. Engineering must not invent jurisdiction-specific retention periods.
+#77 is **CODE COMPLETE / INFRASTRUCTURE + KSA REGULATORY ACCEPTANCE CONDITIONAL-BLOCKED**. Repository controls implement fail-closed residency declarations, versioned retention rules, preserve-only safeguards, bounded purge/legal-hold paths and PHI-minimized audit evidence. Final closure requires actual launch geography, infrastructure/control-plane residency, approved retention periods, hold governance and Privacy/Legal/Clinical/Operations approval. Engineering must not invent jurisdiction-specific retention periods.
 
 ### #78 — Booking/status reminder orchestration
 
-#78 is **CODE COMPLETE / PRODUCTION RUNTIME + CHANNEL + UAT CONDITIONAL**. Durable transactional lifecycle signals, configurable reminder offsets, dedupe, reschedule/cancellation invalidation, preference enforcement and PHI-neutral templates are implemented and validated. Final closure requires production worker/scheduler evidence, approved launch reminder timing, real enabled notification channels and recipient UAT.
+#78 is **CODE COMPLETE / PRODUCTION RUNTIME + CHANNEL + UAT CONDITIONAL**. Durable lifecycle signals, configurable reminder offsets, dedupe, reschedule/cancellation invalidation, preference enforcement and PHI-neutral templates are implemented. Final closure requires production scheduler/worker evidence, Product/Operations-approved launch timing, real enabled notification channels and recipient UAT.
 
-## F1 and F2 release-gate decisions
+## R3–R10 acceptance boundary on the current RC
 
-**F1: do not integrate again.** It is already in Release 1 ancestry and its source tracker is complete. Continue only with the remaining #75 release-environment conditions.
+### R3 — Production infrastructure and residency (#79)
 
-**F2: no additional source integration is required.** Its dedicated real-PostgreSQL concurrency/rollback/financial-integrity acceptance was completed and the tracker is closed. Continue only with the dependent release-environment and human acceptance gates.
+Repository contracts and current immutable artifacts are green. Final R3 is still open because live OCI/KSA tenancy/resources, exact-RC deployment, independently proven residency/control-plane locations, PostgreSQL/Redis/object-storage/Vault/KMS/Secrets/OTLP/SIEM/worker topology, HA/failover/PITR execution and required approvals have not been established for `604f522...`. Older staging evidence remains historical until rebound to the current immutable artifacts.
 
-The same rule applies to F3–F17: their canonical source trackers are already completed and the source is in Release 1. Any new source work must be justified by a concrete release-blocking defect, safety/security/privacy/regulatory finding, data-integrity issue or required launch integration.
+### R4 — External integrations (#80)
 
-## R10 / deployment note
+The current External Integration Acceptance Contract is green, but real-provider E2E remains open. Final evidence must explicitly disposition launch scope and, where enabled, exercise actual PSP, insurance/claims, notification, telehealth, DICOM/PACS, malware-scan and maps/routing providers with success, negative/failure, idempotency and privacy evidence. Mock mode is not final provider acceptance.
 
-The authoritative Release 1 candidate `5f508d95b387507ba3ef2b8ac44af3792764205d` has immutable API/Admin GHCR artifacts and passed R10-G10A digest verification. R10-G10B is now **PASS** after the earlier restore REVIEW was traced to filesystem permissions on the root-owned `0600` recovery dump. The dump itself is a valid PostgreSQL 16.15 custom archive; the corrected fail-closed rehearsal kept the dump permissions unchanged and restored it by root-opened stdin into `pg_restore` running as `postgres`. The exact RC API/Admin then booted against isolated PostgreSQL/Redis, release identity and artifact correlation passed, Admin-to-API connectivity passed, cleanup completed and live staging remained unchanged.
+### R5 — Native mobile release (#81)
 
-The final G10B evidence is checksum-sealed on the staging host: main log SHA-256 `9f659825969129ffa7e72e51a97d48e745dac0baaeabe11077854b4a7828c0e6`, API log SHA-256 `2d56b2ced0a62f72d6ec7689fa5aa0944b94381365b1fbb0f24bb73838dc4faa`, and Admin log SHA-256 `45a3216ed1f21563dc3b9bbc3dcaa6f15d9f510b4a17fa961ea5f3ff6ea742ff`.
+Compatibility builds are green. Production app identities, signing ownership/credentials, signed Android/iOS artifacts, store/privacy/entitlement decisions and the physical-device matrix remain external/human release evidence. Validation-only bundle/application identifiers must not be promoted.
 
-R10-G10D filesystem rollback mechanics also passed against the actual previous deployed filesystem release `9d9075efe78fc3352ee24e20814801a46c0e09a0`: previous API/Admin boot, isolated PostgreSQL/Redis, Admin-to-API connectivity, immutable filesystem hashes, cleanup and live-runtime preservation passed, with an isolated restore-to-readiness observation of 6.084 seconds. An authoritative historical previous OCI digest does not exist for `9d9075...`: the immutable-container workflow was introduced by direct child commit `d6e04150c97ac6b9be48b69cea7762a36a921e2d`. A retroactive rebuild must not be represented as the previously deployed artifact.
+### R6 — Security/adversarial acceptance (#82/#85)
 
-R10-G10E isolated PITR mechanics are **PASS**. The final isolated exercise proved physical base backup, WAL archival, timestamp recovery, inclusion of the pre-target transaction, exclusion of the post-target transaction, recovered schema integrity and exact-RC API boot against the recovered database. The observed isolated RPO was 4.200326 seconds and RTO was 5.944 seconds. These measurements are supporting continuity evidence only; the rehearsal explicitly did not prove production-equivalent PITR/WAL topology.
+Repository threat-model, static/security analysis and adversarial authorization/PHI regression are green. Independent production-equivalent penetration/adversarial assessment, Security-owner disposition and required retest remain separate acceptance gates.
 
-Therefore R10 isolated artifact/restore/rollback/PITR mechanics no longer block source reconciliation, but #98 remains OPEN. Production-equivalent deployment strategy, rollback authority/thresholds, real WAL/backup/PITR topology and final operational approvals still require environment-specific evidence. Production remains NO-GO.
+### R7 — Clinical/operational UAT (#87)
+
+The machine-checkable UAT evidence contract is green. Human execution and sign-off on the exact production-equivalent RC remain required; automated acceptance is not a substitute for clinical/operational UAT.
+
+### R8 — Performance and resilience (#88)
+
+Performance/resilience contracts are green. Final acceptance requires an approved traffic model, target-load execution, controlled production-equivalent failure scenarios and measured recovery objectives on the accepted topology.
+
+### R9 — KSA market/regulatory/clinical safety (#91 and dependencies)
+
+Market-readiness contracts are green. Legal/privacy/regulatory, provider licensing/scope and telemedicine/emergency operating approvals remain human/authoritative external gates. Engineering evidence does not establish regulatory compliance by itself.
+
+### R10 — Immutable RC, deployment and rollback (#96/#97/#98)
+
+The current API/Admin immutable artifact portion of #97 is satisfied for `604f522...` by the published digests above. #97 remains open for signed native artifacts and proof that the accepted production promotion path consumes the exact frozen artifacts without rebuild-by-environment.
+
+Historical isolated R10 exercises proved useful mechanics on prior RCs: exact-artifact PostgreSQL restore and isolated API/Admin boot, previous-filesystem rollback mechanics, and isolated PITR mechanics. Those results remain supporting evidence only. They are not final exact-RC acceptance for `604f522...`.
+
+Final #98 requires production-equivalent execution on the approved launch topology with the current immutable artifacts: deployment identity, migration compatibility, controlled rollback, actual backup/WAL/PITR/failover path, measured RPO/RTO, side-effect reconciliation and required operational approvals.
 
 ## Next controlled sequence
 
 1. Complete protected review/merge of this documentation-only reconciliation PR; do not bypass the required independent approval.
 2. Treat F1–F17 as source-complete and do not reopen them for duplicate integration work.
-3. Continue #98 only with the remaining production-equivalent deployment/rollback/PITR acceptance boundary; do not retroactively manufacture a historical previous-OCI artifact.
-4. Execute the remaining release gates: R3 infrastructure/residency, R4 real providers, R5 signed native/mobile acceptance, R6 security-owner and external adversarial acceptance, R7 human UAT, R8 approved target-load/resilience/DR, and R9 KSA regulatory/clinical-safety approval.
-5. If any remaining gate exposes a real source defect, fix only that defect on a focused branch and produce a new exact RC SHA. Otherwise preserve `5f508d95b387507ba3ef2b8ac44af3792764205d` as the authoritative runtime RC artifact candidate even if documentation-only branch history advances.
-6. Promote to `main` only after the final Go/No-Go/CAB decision and all mandatory release gates are accepted.
+3. Preserve current Release 1 head `604f522412c8da6668ee2df42ce58ec3994798c5` and its immutable API/Admin digests as the exact current candidate until a real source defect or an authorized change creates a later candidate.
+4. Complete the remaining external gates on one exact frozen RC: R3 live infrastructure/residency, R4 real providers, R5 signed native/device acceptance, R6 external security assessment, R7 human UAT, R8 target-load/resilience/DR evidence, R9 KSA approvals, and R10 production-equivalent deployment/rollback/PITR.
+5. If a remaining gate exposes a real source defect, fix only that defect on a focused branch and regenerate exact-RC evidence. Do not weaken authorization, consent, PHI, audit or security controls to satisfy a gate.
+6. Promote to `main` only after final Go/No-Go/CAB authorization and all mandatory release gates are accepted.
