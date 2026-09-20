@@ -28,6 +28,7 @@ import { IamModule } from "./modules/iam/iam.module";
 import { PatientProfileModule } from "./modules/patient-profile/patient-profile.module";
 import { QuestionnaireModule } from "./modules/questionnaire/questionnaire.module";
 import { OnboardingModule } from "./modules/onboarding/onboarding.module";
+import { ObservationModule } from "./modules/observation/observation.module";
 import { OrdersModule } from "./modules/orders/orders.module";
 import { ProvidersModule } from "./modules/providers/providers.module";
 import { SchedulingModule } from "./modules/scheduling/scheduling.module";
@@ -63,6 +64,7 @@ const isolatedSyntheticPilot = isolatedSyntheticPrivatePilotActive(process.env);
     PatientProfileModule,
     HealthProfileModule,
     QuestionnaireModule,
+    ObservationModule,
     OnboardingModule,
     ConsentModule,
     AuditModule,
