@@ -25,7 +25,8 @@ async function login(email, password) {
 
 async function createApprovedDoctor(adminToken, suffix, specialtyId) {
   const email = `doctor-clinical-${suffix}@carepoint.test`;
-  const password = 'CarePoint-Clinical-Doctor#2026';
+  const password = process.env.SLICE6_DOCTOR_PASSWORD;
+  if (!password) throw new Error('SLICE6_DOCTOR_PASSWORD is required for the Slice 3.1 smoke test.');
   await request('/iam/accounts', { method: 'POST', token: adminToken, body: { email, password, role: 'DOCTOR' } });
   const token = await login(email, password);
   const onboarding = await request('/onboarding/doctors', { method: 'POST', token, body: { specialtyId } });
@@ -41,7 +42,9 @@ async function createApprovedDoctor(adminToken, suffix, specialtyId) {
 }
 
 async function main() {
-  const adminToken = await login('admin-ci@carepoint.test', 'CarePoint-CI-Admin#2026');
+  const adminPassword = process.env.BOOTSTRAP_ADMIN_PASSWORD;
+  if (!adminPassword) throw new Error('BOOTSTRAP_ADMIN_PASSWORD is required for the Slice 3.1 smoke test.');
+  const adminToken = await login('admin-ci@carepoint.test', adminPassword);
   const specialties = await request('/doctors/specialties');
   const specialty = specialties.items?.[0];
   if (!specialty?.id) throw new Error('No specialty available for Slice 3.1 smoke test.');
@@ -70,7 +73,8 @@ async function main() {
   if (!slots[0]?.id) throw new Error('Clinical smoke slot not generated.');
 
   const patientEmail = 'patient-clinical@carepoint.test';
-  const patientPassword = 'CarePoint-Clinical-Patient#2026';
+  const patientPassword = process.env.SLICE6_PATIENT_PASSWORD;
+  if (!patientPassword) throw new Error('SLICE6_PATIENT_PASSWORD is required for the Slice 3.1 smoke test.');
   await request('/iam/register/patient', { method: 'POST', body: { email: patientEmail, password: patientPassword, firstName: 'Clinical', lastName: 'Patient' } });
   const patientToken = await login(patientEmail, patientPassword);
   const appointment = await request('/bookings', { method: 'POST', token: patientToken, body: { slotId: slots[0].id, idempotencyKey: 'slice31-clinical-booking-0001' } });
@@ -107,7 +111,7 @@ async function main() {
   const denied = await raw(`/clinical/patients/${patient.patientProfile.id}/timeline`, { token: doctorB.token });
   if (denied.status !== 403) throw new Error(`Expected second doctor to be denied before consent, got ${denied.status}.`);
 
-  await request('/consents', { method: 'POST', token: patientToken, body: { providerId: doctorB.providerId, scope: 'CLINICAL_RECORD_READ', version: 'clinical-record-v1' } });
+  await request('/consents', { method: 'POST', token: patientToken, body: { providerId: doctorB.providerId, scope: 'CLINICAL_RECORD_READ', version: 'clinical-record-v1', purpose: 'TREATMENT' } });
   const consentView = await request(`/clinical/patients/${patient.patientProfile.id}/timeline`, { token: doctorB.token });
   if (consentView.accessBasis !== 'PATIENT_CONSENT' || !consentView.items?.[0]?.latestRecord?.data?.subjective?.includes(marker)) throw new Error('Consent-authorized cross-provider timeline failed.');
 

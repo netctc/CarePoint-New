@@ -18,6 +18,7 @@ import { ClinicalModule } from "./modules/clinical/clinical.module";
 import { ClinicalProfileModule } from "./modules/clinical-profile/clinical-profile.module";
 import { CommunicationsModule } from "./modules/communications/communications.module";
 import { ConsentModule } from "./modules/consent/consent.module";
+import { ClinicalGovernanceModule } from "./modules/clinical-governance/clinical-governance.module";
 import { DataGovernanceModule } from "./modules/data-governance/data-governance.module";
 import { DocumentsModule } from "./modules/documents/documents.module";
 import { DoctorSnapshotModule } from "./modules/doctor-snapshot/doctor-snapshot.module";
@@ -75,6 +76,7 @@ const isolatedSyntheticPilot = isolatedSyntheticPrivatePilotActive(process.env);
     ObservationModule,
     OnboardingModule,
     ConsentModule,
+    ClinicalGovernanceModule,
     AuditModule,
     SchedulingModule,
     AvailabilityRequestsModule,

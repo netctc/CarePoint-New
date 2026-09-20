@@ -1,0 +1,17 @@
+model TemporaryClinicalShare {
+  id               String         @id @default(uuid())
+  patientId        String
+  providerId       String
+  scopes           Json
+  consentIds       Json
+  purpose          String         @default("TREATMENT")
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  createdByActorId String?
+  createdAt        DateTime       @default(now())
+  patient          PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  provider         Provider       @relation(fields: [providerId], references: [id], onDelete: Restrict)
+
+  @@index([patientId, createdAt])
+  @@index([providerId, expiresAt, revokedAt])
+}
