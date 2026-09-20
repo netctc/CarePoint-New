@@ -227,7 +227,7 @@ export class DependentsService {
     const validUntil = input?.validUntil === undefined ? row.validUntil : this.optionalFutureDate(input.validUntil, "validUntil");
     const evidence = input?.evidence === undefined ? [] : this.evidence(input.evidence);
     const updated = await this.prisma.$transaction(async (tx) => {
-      const current = await tx.dependentRelation.update({ where: { id }, data: { relationshipType, scopes: scopes as unknown as Prisma.InputJsonValue, validUntil, status: "PENDING_REVIEW", verifiedAt: null, verifiedByActorId: null, reasonCode: null } });
+      const current = await tx.dependentRelation.update({ where: { id, guardianAccountId: principal.accountId }, data: { relationshipType, scopes: scopes as unknown as Prisma.InputJsonValue, validUntil, status: "PENDING_REVIEW", verifiedAt: null, verifiedByActorId: null, reasonCode: null } });
       for (const item of evidence) await tx.legalAuthorityEvidence.create({ data: { relationId: id, ...item } });
       await tx.patientContextSession.deleteMany({ where: { relationId: id } });
       await this.audit.writeInTransaction(tx, { actorId: principal.accountId, action: "DEPENDENT_RELATION_CHANGED_REVIEW_REQUIRED", objectType: "DEPENDENT_RELATION", objectId: id, purpose: "PROXY_PATIENT_ACCESS", result: "SUCCESS", metadata: { patientId: row.dependentPatientId, relationId: id, scopeCount: scopes.length } });
@@ -243,7 +243,7 @@ export class DependentsService {
     if (!row || row.guardianAccountId !== principal.accountId) throw new NotFoundException("Dependent relationship not found.");
     if (row.status === "REVOKED") return { id: row.id, status: row.status };
     const updated = await this.prisma.$transaction(async (tx) => {
-      const current = await tx.dependentRelation.update({ where: { id }, data: { status: "REVOKED", revokedAt: new Date(), reasonCode: "REVOKED_BY_GUARDIAN" } });
+      const current = await tx.dependentRelation.update({ where: { id, guardianAccountId: principal.accountId }, data: { status: "REVOKED", revokedAt: new Date(), reasonCode: "REVOKED_BY_GUARDIAN" } });
       await tx.patientContextSession.deleteMany({ where: { relationId: id } });
       await this.audit.writeInTransaction(tx, { actorId: principal.accountId, action: "DEPENDENT_RELATION_REVOKED", objectType: "DEPENDENT_RELATION", objectId: id, purpose: "PROXY_PATIENT_ACCESS", result: "SUCCESS", metadata: { patientId: row.dependentPatientId, relationId: id } });
       return current;
