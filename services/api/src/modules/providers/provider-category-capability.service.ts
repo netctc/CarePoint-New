@@ -10,6 +10,7 @@ import {
 export type OtherProviderClinicalCapability =
   | "PRESCRIPTION"
   | "LABORATORY"
+  | "IMAGING"
   | "LAB_RESULT_ENTRY"
   | "LAB_RESULT_VALIDATE";
 
