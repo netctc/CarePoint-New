@@ -44,15 +44,43 @@ model ClinicalProfileEntryRevision {
 }
 
 model MedicationReconciliation {
-  id               String         @id @default(uuid())
-  patientId        String
-  providerId       String
-  entryIds         Json
-  status           String         @default("COMPLETED")
-  createdByActorId String
-  createdAt        DateTime       @default(now())
-  patient          PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  id                 String                         @id @default(uuid())
+  patientId          String
+  providerId         String
+  entryIds           Json
+  status             String                         @default("COMPLETED")
+  version            Int                            @default(1)
+  createdByActorId   String
+  algorithm          String?
+  keyId              String?
+  wrappedKey         String?
+  iv                 String?
+  ciphertext         String?
+  payloadDigest      String?
+  signatureAlgorithm String?
+  signatureKeyId     String?
+  signature          String?
+  signedAt           DateTime?
+  createdAt          DateTime                       @default(now())
+  patient            PatientProfile                 @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  items              MedicationReconciliationItem[]
 
   @@index([patientId, createdAt])
   @@index([providerId, createdAt])
+}
+
+model MedicationReconciliationItem {
+  id                   String                   @id @default(uuid())
+  reconciliationId     String
+  medicationEntryId    String?
+  prescriptionOrderId  String?
+  outcome              String
+  discrepancyState     String                   @default("NONE")
+  reasonCode           String?
+  createdAt            DateTime                 @default(now())
+  reconciliation       MedicationReconciliation @relation(fields: [reconciliationId], references: [id], onDelete: Cascade)
+
+  @@index([medicationEntryId, createdAt])
+  @@index([prescriptionOrderId, createdAt])
+  @@index([reconciliationId, createdAt])
 }
