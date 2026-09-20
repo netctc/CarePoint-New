@@ -4,6 +4,8 @@ import { CurrentPrincipal, RequirePermissions } from "../../security/api-securit
 import { CommunicationsModule } from "../communications/communications.module";
 import { ProviderCategoryCapabilityService } from "../providers/provider-category-capability.service";
 import { ProvidersModule } from "../providers/providers.module";
+import { ImagingOrdersController } from "./imaging-orders.controller";
+import { ImagingOrdersService } from "./imaging-orders.service";
 import { OrdersService } from "./orders.service";
 import { OrdersEnvelopeService } from "./orders-envelope.service";
 import { OrdersAttestationService } from "./orders-attestation.service";
@@ -95,8 +97,8 @@ class OrdersController {
 
 @Module({
   imports: [ProvidersModule, CommunicationsModule],
-  controllers: [OrdersController],
-  providers: [OrdersService, OrdersEnvelopeService, OrdersAttestationService, OrdersSystemExportService, PrescriptionNotificationService],
+  controllers: [OrdersController, ImagingOrdersController],
+  providers: [OrdersService, ImagingOrdersService, OrdersEnvelopeService, OrdersAttestationService, OrdersSystemExportService, PrescriptionNotificationService],
   exports: [OrdersService, OrdersSystemExportService],
 })
 export class OrdersModule {}
