@@ -127,7 +127,7 @@ export class PatientContextService {
     const context = await this.current(principal);
     if (context.mode === "SELF") return { patientId: context.patientId, mode: context.mode, relationId: null };
     const relation = await this.effectiveRelation(principal.accountId, context.patientId, requiredScope);
-    return { patientId: relation.dependentPatientId, mode: "DEPENDENT" as const, relationId: relation.id };
+    return { patientId: relation.dependentPatientId, mode: "DEPENDENDENT" as const, relationId: relation.id };
   }
 
   async effectiveRelation(guardianAccountId: string, patientId: string, requiredScope?: DependentAuthorityScope) {
@@ -223,7 +223,7 @@ export class DependentsService {
     if (!row || row.guardianAccountId !== principal.accountId) throw new NotFoundException("Dependent relationship not found.");
     if (row.status === "REVOKED") throw new ConflictException("Revoked dependent authority cannot be edited.");
     const relationshipType = input?.relationshipType === undefined ? row.relationshipType : normalizeRelationshipType(input.relationshipType);
-    const scopes = input?.scopes === undefined ? this.scopes(row.scopes) : normalizeAuthorityScopes(input.scopes);
+    const scopes = normalizeAuthorityScopes(input?.scopes ?? row.scopes);
     const validUntil = input?.validUntil === undefined ? row.validUntil : this.optionalFutureDate(input.validUntil, "validUntil");
     const evidence = input?.evidence === undefined ? [] : this.evidence(input.evidence);
     const updated = await this.prisma.$transaction(async (tx) => {
