@@ -16,6 +16,16 @@ extension CarePointSelfServiceApi on CarePointApi {
   }) async => _asMap(await _send('PATCH', '/iam/patient-profile', body: {
     'firstName': firstName.trim(), 'lastName': lastName.trim(), 'phone': phone.trim(), 'expectedUpdatedAt': expectedUpdatedAt,
   }));
+  Future<Map<String, dynamic>> patientAccessNeeds() async => _asMap(await _send('GET', '/patient/access-needs'));
+  Future<Map<String, dynamic>> updatePatientAccessNeeds({
+    required List<String> needs,
+    required int expectedVersion,
+    String? note,
+  }) async => _asMap(await _send('PATCH', '/patient/access-needs', body: {
+    'needs': needs,
+    'expectedVersion': expectedVersion,
+    'note': note?.trim(),
+  }));
   Future<List<Map<String, dynamic>>> patientConsents() async => _asList(await _send('GET', '/consents/me'));
   Future<Map<String, dynamic>> revokePatientConsent(String consentId) async => _asMap(await _send('POST', '/consents/${Uri.encodeComponent(consentId)}/revoke', body: const {}));
   Future<Map<String, dynamic>> regrantPatientConsent(String consentId) async => _asMap(await _send('POST', '/consents/${Uri.encodeComponent(consentId)}/regrant', body: const {}));
