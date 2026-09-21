@@ -8,6 +8,7 @@ part 'financial_api.dart';
 part 'transport_api.dart';
 part 'patient_self_service_api.dart';
 part 'clinical_documents_api.dart';
+part 'specimens_api.dart';
 
 class CarePointApiException implements Exception {
   const CarePointApiException(this.message, {this.statusCode, this.payload});
