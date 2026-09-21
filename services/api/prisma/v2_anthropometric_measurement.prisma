@@ -1,0 +1,19 @@
+model AnthropometricMeasurement {
+  id             String   @id @default(uuid())
+  idempotencyKey String
+  requestDigest  String
+  position       Int
+  patientId      String
+  providerId     String
+  appointmentId  String
+  observationId  String   @unique
+  metricCode     String
+  observedAt     DateTime
+  sourceType     String   @default("PROVIDER")
+  createdAt      DateTime @default(now())
+
+  @@unique([idempotencyKey, position])
+  @@index([patientId, metricCode, observedAt])
+  @@index([providerId, patientId, observedAt])
+  @@index([appointmentId, observedAt])
+}
