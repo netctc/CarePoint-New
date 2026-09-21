@@ -6,6 +6,7 @@ import { ExternalSecretsModule } from "./infrastructure/secrets/external-secrets
 import { SiemExportModule } from "./infrastructure/siem/siem-export.module";
 import { ApiSecurityModule } from "./security/api-security.module";
 import { AdminAnalyticsModule } from "./modules/admin-analytics/admin-analytics.module";
+import { AdminClinicalProfileSchemaModule } from "./modules/admin-clinical-profile-schema/admin-clinical-profile-schema.module";
 import { AdminFinanceModule } from "./modules/admin-finance/admin-finance.module";
 import { AdminOperationsModule } from "./modules/admin-operations/admin-operations.module";
 import { AdminReschedulingModule } from "./modules/admin-rescheduling/admin-rescheduling.module";
@@ -63,6 +64,7 @@ const isolatedSyntheticPilot = isolatedSyntheticPrivatePilotActive(process.env);
     ApiSecurityModule,
     HealthModule,
     AdminAnalyticsModule,
+    AdminClinicalProfileSchemaModule,
     ...(runtimeFeatures.payments ? [AdminFinanceModule] : []),
     AdminOperationsModule,
     AdminReschedulingModule,
