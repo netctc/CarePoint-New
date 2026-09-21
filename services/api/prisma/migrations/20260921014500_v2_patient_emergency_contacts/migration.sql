@@ -23,6 +23,10 @@ ON "EmergencyContact"("patientId", "status", "priority");
 CREATE INDEX "EmergencyContact_patientId_updatedAt_idx"
 ON "EmergencyContact"("patientId", "updatedAt");
 
+CREATE UNIQUE INDEX "EmergencyContact_patientId_active_priority_key"
+ON "EmergencyContact"("patientId", "priority")
+WHERE "status" = 'ACTIVE';
+
 ALTER TABLE "EmergencyContact"
 ADD CONSTRAINT "EmergencyContact_patientId_fkey"
 FOREIGN KEY ("patientId") REFERENCES "PatientProfile"("id")
@@ -30,4 +34,4 @@ ON DELETE CASCADE ON UPDATE CASCADE;
 
 ALTER TABLE "EmergencyContact"
 ADD CONSTRAINT "EmergencyContact_priority_positive_check"
-CHECK ("priority" >= 1 AND "priority" <= 100);
+CHECK ("priority" >= 1 AND "priority" <= 10);
