@@ -52,6 +52,7 @@ export class AvailabilityRequestsService {
     if (principal.role !== "PATIENT") throw new ForbiddenException("Patient access is required.");
     const parsed = availabilityInput(input);
     return this.serial(async (tx) => {
+      await this.audit.reserveIntegrityChainForSerializableTransaction(tx);
       const patient = await this.patient(tx, principal);
       await tx.$queryRaw(Prisma.sql`SELECT id FROM "PatientProfile" WHERE id = ${patient.id} FOR UPDATE`);
       const service = await tx.service.findUnique({ where: { id: parsed.serviceId }, include: { provider: true, modalities: true } });
@@ -86,6 +87,7 @@ export class AvailabilityRequestsService {
   }
   async withdraw(principal: AuthPrincipal, rawId: string) {
     return this.serial(async (tx) => {
+      await this.audit.reserveIntegrityChainForSerializableTransaction(tx);
       const entry = await this.owned(tx, principal, rawId, true);
       if (entry.status !== "WAITING") return this.present(entry);
       const changed = await tx.patientAvailabilityRequest.update({ where: { id: entry.id }, data: { status: entry.toAt.getTime() <= Date.now() ? "EXPIRED" : "WITHDRAWN", activeKey: null, closedAt: new Date() } });
