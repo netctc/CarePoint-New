@@ -9,6 +9,7 @@ typedef OtherProviderCapabilityBuilder = Widget Function(
   BuildContext context,
   Set<String> serviceModalities,
   Set<String> clinicalOrderCapabilities,
+  Set<String> workflowCapabilities,
 );
 
 class OtherProviderCapabilityScope extends StatefulWidget {
@@ -34,6 +35,7 @@ class _OtherProviderCapabilityScopeState extends State<OtherProviderCapabilitySc
   String? error;
   Set<String> serviceModalities = const {};
   Set<String> clinicalOrderCapabilities = const {};
+  Set<String> workflowCapabilities = const {};
 
   @override
   void initState() {
@@ -54,10 +56,12 @@ class _OtherProviderCapabilityScopeState extends State<OtherProviderCapabilitySc
       if (category.isEmpty) throw const CarePointApiException('Other Provider category capability context is unavailable.');
       final nextModalities = _stringSet(capabilities['enabledModalities']);
       final nextClinical = _stringSet(capabilities['clinicalOrderCapabilities']);
+      final nextWorkflow = _stringSet(capabilities['workflowCapabilities']);
       if (!mounted) return;
       setState(() {
         serviceModalities = nextModalities;
         clinicalOrderCapabilities = nextClinical;
+        workflowCapabilities = nextWorkflow;
       });
     } catch (value) {
       if (mounted) setState(() => error = value.toString());
@@ -83,7 +87,7 @@ class _OtherProviderCapabilityScopeState extends State<OtherProviderCapabilitySc
         ),
       );
     }
-    return widget.builder(context, serviceModalities, clinicalOrderCapabilities);
+    return widget.builder(context, serviceModalities, clinicalOrderCapabilities, workflowCapabilities);
   }
 }
 
