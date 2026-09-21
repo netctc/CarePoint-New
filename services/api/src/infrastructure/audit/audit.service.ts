@@ -68,7 +68,9 @@ export class DatabaseAuditService {
     metadata: Prisma.JsonValue | null;
     occurredAt: Date;
   }): Promise<void> {
-    await tx.$queryRaw`SELECT pg_advisory_xact_lock(8411, 51001)`;
+    // pg_advisory_xact_lock() returns PostgreSQL void. Use executeRaw so Prisma
+    // never attempts to deserialize the void result as a query row.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(8411, 51001)`;
     const previous = await tx.auditIntegrityRecord.findFirst({ orderBy: { sequence: "desc" } });
     const payloadHash = auditPayloadHash(event);
     const previousHash = previous?.eventHash ?? null;
