@@ -4,20 +4,32 @@ import 'package:carepoint_mobile_core/service_signature.dart';
 import 'package:flutter/material.dart';
 
 class ServiceConfirmationLauncher extends StatelessWidget {
-  const ServiceConfirmationLauncher({super.key, required this.session, required this.locale, required this.child, this.accent = const Color(0xFF10B981)});
+  const ServiceConfirmationLauncher({
+    super.key,
+    required this.session,
+    required this.locale,
+    required this.workflowCapabilities,
+    required this.child,
+    this.accent = const Color(0xFF10B981),
+  });
+
   final CarePointSession session;
   final CarePointLocale locale;
+  final Set<String> workflowCapabilities;
   final Widget child;
   final Color accent;
 
   @override
-  Widget build(BuildContext context) => Stack(children: [
-    child,
-    PositionedDirectional(end: 18, bottom: 316, child: FloatingActionButton.small(
-      heroTag: 'provider-service-confirmation', backgroundColor: accent, foregroundColor: Colors.white,
-      tooltip: serviceSignatureText(locale, 'title'), onPressed: () => _choose(context), child: const Icon(Icons.verified_outlined),
-    )),
-  ]);
+  Widget build(BuildContext context) {
+    if (!workflowCapabilities.contains('SERVICE_COMPLETION_CHECKLIST')) return child;
+    return Stack(children: [
+      child,
+      PositionedDirectional(end: 18, bottom: 316, child: FloatingActionButton.small(
+        heroTag: 'provider-service-confirmation', backgroundColor: accent, foregroundColor: Colors.white,
+        tooltip: serviceSignatureText(locale, 'title'), onPressed: () => _choose(context), child: const Icon(Icons.verified_outlined),
+      )),
+    ]);
+  }
 
   Future<void> _choose(BuildContext context) async {
     try {
