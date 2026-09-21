@@ -242,4 +242,60 @@ test("PRV-069 home exercise programmes reuse CareTask and patient-declared compl
   assert.match(patientEntry, /patient-home-exercise-entry/);
 });
 
-console.log("V2 provider workflow + PRV-065/066 specimen custody + PRV-067/068/069 physiotherapy acceptance passed");
+test("PRV-070 nutrition anthropometry normalizes units and preserves source evidence", () => {
+  const migration = readFileSync(
+    new URL("../prisma/migrations/20260921212500_v2_nutrition_anthropometry/migration.sql", import.meta.url),
+    "utf8",
+  );
+  assert.match(migration, /CREATE TABLE "AnthropometricMeasurement"/);
+  assert.match(migration, /sourceValue/);
+  assert.match(migration, /sourceUnit/);
+  assert.match(migration, /normalizedValue/);
+  assert.match(migration, /normalizedUnit/);
+  assert.match(migration, /AnthropometricMeasurement_append_only_trg/);
+  assert.match(migration, /BEFORE UPDATE OR DELETE/);
+  assert.match(migration, /REVOKE UPDATE, DELETE/);
+
+  const service = readFileSync(
+    new URL("../src/modules/nutrition/nutrition.module.ts", import.meta.url),
+    "utf8",
+  );
+  assert.match(service, /NUTRITION/);
+  assert.match(service, /0\.45359237/);
+  assert.match(service, /2\.54/);
+  assert.match(service, /unitsNormalized: true/);
+  assert.match(service, /preservesSourceUnit: true/);
+  assert.match(service, /origin: "PROVIDER_RECORDED"/);
+  assert.match(service, /measuredAt/);
+  assert.match(service, /requestDigest/);
+  assert.match(service, /automatedClinicalInference: false/);
+  assert.match(service, /NUTRITION_ANTHROPOMETRY_RECORDED/);
+
+  const catalog = readFileSync(
+    new URL("../src/modules/providers/providers.module.ts", import.meta.url),
+    "utf8",
+  );
+  assert.match(catalog, /NUTRITION/);
+
+  const mobile = readFileSync(
+    new URL("../../../packages/mobile_core/lib/nutrition.dart", import.meta.url),
+    "utf8",
+  );
+  assert.match(mobile, /Antropometría nutricional/);
+  assert.match(mobile, /WAIST_CIRCUMFERENCE/);
+  assert.match(mobile, /BODY_FAT_PERCENT/);
+  assert.match(mobile, /provider\/nutrition\/anthropometrics/);
+  assert.match(mobile, /'ar'/);
+  assert.match(mobile, /'fr'/);
+  assert.match(mobile, /'es'/);
+
+  const entry = readFileSync(
+    new URL("../../../apps/provider-mobile/lib/nutrition_entry.dart", import.meta.url),
+    "utf8",
+  );
+  assert.match(entry, /NUTRITION/);
+  assert.match(entry, /CONFIRMED/);
+  assert.match(entry, /COMPLETED/);
+});
+
+console.log("V2 provider workflow + PRV-065/066 specimen custody + PRV-067/068/069 physiotherapy + PRV-070 nutrition acceptance passed");

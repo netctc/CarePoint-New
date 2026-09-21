@@ -35,6 +35,7 @@ const ClinicalOrderCapabilities = [
   "LAB_RESULT_VALIDATE",
   "SPECIMEN_COLLECTION",
   "PHYSIOTHERAPY",
+  "NUTRITION",
 ] as const;
 
 @Injectable()

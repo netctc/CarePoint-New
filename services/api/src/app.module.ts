@@ -37,6 +37,7 @@ import { FhirModule } from "./modules/fhir/fhir.module";
 import { HealthModule } from "./modules/health/health.module";
 import { HealthProfileModule } from "./modules/health-profile/health-profile.module";
 import { IamModule } from "./modules/iam/iam.module";
+import { NutritionModule } from "./modules/nutrition/nutrition.module";
 import { PatientHealthSummaryModule } from "./modules/patient-health-summary/patient-health-summary.module";
 import { PatientProfileModule } from "./modules/patient-profile/patient-profile.module";
 import { PhysiotherapyModule } from "./modules/physiotherapy/physiotherapy.module";
@@ -88,6 +89,7 @@ const isolatedSyntheticPilot = isolatedSyntheticPrivatePilotActive(process.env);
     ProviderWorkflowModule,
     OtherProviderWorkspaceModule,
     PhysiotherapyModule,
+    NutritionModule,
     ...(emergencyAmbulanceModuleEnabled(process.env) ? [EmergencyModule] : []),
     TransportModule,
     IamModule,
