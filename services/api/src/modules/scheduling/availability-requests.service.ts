@@ -3,7 +3,7 @@ import { Prisma, type PatientAvailabilityRequest, type PatientAvailabilityNotice
 import type { AuthPrincipal } from "@carepoint/identity";
 import { PrismaService } from "../../infrastructure/prisma/prisma.module";
 import { DatabaseAuditService } from "../../infrastructure/audit/audit.service";
-import { journeyHash, journeyId } from "./patient-journeys.policy";
+import { journeyHash, journeyId, SCHEDULING_SERIALIZABLE_RETRY_ATTEMPTS, schedulingSerializableRetryBackoff } from "./patient-journeys.policy";
 import { AVAILABILITY_CONSENT_VERSION, availabilityInput, availabilityPage, availabilityRetryable } from "./availability-requests.policy";
 
 type OpenSlot = { id: string; startsAt: Date; endsAt: Date; capacity: number; bookedCount: number };
@@ -17,11 +17,12 @@ export class AvailabilityRequestsService {
     return patient;
   }
   private async serial<T>(work: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
-    for (let attempt = 0; attempt < 3; attempt++) {
+    for (let attempt = 0; attempt < SCHEDULING_SERIALIZABLE_RETRY_ATTEMPTS; attempt++) {
       try { return await this.prisma.$transaction(work, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }); }
       catch (error) {
         if (!availabilityRetryable(error)) throw error;
-        if (attempt === 2) throw new ConflictException("Concurrent availability change. Refresh and retry.");
+        if (attempt === SCHEDULING_SERIALIZABLE_RETRY_ATTEMPTS - 1) throw new ConflictException("Concurrent availability change. Refresh and retry.");
+        await schedulingSerializableRetryBackoff(attempt);
       }
     }
     throw new ConflictException("Availability is busy.");
