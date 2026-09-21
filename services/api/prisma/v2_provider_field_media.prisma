@@ -1,0 +1,16 @@
+model ProviderFieldMediaEvidence {
+  id                  String   @id @default(uuid())
+  clinicalMediaId     String   @unique
+  appointmentId       String
+  patientId           String
+  providerId          String
+  authorActorId       String
+  contentDigest       String
+  capturedAt          DateTime
+  retentionPolicyCode String
+  createdAt           DateTime @default(now())
+
+  @@index([appointmentId, capturedAt])
+  @@index([patientId, capturedAt])
+  @@index([providerId, capturedAt])
+}
