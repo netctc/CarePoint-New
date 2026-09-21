@@ -14,6 +14,7 @@ const nav = [
   ["06", "nav.telehealth", "/telehealth"],
   ["07", "nav.analytics", "/analytics"],
   ["08", "nav.security", "/security"],
+  ["09", "nav.patientWorkspaces", "/patients"],
 ] as const;
 
 const financeLabels: Record<Locale, string> = {
@@ -21,6 +22,13 @@ const financeLabels: Record<Locale, string> = {
   ar: "المالية ودورة الإيرادات",
   fr: "Finance & revenus",
   es: "Finanzas e ingresos",
+};
+
+const patientDirectoryLabels: Record<Locale, string> = {
+  en: "Patient Administration",
+  ar: "إدارة المرضى",
+  fr: "Administration patients",
+  es: "Administración de pacientes",
 };
 
 type Props = Readonly<{
@@ -42,7 +50,7 @@ export function AppShell({ active, titleKey, eyebrowKey, title, eyebrow, childre
       <div className="brand"><div className="brand-mark">C+</div><div><strong>CarePoint</strong><span>{t("shell.clinicalOperations")}</span></div><i className="live-dot" /></div>
       <div className="command">⌘ <span>{t("shell.globalCommand")}</span><kbd>⌘K</kbd></div>
       <div className="nav-label">{t("shell.systemModules")}</div>
-      <nav>{nav.map(([id, key, href]) => <Link key={id} className={`nav-item ${active === id ? "active" : ""}`} href={href}><small>{id}</small><span>{id === "05" ? financeLabels[locale] : t(key)}</span><b>{direction === "rtl" ? "‹" : "›"}</b></Link>)}</nav>
+      <nav>{nav.map(([id, key, href]) => <Link key={id} className={`nav-item ${active === id ? "active" : ""}`} href={href}><small>{id}</small><span>{id === "05" ? financeLabels[locale] : id === "09" ? patientDirectoryLabels[locale] : t(key)}</span><b>{direction === "rtl" ? "‹" : "›"}</b></Link>)}</nav>
       <div className="security-pill"><div><small>{t("shell.e2eeStatus")}</small><strong>{t("shell.shieldPolicy")}</strong></div><i /></div>
     </aside>
     <section className="workspace">
