@@ -35,7 +35,7 @@ class AdminPatientsService {
     private readonly audit: DatabaseAuditService,
   ) {}
 
-  async list(principal: AuthPrincipal, input: { q?: string; status?: string; limit?: string }) {
+  async list(principal: AuthPrincipal, input: { q?: string | undefined; status?: string | undefined; limit?: string | undefined }) {
     const q = this.optionalQuery(input.q);
     const status = this.optionalAccountStatus(input.status);
     const limit = this.limit(input.limit);
