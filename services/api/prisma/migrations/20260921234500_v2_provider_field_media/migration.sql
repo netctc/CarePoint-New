@@ -1,5 +1,7 @@
 CREATE TABLE "ProviderFieldMediaEvidence" (
   "id" TEXT NOT NULL,
+  "idempotencyKey" TEXT NOT NULL,
+  "requestDigest" TEXT NOT NULL,
   "clinicalMediaId" TEXT NOT NULL,
   "appointmentId" TEXT NOT NULL,
   "patientId" TEXT NOT NULL,
@@ -10,10 +12,12 @@ CREATE TABLE "ProviderFieldMediaEvidence" (
   "retentionPolicyCode" TEXT NOT NULL,
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT "ProviderFieldMediaEvidence_pkey" PRIMARY KEY ("id"),
+  CONSTRAINT "ProviderFieldMediaEvidence_request_digest_ck" CHECK ("requestDigest" ~ '^[0-9a-f]{64}$'),
   CONSTRAINT "ProviderFieldMediaEvidence_digest_ck" CHECK ("contentDigest" ~ '^[0-9a-f]{64}$'),
   CONSTRAINT "ProviderFieldMediaEvidence_retention_ck" CHECK ("retentionPolicyCode" = 'CLINICAL_MEDIA_GOVERNED_RETENTION')
 );
 
+CREATE UNIQUE INDEX "ProviderFieldMediaEvidence_idempotencyKey_key" ON "ProviderFieldMediaEvidence"("idempotencyKey");
 CREATE UNIQUE INDEX "ProviderFieldMediaEvidence_clinicalMediaId_key" ON "ProviderFieldMediaEvidence"("clinicalMediaId");
 CREATE INDEX "ProviderFieldMediaEvidence_appointmentId_capturedAt_idx" ON "ProviderFieldMediaEvidence"("appointmentId", "capturedAt");
 CREATE INDEX "ProviderFieldMediaEvidence_patientId_capturedAt_idx" ON "ProviderFieldMediaEvidence"("patientId", "capturedAt");
