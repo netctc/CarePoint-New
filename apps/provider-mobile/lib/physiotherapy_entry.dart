@@ -1,5 +1,6 @@
 import 'package:carepoint_mobile_core/carepoint_api.dart';
 import 'package:carepoint_mobile_core/carepoint_localization.dart';
+import 'package:carepoint_mobile_core/home_exercise.dart';
 import 'package:carepoint_mobile_core/physiotherapy.dart';
 import 'package:flutter/material.dart';
 
@@ -33,15 +34,27 @@ class PhysiotherapyCapabilityLauncher extends StatelessWidget {
             backgroundColor: accent,
             foregroundColor: Colors.white,
             tooltip: physioText(locale, 'title'),
-            onPressed: () => _chooseAppointment(context),
+            onPressed: () => _chooseAppointment(context, homeExercise: false),
             child: const Icon(Icons.accessibility_new_outlined),
+          ),
+        ),
+        PositionedDirectional(
+          end: 18,
+          bottom: 204,
+          child: FloatingActionButton.small(
+            heroTag: 'provider-home-exercise',
+            backgroundColor: accent,
+            foregroundColor: Colors.white,
+            tooltip: homeExerciseText(locale, 'providerTitle'),
+            onPressed: () => _chooseAppointment(context, homeExercise: true),
+            child: const Icon(Icons.fitness_center_outlined),
           ),
         ),
       ],
     );
   }
 
-  Future<void> _chooseAppointment(BuildContext context) async {
+  Future<void> _chooseAppointment(BuildContext context, {required bool homeExercise}) async {
     try {
       final now = DateTime.now();
       final values = await session.api.providerAppointments(
@@ -68,7 +81,7 @@ class PhysiotherapyCapabilityLauncher extends StatelessWidget {
               child: Column(
                 children: [
                   ListTile(
-                    title: Text(physioText(locale, 'title'), style: const TextStyle(fontWeight: FontWeight.w800)),
+                    title: Text(homeExercise ? homeExerciseText(locale, 'providerTitle') : physioText(locale, 'title'), style: const TextStyle(fontWeight: FontWeight.w800)),
                     trailing: IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close)),
                   ),
                   const Divider(height: 1),
@@ -105,7 +118,9 @@ class PhysiotherapyCapabilityLauncher extends StatelessWidget {
         MaterialPageRoute(
           builder: (_) => Directionality(
             textDirection: locale.textDirection,
-            child: PhysiotherapyWorkspacePage(session: session, locale: locale, appointment: selected),
+            child: homeExercise
+                ? ProviderHomeExercisePage(session: session, locale: locale, appointment: selected)
+                : PhysiotherapyWorkspacePage(session: session, locale: locale, appointment: selected),
           ),
         ),
       );
