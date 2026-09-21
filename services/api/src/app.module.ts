@@ -5,6 +5,7 @@ import { RedisSecurityModule } from "./infrastructure/redis/redis-security.modul
 import { ExternalSecretsModule } from "./infrastructure/secrets/external-secrets.module";
 import { SiemExportModule } from "./infrastructure/siem/siem-export.module";
 import { ApiSecurityModule } from "./security/api-security.module";
+import { AccessNeedsModule } from "./modules/access-needs/access-needs.module";
 import { AdminAnalyticsModule } from "./modules/admin-analytics/admin-analytics.module";
 import { AdminFinanceModule } from "./modules/admin-finance/admin-finance.module";
 import { AdminOperationsModule } from "./modules/admin-operations/admin-operations.module";
@@ -62,6 +63,7 @@ const isolatedSyntheticPilot = isolatedSyntheticPrivatePilotActive(process.env);
     SiemExportModule,
     ApiSecurityModule,
     HealthModule,
+    AccessNeedsModule,
     AdminAnalyticsModule,
     ...(runtimeFeatures.payments ? [AdminFinanceModule] : []),
     AdminOperationsModule,
