@@ -20,12 +20,14 @@ export class AuditIntegrityService {
 
   async status(principal: AuthPrincipal, rawLimit?: string) {
     const limit = this.limit(rawLimit);
-    const [policy, recentDescending] = await Promise.all([
+    const [policy, recentDescending, head] = await Promise.all([
       this.policy(),
       this.prisma.auditIntegrityRecord.findMany({ orderBy: { sequence: "desc" }, take: limit }),
+      this.prisma.auditIntegrityHead.findUnique({ where: { id: "default" } }),
     ]);
     const records = recentDescending.reverse();
     const firstRecord = records[0] ?? null;
+    const latestRecord = records.at(-1) ?? null;
     const ids = records.map((row) => row.auditEventId);
     const events = ids.length === 0
       ? []
@@ -57,10 +59,16 @@ export class AuditIntegrityService {
       expectedPreviousHash = record.eventHash;
     }
 
+    const headMismatchCount = latestRecord === null
+      ? (head?.lastAuditEventId || head?.lastEventHash ? 1 : 0)
+      : (!head
+          || head.lastAuditEventId !== latestRecord.auditEventId
+          || head.lastEventHash !== latestRecord.eventHash ? 1 : 0);
     const coverage = await this.coverageCounts(policy.createdAt);
     const healthy = payloadMismatchCount === 0
       && chainMismatchCount === 0
       && missingEventCount === 0
+      && headMismatchCount === 0
       && coverage.missingProtectedCount === 0;
 
     const result = {
@@ -70,12 +78,14 @@ export class AuditIntegrityService {
       payloadMismatchCount,
       chainMismatchCount,
       missingEventCount,
+      headMismatchCount,
       missingProtectedCount: coverage.missingProtectedCount,
       historicalUnchainedCount: coverage.historicalUnchainedCount,
       firstCheckedSequence: firstRecord?.sequence.toString() ?? null,
-      lastCheckedSequence: records.at(-1)?.sequence.toString() ?? null,
+      lastCheckedSequence: latestRecord?.sequence.toString() ?? null,
       integrityCoverageStartedAt: policy.createdAt.toISOString(),
       appendOnlyEnforced: true,
+      transactionalHeadEnforced: true,
     };
 
     await this.audit.write({
@@ -90,6 +100,7 @@ export class AuditIntegrityService {
         payloadMismatchCount,
         chainMismatchCount,
         missingEventCount,
+        headMismatchCount,
         missingProtectedCount: coverage.missingProtectedCount,
       },
     });
