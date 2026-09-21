@@ -22,8 +22,8 @@ export class DatabaseAuditService {
   constructor(private readonly prisma: PrismaService, private readonly siemOutbox: SiemAuditOutboxStoreService, private readonly siemWorker: SiemOutboxWorkerService) {}
 
   // Domain state, immutable audit, integrity chain and SIEM enqueue share the caller's commit.
-  // The advisory transaction lock serializes only the short integrity-chain append,
-  // preventing two concurrent events from claiming the same predecessor.
+  // A short advisory lock plus the singleton head row serialize only chain-head movement.
+  // Writers never scan the append-only integrity table, avoiding SERIALIZABLE range-read conflicts.
   async writeInTransaction(tx: Prisma.TransactionClient, input: AuditWrite): Promise<void> {
     const event = await tx.auditEvent.create({ data: {
       actorId: input.actorId ?? null, action: input.action, objectType: input.objectType,
@@ -68,12 +68,19 @@ export class DatabaseAuditService {
     metadata: Prisma.JsonValue | null;
     occurredAt: Date;
   }): Promise<void> {
-    // pg_advisory_xact_lock() returns PostgreSQL void. Use executeRaw so Prisma
-    // never attempts to deserialize the void result as a query row.
+    // pg_advisory_xact_lock() returns PostgreSQL void. executeRaw avoids void deserialization.
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(8411, 51001)`;
-    const previous = await tx.auditIntegrityRecord.findFirst({ orderBy: { sequence: "desc" } });
+    const heads = await tx.$queryRaw<Array<{ lastEventHash: string | null }>>`
+      SELECT "lastEventHash"
+      FROM "AuditIntegrityHead"
+      WHERE "id" = 'default'
+      FOR UPDATE
+    `;
+    const head = heads[0];
+    if (!head) throw new Error("Audit integrity head is not initialized.");
+
     const payloadHash = auditPayloadHash(event);
-    const previousHash = previous?.eventHash ?? null;
+    const previousHash = head.lastEventHash;
     const eventHash = auditChainHash(previousHash, payloadHash);
     await tx.auditIntegrityRecord.create({
       data: {
@@ -81,6 +88,13 @@ export class DatabaseAuditService {
         payloadHash,
         previousHash,
         eventHash,
+      },
+    });
+    await tx.auditIntegrityHead.update({
+      where: { id: "default" },
+      data: {
+        lastAuditEventId: event.id,
+        lastEventHash: eventHash,
       },
     });
   }
