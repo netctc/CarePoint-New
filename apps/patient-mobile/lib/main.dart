@@ -4,6 +4,7 @@ import 'package:carepoint_mobile_core/carepoint_localization.dart';
 import 'package:carepoint_mobile_core/clinical_localization.dart';
 import 'package:carepoint_mobile_core/financial_localization.dart';
 import 'package:carepoint_mobile_core/financial_workspace.dart';
+import 'package:carepoint_mobile_core/patient_access_needs.dart';
 import 'package:carepoint_mobile_core/patient_care_journeys.dart';
 import 'package:carepoint_mobile_core/care_visits.dart';
 import 'package:carepoint_mobile_core/care_journeys_localization.dart';
@@ -55,6 +56,13 @@ class _PatientShellState extends State<PatientShell> {
   }
   Future<void> openProfile() async { await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => PatientProfilePage(session: widget.session, locale: widget.locale))); }
   Future<void> openConsents() async { await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => PatientConsentLifecyclePage(session: widget.session, locale: widget.locale))); }
+  Future<void> openAccessNeeds() async { await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => PatientAccessNeedsPage(session: widget.session, locale: widget.locale))); }
+  Widget healthTab() => Column(children: [
+    Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 0), child: SizedBox(width: double.infinity, child: FilledButton.tonalIcon(
+      key: const ValueKey('patient-access-needs-entry'), onPressed: openAccessNeeds, icon: const Icon(Icons.accessible_forward_outlined), label: Text(patientAccessNeedsText(widget.locale, 'open')),
+    ))),
+    Expanded(child: PatientClinicalTimelinePage(session: widget.session, locale: widget.locale)),
+  ]);
   Widget accountTab() => Column(children: [
     Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 0), child: SizedBox(width: double.infinity, child: FilledButton.tonalIcon(
       key: const ValueKey('patient-edit-profile-entry'), onPressed: openProfile, icon: const Icon(Icons.edit_outlined), label: Text(patientProfileText(widget.locale, 'edit')),
@@ -78,7 +86,7 @@ class _PatientShellState extends State<PatientShell> {
         AvailabilityAlertEntryButton(session: widget.session, locale: widget.locale, onOpen: (requestId) => openAvailability(requestId: requestId)),
       ]))),
       CareVisitsPage(key: ValueKey(visitsVersion), session: widget.session, locale: widget.locale),
-      PatientClinicalTimelinePage(session: widget.session, locale: widget.locale),
+      healthTab(),
       PatientFinancialWorkspace(key: ValueKey('finance-$visitsVersion'), session: widget.session, locale: widget.locale),
       accountTab(),
     ]),
