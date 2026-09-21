@@ -17,7 +17,7 @@ CREATE TABLE "PhysioAssessment" (
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT "PhysioAssessment_pkey" PRIMARY KEY ("id"),
   CONSTRAINT "PhysioAssessment_scale_ck" CHECK ("scaleCode" ~ '^[A-Z][A-Z0-9_]{2,79}$'),
-  CONSTRAINT "PhysioAssessment_score_ck" CHECK (isfinite("score") AND ("scoreMaximum" IS NULL OR (isfinite("scoreMaximum") AND "scoreMaximum" > 0))),
+  CONSTRAINT "PhysioAssessment_score_ck" CHECK ("score" BETWEEN -10000 AND 10000 AND ("scoreMaximum" IS NULL OR "scoreMaximum" > 0 AND "scoreMaximum" <= 10000)),
   CONSTRAINT "PhysioAssessment_pain_ck" CHECK ("painScore" IS NULL OR "painScore" BETWEEN 0 AND 10),
   CONSTRAINT "PhysioAssessment_sequence_ck" CHECK ("sequence" > 0),
   CONSTRAINT "PhysioAssessment_source_version_ck" CHECK ("sourceFormVersion" > 0 AND "sourceResponseSequence" > 0)
@@ -45,7 +45,7 @@ CREATE TABLE "RangeOfMotionObservation" (
   CONSTRAINT "RangeOfMotionObservation_joint_ck" CHECK ("jointCode" ~ '^[A-Z][A-Z0-9_]{1,79}$'),
   CONSTRAINT "RangeOfMotionObservation_movement_ck" CHECK ("movementCode" ~ '^[A-Z][A-Z0-9_]{1,79}$'),
   CONSTRAINT "RangeOfMotionObservation_side_ck" CHECK ("side" IN ('LEFT','RIGHT','BILATERAL','MIDLINE')),
-  CONSTRAINT "RangeOfMotionObservation_degrees_ck" CHECK (isfinite("degrees") AND "degrees" BETWEEN -360 AND 360)
+  CONSTRAINT "RangeOfMotionObservation_degrees_ck" CHECK ("degrees" BETWEEN -360 AND 360)
 );
 
 CREATE UNIQUE INDEX "RangeOfMotionObservation_idempotencyKey_key" ON "RangeOfMotionObservation"("idempotencyKey");
