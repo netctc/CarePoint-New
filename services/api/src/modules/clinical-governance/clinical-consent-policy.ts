@@ -75,6 +75,15 @@ export const ClinicalConsentPolicies: readonly ClinicalConsentPolicy[] = [
     eligibleRoles: ["DOCTOR"],
     temporaryShareable: false,
   },
+  {
+    scopePattern: "CLINICAL_MEDIA_CAPTURE",
+    version: "clinical-media-v1",
+    resource: "CLINICAL_MEDIA",
+    access: "WRITE",
+    allowedPurposes: ["TREATMENT"],
+    eligibleRoles: ["DOCTOR", "OTHER_PROVIDER"],
+    temporaryShareable: false,
+  },
 ] as const;
 
 const SCOPE_TOKEN = /^[A-Z][A-Z0-9_:-]{2,127}$/;
@@ -140,7 +149,6 @@ export function normalizeScope(scope: string): string {
   return normalized;
 }
 
-
 export function validateClinicalConsentGrantContract(input: {
   scope: string;
   version: string;
@@ -156,7 +164,8 @@ export function validateClinicalConsentGrantContract(input: {
     candidate === "OBSERVATION_READ" ||
     candidate.startsWith("OBSERVATION_READ:") ||
     candidate === "CLINICAL_PROFILE_READ" ||
-    candidate === "CLINICAL_PROFILE_WRITE";
+    candidate === "CLINICAL_PROFILE_WRITE" ||
+    candidate === "CLINICAL_MEDIA_CAPTURE";
 
   if (!isV2ClinicalScope) {
     return {

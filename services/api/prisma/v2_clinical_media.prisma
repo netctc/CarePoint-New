@@ -1,0 +1,81 @@
+enum ClinicalMediaStatus {
+  AVAILABLE
+  REMOVED
+}
+
+enum ClinicalMediaAccessVariant {
+  ORIGINAL
+  THUMBNAIL
+}
+
+model ConsentEvidence {
+  id             String   @id @default(uuid())
+  consentId      String
+  patientId      String
+  providerId     String?
+  scope          String
+  version        String
+  purpose        String
+  consentState   String
+  grantedAt      DateTime
+  expiresAt      DateTime?
+  evidenceHash   String
+  capturedAt     DateTime @default(now())
+
+  @@index([patientId, capturedAt])
+  @@index([providerId, capturedAt])
+  @@index([consentId])
+}
+
+model ClinicalMedia {
+  id                         String              @id @default(uuid())
+  patientId                  String
+  providerId                 String?
+  consentEvidenceId          String              @unique
+  purpose                    String
+  status                     ClinicalMediaStatus @default(AVAILABLE)
+  mediaType                  String
+  byteLength                 Int
+  contentDigest              String
+  storageProvider            String
+  objectKey                  String              @unique
+  blobAlgorithm              String
+  blobKeyId                  String
+  blobWrappedKey             String
+  blobIv                     String
+  metadataAlgorithm          String
+  metadataKeyId              String
+  metadataWrappedKey         String
+  metadataIv                 String
+  metadataCiphertext         String
+  thumbnailObjectKey         String?             @unique
+  thumbnailMediaType         String?
+  thumbnailByteLength        Int?
+  thumbnailContentDigest     String?
+  thumbnailBlobAlgorithm     String?
+  thumbnailBlobKeyId         String?
+  thumbnailBlobWrappedKey    String?
+  thumbnailBlobIv            String?
+  createdByAccountId         String
+  createdAt                  DateTime            @default(now())
+  updatedAt                  DateTime            @updatedAt
+  removedAt                  DateTime?
+
+  @@index([patientId, status, createdAt])
+  @@index([providerId, status, createdAt])
+  @@index([purpose, createdAt])
+}
+
+model ClinicalMediaAccessGrant {
+  id         String                     @id @default(uuid())
+  tokenHash  String                     @unique
+  mediaId    String
+  accountId  String
+  variant    ClinicalMediaAccessVariant @default(ORIGINAL)
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime                   @default(now())
+
+  @@index([mediaId, accountId, expiresAt])
+  @@index([expiresAt, consumedAt])
+}
