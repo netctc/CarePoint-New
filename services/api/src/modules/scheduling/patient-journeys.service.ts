@@ -237,7 +237,7 @@ export class PatientJourneysService {
     const id = journeyId(rawId, "appointmentId");
     if (reason != null && (typeof reason !== "string" || reason.trim().length > 500)) throw new BadRequestException("Cancellation reason is invalid.");
     return this.serial(async (tx) => {
-      const current = await tx.appointment.findUnique({ where: { id }, include: { patient: { select: { userId: true } } });
+      const current = await tx.appointment.findUnique({ where: { id }, include: { patient: { select: { userId: true } } } });
       if (!current) throw new NotFoundException("Appointment not found.");
       if (current.patient.userId !== principal.accountId && !roleHasPermission(principal.role, "APPOINTMENT_OPERATE")) throw new ForbiddenException("Appointment access denied.");
       await this.lock(tx, id);
