@@ -86,7 +86,9 @@ export async function state(f) {
 }
 export function failingJourneys() {
   return new PatientJourneysService(db, {
-    async reserveIntegrityChainForSerializableTransaction() {},
+    async reserveIntegrityChainForSerializableTransaction(tx) {
+      await audit.reserveIntegrityChainForSerializableTransaction(tx);
+    },
     async writeInTransaction(tx, input) {
       await audit.writeInTransaction(tx, input);
       throw new Error('SYNTHETIC_ROLLBACK_AFTER_AUDIT');
