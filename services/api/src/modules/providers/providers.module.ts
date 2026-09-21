@@ -27,7 +27,7 @@ interface UpdateOtherProviderCapabilitiesInput {
   workflowCapabilities?: string[];
 }
 
-const ClinicalOrderCapabilities = ["PRESCRIPTION", "LABORATORY", "IMAGING", "LAB_RESULT_ENTRY", "LAB_RESULT_VALIDATE"] as const;
+const ClinicalOrderCapabilities = ["PRESCRIPTION", "LABORATORY", "IMAGING", "LAB_RESULT_ENTRY", "LAB_RESULT_VALIDATE", "NUTRITION"] as const;
 
 @Injectable()
 class ProviderCatalogService {
