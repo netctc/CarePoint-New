@@ -44,7 +44,7 @@ function isLikelyText(data: Buffer): boolean {
   const decoded = data.toString("utf8");
   if (decoded.includes("\uFFFD") || decoded.includes("\u0000")) return false;
   for (let index = 0; index < data.length; index += 1) {
-    const byte = data[index];
+    const byte = data[index]!;
     if (byte < 0x20 && byte !== 0x09 && byte !== 0x0a && byte !== 0x0d) return false;
   }
   return true;
