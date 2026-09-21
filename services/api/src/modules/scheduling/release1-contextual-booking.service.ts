@@ -34,6 +34,7 @@ export class Release1ContextualBookingService {
     for (let attempt = 1; attempt <= BOOKING_RETRIES; attempt += 1) {
       try {
         const result = await this.prisma.$transaction(async (tx) => {
+          if (input.availabilityRequestId != null) await this.audit.reserveIntegrityChainForSerializableTransaction(tx);
           const duplicate = await tx.appointment.findUnique({ where: { idempotencyKey } });
           if (duplicate) {
             if (duplicate.patientId !== patient.id) throw new ConflictException("idempotencyKey is already in use.");
