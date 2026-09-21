@@ -1,0 +1,27 @@
+enum ClinicalProfileSchemaStatus {
+  DRAFT
+  ACTIVE
+  RETIRED
+}
+
+model ClinicalProfileSchema {
+  id                   String                      @id @default(cuid())
+  jurisdiction         String
+  version              Int
+  status               ClinicalProfileSchemaStatus @default(DRAFT)
+  definition           Json
+  definitionHash       String
+  validationErrors     Json?
+  validatedAt          DateTime?
+  publishedAt          DateTime?
+  retiredAt            DateTime?
+  supersedesSchemaId   String?
+  createdByAccountId   String
+  updatedByAccountId   String?
+  createdAt            DateTime                    @default(now())
+  updatedAt            DateTime                    @updatedAt
+
+  @@unique([jurisdiction, version])
+  @@index([jurisdiction, status])
+  @@index([status, updatedAt])
+}
