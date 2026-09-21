@@ -25,8 +25,17 @@ const SAFE_ID = /^[A-Za-z0-9_.:-]{1,180}$/;
 const IDEMPOTENCY = /^[A-Za-z0-9_.:-]{8,128}$/;
 const RETENTION_POLICY = "CLINICAL_MEDIA_GOVERNED_RETENTION";
 const PHOTO_TYPES = new Set(["image/jpeg", "image/png"]);
+const CAPTURE_SCOPE = "CLINICAL_MEDIA_CAPTURE";
+const CAPTURE_VERSION = "clinical-media-v1";
+const CAPTURE_PURPOSE = "TREATMENT";
 
 type JsonObject = Record<string, unknown>;
+
+type EffectiveCaptureConsent = {
+  id: string;
+  grantedAt: Date;
+  expiresAt: Date | null;
+};
 
 @Injectable()
 class ProviderFieldMediaService {
@@ -51,9 +60,30 @@ class ProviderFieldMediaService {
     });
     if (!appointment) throw new ForbiddenException("Assigned HOME_VISIT appointment is required for field media capture.");
 
+    const consent = await this.findEffectiveCaptureConsent(appointment.patientId, context.providerId);
+    if (!consent) {
+      await this.audit.writeClinical({
+        actorId: principal.accountId,
+        action: "PROVIDER_FIELD_MEDIA_CAPTURE_DENIED",
+        objectType: "APPOINTMENT",
+        objectId: appointment.id,
+        purpose: CAPTURE_PURPOSE,
+        result: "DENIED",
+        metadata: {
+          domain: "OTHER_PROVIDER_WORKFLOW",
+          providerId: context.providerId,
+          patientId: appointment.patientId,
+          appointmentId: appointment.id,
+          reason: "ACTIVE_CLINICAL_MEDIA_CONSENT_REQUIRED",
+          decision: "DENY",
+        },
+      });
+      throw new ForbiddenException("Active patient consent for clinical media capture is required.");
+    }
+
     const idempotencyKey = this.idempotencyKey(input.idempotencyKey);
     const mediaType = this.photoType(input.mediaType);
-    const consentId = this.requiredId(input.consentId, "consentId");
+    const consentId = consent.id;
     const contentBase64 = this.requiredBase64(input.contentBase64);
     const capturedAt = this.capturedAt(input.capturedAt);
     const metadata = this.metadata(input.metadata, appointment.id, capturedAt);
@@ -78,7 +108,7 @@ class ProviderFieldMediaService {
 
     const createdMedia = await this.media.providerCreate(principal, appointment.patientId, {
       consentId,
-      purpose: "TREATMENT",
+      purpose: CAPTURE_PURPOSE,
       mediaType,
       contentBase64,
       metadata,
@@ -112,7 +142,7 @@ class ProviderFieldMediaService {
         action: "PROVIDER_FIELD_MEDIA_EVIDENCE_LINKED",
         objectType: "CLINICAL_MEDIA",
         objectId: stored.id,
-        purpose: "TREATMENT",
+        purpose: CAPTURE_PURPOSE,
         result: "SUCCESS",
         metadata: {
           domain: "OTHER_PROVIDER_WORKFLOW",
@@ -130,6 +160,53 @@ class ProviderFieldMediaService {
     });
 
     return this.presentEvidence(evidence, createdMedia);
+  }
+
+  async consentStatus(principal: AuthPrincipal, appointmentIdRaw: string) {
+    const context = await this.capabilities.assertWorkflowCapability(principal, "MEDIA_CAPTURE");
+    const appointmentId = this.requiredId(appointmentIdRaw, "appointmentId");
+    const appointment = await this.prisma.appointment.findFirst({
+      where: {
+        id: appointmentId,
+        providerId: context.providerId,
+        modality: "HOME_VISIT",
+        status: { in: ["CONFIRMED", "COMPLETED"] },
+      },
+      select: { id: true, patientId: true, providerId: true, status: true },
+    });
+    if (!appointment) throw new ForbiddenException("Assigned HOME_VISIT appointment is required for field media capture.");
+    const consent = await this.findEffectiveCaptureConsent(appointment.patientId, context.providerId);
+    await this.audit.writeClinical({
+      actorId: principal.accountId,
+      action: "PROVIDER_FIELD_MEDIA_CONSENT_PREFLIGHT_READ",
+      objectType: "APPOINTMENT",
+      objectId: appointment.id,
+      purpose: CAPTURE_PURPOSE,
+      result: "SUCCESS",
+      metadata: {
+        domain: "OTHER_PROVIDER_WORKFLOW",
+        providerId: context.providerId,
+        patientId: appointment.patientId,
+        appointmentId: appointment.id,
+        consentAvailable: Boolean(consent),
+        decision: consent ? "ALLOW" : "DENY",
+      },
+    });
+    return {
+      appointmentId: appointment.id,
+      patientId: appointment.patientId,
+      providerId: context.providerId,
+      scope: CAPTURE_SCOPE,
+      version: CAPTURE_VERSION,
+      purpose: CAPTURE_PURPOSE,
+      consentRequired: true,
+      consentAvailable: Boolean(consent),
+      captureAllowed: Boolean(consent),
+      patientMustGrantConsent: !consent,
+      consentId: consent?.id ?? null,
+      grantedAt: consent?.grantedAt ?? null,
+      expiresAt: consent?.expiresAt ?? null,
+    };
   }
 
   async list(principal: AuthPrincipal, appointmentIdRaw: string) {
@@ -155,7 +232,7 @@ class ProviderFieldMediaService {
       action: "PROVIDER_FIELD_MEDIA_HISTORY_READ",
       objectType: "APPOINTMENT",
       objectId: appointment.id,
-      purpose: "TREATMENT",
+      purpose: CAPTURE_PURPOSE,
       result: "SUCCESS",
       metadata: {
         domain: "OTHER_PROVIDER_WORKFLOW",
@@ -167,6 +244,23 @@ class ProviderFieldMediaService {
       },
     });
     return { appointmentId, patientId: appointment.patientId, items, retentionPolicyCode: RETENTION_POLICY };
+  }
+
+  private async findEffectiveCaptureConsent(patientId: string, providerId: string): Promise<EffectiveCaptureConsent | null> {
+    const now = new Date();
+    return this.prisma.consent.findFirst({
+      where: {
+        patientId,
+        providerId,
+        scope: CAPTURE_SCOPE,
+        version: CAPTURE_VERSION,
+        purpose: CAPTURE_PURPOSE,
+        state: "GRANTED",
+        OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+      },
+      orderBy: { grantedAt: "desc" },
+      select: { id: true, grantedAt: true, expiresAt: true },
+    });
   }
 
   private async findVisibleMedia(principal: AuthPrincipal, patientId: string, mediaId: string): Promise<JsonObject> {
@@ -263,6 +357,13 @@ class ProviderFieldMediaController {
     @Body() body: JsonObject,
   ) {
     return this.fieldMedia.create(principal, appointmentId, body);
+  }
+
+  @RequirePermissions("OTHER_PROVIDER_CLINICAL_WORKSPACE")
+  @Get("consent")
+  @Header("Cache-Control", "no-store")
+  consentStatus(@CurrentPrincipal() principal: AuthPrincipal, @Param("appointmentId") appointmentId: string) {
+    return this.fieldMedia.consentStatus(principal, appointmentId);
   }
 
   @RequirePermissions("OTHER_PROVIDER_CLINICAL_WORKSPACE")
