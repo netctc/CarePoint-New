@@ -2,6 +2,7 @@ import 'package:carepoint_mobile_core/carepoint_auth.dart';
 import 'package:carepoint_mobile_core/carepoint_localization.dart';
 import 'package:carepoint_mobile_core/care_provider_actions.dart';
 import 'package:flutter/material.dart';
+import 'follow_up_entry.dart';
 import 'nutrition_entry.dart';
 import 'physiotherapy_entry.dart';
 import 'provider_access.dart';
@@ -26,22 +27,27 @@ class _ProviderAppState extends State<ProviderApp> {
           activeBuilder: (_) => OtherProviderCapabilityScope(session: session, locale: locale, accent: const Color(0xFF10B981),
             builder: (_, serviceModalities, clinicalOrderCapabilities, workflowCapabilities) => CareProviderActions(session: session, locale: locale, onSignOut: signOut, accent: const Color(0xFF10B981), transport: true,
               allowedModalities: serviceModalities.toList(),
-              child: ServiceConfirmationLauncher(
+              child: ProviderFollowUpLauncher(
                 session: session,
                 locale: locale,
-                workflowCapabilities: workflowCapabilities,
                 accent: const Color(0xFF10B981),
-                child: NutritionCapabilityLauncher(
+                child: ServiceConfirmationLauncher(
                   session: session,
                   locale: locale,
-                  clinicalOrderCapabilities: clinicalOrderCapabilities,
+                  workflowCapabilities: workflowCapabilities,
                   accent: const Color(0xFF10B981),
-                  child: PhysiotherapyCapabilityLauncher(
+                  child: NutritionCapabilityLauncher(
                     session: session,
                     locale: locale,
                     clinicalOrderCapabilities: clinicalOrderCapabilities,
                     accent: const Color(0xFF10B981),
-                    child: CapabilityAwareProviderWorkspaceWithRevenueCycle(session: session, locale: locale, title: cpText(locale, 'provider.title'), accent: const Color(0xFF10B981), onSignOut: signOut, allowedServiceModalities: serviceModalities, clinicalOrderCapabilities: clinicalOrderCapabilities),
+                    child: PhysiotherapyCapabilityLauncher(
+                      session: session,
+                      locale: locale,
+                      clinicalOrderCapabilities: clinicalOrderCapabilities,
+                      accent: const Color(0xFF10B981),
+                      child: CapabilityAwareProviderWorkspaceWithRevenueCycle(session: session, locale: locale, title: cpText(locale, 'provider.title'), accent: const Color(0xFF10B981), onSignOut: signOut, allowedServiceModalities: serviceModalities, clinicalOrderCapabilities: clinicalOrderCapabilities),
+                    ),
                   ),
                 ),
               ),
