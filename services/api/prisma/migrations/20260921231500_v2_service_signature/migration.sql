@@ -5,6 +5,9 @@ CREATE TABLE "ServiceSignature" (
   "patientId" TEXT NOT NULL,
   "providerId" TEXT NOT NULL,
   "appointmentId" TEXT NOT NULL,
+  "completionEventId" TEXT NOT NULL,
+  "formResponseId" TEXT NOT NULL,
+  "formResponseSequence" INTEGER NOT NULL,
   "signerType" TEXT NOT NULL,
   "confirmationMethod" TEXT NOT NULL,
   "serviceSummaryDigest" TEXT NOT NULL,
@@ -19,18 +22,23 @@ CREATE TABLE "ServiceSignature" (
   CONSTRAINT "ServiceSignature_pkey" PRIMARY KEY ("id"),
   CONSTRAINT "ServiceSignature_signer_type_ck" CHECK ("signerType" IN ('PATIENT','REPRESENTATIVE')),
   CONSTRAINT "ServiceSignature_confirmation_method_ck" CHECK ("confirmationMethod" IN ('TYPED_CONFIRMATION','DRAWN_SIGNATURE')),
+  CONSTRAINT "ServiceSignature_form_response_sequence_ck" CHECK ("formResponseSequence" >= 1),
   CONSTRAINT "ServiceSignature_service_summary_digest_ck" CHECK ("serviceSummaryDigest" ~ '^[a-f0-9]{64}$'),
   CONSTRAINT "ServiceSignature_appointment_digest_ck" CHECK ("appointmentDigest" ~ '^[a-f0-9]{64}$')
 );
 
 CREATE UNIQUE INDEX "ServiceSignature_idempotencyKey_key" ON "ServiceSignature"("idempotencyKey");
 CREATE INDEX "ServiceSignature_appointmentId_createdAt_idx" ON "ServiceSignature"("appointmentId", "createdAt");
+CREATE INDEX "ServiceSignature_completionEventId_idx" ON "ServiceSignature"("completionEventId");
+CREATE INDEX "ServiceSignature_formResponseId_idx" ON "ServiceSignature"("formResponseId");
 CREATE INDEX "ServiceSignature_patientId_createdAt_idx" ON "ServiceSignature"("patientId", "createdAt");
 CREATE INDEX "ServiceSignature_providerId_patientId_createdAt_idx" ON "ServiceSignature"("providerId", "patientId", "createdAt");
 
 ALTER TABLE "ServiceSignature" ADD CONSTRAINT "ServiceSignature_patientId_fkey" FOREIGN KEY ("patientId") REFERENCES "PatientProfile"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE "ServiceSignature" ADD CONSTRAINT "ServiceSignature_providerId_fkey" FOREIGN KEY ("providerId") REFERENCES "Provider"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE "ServiceSignature" ADD CONSTRAINT "ServiceSignature_appointmentId_fkey" FOREIGN KEY ("appointmentId") REFERENCES "Appointment"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "ServiceSignature" ADD CONSTRAINT "ServiceSignature_completionEventId_fkey" FOREIGN KEY ("completionEventId") REFERENCES "ProviderWorkflowEvent"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "ServiceSignature" ADD CONSTRAINT "ServiceSignature_formResponseId_fkey" FOREIGN KEY ("formResponseId") REFERENCES "ProviderCategoryFormResponse"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 CREATE OR REPLACE FUNCTION carepoint_reject_service_signature_mutation()
 RETURNS trigger LANGUAGE plpgsql AS $$
