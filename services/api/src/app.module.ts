@@ -48,6 +48,7 @@ import { OnboardingModule } from "./modules/onboarding/onboarding.module";
 import { ObservationModule } from "./modules/observation/observation.module";
 import { OrdersModule } from "./modules/orders/orders.module";
 import { OtherProviderWorkspaceModule } from "./modules/other-provider-workspace/other-provider-workspace.module";
+import { ProviderFollowUpModule } from "./modules/provider-follow-up/provider-follow-up.module";
 import { ProvidersModule } from "./modules/providers/providers.module";
 import { ProviderCategoryFormsModule } from "./modules/provider-category-forms/provider-category-forms.module";
 import { ProviderWorkflowModule } from "./modules/provider-workflow/provider-workflow.module";
@@ -89,6 +90,7 @@ const isolatedSyntheticPilot = isolatedSyntheticPrivatePilotActive(process.env);
     ProvidersModule,
     ProviderCategoryFormsModule,
     ProviderWorkflowModule,
+    ProviderFollowUpModule,
     ProviderFieldMediaModule,
     OtherProviderWorkspaceModule,
     PhysiotherapyModule,
