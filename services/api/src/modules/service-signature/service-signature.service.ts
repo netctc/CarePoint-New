@@ -53,10 +53,42 @@ export class ServiceSignatureService {
         startsAt: true,
         endsAt: true,
         status: true,
-        service: { select: { id: true, labels: true } },
       },
     });
     if (!appointment) throw new NotFoundException("Assigned service appointment not found.");
+
+    const completionEvent = await this.prisma.providerWorkflowEvent.findFirst({
+      where: {
+        providerId: context.providerId,
+        patientId: appointment.patientId,
+        contextType: "APPOINTMENT",
+        contextId: appointment.id,
+        eventType: "SERVICE_COMPLETION_CHECKLIST_CONFIRMED",
+      },
+      orderBy: { occurredAt: "desc" },
+      select: { id: true, evidence: true, occurredAt: true },
+    });
+    if (!completionEvent) {
+      throw new ConflictException("Service completion checklist must be confirmed before receipt confirmation.");
+    }
+    const completionEvidence = this.objectValue(completionEvent.evidence);
+    const formResponseId = this.requiredId(completionEvidence.formResponseId, "completion.formResponseId");
+    const formResponseSequence = this.positiveInteger(completionEvidence.formResponseSequence, "completion.formResponseSequence");
+    const matchingResponse = await this.prisma.providerCategoryFormResponse.findFirst({
+      where: {
+        id: formResponseId,
+        sequence: formResponseSequence,
+        providerId: context.providerId,
+        patientId: appointment.patientId,
+        contextType: "APPOINTMENT",
+        contextId: appointment.id,
+        form: { categoryId: context.categoryId, purpose: "SERVICE_COMPLETION" },
+      },
+      select: { id: true, sequence: true },
+    });
+    if (!matchingResponse) {
+      throw new ConflictException("Service completion evidence no longer matches the signed service context.");
+    }
 
     const idempotencyKey = this.idempotencyKey(input?.idempotencyKey);
     const signerType = this.enumValue(input?.signerType, SIGNER_TYPES, "signerType");
@@ -84,6 +116,12 @@ export class ServiceSignatureService {
       endsAt: appointment.endsAt.toISOString(),
       status: appointment.status,
     });
+    const completionEvidenceDigest = this.digest({
+      completionEventId: completionEvent.id,
+      formResponseId,
+      formResponseSequence,
+      occurredAt: completionEvent.occurredAt.toISOString(),
+    });
     const payload = {
       schemaVersion: 1,
       kind: "SERVICE_RECEIPT_CONFIRMATION",
@@ -94,6 +132,10 @@ export class ServiceSignatureService {
       serviceSummary,
       serviceSummaryDigest,
       appointmentDigest,
+      completionEventId: completionEvent.id,
+      completionEvidenceDigest,
+      formResponseId,
+      formResponseSequence,
       drawnSignatureData,
       confirmedAt: confirmedAt.toISOString(),
       acknowledgesServiceReceipt: true,
@@ -118,6 +160,9 @@ export class ServiceSignatureService {
             patientId: appointment.patientId,
             providerId: context.providerId,
             appointmentId: appointment.id,
+            completionEventId: completionEvent.id,
+            formResponseId,
+            formResponseSequence,
             signerType,
             confirmationMethod,
             serviceSummaryDigest,
@@ -138,6 +183,10 @@ export class ServiceSignatureService {
             providerId: context.providerId,
             patientId: appointment.patientId,
             appointmentId: appointment.id,
+            resourceId: created.id,
+            completionEventId: completionEvent.id,
+            formResponseId,
+            formResponseSequence,
             signerType,
             confirmationMethod,
             serviceSummaryDigest,
@@ -170,7 +219,23 @@ export class ServiceSignatureService {
     const rows = await this.prisma.serviceSignature.findMany({ where: { appointmentId }, orderBy: { confirmedAt: "desc" }, take: 20 });
     const items = [];
     for (const row of rows) items.push(this.present(row, await this.decrypt(row)));
-    return { appointmentId, items, appendOnly: true };
+    await this.audit.writeClinical({
+      actorId: principal.accountId,
+      action: "SERVICE_RECEIPT_CONFIRMATION_HISTORY_READ",
+      objectType: "APPOINTMENT",
+      objectId: appointment.id,
+      purpose: "TREATMENT",
+      result: "SUCCESS",
+      metadata: {
+        domain: "OTHER_PROVIDER_WORKFLOW",
+        providerId: context.providerId,
+        patientId: appointment.patientId,
+        appointmentId: appointment.id,
+        itemCount: items.length,
+        decision: "ALLOW",
+      },
+    });
+    return { appointmentId, items, appendOnly: true, replacesClinicalConsent: false };
   }
 
   private present(row: any, payload: Record<string, unknown>) {
@@ -179,6 +244,9 @@ export class ServiceSignatureService {
       patientId: row.patientId,
       providerId: row.providerId,
       appointmentId: row.appointmentId,
+      completionEventId: row.completionEventId,
+      formResponseId: row.formResponseId,
+      formResponseSequence: row.formResponseSequence,
       signerType: row.signerType,
       confirmationMethod: row.confirmationMethod,
       serviceSummaryDigest: row.serviceSummaryDigest,
@@ -225,6 +293,13 @@ export class ServiceSignatureService {
     const text = value.trim();
     if (!text || text.length > max || /\p{Cc}/u.test(text)) throw new BadRequestException(`${field} is invalid.`);
     return text;
+  }
+  private positiveInteger(value: unknown, field: string) {
+    if (!Number.isInteger(value) || Number(value) < 1) throw new ConflictException(`${field} is invalid.`);
+    return Number(value);
+  }
+  private objectValue(value: unknown): Record<string, unknown> {
+    return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
   }
   private digest(value: unknown) { return createHash("sha256").update(typeof value === "string" ? value : JSON.stringify(value)).digest("hex"); }
   private envelopeData(envelope: EncryptedEnvelope) { return { algorithm: envelope.algorithm, keyId: envelope.keyId, wrappedKey: envelope.wrappedKey, iv: envelope.iv, ciphertext: envelope.ciphertext }; }
