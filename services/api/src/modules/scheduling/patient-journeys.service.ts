@@ -3,7 +3,7 @@ import { Prisma, type PatientAppointmentChange } from "@prisma/client";
 import { roleHasPermission, type AuthPrincipal } from "@carepoint/identity";
 import { PrismaService } from "../../infrastructure/prisma/prisma.module";
 import { DatabaseAuditService } from "../../infrastructure/audit/audit.service";
-import { assertFutureChange, DAY_MS, journeyHash, journeyId, journeyInstant, journeyWindow, TELEHEALTH_CHANGE_BUFFER_MS } from "./patient-journeys.policy";
+import { assertFutureChange, DAY_MS, journeyHash, journeyId, journeyInstant, journeyWindow, SCHEDULING_SERIALIZABLE_RETRY_ATTEMPTS, schedulingSerializableRetryBackoff, TELEHEALTH_CHANGE_BUFFER_MS } from "./patient-journeys.policy";
 
 type RescheduleInput = { slotId?: unknown; idempotencyKey?: unknown; expectedUpdatedAt?: unknown; waitlistEntryId?: unknown };
 type WaitInput = { from?: unknown; to?: unknown; expectedUpdatedAt?: unknown };
@@ -30,7 +30,7 @@ export class PatientJourneysService {
     return appointment;
   }
   private async serial<T>(work: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
-    for (let attempt = 0; attempt < 3; attempt++) {
+    for (let attempt = 0; attempt < SCHEDULING_SERIALIZABLE_RETRY_ATTEMPTS; attempt++) {
       try {
         return await this.prisma.$transaction(async (tx) => {
           // F2 mutations always emit immutable audit evidence. Reserve the audit
@@ -46,7 +46,10 @@ export class PatientJourneysService {
           // Always retry the full transaction with a fresh database snapshot.
           const rawConflict = error.code === "P2010" && ["40001", "40P01"].includes(String(error.meta?.code));
           const retryable = rawConflict || error.code === "P2034" || error.code === "P2002";
-          if (retryable && attempt < 2) continue;
+          if (retryable && attempt < SCHEDULING_SERIALIZABLE_RETRY_ATTEMPTS - 1) {
+            await schedulingSerializableRetryBackoff(attempt);
+            continue;
+          }
           if (retryable || error.code === "P2004") throw new ConflictException("Concurrent scheduling change. Refresh and retry the same request.");
         }
         throw error;
@@ -234,7 +237,7 @@ export class PatientJourneysService {
     const id = journeyId(rawId, "appointmentId");
     if (reason != null && (typeof reason !== "string" || reason.trim().length > 500)) throw new BadRequestException("Cancellation reason is invalid.");
     return this.serial(async (tx) => {
-      const current = await tx.appointment.findUnique({ where: { id }, include: { patient: { select: { userId: true } } } });
+      const current = await tx.appointment.findUnique({ where: { id }, include: { patient: { select: { userId: true } } });
       if (!current) throw new NotFoundException("Appointment not found.");
       if (current.patient.userId !== principal.accountId && !roleHasPermission(principal.role, "APPOINTMENT_OPERATE")) throw new ForbiddenException("Appointment access denied.");
       await this.lock(tx, id);
