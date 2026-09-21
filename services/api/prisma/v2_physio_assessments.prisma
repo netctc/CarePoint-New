@@ -1,0 +1,41 @@
+model PhysioAssessment {
+  id                    String   @id @default(uuid())
+  patientId             String
+  providerId            String
+  appointmentId         String
+  sourceFormResponseId  String   @unique
+  sourceFormId          String
+  sourceFormVersion     Int
+  sourceResponseSequence Int
+  scaleCode             String
+  score                 Float
+  scoreMaximum          Float?
+  painScore             Int?
+  limitationCodes       String[] @default([])
+  sequence              Int
+  assessedAt            DateTime
+  createdAt             DateTime @default(now())
+
+  @@unique([patientId, providerId, scaleCode, sequence])
+  @@index([patientId, scaleCode, assessedAt])
+  @@index([providerId, patientId, assessedAt])
+  @@index([appointmentId])
+}
+
+model RangeOfMotionObservation {
+  id             String   @id @default(uuid())
+  idempotencyKey String   @unique
+  patientId      String
+  providerId     String
+  appointmentId  String
+  jointCode      String
+  movementCode   String
+  side           String
+  degrees        Float
+  measuredAt     DateTime
+  createdAt      DateTime @default(now())
+
+  @@index([patientId, jointCode, movementCode, side, measuredAt])
+  @@index([providerId, patientId, measuredAt])
+  @@index([appointmentId])
+}
