@@ -109,4 +109,86 @@ test("PRV-065/066 persistence and mobile surface preserve custody invariants", (
   assert.match(mobile, /'es'/);
 });
 
-console.log("V2 provider workflow + PRV-065/066 specimen custody acceptance passed");
+test("PRV-067 functional assessment preserves versioned encrypted source evidence", () => {
+  const migration = readFileSync(
+    new URL("../prisma/migrations/20260921143000_v2_physio_assessments_rom/migration.sql", import.meta.url),
+    "utf8",
+  );
+  assert.match(migration, /PhysioAssessment_sourceFormResponseId_key/);
+  assert.match(migration, /sourceFormVersion/);
+  assert.match(migration, /sourceResponseSequence/);
+  assert.match(migration, /PhysioAssessment_append_only_trg/);
+  assert.match(migration, /BEFORE UPDATE OR DELETE/);
+
+  const service = readFileSync(
+    new URL("../src/modules/physiotherapy/physiotherapy.service.ts", import.meta.url),
+    "utf8",
+  );
+  assert.match(service, /PHYSIOTHERAPY/);
+  assert.match(service, /sourceFormResponseId/);
+  assert.match(service, /sourceFormVersion: source\.formVersion\.version/);
+  assert.match(service, /sourceResponseSequence: source\.sequence/);
+  assert.match(service, /sourceResponsesEncryptedAtRest: true/);
+  assert.match(service, /automatedClinicalInference: false/);
+  assert.doesNotMatch(service, /\.decrypt\(/);
+
+  const evidence = readFileSync(
+    new URL("../src/modules/physiotherapy/physio-source-evidence.service.ts", import.meta.url),
+    "utf8",
+  );
+  assert.match(evidence, /sourceResponsesEncryptedAtRest: true/);
+  assert.match(evidence, /rawAnswersReturned: false/);
+  assert.doesNotMatch(evidence, /ciphertext/);
+});
+
+test("PRV-068 ROM is structured, append-only and graph-ready", () => {
+  const migration = readFileSync(
+    new URL("../prisma/migrations/20260921143000_v2_physio_assessments_rom/migration.sql", import.meta.url),
+    "utf8",
+  );
+  assert.match(migration, /RangeOfMotionObservation_joint_ck/);
+  assert.match(migration, /RangeOfMotionObservation_movement_ck/);
+  assert.match(migration, /LEFT.*RIGHT.*BILATERAL.*MIDLINE/s);
+  assert.match(migration, /degrees.*BETWEEN -360 AND 360/s);
+  assert.match(migration, /RangeOfMotionObservation_append_only_trg/);
+
+  const service = readFileSync(
+    new URL("../src/modules/physiotherapy/physiotherapy.service.ts", import.meta.url),
+    "utf8",
+  );
+  assert.match(service, /jointCode/);
+  assert.match(service, /movementCode/);
+  assert.match(service, /side/);
+  assert.match(service, /degrees/);
+  assert.match(service, /graphReady: true/);
+  assert.match(service, /orderBy: \[\{ measuredAt: "asc" \}/);
+
+  const catalog = readFileSync(
+    new URL("../src/modules/providers/providers.module.ts", import.meta.url),
+    "utf8",
+  );
+  assert.match(catalog, /SPECIMEN_COLLECTION/);
+  assert.match(catalog, /PHYSIOTHERAPY/);
+
+  const mobile = readFileSync(
+    new URL("../../../packages/mobile_core/lib/physiotherapy.dart", import.meta.url),
+    "utf8",
+  );
+  assert.match(mobile, /Evaluación funcional/);
+  assert.match(mobile, /Rango de movimiento/);
+  assert.match(mobile, /_RomTrendPainter/);
+  assert.match(mobile, /sourceResponsesEncryptedAtRest|encryptedSource/);
+  assert.match(mobile, /'ar'/);
+  assert.match(mobile, /'fr'/);
+  assert.match(mobile, /'es'/);
+
+  const entry = readFileSync(
+    new URL("../../../apps/provider-mobile/lib/physiotherapy_entry.dart", import.meta.url),
+    "utf8",
+  );
+  assert.match(entry, /PHYSIOTHERAPY/);
+  assert.match(entry, /CONFIRMED/);
+  assert.match(entry, /COMPLETED/);
+});
+
+console.log("V2 provider workflow + PRV-065/066 specimen custody + PRV-067/068 physiotherapy acceptance passed");
