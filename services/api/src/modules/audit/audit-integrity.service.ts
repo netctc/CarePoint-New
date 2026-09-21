@@ -25,15 +25,16 @@ export class AuditIntegrityService {
       this.prisma.auditIntegrityRecord.findMany({ orderBy: { sequence: "desc" }, take: limit }),
     ]);
     const records = recentDescending.reverse();
+    const firstRecord = records[0] ?? null;
     const ids = records.map((row) => row.auditEventId);
     const events = ids.length === 0
       ? []
       : await this.prisma.auditEvent.findMany({ where: { id: { in: ids } } });
     const eventById = new Map(events.map((event) => [event.id, event]));
-    const predecessor = records.length === 0
+    const predecessor = firstRecord === null
       ? null
       : await this.prisma.auditIntegrityRecord.findFirst({
-          where: { sequence: { lt: records[0].sequence } },
+          where: { sequence: { lt: firstRecord.sequence } },
           orderBy: { sequence: "desc" },
         });
 
@@ -71,7 +72,7 @@ export class AuditIntegrityService {
       missingEventCount,
       missingProtectedCount: coverage.missingProtectedCount,
       historicalUnchainedCount: coverage.historicalUnchainedCount,
-      firstCheckedSequence: records[0]?.sequence.toString() ?? null,
+      firstCheckedSequence: firstRecord?.sequence.toString() ?? null,
       lastCheckedSequence: records.at(-1)?.sequence.toString() ?? null,
       integrityCoverageStartedAt: policy.createdAt.toISOString(),
       appendOnlyEnforced: true,
