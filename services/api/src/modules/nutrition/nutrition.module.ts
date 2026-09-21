@@ -4,10 +4,21 @@ import { CurrentPrincipal, RequirePermissions } from "../../security/api-securit
 import { ClinicalModule } from "../clinical/clinical.module";
 import { ProvidersModule } from "../providers/providers.module";
 import { NutritionAnthropometricsService } from "./nutrition-anthropometrics.service";
+import { NutritionCatalogService } from "./nutrition-catalog.service";
 
 @Controller("provider/nutrition/anthropometrics")
 class NutritionAnthropometricsController {
-  constructor(private readonly anthropometrics: NutritionAnthropometricsService) {}
+  constructor(
+    private readonly anthropometrics: NutritionAnthropometricsService,
+    private readonly catalogService: NutritionCatalogService,
+  ) {}
+
+  @RequirePermissions("OTHER_PROVIDER_CLINICAL_WORKSPACE")
+  @Get("catalog")
+  @Header("Cache-Control", "no-store")
+  catalog(@CurrentPrincipal() principal: AuthPrincipal) {
+    return this.catalogService.catalog(principal);
+  }
 
   @RequirePermissions("OTHER_PROVIDER_CLINICAL_WORKSPACE")
   @Post()
@@ -31,6 +42,6 @@ class NutritionAnthropometricsController {
 @Module({
   imports: [ProvidersModule, ClinicalModule],
   controllers: [NutritionAnthropometricsController],
-  providers: [NutritionAnthropometricsService],
+  providers: [NutritionAnthropometricsService, NutritionCatalogService],
 })
 export class NutritionModule {}
