@@ -4,6 +4,7 @@ import 'package:carepoint_mobile_core/carepoint_localization.dart';
 import 'package:carepoint_mobile_core/clinical_localization.dart';
 import 'package:carepoint_mobile_core/financial_localization.dart';
 import 'package:carepoint_mobile_core/financial_workspace.dart';
+import 'package:carepoint_mobile_core/home_exercise.dart';
 import 'package:carepoint_mobile_core/patient_access_needs.dart';
 import 'package:carepoint_mobile_core/patient_care_journeys.dart';
 import 'package:carepoint_mobile_core/care_visits.dart';
@@ -59,9 +60,13 @@ class _PatientShellState extends State<PatientShell> {
   Future<void> openConsents() async { await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => PatientConsentLifecyclePage(session: widget.session, locale: widget.locale))); }
   Future<void> openEmergencyContacts() async { await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => PatientEmergencyContactsPage(session: widget.session, locale: widget.locale))); }
   Future<void> openAccessNeeds() async { await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => PatientAccessNeedsPage(session: widget.session, locale: widget.locale))); }
+  Future<void> openHomeExercises() async { await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => Directionality(textDirection: widget.locale.textDirection, child: PatientHomeExercisePage(session: widget.session, locale: widget.locale)))); }
   Widget healthTab() => Column(children: [
     Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 0), child: SizedBox(width: double.infinity, child: FilledButton.tonalIcon(
       key: const ValueKey('patient-access-needs-entry'), onPressed: openAccessNeeds, icon: const Icon(Icons.accessible_forward_outlined), label: Text(patientAccessNeedsText(widget.locale, 'open')),
+    ))),
+    Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
+      key: const ValueKey('patient-home-exercise-entry'), onPressed: openHomeExercises, icon: const Icon(Icons.fitness_center_outlined), label: Text(homeExerciseText(widget.locale, 'title')),
     ))),
     Expanded(child: PatientClinicalTimelinePage(session: widget.session, locale: widget.locale)),
   ]);
