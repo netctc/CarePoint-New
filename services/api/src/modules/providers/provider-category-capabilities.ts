@@ -67,9 +67,11 @@ export function providerCategoryCapabilitiesPayload(input: {
 }
 
 function codeList(value: unknown): string[] {
-  return stringList(value)
-    .map((item) => item.toUpperCase())
-    .filter((item) => /^[A-Z][A-Z0-9_]{2,79}$/.test(item));
+  return [...new Set(
+    stringList(value)
+      .map((item) => item.toUpperCase())
+      .filter((item) => /^[A-Z][A-Z0-9_]{2,79}$/.test(item)),
+  )];
 }
 
 function stringList(value: unknown): string[] {
