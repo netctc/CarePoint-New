@@ -17,6 +17,7 @@ model OperationalAccessNeedSnapshot {
   contextType   String
   contextId     String
   needs         Json
+  note          String?
   sourceVersion Int
   createdAt     DateTime @default(now())
 
