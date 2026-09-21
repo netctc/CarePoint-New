@@ -191,4 +191,55 @@ test("PRV-068 ROM is structured, append-only and graph-ready", () => {
   assert.match(entry, /COMPLETED/);
 });
 
-console.log("V2 provider workflow + PRV-065/066 specimen custody + PRV-067/068 physiotherapy acceptance passed");
+test("PRV-069 home exercise programmes reuse CareTask and patient-declared completion safely", () => {
+  const migration = readFileSync(
+    new URL("../prisma/migrations/20260921151500_v2_home_exercise_plan/migration.sql", import.meta.url),
+    "utf8",
+  );
+  assert.match(migration, /CREATE TABLE "HomeExercisePlan"/);
+  assert.match(migration, /idempotencyKey/);
+  assert.match(migration, /requestDigest/);
+  assert.match(migration, /REFERENCES "CarePlan"/);
+  assert.doesNotMatch(migration, /HomeExerciseCompletion/);
+
+  const service = readFileSync(
+    new URL("../src/modules/physiotherapy/home-exercise-plan.service.ts", import.meta.url),
+    "utf8",
+  );
+  assert.match(service, /PHYSIOTHERAPY/);
+  assert.match(service, /CARE_PLAN_WRITE/);
+  assert.match(service, /care-plan-v1/);
+  assert.match(service, /careTask\.create/);
+  assert.match(service, /assigneeType: "PATIENT"/);
+  assert.match(service, /encryptRecord/);
+  assert.match(service, /careTaskCompletion\.findMany/);
+  assert.match(service, /actorRole: "PATIENT"/);
+  assert.match(service, /releasedToPatient: true/);
+  assert.match(service, /CLINICAL_MEDIA/);
+  assert.match(service, /requestDigest/);
+  assert.match(service, /patientDeclaredCompliance: true/);
+  assert.match(service, /automatedClinicalInference: false/);
+  assert.doesNotMatch(service, /https?:\/\//);
+
+  const mobile = readFileSync(
+    new URL("../../../packages/mobile_core/lib/home_exercise.dart", import.meta.url),
+    "utf8",
+  );
+  assert.match(mobile, /Programa de ejercicios domiciliarios/);
+  assert.match(mobile, /ProviderHomeExercisePage/);
+  assert.match(mobile, /PatientHomeExercisePage/);
+  assert.match(mobile, /patient\/care-tasks/);
+  assert.match(mobile, /DONE/);
+  assert.match(mobile, /OMITTED/);
+  assert.match(mobile, /'ar'/);
+  assert.match(mobile, /'fr'/);
+  assert.match(mobile, /'es'/);
+
+  const patientEntry = readFileSync(
+    new URL("../../../apps/patient-mobile/lib/main.dart", import.meta.url),
+    "utf8",
+  );
+  assert.match(patientEntry, /patient-home-exercise-entry/);
+});
+
+console.log("V2 provider workflow + PRV-065/066 specimen custody + PRV-067/068/069 physiotherapy acceptance passed");

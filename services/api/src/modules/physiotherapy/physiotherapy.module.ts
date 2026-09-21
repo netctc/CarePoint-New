@@ -1,7 +1,10 @@
 import { Body, Controller, Get, Header, Module, Param, Post, Query } from "@nestjs/common";
 import type { AuthPrincipal } from "@carepoint/identity";
 import { CurrentPrincipal, RequirePermissions } from "../../security/api-security.module";
+import { ClinicalModule } from "../clinical/clinical.module";
 import { ProvidersModule } from "../providers/providers.module";
+import { HomeExercisePlanController } from "./home-exercise-plan.controller";
+import { HomeExercisePlanService } from "./home-exercise-plan.service";
 import { PhysioSourceEvidenceController } from "./physio-source-evidence.controller";
 import { PhysioSourceEvidenceService } from "./physio-source-evidence.service";
 import { PhysiotherapyService } from "./physiotherapy.service";
@@ -60,8 +63,13 @@ class RangeOfMotionController {
 }
 
 @Module({
-  imports: [ProvidersModule],
-  controllers: [PhysioAssessmentController, RangeOfMotionController, PhysioSourceEvidenceController],
-  providers: [PhysiotherapyService, PhysioSourceEvidenceService],
+  imports: [ProvidersModule, ClinicalModule],
+  controllers: [
+    PhysioAssessmentController,
+    RangeOfMotionController,
+    PhysioSourceEvidenceController,
+    HomeExercisePlanController,
+  ],
+  providers: [PhysiotherapyService, PhysioSourceEvidenceService, HomeExercisePlanService],
 })
 export class PhysiotherapyModule {}
