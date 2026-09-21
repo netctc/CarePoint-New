@@ -11,6 +11,7 @@ import 'package:carepoint_mobile_core/transport_localization.dart';
 import 'package:carepoint_mobile_core/availability_centre.dart';
 import 'package:carepoint_mobile_core/availability_alert_entry.dart';
 import 'package:carepoint_mobile_core/patient_emergency.dart';
+import 'package:carepoint_mobile_core/patient_emergency_contacts.dart';
 import 'package:carepoint_mobile_core/patient_messages.dart';
 import 'package:carepoint_mobile_core/patient_notifications.dart';
 import 'package:carepoint_mobile_core/patient_profile.dart';
@@ -55,9 +56,13 @@ class _PatientShellState extends State<PatientShell> {
   }
   Future<void> openProfile() async { await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => PatientProfilePage(session: widget.session, locale: widget.locale))); }
   Future<void> openConsents() async { await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => PatientConsentLifecyclePage(session: widget.session, locale: widget.locale))); }
+  Future<void> openEmergencyContacts() async { await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => PatientEmergencyContactsPage(session: widget.session, locale: widget.locale))); }
   Widget accountTab() => Column(children: [
     Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 0), child: SizedBox(width: double.infinity, child: FilledButton.tonalIcon(
       key: const ValueKey('patient-edit-profile-entry'), onPressed: openProfile, icon: const Icon(Icons.edit_outlined), label: Text(patientProfileText(widget.locale, 'edit')),
+    ))),
+    Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
+      key: const ValueKey('patient-emergency-contacts-entry'), onPressed: openEmergencyContacts, icon: const Icon(Icons.contact_emergency_outlined), label: Text(emergencyContactText(widget.locale, 'open')),
     ))),
     Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
       key: const ValueKey('patient-consent-lifecycle-entry'), onPressed: openConsents, icon: const Icon(Icons.privacy_tip_outlined), label: Text(patientConsentText(widget.locale, 'manage')),
