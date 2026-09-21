@@ -210,25 +210,27 @@ class NutritionAnthropometryService {
       throw new BadRequestException("value must be a positive finite number no greater than 1000000.");
     }
     if (typeof rawUnit !== "string" || !rawUnit.trim()) throw new BadRequestException("unit is required.");
-    const unit = rawUnit.trim().toLowerCase().replaceAll("²", "2");
-    const conversions: Record<string, { unit: NormalizedMeasurement["normalizedUnit"]; factor: number; source: string }> = {
-      kg: { unit: "kg", factor: 1, source: "kg" },
-      g: { unit: "kg", factor: 0.001, source: "g" },
-      lb: { unit: "kg", factor: 0.45359237, source: "lb" },
-      lbs: { unit: "kg", factor: 0.45359237, source: "lb" },
-      cm: { unit: "cm", factor: 1, source: "cm" },
-      mm: { unit: "cm", factor: 0.1, source: "mm" },
-      m: { unit: "cm", factor: 100, source: "m" },
-      in: { unit: "cm", factor: 2.54, source: "in" },
-      inch: { unit: "cm", factor: 2.54, source: "in" },
-      inches: { unit: "cm", factor: 2.54, source: "in" },
-      "%": { unit: "%", factor: 1, source: "%" },
-      percent: { unit: "%", factor: 1, source: "%" },
-      pct: { unit: "%", factor: 1, source: "%" },
-      "kg/m2": { unit: "kg/m2", factor: 1, source: "kg/m2" },
-      "kg/m^2": { unit: "kg/m2", factor: 1, source: "kg/m2" },
-      "1": { unit: "1", factor: 1, source: "1" },
-      ratio: { unit: "1", factor: 1, source: "1" },
+    const sourceUnit = rawUnit.trim();
+    if (sourceUnit.length > 24) throw new BadRequestException("unit must contain at most 24 characters.");
+    const unit = sourceUnit.toLowerCase().replaceAll("²", "2");
+    const conversions: Record<string, { unit: NormalizedMeasurement["normalizedUnit"]; factor: number }> = {
+      kg: { unit: "kg", factor: 1 },
+      g: { unit: "kg", factor: 0.001 },
+      lb: { unit: "kg", factor: 0.45359237 },
+      lbs: { unit: "kg", factor: 0.45359237 },
+      cm: { unit: "cm", factor: 1 },
+      mm: { unit: "cm", factor: 0.1 },
+      m: { unit: "cm", factor: 100 },
+      in: { unit: "cm", factor: 2.54 },
+      inch: { unit: "cm", factor: 2.54 },
+      inches: { unit: "cm", factor: 2.54 },
+      "%": { unit: "%", factor: 1 },
+      percent: { unit: "%", factor: 1 },
+      pct: { unit: "%", factor: 1 },
+      "kg/m2": { unit: "kg/m2", factor: 1 },
+      "kg/m^2": { unit: "kg/m2", factor: 1 },
+      "1": { unit: "1", factor: 1 },
+      ratio: { unit: "1", factor: 1 },
     };
     const conversion = conversions[unit];
     if (!conversion) {
@@ -237,7 +239,7 @@ class NutritionAnthropometryService {
     const normalizedValue = Number((rawValue * conversion.factor).toFixed(6));
     return {
       sourceValue: rawValue,
-      sourceUnit: conversion.source,
+      sourceUnit,
       normalizedValue,
       normalizedUnit: conversion.unit,
     };
@@ -299,7 +301,10 @@ class NutritionAnthropometryService {
   }
 
   private measurementDate(value: unknown): Date {
-    const date = value == null ? new Date() : new Date(String(value));
+    if (value == null || (typeof value === "string" && !value.trim())) {
+      throw new BadRequestException("measuredAt is required.");
+    }
+    const date = new Date(String(value));
     if (Number.isNaN(date.getTime())) throw new BadRequestException("measuredAt must be a valid timestamp.");
     const now = Date.now();
     if (date.getTime() > now + FUTURE_TOLERANCE_MS) throw new BadRequestException("measuredAt cannot be in the future.");
