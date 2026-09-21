@@ -24,7 +24,7 @@ class ServiceConfirmationLauncher extends StatelessWidget {
     if (!workflowCapabilities.contains('SERVICE_COMPLETION_CHECKLIST')) return child;
     return Stack(children: [
       child,
-      PositionedDirectional(end: 18, bottom: 316, child: FloatingActionButton.small(
+      PositionedDirectional(end: 18, bottom: 372, child: FloatingActionButton.small(
         heroTag: 'provider-service-confirmation', backgroundColor: accent, foregroundColor: Colors.white,
         tooltip: serviceSignatureText(locale, 'title'), onPressed: () => _choose(context), child: const Icon(Icons.verified_outlined),
       )),
