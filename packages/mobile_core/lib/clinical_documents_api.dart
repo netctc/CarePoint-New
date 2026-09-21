@@ -61,3 +61,35 @@ extension ClinicalDocumentsSecureApi on CarePointApi {
     );
   }
 }
+
+extension OtherProviderInsightsApi on CarePointApi {
+  Future<Map<String, dynamic>> otherProviderObservationTrends(
+    String patientId, {
+    String contextType = 'APPOINTMENT',
+    String? contextId,
+  }) async {
+    return _asMap(await _send(
+      'GET',
+      '/provider/capability-workspace/$patientId/observation-trends',
+      query: {
+        'contextType': contextType,
+        if (contextId != null && contextId.isNotEmpty) 'contextId': contextId,
+      },
+    ));
+  }
+
+  Future<Map<String, dynamic>> otherProviderQuestionnaireSummary(
+    String patientId, {
+    String contextType = 'APPOINTMENT',
+    String? contextId,
+  }) async {
+    return _asMap(await _send(
+      'GET',
+      '/provider/capability-workspace/$patientId/questionnaire-summary',
+      query: {
+        'contextType': contextType,
+        if (contextId != null && contextId.isNotEmpty) 'contextId': contextId,
+      },
+    ));
+  }
+}
