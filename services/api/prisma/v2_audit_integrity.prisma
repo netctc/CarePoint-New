@@ -1,0 +1,26 @@
+model AuditIntegrityRecord {
+  auditEventId String   @id
+  sequence     BigInt   @unique @default(autoincrement())
+  payloadHash  String
+  previousHash String?
+  eventHash    String
+  createdAt    DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model AuditIntegrityHead {
+  id               String   @id
+  lastAuditEventId String?
+  lastEventHash    String?
+  updatedAt        DateTime @updatedAt
+}
+
+model AuditRetentionPolicy {
+  id                   String   @id
+  mode                 String   @default("INDEFINITE")
+  minimumRetentionDays Int?
+  legalHoldEnabled     Boolean  @default(false)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}
