@@ -3,7 +3,7 @@ import { Prisma, type PatientAvailabilityRequest, type PatientAvailabilityNotice
 import type { AuthPrincipal } from "@carepoint/identity";
 import { PrismaService } from "../../infrastructure/prisma/prisma.module";
 import { DatabaseAuditService } from "../../infrastructure/audit/audit.service";
-import { journeyHash, journeyId } from "./patient-journeys.policy";
+import { journeyHash, journeyId, SCHEDULING_SERIALIZABLE_RETRY_ATTEMPTS, schedulingSerializableRetryBackoff } from "./patient-journeys.policy";
 import { AVAILABILITY_CONSENT_VERSION, availabilityInput, availabilityPage, availabilityRetryable } from "./availability-requests.policy";
 
 type OpenSlot = { id: string; startsAt: Date; endsAt: Date; capacity: number; bookedCount: number };
@@ -17,11 +17,12 @@ export class AvailabilityRequestsService {
     return patient;
   }
   private async serial<T>(work: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
-    for (let attempt = 0; attempt < 3; attempt++) {
+    for (let attempt = 0; attempt < SCHEDULING_SERIALIZABLE_RETRY_ATTEMPTS; attempt++) {
       try { return await this.prisma.$transaction(work, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }); }
       catch (error) {
         if (!availabilityRetryable(error)) throw error;
-        if (attempt === 2) throw new ConflictException("Concurrent availability change. Refresh and retry.");
+        if (attempt === SCHEDULING_SERIALIZABLE_RETRY_ATTEMPTS - 1) throw new ConflictException("Concurrent availability change. Refresh and retry.");
+        await schedulingSerializableRetryBackoff(attempt);
       }
     }
     throw new ConflictException("Availability is busy.");
@@ -52,6 +53,7 @@ export class AvailabilityRequestsService {
     if (principal.role !== "PATIENT") throw new ForbiddenException("Patient access is required.");
     const parsed = availabilityInput(input);
     return this.serial(async (tx) => {
+      await this.audit.reserveIntegrityChainForSerializableTransaction(tx);
       const patient = await this.patient(tx, principal);
       await tx.$queryRaw(Prisma.sql`SELECT id FROM "PatientProfile" WHERE id = ${patient.id} FOR UPDATE`);
       const service = await tx.service.findUnique({ where: { id: parsed.serviceId }, include: { provider: true, modalities: true } });
@@ -86,6 +88,7 @@ export class AvailabilityRequestsService {
   }
   async withdraw(principal: AuthPrincipal, rawId: string) {
     return this.serial(async (tx) => {
+      await this.audit.reserveIntegrityChainForSerializableTransaction(tx);
       const entry = await this.owned(tx, principal, rawId, true);
       if (entry.status !== "WAITING") return this.present(entry);
       const changed = await tx.patientAvailabilityRequest.update({ where: { id: entry.id }, data: { status: entry.toAt.getTime() <= Date.now() ? "EXPIRED" : "WITHDRAWN", activeKey: null, closedAt: new Date() } });

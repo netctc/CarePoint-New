@@ -5,9 +5,10 @@ import { PrismaService } from "../../infrastructure/prisma/prisma.module";
 import { DatabaseAuditService } from "../../infrastructure/audit/audit.service";
 import { SchedulingService } from "./scheduling.service";
 import { assertAvailabilityReplay, prepareAvailabilityBooking, availabilityRetryable } from "./availability-requests.policy";
+import { SCHEDULING_SERIALIZABLE_RETRY_ATTEMPTS, schedulingSerializableRetryBackoff } from "./patient-journeys.policy";
 import type { HomeVisitBookingInput, Release1BookingInput } from "./release1-scheduling-context.types";
 
-const BOOKING_RETRIES = 3;
+const BOOKING_RETRIES = SCHEDULING_SERIALIZABLE_RETRY_ATTEMPTS;
 type VisitContextCreate = {
   modality: AppointmentModality; sourceProviderLocationId?: string;
   addressLine1: string; addressLine2?: string; city: string; region?: string; postalCode?: string; countryCode: string;
@@ -34,6 +35,7 @@ export class Release1ContextualBookingService {
     for (let attempt = 1; attempt <= BOOKING_RETRIES; attempt += 1) {
       try {
         const result = await this.prisma.$transaction(async (tx) => {
+          if (input.availabilityRequestId != null) await this.audit.reserveIntegrityChainForSerializableTransaction(tx);
           const duplicate = await tx.appointment.findUnique({ where: { idempotencyKey } });
           if (duplicate) {
             if (duplicate.patientId !== patient.id) throw new ConflictException("idempotencyKey is already in use.");
@@ -72,7 +74,10 @@ export class Release1ContextualBookingService {
           throw new ConflictException("The booking request was already processed.");
         }
         if (availabilityRetryable(error)) {
-          if (attempt < BOOKING_RETRIES) continue;
+          if (attempt < BOOKING_RETRIES) {
+            await schedulingSerializableRetryBackoff(attempt - 1);
+            continue;
+          }
           throw new ConflictException("Concurrent booking activity. Retry the same request.");
         }
         if (this.appointmentOverlap(error)) throw new ConflictException("The selected time conflicts with another active appointment.");
