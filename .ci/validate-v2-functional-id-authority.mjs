@@ -65,7 +65,12 @@ for (const [prefix, start, end, domain] of ranges) {
 if (expected.size !== 230) fail(`validator expected-set size is ${expected.size}`);
 
 const seen = new Set();
-const states = new Set(['CLAIMED_BY_ACTIVE_PR', 'UNCLAIMED_OR_NOT_RECONCILED']);
+const states = new Set([
+  'MERGED_IN_V2_DEVELOPMENT',
+  'CLAIMED_BY_ACTIVE_PR',
+  'UNCLAIMED_OR_NOT_RECONCILED',
+]);
+const stateCounts = new Map([...states].map((state) => [state, 0]));
 for (const row of authority.slice(1)) {
   if (row.length !== expectedHeader.length) fail(`wrong column count for row ${row[0] ?? '<unknown>'}`);
   const [id, domain, version, prRefs, aliases, state] = row;
@@ -76,9 +81,16 @@ for (const row of authority.slice(1)) {
   if (version !== 'v1') fail(`wrong authority version for ${id}: ${version}`);
   if (!states.has(state)) fail(`invalid traceability state for ${id}: ${state}`);
   if (prRefs && !/^(#\d+)(;#\d+)*$/.test(prRefs)) fail(`invalid PR references for ${id}: ${prRefs}`);
+  if ((state === 'MERGED_IN_V2_DEVELOPMENT' || state === 'CLAIMED_BY_ACTIVE_PR') && !prRefs) {
+    fail(`${state} requires at least one PR reference for ${id}`);
+  }
+  if (state === 'UNCLAIMED_OR_NOT_RECONCILED' && prRefs) {
+    fail(`unreconciled row ${id} must not retain a reconciled PR reference`);
+  }
   if (aliases && !aliases.split(';').every((alias) => /^PRELIM-2026-09-18:(ADM|PAT|DOC|PRV|BE)-\d{3}$/.test(alias))) {
     fail(`invalid legacy alias namespace for ${id}: ${aliases}`);
   }
+  stateCounts.set(state, (stateCounts.get(state) ?? 0) + 1);
 }
 if (seen.size !== expected.size) fail(`expected ${expected.size} unique IDs, got ${seen.size}`);
 for (const id of expected.keys()) if (!seen.has(id)) fail(`missing canonical ID ${id}`);
@@ -113,4 +125,10 @@ expectAlias('PRELIM-2026-09-18:PAT-001', 'PAT-083', 'EXACT');
 expectAlias('PRELIM-2026-09-18:BE-038', 'BE-033', 'EXACT');
 expectAlias('PRELIM-2026-09-18:BE-050', '', 'NO_EXACT_CANONICAL_MATCH');
 
-console.log(`V2 functional ID authority OK: ${seen.size} canonical IDs, ${aliases.length - 1} legacy alias records.`);
+console.log(
+  `V2 functional ID authority OK: ${seen.size} canonical IDs, ` +
+  `${stateCounts.get('MERGED_IN_V2_DEVELOPMENT')} merged, ` +
+  `${stateCounts.get('CLAIMED_BY_ACTIVE_PR')} active, ` +
+  `${stateCounts.get('UNCLAIMED_OR_NOT_RECONCILED')} unreconciled, ` +
+  `${aliases.length - 1} legacy alias records.`,
+);
