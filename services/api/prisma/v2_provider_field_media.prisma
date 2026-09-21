@@ -1,5 +1,7 @@
 model ProviderFieldMediaEvidence {
   id                  String   @id @default(uuid())
+  idempotencyKey      String   @unique
+  requestDigest       String
   clinicalMediaId     String   @unique
   appointmentId       String
   patientId           String
