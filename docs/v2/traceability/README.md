@@ -2,10 +2,13 @@
 
 Status: **FROZEN v1**  
 Freeze date: **2026-09-20**  
+Latest evidence reconciliation: **2026-09-21**  
 Canonical source: `CarePoint_New_Inventario_Aplicaciones_Paginas_Funcionalidades_V2_2026-09-18.xlsx`  
 Canonical proposed-function total: **230**
 
 This directory is the single engineering authority for CarePoint V2 functional IDs used by issues, pull requests, release evidence and completion reporting.
+
+The canonical identities and their semantics are frozen. Evidence fields such as reconciled PR references and traceability state may be corrected through reviewed change control when repository history changes or new implementation evidence is verified.
 
 ## Canonical ranges
 
@@ -18,7 +21,7 @@ This directory is the single engineering authority for CarePoint V2 functional I
 | Backend | `BE-001..BE-056` | 56 |
 | **Total** |  | **230** |
 
-`functional-id-authority-v1.csv` enumerates every canonical proposed ID exactly once. A row being claimed by a PR means only that the PR declares implementation evidence for that canonical requirement; it does **not** by itself mean the requirement is merged, accepted or production-ready.
+`functional-id-authority-v1.csv` enumerates every canonical proposed ID exactly once. A PR claim is implementation traceability evidence only. It does not by itself mean the requirement is integrated, accepted, production-ready, clinically accepted, legally approved or regulatorily approved.
 
 ## Historical preliminary IDs
 
@@ -42,14 +45,19 @@ The complete set of currently observed historical aliases is recorded in `legacy
 5. **One-to-many mappings stay explicit.** If one preliminary item was split into multiple canonical requirements, use `SPLIT_PARTIAL`; do not manufacture a one-to-one mapping.
 6. **Extensions stay extensions.** `BASE_EXTENSION` or `NO_EXACT_CANONICAL_MATCH` work is not counted as completion of a canonical proposed row unless a canonical target is explicitly reconciled.
 7. **No silent inventory expansion.** A feature with no exact canonical row requires an explicit inventory-amendment decision before it can become a new canonical requirement.
-8. **Completion is evidence-based.** A canonical row may be considered complete only after implementation, acceptance criteria and merged-SHA validation are reconciled. PR-body claims alone are insufficient.
+8. **Completion is evidence-based.** A canonical row may be considered integrated only after implementation evidence, acceptance criteria and merge evidence are reconciled. Production/release readiness remains a separate metric with separate external and human gates.
 9. **Security semantics are independent of traceability.** This authority does not weaken authorization, consent, audit, encryption, PHI minimization or any release/security gate.
 10. **Source language remains English** for repository engineering artifacts, consistent with the V2 governance workspace.
 
 ## Traceability states
 
-- `CLAIMED_BY_ACTIVE_PR`: one or more current V2 PRs claim the canonical ID.
-- `UNCLAIMED_OR_NOT_RECONCILED`: no current PR claim has been reconciled yet. This does not prove the requirement is unimplemented.
+- `MERGED_IN_V2_DEVELOPMENT`: at least one reconciled PR that claims the canonical ID has been merged into `v2/development`. This is functional-integration evidence only; it does not establish UAT, production, clinical, legal, regulatory or market acceptance.
+- `CLAIMED_BY_ACTIVE_PR`: at least one current V2 PR claims the canonical ID and no reconciled merged claim currently establishes integration.
+- `UNCLAIMED_OR_NOT_RECONCILED`: no current implementation claim has been safely reconciled for the canonical row. This does not prove the requirement is unimplemented; it means completion must not be credited from the authority yet.
+
+When both merged and active PRs claim the same canonical ID, `MERGED_IN_V2_DEVELOPMENT` takes precedence. An active refinement or extension must not regress already established integration evidence.
+
+The 2026-09-21 reconciliation derives PR state from GitHub repository history and adds new claims only where a PR body explicitly names the canonical ID. Semantic equivalence is never inferred from similar titles or numeric aliases.
 
 Legacy mapping types:
 
@@ -61,4 +69,4 @@ Legacy mapping types:
 
 ## Change control
 
-Changes to the v1 files require a reviewed PR against `v2/development`. Corrections may add evidence, PR references or qualified aliases, but must not mutate the meaning of an existing canonical ID. Any future expansion of the functional inventory must use a new authority version and explicit migration notes rather than silently modifying v1.
+Changes to the v1 files require a reviewed PR against `v2/development`. Corrections may update evidence state, add verified PR references or add qualified aliases, but must not mutate the meaning of an existing canonical ID. Any future expansion of the functional inventory must use a new authority version and explicit migration notes rather than silently modifying v1.
