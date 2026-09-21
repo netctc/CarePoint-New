@@ -1,0 +1,25 @@
+model PatientAccessNeed {
+  id               String   @id @default(uuid())
+  patientId        String   @unique
+  needs            Json
+  note             String?
+  version          Int      @default(1)
+  updatedByActorId String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([patientId, updatedAt])
+}
+
+model OperationalAccessNeedSnapshot {
+  id            String   @id @default(uuid())
+  patientId     String
+  contextType   String
+  contextId     String
+  needs         Json
+  sourceVersion Int
+  createdAt     DateTime @default(now())
+
+  @@unique([contextType, contextId])
+  @@index([patientId, createdAt])
+}
