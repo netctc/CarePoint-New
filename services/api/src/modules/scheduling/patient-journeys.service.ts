@@ -31,7 +31,15 @@ export class PatientJourneysService {
   }
   private async serial<T>(work: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
     for (let attempt = 0; attempt < 3; attempt++) {
-      try { return await this.prisma.$transaction(work, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }); }
+      try {
+        return await this.prisma.$transaction(async (tx) => {
+          // F2 mutations always emit immutable audit evidence. Reserve the audit
+          // chain before the SERIALIZABLE snapshot performs any business read so
+          // unrelated audit writers cannot advance the singleton head mid-flight.
+          await this.audit.reserveIntegrityChainForSerializableTransaction(tx);
+          return work(tx);
+        }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+      }
       catch (error) {
         if (error instanceof Prisma.PrismaClientKnownRequestError) {
           // Raw-query row-lock conflicts use P2010 rather than P2034.
