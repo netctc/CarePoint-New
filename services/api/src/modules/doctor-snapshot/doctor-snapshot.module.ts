@@ -5,6 +5,7 @@ import { ClinicalProfileModule } from "../clinical-profile/clinical-profile.modu
 import { HealthProfileModule } from "../health-profile/health-profile.module";
 import { ObservationModule } from "../observation/observation.module";
 import { QuestionnaireModule } from "../questionnaire/questionnaire.module";
+import { ChangesSinceLastVisitService } from "./changes-since-last-visit.service";
 import { DoctorSnapshotService } from "./doctor-snapshot.service";
 
 @Controller("doctor/patients")
@@ -22,6 +23,21 @@ class DoctorSnapshotController {
   }
 }
 
+@Controller("provider/patients")
+class ProviderChangesSinceLastVisitController {
+  constructor(private readonly changes: ChangesSinceLastVisitService) {}
+
+  @RequirePermissions("CLINICAL_PATIENT_SNAPSHOT_READ")
+  @Get(":patientId/changes-since-last-visit")
+  @Header("Cache-Control", "no-store")
+  get(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Param("patientId") patientId: string,
+  ) {
+    return this.changes.get(principal, patientId);
+  }
+}
+
 @Module({
   imports: [
     HealthProfileModule,
@@ -29,8 +45,8 @@ class DoctorSnapshotController {
     QuestionnaireModule,
     ObservationModule,
   ],
-  controllers: [DoctorSnapshotController],
-  providers: [DoctorSnapshotService],
-  exports: [DoctorSnapshotService],
+  controllers: [DoctorSnapshotController, ProviderChangesSinceLastVisitController],
+  providers: [DoctorSnapshotService, ChangesSinceLastVisitService],
+  exports: [DoctorSnapshotService, ChangesSinceLastVisitService],
 })
 export class DoctorSnapshotModule {}
