@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
@@ -81,4 +82,22 @@ const recent = evaluateQuestionnaireActivation(
 assert.equal(recent.due, false);
 assert.equal(recent.askHealthChanged, true);
 
-console.log("V2 questionnaire engine acceptance passed");
+const complianceSource = readFileSync(
+  new URL("../src/modules/admin-questionnaire-compliance/admin-questionnaire-compliance.module.ts", import.meta.url),
+  "utf8",
+);
+assert.match(complianceSource, /aggregateOnly:\s*true/);
+assert.match(complianceSource, /encryptedQuestionnairePayloadNotRead:\s*true/);
+assert.match(complianceSource, /Cache-Control/);
+assert.match(complianceSource, /ADMIN_QUESTIONNAIRE_COMPLIANCE_READ/);
+assert.doesNotMatch(complianceSource, /\.ciphertext\b|decryptResponse|ClinicalEnvelopeService/);
+assert.doesNotMatch(complianceSource, /firstName|lastName|email/);
+
+const monitorSource = readFileSync(
+  new URL("../../../apps/admin/components/QuestionnaireComplianceMonitor.tsx", import.meta.url),
+  "utf8",
+);
+assert.match(monitorSource, /\/api\/admin\/analytics\/questionnaires/);
+assert.match(monitorSource, /Questionnaire compliance monitor/);
+
+console.log("V2 questionnaire engine + ADM-077 compliance acceptance passed");
