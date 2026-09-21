@@ -57,6 +57,17 @@ export class DatabaseAuditService {
     return this.prisma.auditEvent.findMany({ orderBy: { occurredAt: "desc" }, take: Math.max(1, Math.min(limit, 500)) });
   }
 
+  // SERIALIZABLE business transactions that will append audit evidence must reserve
+  // the chain before their first business read. Otherwise a concurrent writer can
+  // advance the singleton head after the transaction snapshot is fixed, turning an
+  // unrelated business race into a PostgreSQL 40001 serialization abort at audit time.
+  // The lock is transaction-scoped and re-entrant, so appendIntegrityRecord can call
+  // this method again safely while preserving the existing atomic hash-chain contract.
+  async reserveIntegrityChainForSerializableTransaction(tx: Prisma.TransactionClient): Promise<void> {
+    // pg_advisory_xact_lock() returns PostgreSQL void. executeRaw avoids void deserialization.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(8411, 51001)`;
+  }
+
   private async appendIntegrityRecord(tx: Prisma.TransactionClient, event: {
     id: string;
     actorId: string | null;
@@ -68,8 +79,7 @@ export class DatabaseAuditService {
     metadata: Prisma.JsonValue | null;
     occurredAt: Date;
   }): Promise<void> {
-    // pg_advisory_xact_lock() returns PostgreSQL void. executeRaw avoids void deserialization.
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(8411, 51001)`;
+    await this.reserveIntegrityChainForSerializableTransaction(tx);
     const heads = await tx.$queryRaw<Array<{ lastEventHash: string | null }>>`
       SELECT "lastEventHash"
       FROM "AuditIntegrityHead"
