@@ -26,14 +26,14 @@ export class ProviderFollowUpController {
 export class PatientFollowUpController {
   constructor(private readonly followUp: ProviderFollowUpService) {}
 
-  @RequirePermissions("PATIENT_CLINICAL_READ")
+  @RequirePermissions("PATIENT_READ_CLINICAL_RECORD")
   @Get()
   @Header("Cache-Control", "no-store")
   list(@CurrentPrincipal() principal: AuthPrincipal) {
     return this.followUp.patientList(principal);
   }
 
-  @RequirePermissions("PATIENT_CLINICAL_READ")
+  @RequirePermissions("PATIENT_READ_CLINICAL_RECORD")
   @Get(":recommendationId")
   @Header("Cache-Control", "no-store")
   get(@CurrentPrincipal() principal: AuthPrincipal, @Param("recommendationId") recommendationId: string) {
