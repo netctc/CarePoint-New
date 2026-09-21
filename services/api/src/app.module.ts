@@ -38,6 +38,7 @@ import { HealthModule } from "./modules/health/health.module";
 import { HealthProfileModule } from "./modules/health-profile/health-profile.module";
 import { IamModule } from "./modules/iam/iam.module";
 import { NutritionModule } from "./modules/nutrition/nutrition.module";
+import { NutritionPlanModule } from "./modules/nutrition/nutrition-plan.module";
 import { PatientHealthSummaryModule } from "./modules/patient-health-summary/patient-health-summary.module";
 import { PatientProfileModule } from "./modules/patient-profile/patient-profile.module";
 import { PhysiotherapyModule } from "./modules/physiotherapy/physiotherapy.module";
@@ -90,6 +91,7 @@ const isolatedSyntheticPilot = isolatedSyntheticPrivatePilotActive(process.env);
     OtherProviderWorkspaceModule,
     PhysiotherapyModule,
     NutritionModule,
+    NutritionPlanModule,
     ...(emergencyAmbulanceModuleEnabled(process.env) ? [EmergencyModule] : []),
     TransportModule,
     IamModule,
