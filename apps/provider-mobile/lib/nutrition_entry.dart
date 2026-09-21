@@ -1,6 +1,7 @@
 import 'package:carepoint_mobile_core/carepoint_api.dart';
 import 'package:carepoint_mobile_core/carepoint_localization.dart';
 import 'package:carepoint_mobile_core/nutrition.dart';
+import 'package:carepoint_mobile_core/nutrition_plan.dart';
 import 'package:flutter/material.dart';
 
 class NutritionCapabilityLauncher extends StatelessWidget {
@@ -29,12 +30,12 @@ class NutritionCapabilityLauncher extends StatelessWidget {
           end: 18,
           bottom: 260,
           child: FloatingActionButton.small(
-            heroTag: 'provider-nutrition-anthropometry',
+            heroTag: 'provider-nutrition-workspace',
             backgroundColor: accent,
             foregroundColor: Colors.white,
-            tooltip: nutritionText(locale, 'title'),
+            tooltip: nutritionPlanText(locale, 'title'),
             onPressed: () => _chooseAppointment(context),
-            child: const Icon(Icons.monitor_weight_outlined),
+            child: const Icon(Icons.restaurant_menu_outlined),
           ),
         ),
       ],
@@ -68,7 +69,7 @@ class NutritionCapabilityLauncher extends StatelessWidget {
               child: Column(
                 children: [
                   ListTile(
-                    title: Text(nutritionText(locale, 'title'), style: const TextStyle(fontWeight: FontWeight.w800)),
+                    title: Text(nutritionPlanText(locale, 'title'), style: const TextStyle(fontWeight: FontWeight.w800)),
                     trailing: IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close)),
                   ),
                   const Divider(height: 1),
@@ -100,12 +101,38 @@ class NutritionCapabilityLauncher extends StatelessWidget {
         ),
       );
       if (selected == null || !context.mounted) return;
+      final action = await showModalBottomSheet<String>(
+        context: context,
+        builder: (sheetContext) => Directionality(
+          textDirection: locale.textDirection,
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.monitor_weight_outlined),
+                  title: Text(nutritionText(locale, 'title')),
+                  onTap: () => Navigator.pop(sheetContext, 'anthropometry'),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.assignment_outlined),
+                  title: Text(nutritionPlanText(locale, 'title')),
+                  onTap: () => Navigator.pop(sheetContext, 'plan'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      if (action == null || !context.mounted) return;
       await Navigator.push<void>(
         context,
         MaterialPageRoute(
           builder: (_) => Directionality(
             textDirection: locale.textDirection,
-            child: NutritionAnthropometryPage(session: session, locale: locale, appointment: selected),
+            child: action == 'plan'
+                ? ProviderNutritionPlanPage(session: session, locale: locale, appointment: selected)
+                : NutritionAnthropometryPage(session: session, locale: locale, appointment: selected),
           ),
         ),
       );
