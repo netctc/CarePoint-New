@@ -3,6 +3,13 @@ import { createHash } from "node:crypto";
 
 export const DAY_MS = 86_400_000;
 export const TELEHEALTH_CHANGE_BUFFER_MS = 30 * 60_000;
+export const SCHEDULING_SERIALIZABLE_RETRY_ATTEMPTS = 8;
+export async function schedulingSerializableRetryBackoff(attempt: number) {
+  const boundedAttempt = Math.max(0, Math.min(attempt, 5));
+  const baseMs = 8 * (2 ** boundedAttempt);
+  const jitterMs = Math.floor(Math.random() * 9);
+  await new Promise<void>((resolve) => setTimeout(resolve, baseMs + jitterMs));
+}
 export function journeyId(value: unknown, field = "identifier", min = 1): string {
   if (typeof value !== "string" || value.trim().length < min || value.trim().length > 128 || /[\u0000-\u001f\u007f]/.test(value)) throw new BadRequestException(`${field} is invalid.`);
   return value.trim();
