@@ -5,6 +5,9 @@ model ServiceSignature {
   patientId             String
   providerId            String
   appointmentId         String
+  completionEventId     String
+  formResponseId        String
+  formResponseSequence  Int
   signerType            String
   confirmationMethod    String
   serviceSummaryDigest  String
@@ -18,6 +21,8 @@ model ServiceSignature {
   createdAt              DateTime @default(now())
 
   @@index([appointmentId, createdAt])
+  @@index([completionEventId])
+  @@index([formResponseId])
   @@index([patientId, createdAt])
   @@index([providerId, patientId, createdAt])
 }
