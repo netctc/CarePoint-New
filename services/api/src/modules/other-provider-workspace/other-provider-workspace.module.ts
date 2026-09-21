@@ -18,12 +18,31 @@ class OtherProviderWorkspaceController {
     @Query("contextType") contextType?: string,
     @Query("contextId") contextId?: string,
   ) {
-    return this.workspace.workspace(
-      principal,
-      patientId,
-      contextType,
-      contextId,
-    );
+    return this.workspace.workspace(principal, patientId, contextType, contextId);
+  }
+
+  @RequirePermissions("OTHER_PROVIDER_CLINICAL_WORKSPACE")
+  @Get(":patientId/observation-trends")
+  @Header("Cache-Control", "no-store")
+  observationTrends(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Param("patientId") patientId: string,
+    @Query("contextType") contextType?: string,
+    @Query("contextId") contextId?: string,
+  ) {
+    return this.workspace.observationTrends(principal, patientId, contextType, contextId);
+  }
+
+  @RequirePermissions("OTHER_PROVIDER_CLINICAL_WORKSPACE")
+  @Get(":patientId/questionnaire-summary")
+  @Header("Cache-Control", "no-store")
+  questionnaireSummary(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Param("patientId") patientId: string,
+    @Query("contextType") contextType?: string,
+    @Query("contextId") contextId?: string,
+  ) {
+    return this.workspace.questionnaireSummary(principal, patientId, contextType, contextId);
   }
 }
 

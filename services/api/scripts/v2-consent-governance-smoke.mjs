@@ -72,10 +72,23 @@ test("direct V2 consent grants enforce registered version, purpose and provider 
     }),
     /must be 'health-profile-v1'/,
   );
-  assert.throws(
-    () => validateClinicalConsentGrantContract({
+  assert.deepEqual(
+    validateClinicalConsentGrantContract({
       scope: "QUESTIONNAIRE_READ",
       version: "questionnaire-read-v1",
+      purpose: "TREATMENT",
+      providerRole: "OTHER_PROVIDER",
+    }),
+    {
+      scope: "QUESTIONNAIRE_READ",
+      version: "questionnaire-read-v1",
+      purpose: "TREATMENT",
+    },
+  );
+  assert.throws(
+    () => validateClinicalConsentGrantContract({
+      scope: "CLINICAL_PROFILE_WRITE",
+      version: "clinical-profile-v1",
       purpose: "TREATMENT",
       providerRole: "OTHER_PROVIDER",
     }),

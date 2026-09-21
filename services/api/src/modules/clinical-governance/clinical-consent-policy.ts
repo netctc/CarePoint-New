@@ -36,7 +36,7 @@ export const ClinicalConsentPolicies: readonly ClinicalConsentPolicy[] = [
     resource: "QUESTIONNAIRE",
     access: "READ",
     allowedPurposes: ["TREATMENT"],
-    eligibleRoles: ["DOCTOR"],
+    eligibleRoles: ["DOCTOR", "OTHER_PROVIDER"],
     temporaryShareable: true,
   },
   {
