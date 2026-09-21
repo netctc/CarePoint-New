@@ -34,6 +34,7 @@ CREATE TABLE "OperationalAccessNeedSnapshot" (
   "contextType" TEXT NOT NULL,
   "contextId" TEXT NOT NULL,
   "needs" JSONB NOT NULL,
+  "note" TEXT,
   "sourceVersion" INTEGER NOT NULL,
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT "OperationalAccessNeedSnapshot_pkey" PRIMARY KEY ("id")
@@ -53,6 +54,8 @@ ALTER TABLE "OperationalAccessNeedSnapshot"
   CHECK ("contextType" IN ('APPOINTMENT', 'MEDICAL_TRANSPORT')),
   ADD CONSTRAINT "OperationalAccessNeedSnapshot_needs_array_check"
   CHECK (jsonb_typeof("needs") = 'array' AND jsonb_array_length("needs") <= 16),
+  ADD CONSTRAINT "OperationalAccessNeedSnapshot_note_length_check"
+  CHECK ("note" IS NULL OR char_length("note") <= 500),
   ADD CONSTRAINT "OperationalAccessNeedSnapshot_version_check"
   CHECK ("sourceVersion" >= 1);
 
@@ -60,7 +63,7 @@ CREATE OR REPLACE FUNCTION carepoint_snapshot_appointment_access_needs()
 RETURNS trigger AS $$
 BEGIN
   INSERT INTO "OperationalAccessNeedSnapshot" (
-    "id", "patientId", "contextType", "contextId", "needs", "sourceVersion", "createdAt"
+    "id", "patientId", "contextType", "contextId", "needs", "note", "sourceVersion", "createdAt"
   )
   SELECT
     'appointment:' || NEW."id",
@@ -68,11 +71,12 @@ BEGIN
     'APPOINTMENT',
     NEW."id",
     access."needs",
+    access."note",
     access."version",
     CURRENT_TIMESTAMP
   FROM "PatientAccessNeed" access
   WHERE access."patientId" = NEW."patientId"
-    AND jsonb_array_length(access."needs") > 0
+    AND (jsonb_array_length(access."needs") > 0 OR access."note" IS NOT NULL)
   ON CONFLICT ("contextType", "contextId") DO NOTHING;
   RETURN NEW;
 END;
@@ -108,7 +112,7 @@ CREATE OR REPLACE FUNCTION carepoint_snapshot_transport_access_needs()
 RETURNS trigger AS $$
 BEGIN
   INSERT INTO "OperationalAccessNeedSnapshot" (
-    "id", "patientId", "contextType", "contextId", "needs", "sourceVersion", "createdAt"
+    "id", "patientId", "contextType", "contextId", "needs", "note", "sourceVersion", "createdAt"
   )
   SELECT
     'transport:' || NEW."id",
@@ -116,11 +120,12 @@ BEGIN
     'MEDICAL_TRANSPORT',
     NEW."id",
     access."needs",
+    access."note",
     access."version",
     CURRENT_TIMESTAMP
   FROM "PatientAccessNeed" access
   WHERE access."patientId" = NEW."patientId"
-    AND jsonb_array_length(access."needs") > 0
+    AND (jsonb_array_length(access."needs") > 0 OR access."note" IS NOT NULL)
   ON CONFLICT ("contextType", "contextId") DO NOTHING;
   RETURN NEW;
 END;
