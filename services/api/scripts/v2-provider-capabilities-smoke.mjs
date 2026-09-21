@@ -104,6 +104,11 @@ const fieldMediaSource = readFileSync(
 assert.match(fieldMediaSource, /MEDIA_CAPTURE/);
 assert.match(fieldMediaSource, /modality:\s*"HOME_VISIT"/);
 assert.match(fieldMediaSource, /CLINICAL_MEDIA_GOVERNED_RETENTION/);
+assert.match(fieldMediaSource, /CLINICAL_MEDIA_CAPTURE/);
+assert.match(fieldMediaSource, /clinical-media-v1/);
+assert.match(fieldMediaSource, /findEffectiveCaptureConsent/);
+assert.match(fieldMediaSource, /patientMustGrantConsent:\s*!consent/);
+assert.match(fieldMediaSource, /@Get\("consent"\)/);
 assert.match(fieldMediaSource, /contentDigest/);
 assert.match(fieldMediaSource, /authorActorId/);
 assert.match(fieldMediaSource, /capturedAt/);
@@ -112,6 +117,7 @@ assert.match(fieldMediaSource, /encryptedAtRest:\s*true/);
 assert.match(fieldMediaSource, /image\/jpeg/);
 assert.match(fieldMediaSource, /image\/png/);
 assert.doesNotMatch(fieldMediaSource, /video\/mp4/);
+assert.doesNotMatch(fieldMediaSource, /requiredId\(input\.consentId/);
 
 const clinicalMediaSource = readFileSync(
   new URL("../src/modules/documents/clinical-media.service.ts", import.meta.url),
@@ -133,5 +139,34 @@ assert.match(fieldMediaMigration, /ClinicalMedia/);
 assert.match(fieldMediaMigration, /Appointment/);
 assert.match(fieldMediaMigration, /retentionPolicyCode/);
 assert.match(fieldMediaMigration, /contentDigest/);
+
+const fieldMediaMobileSource = readFileSync(
+  new URL("../../../apps/provider-mobile/lib/field_media_entry.dart", import.meta.url),
+  "utf8",
+);
+assert.match(fieldMediaMobileSource, /workflowCapabilities\.contains\('MEDIA_CAPTURE'\)/);
+assert.match(fieldMediaMobileSource, /ImageSource\.camera/);
+assert.match(fieldMediaMobileSource, /ImageSource\.gallery/);
+assert.match(fieldMediaMobileSource, /captureAllowed/);
+assert.match(fieldMediaMobileSource, /CLINICAL_MEDIA_CAPTURE/);
+assert.match(fieldMediaMobileSource, /clinical-media-v1/);
+assert.match(fieldMediaMobileSource, /base64Encode/);
+assert.match(fieldMediaMobileSource, /8 \* 1024 \* 1024/);
+
+const fieldMediaApiSource = readFileSync(
+  new URL("../../../packages/mobile_core/lib/provider_field_media.dart", import.meta.url),
+  "utf8",
+);
+assert.match(fieldMediaApiSource, /\/media\/consent/);
+assert.match(fieldMediaApiSource, /idempotencyKey/);
+assert.match(fieldMediaApiSource, /capturedAt/);
+assert.doesNotMatch(fieldMediaApiSource, /'consentId'/);
+
+const providerMainSource = readFileSync(
+  new URL("../../../apps/provider-mobile/lib/main.dart", import.meta.url),
+  "utf8",
+);
+assert.match(providerMainSource, /ProviderFieldMediaLauncher/);
+assert.match(providerMainSource, /workflowCapabilities:\s*workflowCapabilities/);
 
 console.log("V2 Other Provider capability matrix, authorized insights, and PRV-076 field media acceptance passed");
