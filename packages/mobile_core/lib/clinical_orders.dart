@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'carepoint_api.dart';
 import 'carepoint_localization.dart';
+import 'specimen_workflow.dart';
 
 String orderText(CarePointLocale locale, String key) => _orderStrings[locale.name]?[key] ?? _orderStrings['en']![key] ?? key;
 
@@ -192,6 +193,7 @@ class _ProviderClinicalOrdersPageState extends State<ProviderClinicalOrdersPage>
         if (!prescription && result['data'] != null) _labResultData(_map(result['data'])),
         const SizedBox(height: 8),
         Wrap(spacing: 8, runSpacing: 8, children: [
+          if (!prescription && widget.session.role == 'OTHER_PROVIDER' && _can('SPECIMEN_COLLECTION')) SpecimenWorkflowButton(session: widget.session, locale: locale, order: order),
           if (order['status'] == 'SIGNED' && result.isEmpty && !prescription && _can('LAB_RESULT_ENTRY')) OutlinedButton.icon(onPressed: () => _enterResult(order), icon: const Icon(Icons.add_chart_outlined), label: Text(orderText(locale, 'enterResult'))),
           if (!prescription && result['status'] == 'ENTERED' && _can('LAB_RESULT_VALIDATE')) FilledButton.tonalIcon(onPressed: () => _confirmAction(orderText(locale, 'confirmValidate'), () => api.validateLaboratoryResult(order['id'].toString())), icon: const Icon(Icons.verified_outlined), label: Text(orderText(locale, 'validate'))),
           if (!prescription && result['status'] == 'VALIDATED') FilledButton.icon(onPressed: () => _confirmAction(orderText(locale, 'confirmRelease'), () => api.releaseLaboratoryResult(order['id'].toString())), icon: const Icon(Icons.send_outlined), label: Text(orderText(locale, 'release'))),
