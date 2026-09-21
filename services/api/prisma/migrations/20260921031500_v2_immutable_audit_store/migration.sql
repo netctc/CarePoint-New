@@ -26,6 +26,31 @@ ALTER TABLE "AuditIntegrityRecord"
   ADD CONSTRAINT "AuditIntegrityRecord_auditEventId_fkey"
   FOREIGN KEY ("auditEventId") REFERENCES "AuditEvent"("id") ON DELETE RESTRICT ON UPDATE RESTRICT;
 
+CREATE TABLE "AuditIntegrityHead" (
+  "id" TEXT NOT NULL,
+  "lastAuditEventId" TEXT,
+  "lastEventHash" TEXT,
+  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "AuditIntegrityHead_pkey" PRIMARY KEY ("id")
+);
+
+ALTER TABLE "AuditIntegrityHead"
+  ADD CONSTRAINT "AuditIntegrityHead_hash_check"
+  CHECK ("lastEventHash" IS NULL OR "lastEventHash" ~ '^[0-9a-f]{64}$'),
+  ADD CONSTRAINT "AuditIntegrityHead_consistency_check"
+  CHECK (
+    ("lastAuditEventId" IS NULL AND "lastEventHash" IS NULL)
+    OR ("lastAuditEventId" IS NOT NULL AND "lastEventHash" IS NOT NULL)
+  ),
+  ADD CONSTRAINT "AuditIntegrityHead_lastAuditEventId_fkey"
+  FOREIGN KEY ("lastAuditEventId") REFERENCES "AuditEvent"("id") ON DELETE RESTRICT ON UPDATE RESTRICT;
+
+INSERT INTO "AuditIntegrityHead" (
+  "id", "lastAuditEventId", "lastEventHash", "updatedAt"
+) VALUES (
+  'default', NULL, NULL, CURRENT_TIMESTAMP
+) ON CONFLICT ("id") DO NOTHING;
+
 CREATE TABLE "AuditRetentionPolicy" (
   "id" TEXT NOT NULL,
   "mode" TEXT NOT NULL DEFAULT 'INDEFINITE',
