@@ -50,7 +50,12 @@ class RangeOfMotionController {
     @Query("movementCode") movementCode?: string,
     @Query("side") side?: string,
   ) {
-    return this.physiotherapy.rangeOfMotionHistory(principal, patientId, { jointCode, movementCode, side });
+    const filters = {
+      ...(jointCode === undefined ? {} : { jointCode }),
+      ...(movementCode === undefined ? {} : { movementCode }),
+      ...(side === undefined ? {} : { side }),
+    };
+    return this.physiotherapy.rangeOfMotionHistory(principal, patientId, filters);
   }
 }
 
