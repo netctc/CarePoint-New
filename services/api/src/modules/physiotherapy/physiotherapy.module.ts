@@ -2,6 +2,8 @@ import { Body, Controller, Get, Header, Module, Param, Post, Query } from "@nest
 import type { AuthPrincipal } from "@carepoint/identity";
 import { CurrentPrincipal, RequirePermissions } from "../../security/api-security.module";
 import { ProvidersModule } from "../providers/providers.module";
+import { PhysioSourceEvidenceController } from "./physio-source-evidence.controller";
+import { PhysioSourceEvidenceService } from "./physio-source-evidence.service";
 import { PhysiotherapyService } from "./physiotherapy.service";
 
 @Controller("provider/physio-assessments")
@@ -54,7 +56,7 @@ class RangeOfMotionController {
 
 @Module({
   imports: [ProvidersModule],
-  controllers: [PhysioAssessmentController, RangeOfMotionController],
-  providers: [PhysiotherapyService],
+  controllers: [PhysioAssessmentController, RangeOfMotionController, PhysioSourceEvidenceController],
+  providers: [PhysiotherapyService, PhysioSourceEvidenceService],
 })
 export class PhysiotherapyModule {}
