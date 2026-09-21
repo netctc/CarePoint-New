@@ -5,18 +5,19 @@ enum ClinicalProfileSchemaStatus {
 }
 
 model ClinicalProfileSchema {
-  id               String                      @id @default(uuid())
-  jurisdiction     String
-  version          Int
-  status           ClinicalProfileSchemaStatus @default(DRAFT)
-  definition       Json
-  createdByActorId String
+  id                 String                      @id @default(uuid())
+  jurisdiction       String
+  version            Int
+  revision           Int                         @default(1)
+  status             ClinicalProfileSchemaStatus @default(DRAFT)
+  definition         Json
+  createdByActorId   String
   publishedByActorId String?
-  retiredByActorId String?
-  createdAt        DateTime                    @default(now())
-  updatedAt        DateTime                    @updatedAt
-  publishedAt      DateTime?
-  retiredAt        DateTime?
+  retiredByActorId   String?
+  createdAt          DateTime                    @default(now())
+  updatedAt          DateTime                    @updatedAt
+  publishedAt        DateTime?
+  retiredAt          DateTime?
 
   @@unique([jurisdiction, version])
   @@index([jurisdiction, status, version])
