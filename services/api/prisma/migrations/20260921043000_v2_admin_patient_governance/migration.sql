@@ -7,6 +7,7 @@ CREATE TABLE "ClinicalProfileSchema" (
   "id" TEXT NOT NULL,
   "jurisdiction" TEXT NOT NULL,
   "version" INTEGER NOT NULL,
+  "revision" INTEGER NOT NULL DEFAULT 1,
   "status" "ClinicalProfileSchemaStatus" NOT NULL DEFAULT 'DRAFT',
   "definition" JSONB NOT NULL,
   "createdByActorId" TEXT NOT NULL,
@@ -31,6 +32,8 @@ ALTER TABLE "ClinicalProfileSchema"
   CHECK ("jurisdiction" ~ '^[A-Z][A-Z0-9_-]{1,31}$'),
   ADD CONSTRAINT "ClinicalProfileSchema_version_check"
   CHECK ("version" >= 1),
+  ADD CONSTRAINT "ClinicalProfileSchema_revision_check"
+  CHECK ("revision" >= 1),
   ADD CONSTRAINT "ClinicalProfileSchema_definition_object_check"
   CHECK (jsonb_typeof("definition") = 'object'),
   ADD CONSTRAINT "ClinicalProfileSchema_state_timestamp_check"
@@ -50,6 +53,7 @@ BEGIN
   IF OLD."status" = 'PUBLISHED' THEN
     IF NEW."definition" IS DISTINCT FROM OLD."definition"
        OR NEW."version" IS DISTINCT FROM OLD."version"
+       OR NEW."revision" IS DISTINCT FROM OLD."revision"
        OR NEW."jurisdiction" IS DISTINCT FROM OLD."jurisdiction"
        OR NEW."createdByActorId" IS DISTINCT FROM OLD."createdByActorId"
        OR NEW."publishedAt" IS DISTINCT FROM OLD."publishedAt"
