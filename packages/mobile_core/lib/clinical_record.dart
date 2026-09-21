@@ -5,6 +5,7 @@ import 'carepoint_localization.dart';
 import 'clinical_documents.dart';
 import 'clinical_localization.dart';
 import 'clinical_orders.dart';
+import 'other_provider_insights.dart';
 
 class ClinicalActionButton extends StatelessWidget {
   const ClinicalActionButton({
@@ -78,6 +79,8 @@ class _ClinicalRecordPageState extends State<ClinicalRecordPage> {
       if (!finalized) FilledButton.icon(onPressed: saving ? null : save, icon: const Icon(Icons.lock_outline), label: Text(clinicalText(locale, 'saveRevision'))), if (!finalized) const SizedBox(height: 10),
       if (!finalized) OutlinedButton.icon(onPressed: saving ? null : finalize, icon: const Icon(Icons.task_alt), label: Text(clinicalText(locale, 'finalize'))), const SizedBox(height: 10),
       OutlinedButton.icon(onPressed: showPatientHistory, icon: const Icon(Icons.history), label: Text(clinicalText(locale, 'patientHistory'))), const SizedBox(height: 10),
+      if (widget.session.role == 'OTHER_PROVIDER') OtherProviderInsightsActionButton(session: widget.session, locale: locale, appointment: widget.appointment),
+      if (widget.session.role == 'OTHER_PROVIDER') const SizedBox(height: 10),
       ClinicalOrdersActionButton(
         session: widget.session,
         locale: locale,
