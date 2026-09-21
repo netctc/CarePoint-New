@@ -9,6 +9,13 @@ model AuditIntegrityRecord {
   @@index([createdAt])
 }
 
+model AuditIntegrityHead {
+  id               String   @id
+  lastAuditEventId String?
+  lastEventHash    String?
+  updatedAt        DateTime @updatedAt
+}
+
 model AuditRetentionPolicy {
   id                   String   @id
   mode                 String   @default("INDEFINITE")
