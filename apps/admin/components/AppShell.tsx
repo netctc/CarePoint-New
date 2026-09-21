@@ -17,11 +17,10 @@ const nav = [
 ] as const;
 
 const financeLabels: Record<Locale, string> = {
-  en: "Finance & Revenue",
-  ar: "المالية ودورة الإيرادات",
-  fr: "Finance & revenus",
-  es: "Finanzas e ingresos",
+  en: "Finance & Revenue", ar: "المالية ودورة الإيرادات", fr: "Finance & revenus", es: "Finanzas e ingresos",
 };
+const patientLabels: Record<Locale, string> = { en:"Patients", ar:"المرضى", fr:"Patients", es:"Pacientes" };
+const profileSchemaLabels: Record<Locale, string> = { en:"Clinical Profile Schema", ar:"مخطط الملف السريري", fr:"Schéma du profil clinique", es:"Esquema del perfil clínico" };
 
 type Props = Readonly<{
   active: string;
@@ -36,13 +35,15 @@ export function AppShell({ active, titleKey, eyebrowKey, title, eyebrow, childre
   const { t, direction, locale } = useI18n();
   const renderedTitle = title ?? (titleKey ? t(titleKey) : "");
   const renderedEyebrow = eyebrow ?? (eyebrowKey ? t(eyebrowKey) : "");
-
   return <div className="app-shell" data-direction={direction}>
     <aside className="sidebar">
       <div className="brand"><div className="brand-mark">C+</div><div><strong>CarePoint</strong><span>{t("shell.clinicalOperations")}</span></div><i className="live-dot" /></div>
       <div className="command">⌘ <span>{t("shell.globalCommand")}</span><kbd>⌘K</kbd></div>
       <div className="nav-label">{t("shell.systemModules")}</div>
-      <nav>{nav.map(([id, key, href]) => <Link key={id} className={`nav-item ${active === id ? "active" : ""}`} href={href}><small>{id}</small><span>{id === "05" ? financeLabels[locale] : t(key)}</span><b>{direction === "rtl" ? "‹" : "›"}</b></Link>)}</nav>
+      <nav>{nav.map(([id, key, href]) => <Link key={id} className={`nav-item ${active === id ? "active" : ""}`} href={href}><small>{id}</small><span>{id === "05" ? financeLabels[locale] : t(key)}</span><b>{direction === "rtl" ? "‹" : "›"}</b></Link>)}
+        <Link className={`nav-item ${active === "09" ? "active" : ""}`} href="/patients"><small>09</small><span>{patientLabels[locale]}</span><b>{direction === "rtl" ? "‹" : "›"}</b></Link>
+        <Link className={`nav-item ${active === "10" ? "active" : ""}`} href="/clinical-config/profile-schema"><small>10</small><span>{profileSchemaLabels[locale]}</span><b>{direction === "rtl" ? "‹" : "›"}</b></Link>
+      </nav>
       <div className="security-pill"><div><small>{t("shell.e2eeStatus")}</small><strong>{t("shell.shieldPolicy")}</strong></div><i /></div>
     </aside>
     <section className="workspace">
