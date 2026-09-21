@@ -85,7 +85,13 @@ export async function state(f) {
   };
 }
 export function failingJourneys() {
-  return new PatientJourneysService(db, { async writeInTransaction(tx, input) { await audit.writeInTransaction(tx, input); throw new Error('SYNTHETIC_ROLLBACK_AFTER_AUDIT'); } });
+  return new PatientJourneysService(db, {
+    async reserveIntegrityChainForSerializableTransaction() {},
+    async writeInTransaction(tx, input) {
+      await audit.writeInTransaction(tx, input);
+      throw new Error('SYNTHETIC_ROLLBACK_AFTER_AUDIT');
+    },
+  });
 }
 export function failingBooking() {
   return new Release1ContextualBookingService(db, { async writeInTransaction(tx, input) { await audit.writeInTransaction(tx, input); throw new Error('SYNTHETIC_ROLLBACK_AFTER_AUDIT'); }, write: (input) => audit.write(input) }, {});
