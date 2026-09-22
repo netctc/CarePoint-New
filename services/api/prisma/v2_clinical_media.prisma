@@ -35,10 +35,10 @@ model ClinicalMedia {
   consentEvidenceId          String              @unique
   purpose                    String
   status                     ClinicalMediaStatus @default(AVAILABLE)
-  logicalMediaId             String
+  logicalMediaId             String?
   mediaVersion               Int                 @default(1)
   effectiveDate              DateTime            @default(now())
-  sourceType                 String
+  sourceType                 String?
   sourceRef                  String?
   supersedesMediaId          String?
   mediaType                  String
