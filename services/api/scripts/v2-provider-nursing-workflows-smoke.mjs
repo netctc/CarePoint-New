@@ -15,7 +15,7 @@ const mobileMain = readFileSync(new URL("../../../apps/provider-mobile/lib/main.
 assert.match(source, /@Controller\("provider\/medication-administrations"\)/);
 assert.match(source, /@Post\(\)/);
 assert.match(source, /eligible-prescriptions/);
-assert.match(source, /assertWorkflowCapability\(principal, "MED_ADMIN"\)/);
+assert.match(source, /requireAppointmentContext\(principal, "MED_ADMIN"/);
 assert.match(source, /source\.type !== "PRESCRIPTION" \|\| source\.status !== "SIGNED"/);
 assert.match(source, /lockedOrder\.type !== "PRESCRIPTION" \|\| lockedOrder\.status !== "SIGNED"/);
 assert.match(source, /ADMINISTERED/);
@@ -29,7 +29,7 @@ assert.match(schema, /prescriptionOrderId\s+String/);
 
 // PRV-063 wound care: encrypted longitudinal assessment and consented ClinicalMedia evidence only.
 assert.match(source, /@Controller\("provider\/wound-assessments"\)/);
-assert.match(source, /assertWorkflowCapability\(principal, "WOUND_CARE"\)/);
+assert.match(source, /requireAppointmentContext\(principal, "WOUND_CARE"/);
 assert.match(source, /providerFieldMediaEvidence\.findFirst/);
 assert.match(source, /consented encrypted field-media workflow/);
 assert.match(source, /encryptRecord/);
@@ -47,6 +47,8 @@ assert.match(formEngine, /"PROCEDURE_CHECKLIST"/);
 assert.match(formEngine, /PROCEDURE_CHECKLIST.*contextType !== "APPOINTMENT"/s);
 assert.match(source, /@Controller\("provider\/procedure-checklists"\)/);
 assert.match(source, /configurationSource:\s*"ProviderCategoryForm"/);
+assert.match(source, /assertWorkflowCapability\(principal, "PROCEDURE_CHECKLIST"\)/);
+assert.match(source, /assertWorkflowCapability\(principal, "CATEGORY_FORMS"\)/);
 assert.match(source, /item\.purpose === "PROCEDURE_CHECKLIST"/);
 assert.match(source, /forms\.submit/);
 assert.match(source, /requiredStepsValidatedServerSide:\s*true/);
@@ -79,6 +81,7 @@ assert.match(mobileApi, /completeProcedureChecklist/);
 assert.match(mobileEntry, /workflowCapabilities\.contains\('MED_ADMIN'\)/);
 assert.match(mobileEntry, /workflowCapabilities\.contains\('WOUND_CARE'\)/);
 assert.match(mobileEntry, /workflowCapabilities\.contains\('PROCEDURE_CHECKLIST'\)/);
+assert.match(mobileEntry, /workflowCapabilities\.contains\('CATEGORY_FORMS'\)/);
 assert.match(mobileEntry, /ProviderFieldMediaApi/);
 assert.match(mobileEntry, /clinicalMediaId/);
 assert.match(mobileEntry, /CarePointLocale/);
