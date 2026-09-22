@@ -77,3 +77,4 @@ assert.match(mobileWorkspace, /showTransportHandoffSheet/);
 assert.match(mobileWorkspace, /status == 'TRANSPORTING' \|\| status == 'COMPLETED'/);
 
 console.log("V2 PRV-084 destination transport handoff acceptance passed");
+await import("./v2-provider-field-media-smoke.mjs");
