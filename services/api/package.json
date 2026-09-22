@@ -79,7 +79,7 @@
     "v2:doctor-snapshot": "node scripts/v2-doctor-snapshot-smoke.mjs",
     "v2:provider-capabilities": "node scripts/v2-provider-capabilities-smoke.mjs",
     "v2:provider-category-forms": "node scripts/v2-provider-category-forms-smoke.mjs",
-    "v2:provider-workflow": "node scripts/v2-provider-workflow-smoke.mjs",
+    "v2:provider-workflow": "node scripts/v2-provider-workflow-smoke.mjs && node scripts/v2-service-signature-smoke.mjs",
     "v2:consent-governance": "node scripts/v2-consent-governance-smoke.mjs",
     "v2:dependents": "node scripts/v2-dependents-smoke.mjs",
     "v2:appointment-continuity": "node scripts/v2-appointment-continuity-smoke.mjs",
