@@ -15,7 +15,7 @@ export type B6Section =
 
 type RecordValue = Record<string, any>;
 
-const labels: Record<Locale, Record<string, string>> = {
+const labels = {
   en: {
     refresh: "Refresh", save: "Save", create: "Create", publish: "Publish new version", search: "Search",
     loading: "Loading…", failed: "Request failed.", empty: "No records.", version: "Version", active: "Active",
@@ -76,7 +76,9 @@ const labels: Record<Locale, Record<string, string>> = {
     arabic: "Árabe", french: "Francés", spanish: "Español", selectRecord: "Selecciona un registro para publicar una nueva versión.",
     current: "Actual", catalogVersion: "Versión del catálogo", recentRuns: "Ejecuciones recientes", openIssues: "Incidencias",
   },
-};
+} satisfies Record<Locale, Record<string, string>>;
+
+type B6Copy = { [K in keyof typeof labels.en]: string };
 
 const sectionCopy: Record<B6Section, Record<Locale, { eyebrow: string; title: string; intro: string }>> = {
   terminology: {
@@ -138,7 +140,7 @@ export function B6GovernanceCenter({ section }: { section: B6Section }) {
   );
 }
 
-function Terminology({ locale, c }: { locale: Locale; c: Record<string,string> }) {
+function Terminology({ locale, c }: { locale: Locale; c: B6Copy }) {
   const [systems,setSystems]=useState<RecordValue[]>([]);
   const [concepts,setConcepts]=useState<RecordValue[]>([]);
   const [query,setQuery]=useState("");
@@ -206,7 +208,7 @@ function Terminology({ locale, c }: { locale: Locale; c: Record<string,string> }
   </>;
 }
 
-function DataQuality({ locale, c }: { locale: Locale; c: Record<string,string> }) {
+function DataQuality({ locale, c }: { locale: Locale; c: B6Copy }) {
   const [rules,setRules]=useState<RecordValue[]>([]);
   const [runs,setRuns]=useState<RecordValue[]>([]);
   const [issues,setIssues]=useState<RecordValue[]>([]);
@@ -244,7 +246,7 @@ function DataQuality({ locale, c }: { locale: Locale; c: Record<string,string> }
   </Table></section></>;
 }
 
-function PatientMerge({ c }: { c: Record<string,string> }) {
+function PatientMerge({ c }: { c: B6Copy }) {
   const [preview,setPreview]=useState<RecordValue|null>(null);
   const [message,setMessage]=useState("");
   const [reviewed,setReviewed]=useState(false);
@@ -274,7 +276,7 @@ function PatientMerge({ c }: { c: Record<string,string> }) {
   </>;
 }
 
-function NotificationTemplates({ c }: { c: Record<string,string> }) {
+function NotificationTemplates({ c }: { c: B6Copy }) {
   const [items,setItems]=useState<RecordValue[]>([]);
   const [selected,setSelected]=useState<RecordValue|null>(null);
   const [message,setMessage]=useState("");
@@ -299,7 +301,7 @@ function NotificationTemplates({ c }: { c: Record<string,string> }) {
   </div></>;
 }
 
-function FeatureFlags({ c }: { c: Record<string,string> }) {
+function FeatureFlags({ c }: { c: B6Copy }) {
   const [items,setItems]=useState<RecordValue[]>([]);
   const [selected,setSelected]=useState<RecordValue|null>(null);
   const [message,setMessage]=useState("");
@@ -335,7 +337,7 @@ function FeatureFlags({ c }: { c: Record<string,string> }) {
   </div></>;
 }
 
-function Localization({ c }: { c: Record<string,string> }) {
+function Localization({ c }: { c: B6Copy }) {
   const [items,setItems]=useState<RecordValue[]>([]);
   const [catalogVersion,setCatalogVersion]=useState(0);
   const [selected,setSelected]=useState<RecordValue|null>(null);
@@ -372,11 +374,12 @@ function Field({name,label,required=false,defaultValue="",type="text"}:{name:str
 function Table({headers,children}:{headers:string[];children:ReactNode}){return <div className={styles.tableWrap}><table><thead><tr>{headers.map(h=><th key={h}>{h}</th>)}</tr></thead><tbody>{children}</tbody></table></div>;}
 
 async function api(path:string,options?:{method?:"POST";body?:unknown}) {
-  const response=await fetch(`/api/admin/b6${path}`,{
-    method:options?.method??"GET",cache:"no-store",
-    headers:options?.body!==undefined?{"content-type":"application/json"}:undefined,
-    body:options?.body!==undefined?JSON.stringify(options.body):undefined,
-  });
+  const init: RequestInit = { method: options?.method ?? "GET", cache: "no-store" };
+  if (options?.body !== undefined) {
+    init.headers = { "content-type": "application/json" };
+    init.body = JSON.stringify(options.body);
+  }
+  const response=await fetch(`/api/admin/b6${path}`,init);
   const payload=await response.json().catch(()=>({}));
   if(!response.ok) throw new Error(typeof payload?.message==="string"?payload.message:`HTTP ${response.status}`);
   return payload;
