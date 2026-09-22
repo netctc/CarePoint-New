@@ -3,6 +3,7 @@ import type { AuthPrincipal } from "@carepoint/identity";
 import { CurrentPrincipal, RequirePermissions } from "../../security/api-security.module";
 import { ClinicalModule } from "../clinical/clinical.module";
 import { ProvidersModule } from "../providers/providers.module";
+import { ProviderFieldJobsModule } from "./provider-field-jobs.module";
 import { OtherProviderWorkspaceService } from "./other-provider-workspace.service";
 
 @Controller("provider/capability-workspace")
@@ -47,7 +48,7 @@ class OtherProviderWorkspaceController {
 }
 
 @Module({
-  imports: [ClinicalModule, ProvidersModule],
+  imports: [ClinicalModule, ProvidersModule, ProviderFieldJobsModule],
   controllers: [OtherProviderWorkspaceController],
   providers: [OtherProviderWorkspaceService],
 })
