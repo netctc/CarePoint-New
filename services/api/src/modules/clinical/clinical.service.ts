@@ -5,7 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import type { ClinicalRecord } from "@prisma/client";
+import { Prisma, type ClinicalRecord } from "@prisma/client";
 import type { EncryptedEnvelope } from "@carepoint/security";
 import { decideClinicalResourceAccess, type AuthPrincipal, type ClinicalAccessBasis } from "@carepoint/identity";
 import { PrismaService } from "../../infrastructure/prisma/prisma.module";
@@ -39,31 +39,51 @@ export class ClinicalService {
     if (appointment.status !== "CONFIRMED") throw new ConflictException("Clinical documentation requires a confirmed appointment.");
 
     const cleaned = this.validateInput(input);
-    const revision = (await this.prisma.clinicalRecord.count({ where: { encounterRef: appointment.id } })) + 1;
-    const payload: StoredClinicalPayload = { ...cleaned, schemaVersion: 1, revision, authoredAt: new Date().toISOString() };
-    const encrypted = await this.envelope.encryptRecord(payload);
-    const record = await this.prisma.clinicalRecord.create({
-      data: {
-        patientId: appointment.patientId,
-        providerId: provider.id,
-        encounterRef: appointment.id,
-        algorithm: encrypted.algorithm,
-        keyId: encrypted.keyId,
-        wrappedKey: encrypted.wrappedKey,
-        iv: encrypted.iv,
-        ciphertext: encrypted.ciphertext,
-      },
-    });
-    await this.audit.writeClinical({
-      actorId: principal.accountId,
-      action: "CLINICAL_RECORD_WRITTEN",
-      objectType: "CLINICAL_RECORD",
-      objectId: record.id,
-      purpose: "TREATMENT",
-      result: "SUCCESS",
-      metadata: { appointmentId: appointment.id, revision },
-    });
-    return { id: record.id, appointmentId: appointment.id, revision, createdAt: record.createdAt, data: payload };
+    const result = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw(Prisma.sql`SELECT id FROM "Appointment" WHERE id = ${appointment.id} FOR UPDATE`);
+      const locked = await tx.appointment.findUnique({
+        where: { id: appointment.id },
+        select: { id: true, patientId: true, providerId: true, status: true },
+      });
+      if (!locked) throw new NotFoundException("Encounter not found.");
+      if (locked.providerId !== provider.id) throw new ForbiddenException("Encounter provider changed.");
+      if (locked.status === "COMPLETED") throw new ConflictException("A finalized clinical encounter is immutable.");
+      if (locked.status !== "CONFIRMED") throw new ConflictException("Clinical documentation requires a confirmed appointment.");
+
+      const revision = (await tx.clinicalRecord.count({ where: { encounterRef: locked.id } })) + 1;
+      const payload: StoredClinicalPayload = { ...cleaned, schemaVersion: 1, revision, authoredAt: new Date().toISOString() };
+      const encrypted = await this.envelope.encryptRecord(payload);
+      const record = await tx.clinicalRecord.create({
+        data: {
+          patientId: locked.patientId,
+          providerId: provider.id,
+          encounterRef: locked.id,
+          algorithm: encrypted.algorithm,
+          keyId: encrypted.keyId,
+          wrappedKey: encrypted.wrappedKey,
+          iv: encrypted.iv,
+          ciphertext: encrypted.ciphertext,
+        },
+      });
+      await this.audit.writeClinicalInTransaction(tx, {
+        actorId: principal.accountId,
+        action: "CLINICAL_RECORD_WRITTEN",
+        objectType: "CLINICAL_RECORD",
+        objectId: record.id,
+        purpose: "TREATMENT",
+        result: "SUCCESS",
+        metadata: { appointmentId: locked.id, revision },
+      });
+      return { record, payload, revision };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+
+    return {
+      id: result.record.id,
+      appointmentId: appointment.id,
+      revision: result.revision,
+      createdAt: result.record.createdAt,
+      data: result.payload,
+    };
   }
 
   async getEncounter(principal: AuthPrincipal, appointmentId: string) {
@@ -110,21 +130,68 @@ export class ClinicalService {
     if (appointment.providerId !== provider.id) throw new ForbiddenException("Only the appointment provider can finalize this encounter.");
     if (appointment.status === "COMPLETED") return this.getEncounter(principal, appointmentId);
     if (appointment.status !== "CONFIRMED") throw new ConflictException("Only a confirmed appointment can be finalized.");
-    const record = await this.prisma.clinicalRecord.findFirst({ where: { encounterRef: appointment.id }, select: { id: true } });
-    if (!record) throw new ConflictException("At least one encrypted clinical record revision is required before finalization.");
-
-    const telehealth = await this.prisma.telehealthSession.findUnique({ where: { appointmentId: appointment.id }, select: { status: true } });
-    if (telehealth?.status === "ACTIVE") {
-      throw new ConflictException("End the active telemedicine session before finalizing the clinical encounter.");
-    }
 
     await this.prisma.$transaction(async (tx) => {
-      await tx.appointment.update({ where: { id: appointment.id }, data: { status: "COMPLETED" } });
-      if (telehealth?.status === "WAITING" || telehealth?.status === "READY") {
-        await tx.telehealthSession.update({ where: { appointmentId: appointment.id }, data: { status: "ENDED", endedAt: new Date() } });
+      await tx.$queryRaw(Prisma.sql`SELECT id FROM "Appointment" WHERE id = ${appointment.id} FOR UPDATE`);
+      const locked = await tx.appointment.findUnique({
+        where: { id: appointment.id },
+        select: { id: true, patientId: true, providerId: true, status: true },
+      });
+      if (!locked) throw new NotFoundException("Encounter not found.");
+      if (locked.providerId !== provider.id) throw new ForbiddenException("Encounter provider changed.");
+      if (locked.status === "COMPLETED") return;
+      if (locked.status !== "CONFIRMED") throw new ConflictException("Only a confirmed appointment can be finalized.");
+
+      const record = await tx.clinicalRecord.findFirst({
+        where: { encounterRef: locked.id, providerId: provider.id },
+        select: { id: true },
+        orderBy: { createdAt: "desc" },
+      });
+      if (!record) throw new ConflictException("At least one encrypted clinical record revision is required before finalization.");
+
+      if (principal.role === "DOCTOR") {
+        const signature = await tx.clinicalSignature.findFirst({
+          where: {
+            encounterId: locked.id,
+            recordId: record.id,
+            providerId: provider.id,
+            actorId: principal.accountId,
+          },
+          select: { id: true },
+        });
+        if (!signature) {
+          throw new ConflictException("Sign the current clinical record revision before finalizing the encounter.");
+        }
       }
-    });
-    await this.audit.writeClinical({ actorId: principal.accountId, action: "CLINICAL_ENCOUNTER_FINALIZED", objectType: "APPOINTMENT", objectId: appointment.id, purpose: "TREATMENT", result: "SUCCESS" });
+
+      const telehealth = await tx.telehealthSession.findUnique({
+        where: { appointmentId: locked.id },
+        select: { status: true },
+      });
+      if (telehealth?.status === "ACTIVE") {
+        throw new ConflictException("End the active telemedicine session before finalizing the clinical encounter.");
+      }
+
+      await tx.appointment.update({ where: { id: locked.id }, data: { status: "COMPLETED" } });
+      if (telehealth?.status === "WAITING" || telehealth?.status === "READY") {
+        await tx.telehealthSession.update({ where: { appointmentId: locked.id }, data: { status: "ENDED", endedAt: new Date() } });
+      }
+      await this.audit.writeClinicalInTransaction(tx, {
+        actorId: principal.accountId,
+        action: "CLINICAL_ENCOUNTER_FINALIZED",
+        objectType: "APPOINTMENT",
+        objectId: locked.id,
+        purpose: "TREATMENT",
+        result: "SUCCESS",
+        metadata: {
+          appointmentId: locked.id,
+          patientId: locked.patientId,
+          providerId: provider.id,
+          decision: principal.role === "DOCTOR" ? "SIGNED_FINALIZE" : "FINALIZE",
+        },
+      });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+
     return this.getEncounter(principal, appointmentId);
   }
 

@@ -120,6 +120,8 @@ class CarePointApi {
   Future<Map<String, dynamic>> providerClinicalTimeline(String patientId) async => _asMap(await _send('GET', '/clinical/patients/$patientId/timeline'));
   Future<Map<String, dynamic>> clinicalEncounter(String appointmentId) async => _asMap(await _send('GET', '/clinical/appointments/$appointmentId'));
   Future<Map<String, dynamic>> writeClinicalRecord(String appointmentId, Map<String, dynamic> record) async => _asMap(await _send('POST', '/clinical/appointments/$appointmentId/records', body: record));
+  Future<Map<String, dynamic>> signClinicalEncounter(String appointmentId) async =>
+      _asMap(await _send('POST', '/provider/encounters/' + appointmentId + '/sign', body: const {}));
   Future<Map<String, dynamic>> finalizeClinicalEncounter(String appointmentId) async => _asMap(await _send('POST', '/clinical/appointments/$appointmentId/finalize', body: const {}));
   Future<Map<String, dynamic>> createEncounterAddendum(String appointmentId, {required String reason, required String text}) async =>
       _asMap(await _send('POST', '/provider/encounters/' + appointmentId + '/addenda', body: {'reason': reason, 'text': text}));
