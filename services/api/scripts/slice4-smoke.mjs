@@ -1,4 +1,6 @@
 import { PrismaClient } from '@prisma/client';
+import { totpCode } from '@carepoint/identity';
+import { MfaEnvelopeService } from '../src/infrastructure/security/mfa-envelope.service.js';
 
 const base = process.env.CAREPOINT_API_URL || 'http://127.0.0.1:4000/api/v1';
 const prisma = new PrismaClient();
@@ -19,8 +21,34 @@ async function request(path, options = {}) {
 
 async function login(email, password) {
   const result = await request('/iam/login', { method: 'POST', body: { email, password } });
-  if (!result.accessToken) throw new Error(`login did not return access token for ${email}`);
-  return result.accessToken;
+  if (result.accessToken) return result.accessToken;
+  if (result.requiresMfa !== true || typeof result.challengeId !== 'string') {
+    throw new Error(`login did not return access token or MFA challenge for ${email}`);
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { email },
+    include: { mfaEnrollment: true },
+  });
+  const enrollment = user?.mfaEnrollment;
+  if (!enrollment?.enabledAt) throw new Error(`MFA challenge for ${email} has no enabled enrollment fixture.`);
+
+  const secret = await new MfaEnvelopeService().decryptSecret({
+    version: 1,
+    algorithm: 'AES-256-GCM',
+    keyId: enrollment.keyId,
+    wrappedKey: enrollment.wrappedKey,
+    iv: enrollment.iv,
+    ciphertext: enrollment.secretCiphertext,
+  });
+  const verified = await request('/iam/mfa/verify', {
+    method: 'POST',
+    body: { challengeId: result.challengeId, code: totpCode(secret) },
+  });
+  if (!verified.accessToken || !verified.sessionId?.startsWith('sesmfa_')) {
+    throw new Error(`MFA verification did not issue an assured session for ${email}`);
+  }
+  return verified.accessToken;
 }
 
 async function main() {
