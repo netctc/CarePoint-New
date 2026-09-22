@@ -344,7 +344,7 @@ class _TransportResourcesSheetState extends State<_TransportResourcesSheet> {
             _notice(transportText(widget.locale, 'noCompatibleUnit'))
           else
             DropdownButtonFormField<String>(
-              value: selectedUnitId,
+              initialValue: selectedUnitId,
               decoration: InputDecoration(border: const OutlineInputBorder(), labelText: transportText(widget.locale, 'unit')),
               items: units.map((unit) {
                 final id = unit['id']?.toString() ?? '';
