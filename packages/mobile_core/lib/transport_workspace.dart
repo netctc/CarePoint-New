@@ -130,15 +130,24 @@ class _ProviderTransportWorkspaceState extends State<ProviderTransportWorkspace>
   Widget _jobCard(Map<String, dynamic> request, {required bool emergency}) {
     final status = request['status']?.toString() ?? '';
     final next = _nextStatus(status);
+    final requestId = request['id']?.toString() ?? '';
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           _requestSummary(request, emergency: emergency),
+          if (!emergency) ...[
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: requestId.isEmpty ? null : () => _resources(requestId),
+              icon: const Icon(Icons.groups_2_outlined),
+              label: Text(transportText(widget.locale, 'crewUnit')),
+            ),
+          ],
           if (next != null) ...[
             const SizedBox(height: 10),
             FilledButton.tonalIcon(
-              onPressed: () => _advance(request['id']?.toString() ?? '', next, emergency: emergency),
+              onPressed: () => _advance(requestId, next, emergency: emergency),
               icon: const Icon(Icons.navigate_next_rounded),
               label: Text('${transportText(widget.locale, 'advance')} · $next'),
             ),
@@ -194,6 +203,28 @@ class _ProviderTransportWorkspaceState extends State<ProviderTransportWorkspace>
         : api.updateProviderMedicalTransportStatus(requestId, status: status));
   }
 
+  Future<void> _resources(String requestId) async {
+    try {
+      final data = await api.providerMedicalTransportResources(requestId);
+      if (!mounted) return;
+      final changed = await showModalBottomSheet<bool>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        builder: (_) => _TransportResourcesSheet(
+          api: api,
+          requestId: requestId,
+          locale: widget.locale,
+          accent: widget.accent,
+          data: data,
+        ),
+      );
+      if (changed == true) await refresh();
+    } catch (value) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value.toString())));
+    }
+  }
+
   Future<void> _run(Future<Map<String, dynamic>> Function() action) async {
     try {
       await action();
@@ -236,10 +267,177 @@ class _ProviderTransportWorkspaceState extends State<ProviderTransportWorkspace>
   Widget _empty(String text) => Padding(padding: const EdgeInsets.symmetric(vertical: 16), child: Text(text, textAlign: TextAlign.center));
 }
 
+class _TransportResourcesSheet extends StatefulWidget {
+  const _TransportResourcesSheet({
+    required this.api,
+    required this.requestId,
+    required this.locale,
+    required this.accent,
+    required this.data,
+  });
+
+  final CarePointApi api;
+  final String requestId;
+  final CarePointLocale locale;
+  final Color accent;
+  final Map<String, dynamic> data;
+
+  @override
+  State<_TransportResourcesSheet> createState() => _TransportResourcesSheetState();
+}
+
+class _TransportResourcesSheetState extends State<_TransportResourcesSheet> {
+  late final List<Map<String, dynamic>> units;
+  late final List<Map<String, dynamic>> crew;
+  late String? selectedUnitId;
+  late Set<String> selectedCrewIds;
+  bool saving = false;
+  String? error;
+
+  @override
+  void initState() {
+    super.initState();
+    final options = _map(widget.data['options']);
+    units = _maps(options['units']);
+    crew = _maps(options['crew']);
+    final current = _map(widget.data['current']);
+    final currentUnitId = _map(current['transportUnit'])['id']?.toString();
+    final unitIds = units.map((unit) => unit['id']?.toString() ?? '').where((id) => id.isNotEmpty).toSet();
+    selectedUnitId = currentUnitId != null && unitIds.contains(currentUnitId)
+        ? currentUnitId
+        : units.isNotEmpty
+            ? units.first['id']?.toString()
+            : null;
+    final crewIds = crew.map((provider) => provider['id']?.toString() ?? '').where((id) => id.isNotEmpty).toSet();
+    selectedCrewIds = _maps(current['crew'])
+        .map((provider) => provider['id']?.toString() ?? '')
+        .where((id) => crewIds.contains(id))
+        .toSet();
+  }
+
+  bool get mutable => widget.data['mutable'] == true;
+
+  @override
+  Widget build(BuildContext context) {
+    final current = _map(widget.data['current']);
+    final revision = current['revision'];
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.82,
+      minChildSize: 0.55,
+      maxChildSize: 0.96,
+      builder: (context, controller) => ListView(
+        controller: controller,
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+        children: [
+          Center(child: Container(width: 44, height: 4, decoration: BoxDecoration(color: Theme.of(context).dividerColor, borderRadius: BorderRadius.circular(8)))),
+          const SizedBox(height: 18),
+          Text(transportText(widget.locale, 'resourcesTitle'), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
+          if (revision != null) ...[
+            const SizedBox(height: 4),
+            Text('${transportText(widget.locale, 'assignmentRevision')}: $revision'),
+          ],
+          const SizedBox(height: 18),
+          Text(transportText(widget.locale, 'unit'), style: const TextStyle(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 8),
+          if (units.isEmpty)
+            _notice(transportText(widget.locale, 'noCompatibleUnit'))
+          else
+            DropdownButtonFormField<String>(
+              value: selectedUnitId,
+              decoration: InputDecoration(border: const OutlineInputBorder(), labelText: transportText(widget.locale, 'unit')),
+              items: units.map((unit) {
+                final id = unit['id']?.toString() ?? '';
+                final code = unit['code']?.toString() ?? id;
+                final registration = unit['registrationCode']?.toString() ?? '';
+                return DropdownMenuItem(value: id, child: Text(registration.isEmpty ? code : '$code · $registration'));
+              }).toList(growable: false),
+              onChanged: mutable && !saving ? (value) => setState(() => selectedUnitId = value) : null,
+            ),
+          const SizedBox(height: 18),
+          Text(transportText(widget.locale, 'crew'), style: const TextStyle(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 6),
+          if (crew.isEmpty)
+            _notice(transportText(widget.locale, 'noCompatibleCrew'))
+          else
+            ...crew.map((provider) {
+              final id = provider['id']?.toString() ?? '';
+              final name = provider['displayName']?.toString() ?? id;
+              return CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                value: selectedCrewIds.contains(id),
+                title: Text(name),
+                controlAffinity: ListTileControlAffinity.leading,
+                onChanged: mutable && !saving
+                    ? (checked) => setState(() {
+                          if (checked == true) {
+                            if (selectedCrewIds.length < 8) selectedCrewIds.add(id);
+                          } else {
+                            selectedCrewIds.remove(id);
+                          }
+                        })
+                    : null,
+              );
+            }),
+          if (!mutable) ...[
+            const SizedBox(height: 12),
+            _notice(transportText(widget.locale, 'resourcesLocked')),
+          ],
+          if (error != null) ...[
+            const SizedBox(height: 12),
+            Text(error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+          ],
+          const SizedBox(height: 20),
+          FilledButton.icon(
+            onPressed: mutable && !saving && selectedUnitId != null && selectedCrewIds.isNotEmpty ? _save : null,
+            icon: saving
+                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.save_outlined),
+            label: Text(transportText(widget.locale, 'saveResources')),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _notice(String text) => Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Text(text),
+      );
+
+  Future<void> _save() async {
+    final unitId = selectedUnitId;
+    if (unitId == null || selectedCrewIds.isEmpty) return;
+    setState(() { saving = true; error = null; });
+    try {
+      await widget.api.updateProviderMedicalTransportResources(
+        widget.requestId,
+        transportUnitId: unitId,
+        crewProviderIds: selectedCrewIds.toList(growable: false),
+        idempotencyKey: 'transport-resources-${widget.requestId}-${DateTime.now().microsecondsSinceEpoch}',
+      );
+      if (mounted) Navigator.of(context).pop(true);
+    } catch (value) {
+      if (mounted) setState(() => error = value.toString());
+    } finally {
+      if (mounted) setState(() => saving = false);
+    }
+  }
+}
+
 Map<String, dynamic> _map(dynamic value) {
   if (value is Map<String, dynamic>) return value;
   if (value is Map) return value.map((key, item) => MapEntry(key.toString(), item));
   return <String, dynamic>{};
+}
+
+List<Map<String, dynamic>> _maps(dynamic value) {
+  if (value is! List) return const [];
+  return value.map(_map).toList(growable: false);
 }
 
 String _displayDate(String raw) {
