@@ -165,3 +165,4 @@ console.log(JSON.stringify({
 }));
 
 await import("./v2-symptom-report-smoke.mjs");
+await import("./v2-patient-clinical-export-smoke.mjs");
