@@ -315,7 +315,46 @@ export class EmergencyAccessService {
       orderBy: { grantedAt: "asc" },
       take: 200,
     });
-    return { items: rows.map((row) => this.present(row)) };
+    const grantIds = rows.map((row) => row.id);
+    const uses = grantIds.length === 0
+      ? []
+      : await this.prisma.auditEvent.findMany({
+          where: {
+            objectType: "EMERGENCY_ACCESS_GRANT",
+            objectId: { in: grantIds },
+            action: "EMERGENCY_ACCESS_USED",
+            result: "SUCCESS",
+          },
+          select: { objectId: true, occurredAt: true },
+          orderBy: { occurredAt: "asc" },
+          take: 5000,
+        });
+    const usage = new Map<string, { count: number; firstUsedAt: Date; lastUsedAt: Date }>();
+    for (const event of uses) {
+      if (!event.objectId) continue;
+      const current = usage.get(event.objectId);
+      if (!current) {
+        usage.set(event.objectId, { count: 1, firstUsedAt: event.occurredAt, lastUsedAt: event.occurredAt });
+      } else {
+        current.count += 1;
+        current.lastUsedAt = event.occurredAt;
+      }
+    }
+    return {
+      items: rows.map((row) => {
+        const use = usage.get(row.id);
+        return {
+          ...this.present(row),
+          accessSummary: {
+            accessed: Boolean(use),
+            usageCount: use?.count ?? 0,
+            firstUsedAt: use?.firstUsedAt ?? null,
+            lastUsedAt: use?.lastUsedAt ?? null,
+            accessedScopes: use ? [row.scope] : [],
+          },
+        };
+      }),
+    };
   }
 
   async review(principal: AuthPrincipal, grantId: string, input: ReviewEmergencyAccessInput) {
