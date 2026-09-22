@@ -1,0 +1,44 @@
+model FeatureFlag {
+  id             String               @id @default(uuid())
+  key            String               @unique
+  active         Boolean              @default(true)
+  currentVersion Int                  @default(1)
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  versions       FeatureFlagVersion[]
+
+  @@index([active, key])
+}
+
+model FeatureFlagVersion {
+  id               String              @id @default(uuid())
+  featureFlagId    String
+  version          Int
+  defaultEnabled   Boolean
+  createdByActorId String?
+  reasonCode       String?
+  createdAt        DateTime            @default(now())
+  featureFlag      FeatureFlag         @relation(fields: [featureFlagId], references: [id], onDelete: Restrict)
+  assignments      FeatureAssignment[]
+
+  @@unique([featureFlagId, version])
+  @@index([featureFlagId, createdAt])
+}
+
+model FeatureAssignment {
+  id                   String             @id @default(uuid())
+  featureFlagVersionId String
+  selectorKey          String
+  environment          String?
+  jurisdiction         String?
+  role                 String?
+  providerCategoryId   String?
+  enabled              Boolean
+  priority             Int                @default(0)
+  createdByActorId     String?
+  createdAt            DateTime           @default(now())
+  featureFlagVersion   FeatureFlagVersion @relation(fields: [featureFlagVersionId], references: [id], onDelete: Restrict)
+
+  @@unique([featureFlagVersionId, selectorKey])
+  @@index([featureFlagVersionId, priority])
+}
