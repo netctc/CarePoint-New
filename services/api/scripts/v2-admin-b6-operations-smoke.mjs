@@ -60,7 +60,7 @@ assert.match(exportsSource, /expiresAt:\s*\{\s*gt:\s*new Date\(\)\s*\}/);
 assert.match(exportsSource, /MAX_EVENTS = 10_000/);
 
 // ADM-112: each KPI is defined from reproducible server-side predicates.
-assert.match(clinical, /questionnaireOverdue:\\s*"ACTIVE_PATIENT_X_ACTIVE_QUESTIONNAIRE_PAIR_WITHOUT_RESPONSE_IN_LAST_30_DAYS"/);
+assert.match(clinical, /questionnaireOverdue:\s*"ACTIVE_PATIENT_X_ACTIVE_QUESTIONNAIRE_PAIR_WITHOUT_RESPONSE_IN_LAST_30_DAYS"/);
 assert.match(clinical, /carePlanReview:\s*"ACTIVE_PLAN_REVIEW_AT_BEFORE_SNAPSHOT"/);
 assert.match(clinical, /rpmAlert:\s*"OPEN_OR_ACKNOWLEDGED"/);
 assert.match(clinical, /pendingResult:\s*"SIGNED_LAB_ORDER_WITHOUT_RELEASED_RESULT"/);
