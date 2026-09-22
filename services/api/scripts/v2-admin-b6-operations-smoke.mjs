@@ -26,7 +26,7 @@ assert.match(duplicates, /EMAIL_EXACT/);
 assert.match(duplicates, /PHONE_EXACT/);
 assert.match(duplicates, /NAME_EXACT_SUPPORTING/);
 assert.match(duplicates, /reviewRequired:\s*true/);
-assert.doesNotMatch(duplicates, /\.update\(|\.delete\(|\.create\(/);
+assert.doesNotMatch(duplicates, /prisma\.[A-Za-z0-9_]+\.(?:create|update|delete|createMany|updateMany|deleteMany)\s*\(/);
 assert.doesNotMatch(duplicates, /email:\s*row|phone:\s*row/);
 
 // ADM-102: connector health may expose references, never secret values.
