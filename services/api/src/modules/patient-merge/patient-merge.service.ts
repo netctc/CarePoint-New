@@ -155,6 +155,7 @@ export class PatientMergeService {
     const jobId = this.identifier(jobIdInput, "jobId");
     const previewDigest = this.digest(input?.previewDigest, "previewDigest");
     return this.prisma.$transaction(async (tx) => {
+      await this.audit.reserveIntegrityChainForSerializableTransaction(tx);
       await tx.$queryRaw(Prisma.sql`SELECT id FROM "PatientMergeJob" WHERE id = ${jobId} FOR UPDATE`);
       const job = await tx.patientMergeJob.findUnique({ where: { id: jobId } });
       if (!job) throw new NotFoundException("Patient merge job not found.");
@@ -166,7 +167,7 @@ export class PatientMergeService {
         WHERE id IN (${job.canonicalPatientId}, ${job.duplicatePatientId})
         ORDER BY id FOR UPDATE
       `);
-      const refreshed = await this.buildPlan(tx, job.canonicalPatientId, job.duplicatePatientId);
+      const refreshed = await this.buildPlan(tx, job.canonicalPatientId, job.duplicatePatientId, job.id);
       if (refreshed.digest !== job.previewDigest) {
         throw new ConflictException("Patient data changed after preview; create a new merge preview.");
       }
@@ -238,6 +239,7 @@ export class PatientMergeService {
     const jobId = this.identifier(jobIdInput, "jobId");
     const reasonCode = this.reasonCode(input?.reasonCode);
     return this.prisma.$transaction(async (tx) => {
+      await this.audit.reserveIntegrityChainForSerializableTransaction(tx);
       await tx.$queryRaw(Prisma.sql`SELECT id FROM "PatientMergeJob" WHERE id = ${jobId} FOR UPDATE`);
       const job = await tx.patientMergeJob.findUnique({ where: { id: jobId } });
       if (!job) throw new NotFoundException("Patient merge job not found.");
@@ -323,7 +325,12 @@ export class PatientMergeService {
     };
   }
 
-  private async buildPlan(tx: DbClient, canonicalPatientId: string, duplicatePatientId: string): Promise<MergePlan> {
+  private async buildPlan(
+    tx: DbClient,
+    canonicalPatientId: string,
+    duplicatePatientId: string,
+    ignoreMergeJobId?: string,
+  ): Promise<MergePlan> {
     const [canonical, duplicate] = await Promise.all([
       tx.patientProfile.findUnique({
         where: { id: canonicalPatientId },
@@ -345,10 +352,12 @@ export class PatientMergeService {
       tx.patientMergeJob.findFirst({
         where: {
           status: { in: ["PREVIEWED", "EXECUTED"] },
+          ...(ignoreMergeJobId ? { id: { not: ignoreMergeJobId } } : {}),
           OR: [
+            { canonicalPatientId },
+            { duplicatePatientId: canonicalPatientId },
             { canonicalPatientId: duplicatePatientId },
             { duplicatePatientId },
-            { duplicatePatientId: canonicalPatientId },
           ],
         },
         select: { id: true, status: true },
