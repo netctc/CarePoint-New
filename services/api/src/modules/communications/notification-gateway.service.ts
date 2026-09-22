@@ -17,7 +17,9 @@ export interface NotificationGatewayInput {
   destinationRef: string;
   locale: string;
   safeTitleKey: string;
+  safeTitleVersion?: number | undefined;
   safeBodyKey: string;
+  safeBodyVersion?: number | undefined;
   entityType: string;
   entityId: string;
 }
@@ -104,6 +106,11 @@ export class NotificationGatewayService {
     if (!["PUSH", "EMAIL", "SMS"].includes(input.channel)) throw new BadRequestException("Unsupported external notification channel.");
     for (const [label, value] of Object.entries({ safeTitleKey: input.safeTitleKey, safeBodyKey: input.safeBodyKey, entityType: input.entityType, entityId: input.entityId })) {
       if (typeof value !== "string" || !value.trim() || value.length > 200) throw new BadRequestException(`${label} is invalid.`);
+    }
+    for (const [label, version] of Object.entries({ safeTitleVersion: input.safeTitleVersion, safeBodyVersion: input.safeBodyVersion })) {
+      if (version !== undefined && (!Number.isInteger(version) || Number(version) < 1)) {
+        throw new BadRequestException(`${label} must be a positive integer when supplied.`);
+      }
     }
     const prohibited = /patient|diagnos|prescription|claim|message body|clinical note|medication/i;
     if (prohibited.test(`${input.safeTitleKey} ${input.safeBodyKey}`)) {
