@@ -8,7 +8,7 @@ import type {
   PriorAuthorizationInput,
 } from "@carepoint/contracts";
 import type { AuthPrincipal } from "@carepoint/identity";
-import { CurrentPrincipal, RequirePermissions } from "../../security/api-security.module";
+import { CurrentPrincipal, RequireFeature, RequirePermissions } from "../../security/api-security.module";
 import { BillingIdempotencyService } from "./billing-idempotency.service";
 import { BillingService } from "./billing.service";
 import { PaymentGatewayService } from "./payment-gateway.service";
@@ -16,6 +16,7 @@ import { InsuranceGatewayService } from "./insurance-gateway.service";
 import { InsurancePresentationService } from "./insurance-presentation.service";
 
 @Controller("billing")
+@RequireFeature("PAYMENTS")
 class PatientBillingController {
   constructor(
     private readonly billing: BillingService,
@@ -86,6 +87,7 @@ class InsuranceController {
 }
 
 @Controller("provider/finance")
+@RequireFeature("PAYMENTS")
 class ProviderFinanceController {
   constructor(private readonly billing: BillingService) {}
 
@@ -115,6 +117,7 @@ class ProviderFinanceController {
 }
 
 @Controller("finance")
+@RequireFeature("PAYMENTS")
 class FinanceOperationsController {
   constructor(private readonly billing: BillingService) {}
 
