@@ -17,6 +17,7 @@ import { PrismaKnownRequestFilter } from "../infrastructure/prisma/prisma-confli
 import { PrismaModule } from "../infrastructure/prisma/prisma.module";
 import { isolatedSyntheticPrivatePilotActive } from "../infrastructure/release/private-pilot-infrastructure-profile";
 import { MfaEnvelopeService } from "../infrastructure/security/mfa-envelope.service";
+import { FeaturePolicyService } from "./feature-policy.service";
 import { PersistentAuthService } from "./persistent-auth.service";
 import { ProviderOperationalCredentialService } from "./provider-operational-credential.service";
 import { SmartConfigurationService } from "./smart-configuration.service";
@@ -24,6 +25,7 @@ import { SmartTokenService, type SmartAccessContext, type SmartFhirInteraction, 
 
 const PUBLIC_ROUTE = "carepoint:public-route";
 const REQUIRED_PERMISSIONS = "carepoint:required-permissions";
+const REQUIRED_FEATURE = "carepoint:required-feature";
 const SMART_FHIR_ACCESS = "carepoint:smart-fhir-access";
 const SMART_SYSTEM_FHIR_OPERATION = "carepoint:smart-system-fhir-operation";
 
@@ -36,6 +38,7 @@ const smartSecurityProviders = smartSecurityEnabled ? [SmartConfigurationService
 
 export const Public = () => SetMetadata(PUBLIC_ROUTE, true);
 export const RequirePermissions = (...permissions: Permission[]) => SetMetadata(REQUIRED_PERMISSIONS, permissions);
+export const RequireFeature = (featureKey: string) => SetMetadata(REQUIRED_FEATURE, featureKey);
 export const RequireSmartFhirAccess = (resourceType: string, interaction: SmartFhirInteraction) =>
   SetMetadata(SMART_FHIR_ACCESS, { resourceType, interaction } satisfies SmartFhirRequirement);
 export const RequireSmartSystemFhirOperation = (operation: string) => SetMetadata(SMART_SYSTEM_FHIR_OPERATION, operation);
@@ -58,6 +61,7 @@ class ApiAccessGuard implements CanActivate {
     private readonly auth: PersistentAuthService,
     private readonly audit: DatabaseAuditService,
     private readonly providerCredentials: ProviderOperationalCredentialService,
+    private readonly featurePolicy: FeaturePolicyService,
     @Optional() private readonly smart?: SmartTokenService,
   ) {}
 
@@ -123,6 +127,9 @@ class ApiAccessGuard implements CanActivate {
       throw new ForbiddenException("Authorization denied.");
     }
 
+    const requiredFeature = this.reflector.getAllAndOverride<string>(REQUIRED_FEATURE, [context.getHandler(), context.getClass()]);
+    if (requiredFeature) await this.featurePolicy.assertEnabled(principal, requiredFeature, request.url ?? null);
+
     await this.providerCredentials.assertAccess(principal, permissions, request.url ?? null);
     return true;
   }
@@ -136,6 +143,7 @@ class ApiAccessGuard implements CanActivate {
     MfaEnvelopeService,
     PersistentAuthService,
     ProviderOperationalCredentialService,
+    FeaturePolicyService,
     ...smartSecurityProviders,
     { provide: APP_GUARD, useClass: ApiAccessGuard },
     { provide: APP_FILTER, useClass: PrismaKnownRequestFilter },
@@ -145,6 +153,7 @@ class ApiAccessGuard implements CanActivate {
     MfaEnvelopeService,
     PersistentAuthService,
     ProviderOperationalCredentialService,
+    FeaturePolicyService,
     ...smartSecurityProviders,
   ],
 })
