@@ -5,7 +5,8 @@ export type ClinicalAccessBasis =
   | "PATIENT_SELF"
   | "OWN_AUTHORSHIP"
   | "TREATMENT_RELATIONSHIP"
-  | "PATIENT_CONSENT";
+  | "PATIENT_CONSENT"
+  | "BREAK_GLASS";
 
 export type ClinicalAccessDenialReason =
   | "ROLE_NOT_ALLOWED"
@@ -33,6 +34,7 @@ export interface ClinicalResourceAccessInput {
   isResourceAuthor?: boolean;
   hasTreatmentRelationship?: boolean;
   hasPatientConsent?: boolean;
+  hasEmergencyAccess?: boolean;
 }
 
 export type ClinicalResourceAccessDecision =
@@ -69,6 +71,7 @@ export function decideClinicalResourceAccess(
   if (!input.providerActive) return { allowed: false, reason: "PROVIDER_INACTIVE" };
   if (input.capabilityAllowed === false) return { allowed: false, reason: "CAPABILITY_NOT_GRANTED" };
 
+  // Emergency access is intentionally read-only. It cannot satisfy assignment for a write.
   if (action === "WRITE") {
     if (input.isAssignedProvider || input.isResourceAuthor) {
       return { allowed: true, basis: "OWN_AUTHORSHIP" };
@@ -84,6 +87,9 @@ export function decideClinicalResourceAccess(
   }
   if (input.hasPatientConsent) {
     return { allowed: true, basis: "PATIENT_CONSENT" };
+  }
+  if (input.hasEmergencyAccess) {
+    return { allowed: true, basis: "BREAK_GLASS" };
   }
   return { allowed: false, reason: "NO_ACCESS_BASIS" };
 }
