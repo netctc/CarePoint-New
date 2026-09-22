@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'carepoint_api.dart';
 import 'carepoint_localization.dart';
 import 'transport_handoff.dart';
+import 'transport_incidents.dart';
 import 'transport_localization.dart';
 
 class ProviderTransportWorkspace extends StatefulWidget {
@@ -132,6 +133,7 @@ class _ProviderTransportWorkspaceState extends State<ProviderTransportWorkspace>
     final status = request['status']?.toString() ?? '';
     final next = _nextStatus(status);
     final requestId = request['id']?.toString() ?? '';
+    final incidentEnabled = const {'ASSIGNED', 'EN_ROUTE', 'ARRIVED', 'TRANSPORTING'}.contains(status);
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(14),
@@ -144,6 +146,14 @@ class _ProviderTransportWorkspaceState extends State<ProviderTransportWorkspace>
               icon: const Icon(Icons.groups_2_outlined),
               label: Text(transportText(widget.locale, 'crewUnit')),
             ),
+            if (incidentEnabled) ...[
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                onPressed: requestId.isEmpty ? null : () => _incidents(requestId),
+                icon: const Icon(Icons.report_problem_outlined),
+                label: Text(transportIncidentText(widget.locale, 'action')),
+              ),
+            ],
             if (status == 'TRANSPORTING' || status == 'COMPLETED') ...[
               const SizedBox(height: 10),
               OutlinedButton.icon(
@@ -229,6 +239,19 @@ class _ProviderTransportWorkspaceState extends State<ProviderTransportWorkspace>
         ),
       );
       if (changed == true) await refresh();
+    } catch (value) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value.toString())));
+    }
+  }
+
+  Future<void> _incidents(String requestId) async {
+    try {
+      await showTransportIncidentsSheet(
+        context: context,
+        api: api,
+        requestId: requestId,
+        locale: widget.locale,
+      );
     } catch (value) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value.toString())));
     }

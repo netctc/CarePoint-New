@@ -164,3 +164,4 @@ assert.match(transportLocalizationSource, /'crewUnit': 'Tripulación y unidad'/)
 
 console.log("V2 Other Provider capability matrix, authorized insights, and PRV-082 transport resources acceptance passed");
 await import("./v2-transport-handoff-smoke.mjs");
+await import("./v2-transport-incidents-smoke.mjs");
