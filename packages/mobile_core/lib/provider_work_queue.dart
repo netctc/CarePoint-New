@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'carepoint_api.dart';
 import 'carepoint_localization.dart';
+import 'provider_field_route.dart';
 import 'transport_workspace.dart';
 
 String providerWorkQueueText(CarePointLocale locale, String key) {
@@ -15,6 +16,7 @@ String providerWorkQueueText(CarePointLocale locale, String key) {
     'minutes': {'en': 'min', 'ar': 'دقيقة', 'fr': 'min', 'es': 'min'},
     'explain': {'en': 'Why this priority?', 'ar': 'لماذا هذه الأولوية؟', 'fr': 'Pourquoi cette priorité ?', 'es': '¿Por qué esta prioridad?'},
     'openTransport': {'en': 'Open transport job', 'ar': 'فتح مهمة النقل', 'fr': 'Ouvrir le transport', 'es': 'Abrir trabajo de transporte'},
+    'openRoute': {'en': 'Route & ETA', 'ar': 'المسار ووقت الوصول', 'fr': 'Itinéraire et ETA', 'es': 'Ruta y ETA'},
     'weights': {'en': 'Operational criteria', 'ar': 'المعايير التشغيلية', 'fr': 'Critères opérationnels', 'es': 'Criterios operativos'},
     'SCHEDULE_TIME': {'en': 'Scheduled time', 'ar': 'وقت الجدولة', 'fr': 'Heure planifiée', 'es': 'Hora programada'},
     'DISTANCE_ETA': {'en': 'Distance / ETA', 'ar': 'المسافة / وقت الوصول', 'fr': 'Distance / ETA', 'es': 'Distancia / ETA'},
@@ -184,6 +186,24 @@ class _ProviderWorkQueuePageState extends State<ProviderWorkQueuePage> {
           Text(providerWorkQueueText(widget.locale, 'explain'), style: const TextStyle(fontWeight: FontWeight.w800)),
           const SizedBox(height: 6),
           ...criteria.map(_criterionRow),
+          if (kind == 'HOME_VISIT') ...[
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => Directionality(
+                  textDirection: widget.locale.textDirection,
+                  child: ProviderFieldRoutePage(
+                    session: widget.session,
+                    locale: widget.locale,
+                    workItem: item,
+                    accent: widget.accent,
+                  ),
+                ),
+              )),
+              icon: const Icon(Icons.route_outlined),
+              label: Text(providerWorkQueueText(widget.locale, 'openRoute')),
+            ),
+          ],
           if (kind == 'MEDICAL_TRANSPORT') ...[
             const SizedBox(height: 12),
             OutlinedButton.icon(
