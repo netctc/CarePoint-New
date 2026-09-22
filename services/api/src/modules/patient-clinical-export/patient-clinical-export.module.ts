@@ -5,6 +5,7 @@ import { DependentsModule } from "../dependents/dependents.module";
 import { DocumentStorageService } from "../documents/document-storage.service";
 import { DocumentsEnvelopeService } from "../documents/documents-envelope.service";
 import { PatientHealthSummaryModule } from "../patient-health-summary/patient-health-summary.module";
+import { PatientClinicalExportAdminService } from "./patient-clinical-export-admin.service";
 import {
   PatientClinicalExportService,
   type CreatePatientClinicalExportInput,
@@ -53,9 +54,30 @@ class PatientClinicalExportController {
   }
 }
 
+@Controller("admin/patient-exports")
+@RequirePermissions("DATA_GOVERNANCE_MANAGE")
+class PatientClinicalExportAdminController {
+  constructor(private readonly exports: PatientClinicalExportAdminService) {}
+
+  @Get()
+  @Header("Cache-Control", "no-store")
+  list(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Query("status") status?: string,
+    @Query("limit") limit?: string,
+  ) {
+    return this.exports.list(principal, status, limit);
+  }
+}
+
 @Module({
   imports: [DependentsModule, PatientHealthSummaryModule],
-  controllers: [PatientClinicalExportController],
-  providers: [PatientClinicalExportService, DocumentStorageService, DocumentsEnvelopeService],
+  controllers: [PatientClinicalExportController, PatientClinicalExportAdminController],
+  providers: [
+    PatientClinicalExportService,
+    PatientClinicalExportAdminService,
+    DocumentStorageService,
+    DocumentsEnvelopeService,
+  ],
 })
 export class PatientClinicalExportModule {}
