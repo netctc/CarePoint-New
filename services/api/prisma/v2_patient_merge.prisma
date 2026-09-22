@@ -1,0 +1,70 @@
+model PatientMergeJob {
+  id                     String                 @id @default(uuid())
+  canonicalPatientId     String
+  duplicatePatientId     String
+  duplicateUserId        String
+  duplicateAccountStatus String
+  status                 String                 @default("PREVIEWED")
+  previewDigest          String
+  sourceRowCount         Int                    @default(0)
+  conflictCount          Int                    @default(0)
+  movementCount          Int                    @default(0)
+  createdByActorId       String
+  createdAt              DateTime               @default(now())
+  executedAt             DateTime?
+  rolledBackAt           DateTime?
+  conflicts              MergeConflict[]
+  movements              PatientMergeMovement[]
+  aliases                PatientAlias[]
+
+  @@index([status, createdAt])
+  @@index([canonicalPatientId, createdAt])
+  @@index([duplicatePatientId, createdAt])
+}
+
+model MergeConflict {
+  id           String          @id @default(uuid())
+  mergeJobId   String
+  code         String
+  domain       String
+  entityType   String?
+  entityId     String?
+  blocking     Boolean         @default(true)
+  evidence     Json
+  createdAt    DateTime        @default(now())
+  mergeJob     PatientMergeJob @relation(fields: [mergeJobId], references: [id], onDelete: Restrict)
+
+  @@index([mergeJobId, blocking, domain])
+}
+
+model PatientAlias {
+  id                 String          @id @default(uuid())
+  aliasPatientId     String          @unique
+  canonicalPatientId String
+  mergeJobId         String
+  status             String          @default("ACTIVE")
+  createdAt          DateTime        @default(now())
+  reversedAt         DateTime?
+  mergeJob           PatientMergeJob @relation(fields: [mergeJobId], references: [id], onDelete: Restrict)
+
+  @@index([canonicalPatientId, status])
+  @@index([mergeJobId, status])
+}
+
+model PatientMergeMovement {
+  id            String          @id @default(uuid())
+  mergeJobId    String
+  tableName     String
+  entityId      String
+  fromPatientId String
+  toPatientId   String
+  status        String          @default("APPLIED")
+  createdAt     DateTime        @default(now())
+  rolledBackAt  DateTime?
+  mergeJob      PatientMergeJob @relation(fields: [mergeJobId], references: [id], onDelete: Restrict)
+
+  @@unique([mergeJobId, tableName, entityId])
+  @@index([mergeJobId, status, tableName])
+  @@index([fromPatientId, status])
+  @@index([toPatientId, status])
+}
