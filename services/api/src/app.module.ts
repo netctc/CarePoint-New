@@ -46,6 +46,7 @@ import { IamModule } from "./modules/iam/iam.module";
 import { LocalizationModule } from "./modules/localization/localization.module";
 import { NutritionModule } from "./modules/nutrition/nutrition.module";
 import { NutritionPlanModule } from "./modules/nutrition/nutrition-plan.module";
+import { ProviderNursingWorkflowsModule } from "./modules/nursing/provider-nursing-workflows.module";
 import { PatientClinicalExportModule } from "./modules/patient-clinical-export/patient-clinical-export.module";
 import { PatientHealthSummaryModule } from "./modules/patient-health-summary/patient-health-summary.module";
 import { PatientMergeModule } from "./modules/patient-merge/patient-merge.module";
@@ -119,6 +120,7 @@ const isolatedSyntheticPilot = isolatedSyntheticPrivatePilotActive(process.env);
     OtherProviderWorkspaceModule,
     ProviderFieldJobsModule,
     ProviderWorkQueueModule,
+    ProviderNursingWorkflowsModule,
     PhysiotherapyModule,
     NutritionModule,
     NutritionPlanModule,
