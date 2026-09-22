@@ -33,7 +33,7 @@ ALTER TABLE "MedicationAdministration" ADD CONSTRAINT "MedicationAdministration_
 ALTER TABLE "MedicationAdministration" ADD CONSTRAINT "MedicationAdministration_appointmentId_fkey" FOREIGN KEY ("appointmentId") REFERENCES "Appointment"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE "MedicationAdministration" ADD CONSTRAINT "MedicationAdministration_patientId_fkey" FOREIGN KEY ("patientId") REFERENCES "PatientProfile"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE "MedicationAdministration" ADD CONSTRAINT "MedicationAdministration_providerId_fkey" FOREIGN KEY ("providerId") REFERENCES "Provider"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "MedicationAdministration" ADD CONSTRAINT "MedicationAdministration_sourceActorId_fkey" FOREIGN KEY ("sourceActorId") REFERENCES "Account"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "MedicationAdministration" ADD CONSTRAINT "MedicationAdministration_sourceActorId_fkey" FOREIGN KEY ("sourceActorId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 CREATE TABLE "WoundAssessment" (
   "id" TEXT NOT NULL,
@@ -62,7 +62,7 @@ CREATE INDEX "WoundAssessment_clinicalMediaId_idx" ON "WoundAssessment"("clinica
 ALTER TABLE "WoundAssessment" ADD CONSTRAINT "WoundAssessment_appointmentId_fkey" FOREIGN KEY ("appointmentId") REFERENCES "Appointment"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE "WoundAssessment" ADD CONSTRAINT "WoundAssessment_patientId_fkey" FOREIGN KEY ("patientId") REFERENCES "PatientProfile"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE "WoundAssessment" ADD CONSTRAINT "WoundAssessment_providerId_fkey" FOREIGN KEY ("providerId") REFERENCES "Provider"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "WoundAssessment" ADD CONSTRAINT "WoundAssessment_sourceActorId_fkey" FOREIGN KEY ("sourceActorId") REFERENCES "Account"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "WoundAssessment" ADD CONSTRAINT "WoundAssessment_sourceActorId_fkey" FOREIGN KEY ("sourceActorId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE "WoundAssessment" ADD CONSTRAINT "WoundAssessment_clinicalMediaId_fkey" FOREIGN KEY ("clinicalMediaId") REFERENCES "ClinicalMedia"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 CREATE TABLE "ProcedureChecklistCompletion" (
@@ -98,7 +98,7 @@ ALTER TABLE "ProcedureChecklistCompletion" ADD CONSTRAINT "ProcedureChecklistCom
 ALTER TABLE "ProcedureChecklistCompletion" ADD CONSTRAINT "ProcedureChecklistCompletion_appointmentId_fkey" FOREIGN KEY ("appointmentId") REFERENCES "Appointment"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE "ProcedureChecklistCompletion" ADD CONSTRAINT "ProcedureChecklistCompletion_patientId_fkey" FOREIGN KEY ("patientId") REFERENCES "PatientProfile"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE "ProcedureChecklistCompletion" ADD CONSTRAINT "ProcedureChecklistCompletion_providerId_fkey" FOREIGN KEY ("providerId") REFERENCES "Provider"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "ProcedureChecklistCompletion" ADD CONSTRAINT "ProcedureChecklistCompletion_sourceActorId_fkey" FOREIGN KEY ("sourceActorId") REFERENCES "Account"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "ProcedureChecklistCompletion" ADD CONSTRAINT "ProcedureChecklistCompletion_sourceActorId_fkey" FOREIGN KEY ("sourceActorId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 CREATE OR REPLACE FUNCTION carepoint_reject_nursing_evidence_mutation()
 RETURNS trigger AS $$
