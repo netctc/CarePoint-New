@@ -28,6 +28,7 @@ import { DataGovernanceModule } from "./modules/data-governance/data-governance.
 import { DependentsModule } from "./modules/dependents/dependents.module";
 import { EmergencyAccessModule } from "./modules/emergency-access/emergency-access.module";
 import { EmergencyContactsModule } from "./modules/emergency-contacts/emergency-contacts.module";
+import { FeatureFlagsModule } from "./modules/feature-flags/feature-flags.module";
 import { RefillModule } from "./modules/refill/refill.module";
 import { ReferralsModule } from "./modules/referrals/referrals.module";
 import { DocumentsModule } from "./modules/documents/documents.module";
@@ -90,6 +91,7 @@ const isolatedSyntheticPilot = isolatedSyntheticPrivatePilotActive(process.env);
     AdminReschedulingModule,
     AdminSecurityModule,
     ...(runtimeFeatures.telehealth ? [AdminTelehealthModule] : []),
+    FeatureFlagsModule,
     AppointmentContinuityModule,
     RefillModule,
     ReferralsModule,
