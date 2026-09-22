@@ -69,3 +69,4 @@ assert.match(migration, /RealtimeSubscription_no_hard_delete/, "Hard delete prot
 assert.match(migration, /REVOKE DELETE ON "RealtimeSubscription" FROM PUBLIC/, "Delete privilege must be revoked");
 
 console.log("V2 BE-053 authorized realtime SSE acceptance passed");
+await import("./v2-feature-flags-smoke.mjs");
