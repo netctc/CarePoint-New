@@ -1,0 +1,41 @@
+model TransportEquipmentCheck {
+  id                   String   @id @default(uuid())
+  transportRequestId   String
+  providerId           String
+  crewAssignmentId     String?
+  transportUnitId      String?
+  revision             Int
+  idempotencyKey       String   @unique
+  requestDigest        String
+  requiredEquipment    String[] @default([])
+  confirmedEquipment   String[] @default([])
+  missingEquipment     String[] @default([])
+  status               String
+  checkedByAccountId   String
+  checkedAt            DateTime
+  createdAt            DateTime @default(now())
+
+  @@unique([transportRequestId, revision])
+  @@index([transportRequestId, checkedAt])
+  @@index([providerId, checkedAt])
+  @@index([transportUnitId, checkedAt])
+}
+
+model TransportRouteRevision {
+  id                   String   @id @default(uuid())
+  transportRequestId   String
+  providerId           String
+  revision             Int
+  idempotencyKey       String   @unique
+  requestDigest        String
+  lifecycleStatus      String
+  etaMinutes           Int?
+  reasonCode           String
+  source               String
+  createdByAccountId   String
+  createdAt            DateTime @default(now())
+
+  @@unique([transportRequestId, revision])
+  @@index([transportRequestId, createdAt])
+  @@index([providerId, createdAt])
+}
