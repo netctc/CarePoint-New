@@ -71,8 +71,8 @@ export class ClinicalOperationsService {
           type: "LABORATORY",
           status: "SIGNED",
           OR: [
-            { labResult: null },
-            { labResult: { status: { not: "RELEASED" } } },
+            { labResult: { is: null } },
+            { labResult: { is: { status: { not: "RELEASED" } } } },
           ],
         },
         select: {
@@ -115,7 +115,7 @@ export class ClinicalOperationsService {
         where: {
           type: "LABORATORY",
           status: "SIGNED",
-          OR: [{ labResult: null }, { labResult: { status: { not: "RELEASED" } } }],
+          OR: [{ labResult: { is: null } }, { labResult: { is: { status: { not: "RELEASED" } } } }],
         },
       }),
       this.prisma.$queryRaw<Array<{ count: bigint }>>(Prisma.sql`
