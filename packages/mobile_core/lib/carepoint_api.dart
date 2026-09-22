@@ -126,6 +126,39 @@ class CarePointApi {
   Future<Map<String, dynamic>> createEncounterAddendum(String appointmentId, {required String reason, required String text}) async =>
       _asMap(await _send('POST', '/provider/encounters/' + appointmentId + '/addenda', body: {'reason': reason, 'text': text}));
 
+  // DOC-067 — Doctor longitudinal procedure history over governed ClinicalProfileEntry(PROCEDURE).
+  Future<Map<String, dynamic>> doctorPatientProcedures(String patientId) async =>
+      _asMap(await _send('GET', '/doctor/patients/$patientId/clinical-profile/entries', query: {'kind': 'PROCEDURE'}));
+  Future<Map<String, dynamic>> createDoctorPatientProcedure(
+    String patientId, {
+    required String display,
+    String? performedDate,
+    String? facility,
+  }) async => _asMap(await _send('POST', '/doctor/patients/$patientId/clinical-profile/entries', body: {
+    'kind': 'PROCEDURE',
+    'status': 'ACTIVE',
+    'data': {
+      'display': display,
+      if (performedDate?.isNotEmpty == true) 'performedDate': performedDate,
+      if (facility?.isNotEmpty == true) 'facility': facility,
+    },
+  }));
+  Future<Map<String, dynamic>> updateDoctorPatientProcedure(
+    String patientId,
+    String entryId, {
+    required int expectedVersion,
+    required String display,
+    String? performedDate,
+    String? facility,
+  }) async => _asMap(await _send('PATCH', '/doctor/patients/$patientId/clinical-profile/entries/$entryId', body: {
+    'expectedVersion': expectedVersion,
+    'data': {
+      'display': display,
+      if (performedDate?.isNotEmpty == true) 'performedDate': performedDate,
+      if (facility?.isNotEmpty == true) 'facility': facility,
+    },
+  }));
+
   // DOC-068 — Doctor longitudinal immunization history over governed BE-006.
   Future<Map<String, dynamic>> doctorPatientImmunizations(String patientId) async =>
       _asMap(await _send('GET', '/doctor/patients/$patientId/clinical-history/immunizations'));
