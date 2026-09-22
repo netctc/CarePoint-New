@@ -21,6 +21,7 @@ const financeLabels: Record<Locale, string> = {
 };
 const patientLabels: Record<Locale, string> = { en:"Patients", ar:"المرضى", fr:"Patients", es:"Pacientes" };
 const profileSchemaLabels: Record<Locale, string> = { en:"Clinical Profile Schema", ar:"مخطط الملف السريري", fr:"Schéma du profil clinique", es:"Esquema del perfil clínico" };
+const privacyLabels: Record<Locale, string> = { en:"Privacy & Governance", ar:"الخصوصية والحوكمة", fr:"Confidentialité & gouvernance", es:"Privacidad y governance" };
 
 type Props = Readonly<{
   active: string;
@@ -43,6 +44,7 @@ export function AppShell({ active, titleKey, eyebrowKey, title, eyebrow, childre
       <nav>{nav.map(([id, key, href]) => <Link key={id} className={`nav-item ${active === id ? "active" : ""}`} href={href}><small>{id}</small><span>{id === "05" ? financeLabels[locale] : t(key)}</span><b>{direction === "rtl" ? "‹" : "›"}</b></Link>)}
         <Link className={`nav-item ${active === "09" ? "active" : ""}`} href="/patients"><small>09</small><span>{patientLabels[locale]}</span><b>{direction === "rtl" ? "‹" : "›"}</b></Link>
         <Link className={`nav-item ${active === "10" ? "active" : ""}`} href="/clinical-config/profile-schema"><small>10</small><span>{profileSchemaLabels[locale]}</span><b>{direction === "rtl" ? "‹" : "›"}</b></Link>
+        <Link className={`nav-item ${active === "11" ? "active" : ""}`} href="/privacy/exports"><small>11</small><span>{privacyLabels[locale]}</span><b>{direction === "rtl" ? "‹" : "›"}</b></Link>
       </nav>
       <div className="security-pill"><div><small>{t("shell.e2eeStatus")}</small><strong>{t("shell.shieldPolicy")}</strong></div><i /></div>
     </aside>
