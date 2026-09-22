@@ -15,6 +15,7 @@ import {
 import { DatabaseAuditService } from "../../infrastructure/audit/audit.service";
 import { PrismaService } from "../../infrastructure/prisma/prisma.module";
 import { isMfaAssuredSessionId } from "../../security/privileged-mfa-policy";
+import { ClinicalEnvelopeService } from "../clinical/clinical-envelope.service";
 
 const MIN_TTL_MINUTES = 5;
 const MAX_TTL_MINUTES = 60;
@@ -53,6 +54,26 @@ const REVIEW_REASON_CODES = new Set([
   "FOLLOW_UP_REQUIRED",
 ]);
 
+type EmergencyGrantViewRow = {
+  id: string;
+  patientId: string;
+  providerId: string;
+  actorId: string;
+  sessionId: string;
+  scope: string;
+  purpose: string;
+  reasonCode: string;
+  status: string;
+  requestedTtlMinutes: number;
+  grantedAt: Date;
+  expiresAt: Date;
+  revokedAt: Date | null;
+  reviewStatus: string;
+  reviewedAt: Date | null;
+  reviewOutcome: string | null;
+  createdAt: Date;
+};
+
 export interface CreateEmergencyAccessInput {
   patientId: string;
   scope: string;
@@ -71,6 +92,7 @@ export class EmergencyAccessService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: DatabaseAuditService,
+    private readonly envelope: ClinicalEnvelopeService,
   ) {}
 
   async create(principal: AuthPrincipal, input: CreateEmergencyAccessInput) {
@@ -200,7 +222,6 @@ export class EmergencyAccessService {
       select: { id: true, status: true },
     });
     if (!provider || provider.status !== "ACTIVE") return null;
-    const now = new Date();
     const grant = await this.prisma.emergencyAccessGrant.findFirst({
       where: {
         patientId,
@@ -209,28 +230,78 @@ export class EmergencyAccessService {
         scope,
         status: "ACTIVE",
         revokedAt: null,
-        expiresAt: { gt: now },
+        expiresAt: { gt: new Date() },
       },
       orderBy: { grantedAt: "desc" },
     });
     if (!grant) return null;
+    await this.auditGrantUse(principal, grant);
+    return { id: grant.id, scope: grant.scope, expiresAt: grant.expiresAt };
+  }
+
+  async readClinicalProfile(principal: AuthPrincipal, grantId: string) {
+    const grant = await this.requireOwnedActiveGrant(principal, grantId, "CLINICAL_PROFILE_READ");
+    const rows = await this.prisma.clinicalProfileEntry.findMany({
+      where: { patientId: grant.patientId },
+      orderBy: [{ kind: "asc" }, { updatedAt: "desc" }],
+      take: 200,
+    });
+    const items = [];
+    for (const row of rows) {
+      const stored = await this.envelope.decryptRecord<{ schemaVersion: 1; payload: unknown }>({
+        version: 1,
+        algorithm: row.algorithm as "AES-256-GCM",
+        keyId: row.keyId,
+        wrappedKey: row.wrappedKey,
+        iv: row.iv,
+        ciphertext: row.ciphertext,
+      });
+      items.push({
+        id: row.id,
+        patientId: row.patientId,
+        kind: row.kind,
+        status: row.status,
+        version: row.version,
+        data: stored.payload,
+        verificationStatus: row.verificationStatus,
+        provenance: {
+          sourceType: row.sourceType,
+          sourceActorId: row.sourceActorId,
+          verifiedByActorId: row.verifiedByActorId,
+          verifiedAt: row.verifiedAt,
+          recordedAt: row.createdAt,
+          updatedAt: row.updatedAt,
+        },
+      });
+    }
+    await this.auditGrantUse(principal, grant);
     await this.audit.writeClinical({
       actorId: principal.accountId,
-      action: "EMERGENCY_ACCESS_USED",
-      objectType: "EMERGENCY_ACCESS_GRANT",
-      objectId: grant.id,
+      action: "CLINICAL_PROFILE_LIST_READ",
+      objectType: "PATIENT",
+      objectId: grant.patientId,
       purpose: "EMERGENCY_TREATMENT",
       result: "SUCCESS",
       metadata: {
-        domain: "EMERGENCY_ACCESS",
-        patientId,
-        providerId: provider.id,
-        scope,
-        grantExpiresAt: grant.expiresAt.toISOString(),
+        domain: "CLINICAL_PROFILE",
+        accessBasis: "BREAK_GLASS",
+        emergencyAccessGrantId: grant.id,
+        patientId: grant.patientId,
+        providerId: grant.providerId,
+        itemCount: items.length,
         decision: "ALLOW",
       },
     });
-    return { id: grant.id, scope: grant.scope, expiresAt: grant.expiresAt };
+    return {
+      patientId: grant.patientId,
+      accessBasis: "BREAK_GLASS",
+      emergencyAccessGrant: {
+        id: grant.id,
+        scope: grant.scope,
+        expiresAt: grant.expiresAt,
+      },
+      items,
+    };
   }
 
   async reviewQueue(principal: AuthPrincipal, reviewStatus = "PENDING") {
@@ -297,6 +368,30 @@ export class EmergencyAccessService {
     return this.present(result);
   }
 
+  private async requireOwnedActiveGrant(principal: AuthPrincipal, grantId: string, expectedScope: Permission) {
+    const actor = await this.requireDoctor(principal, true);
+    if (!principalHasAnyPermission(principal, [expectedScope])) {
+      throw new ForbiddenException("Emergency scope is not granted to this role.");
+    }
+    const id = this.identifier(grantId, "grantId");
+    const grant = await this.prisma.emergencyAccessGrant.findFirst({
+      where: {
+        id,
+        providerId: actor.providerId,
+        actorId: principal.accountId,
+        scope: expectedScope,
+        status: "ACTIVE",
+        revokedAt: null,
+        expiresAt: { gt: new Date() },
+      },
+    });
+    if (!grant) {
+      await this.denied(principal, null, expectedScope, "ACTIVE_GRANT_REQUIRED");
+      throw new ForbiddenException("An active emergency access grant is required.");
+    }
+    return grant;
+  }
+
   private async requireDoctor(principal: AuthPrincipal, requireMfa: boolean) {
     if (principal.role !== "DOCTOR") {
       await this.denied(principal, null, null, "DOCTOR_ROLE_REQUIRED");
@@ -321,11 +416,30 @@ export class EmergencyAccessService {
     if (principal.role !== "ADMIN") throw new ForbiddenException("Emergency access review requires ADMIN role.");
   }
 
-  private replayOrConflict(row: { requestDigest: string } & Record<string, unknown>, digest: string) {
+  private replayOrConflict(row: EmergencyGrantViewRow & { requestDigest: string }, digest: string) {
     if (row.requestDigest !== digest) {
       throw new ConflictException("idempotencyKey has already been used for a different emergency-access request.");
     }
-    return this.present(row as never);
+    return this.present(row);
+  }
+
+  private async auditGrantUse(principal: AuthPrincipal, grant: EmergencyGrantViewRow) {
+    await this.audit.writeClinical({
+      actorId: principal.accountId,
+      action: "EMERGENCY_ACCESS_USED",
+      objectType: "EMERGENCY_ACCESS_GRANT",
+      objectId: grant.id,
+      purpose: "EMERGENCY_TREATMENT",
+      result: "SUCCESS",
+      metadata: {
+        domain: "EMERGENCY_ACCESS",
+        patientId: grant.patientId,
+        providerId: grant.providerId,
+        scope: grant.scope,
+        grantExpiresAt: grant.expiresAt.toISOString(),
+        decision: "ALLOW",
+      },
+    });
   }
 
   private async denied(
@@ -385,27 +499,8 @@ export class EmergencyAccessService {
     return createHash("sha256").update(JSON.stringify(value)).digest("hex");
   }
 
-  private present(row: {
-    id: string;
-    patientId: string;
-    providerId: string;
-    actorId: string;
-    sessionId: string;
-    scope: string;
-    purpose: string;
-    reasonCode: string;
-    status: string;
-    requestedTtlMinutes: number;
-    grantedAt: Date;
-    expiresAt: Date;
-    revokedAt: Date | null;
-    reviewStatus: string;
-    reviewedAt: Date | null;
-    reviewOutcome: string | null;
-    createdAt: Date;
-  }) {
-    const now = Date.now();
-    const effectiveStatus = row.status === "ACTIVE" && row.expiresAt.getTime() <= now ? "EXPIRED" : row.status;
+  private present(row: EmergencyGrantViewRow) {
+    const effectiveStatus = row.status === "ACTIVE" && row.expiresAt.getTime() <= Date.now() ? "EXPIRED" : row.status;
     return {
       id: row.id,
       patientId: row.patientId,
