@@ -2,6 +2,12 @@ import { BadRequestException, Injectable } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../../infrastructure/prisma/prisma.module";
 
+type OverdueQuestionnaireRow = {
+  patientId: string;
+  questionnaireId: string;
+  questionnaireCode: string;
+  lastCompletedAt: Date | null;
+};
 type OrphanTaskRow = {
   id: string;
   carePlanId: string;
@@ -19,28 +25,35 @@ export class ClinicalOperationsService {
     const questionnaireCutoff = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
     const [
-      activePatients,
-      activeQuestionnaires,
-      recentRespondents,
+      overdueQuestionnaires,
       plansWithoutReview,
       openAlerts,
       pendingResults,
       orphanTasks,
+      overdueQuestionnaireCountRows,
       plansWithoutReviewCount,
       openAlertsCount,
       pendingResultsCount,
       orphanTaskCountRows,
     ] = await Promise.all([
-      this.prisma.patientProfile.count({ where: { user: { status: "ACTIVE" } } }),
-      this.prisma.questionnaireDefinition.count({ where: { active: true } }),
-      this.prisma.questionnaireResponse.groupBy({
-        by: ["patientId"],
-        where: {
-          questionnaire: { active: true },
-          completedAt: { gte: questionnaireCutoff },
-        },
-        _count: { _all: true },
-      }),
+      this.prisma.$queryRaw<OverdueQuestionnaireRow[]>(Prisma.sql`
+        SELECT
+          p.id AS "patientId",
+          q.id AS "questionnaireId",
+          q.code AS "questionnaireCode",
+          MAX(r."completedAt") AS "lastCompletedAt"
+        FROM "PatientProfile" p
+        JOIN "User" u ON u.id = p."userId" AND u.status = 'ACTIVE'
+        CROSS JOIN "QuestionnaireDefinition" q
+        LEFT JOIN "QuestionnaireResponse" r
+          ON r."patientId" = p.id
+         AND r."questionnaireId" = q.id
+        WHERE q.active = true
+        GROUP BY p.id, q.id, q.code
+        HAVING MAX(r."completedAt") IS NULL OR MAX(r."completedAt") < ${questionnaireCutoff}
+        ORDER BY MAX(r."completedAt") ASC NULLS FIRST, p.id ASC, q.code ASC
+        LIMIT ${limit}
+      `),
       this.prisma.carePlan.findMany({
         where: { status: "ACTIVE", reviewAt: { lt: now } },
         select: { id: true, patientId: true, ownerProviderId: true, reviewAt: true },
@@ -72,7 +85,7 @@ export class ClinicalOperationsService {
         orderBy: [{ signedAt: "asc" }, { id: "asc" }],
         take: limit,
       }),
-      this.prisma.$queryRaw<OrphanTaskRow[]>(Prisma.sql\`
+      this.prisma.$queryRaw<OrphanTaskRow[]>(Prisma.sql`
         SELECT t.id, t."carePlanId", t."ownerProviderId", t."dueAt"
         FROM "CareTask" t
         LEFT JOIN "CarePlan" cp ON cp.id = t."carePlanId"
@@ -80,8 +93,22 @@ export class ClinicalOperationsService {
         WHERE t.status = 'ACTIVE'
           AND (cp.id IS NULL OR cp.status <> 'ACTIVE' OR p.id IS NULL OR p.status <> 'ACTIVE')
         ORDER BY t."dueAt" ASC NULLS LAST, t.id ASC
-        LIMIT \${limit}
-      \`),
+        LIMIT ${limit}
+      `),
+      this.prisma.$queryRaw<Array<{ count: bigint }>>(Prisma.sql`
+        SELECT count(*)::bigint AS count
+        FROM "PatientProfile" p
+        JOIN "User" u ON u.id = p."userId" AND u.status = 'ACTIVE'
+        CROSS JOIN "QuestionnaireDefinition" q
+        WHERE q.active = true
+          AND NOT EXISTS (
+            SELECT 1
+            FROM "QuestionnaireResponse" r
+            WHERE r."patientId" = p.id
+              AND r."questionnaireId" = q.id
+              AND r."completedAt" >= ${questionnaireCutoff}
+          )
+      `),
       this.prisma.carePlan.count({ where: { status: "ACTIVE", reviewAt: { lt: now } } }),
       this.prisma.clinicalAlert.count({ where: { status: { in: ["OPEN", "ACKNOWLEDGED"] } } }),
       this.prisma.clinicalOrder.count({
@@ -91,38 +118,34 @@ export class ClinicalOperationsService {
           OR: [{ labResult: null }, { labResult: { status: { not: "RELEASED" } } }],
         },
       }),
-      this.prisma.$queryRaw<Array<{ count: bigint }>>(Prisma.sql\`
+      this.prisma.$queryRaw<Array<{ count: bigint }>>(Prisma.sql`
         SELECT count(*)::bigint AS count
         FROM "CareTask" t
         LEFT JOIN "CarePlan" cp ON cp.id = t."carePlanId"
         LEFT JOIN "Provider" p ON p.id = t."ownerProviderId"
         WHERE t.status = 'ACTIVE'
           AND (cp.id IS NULL OR cp.status <> 'ACTIVE' OR p.id IS NULL OR p.status <> 'ACTIVE')
-      \`),
+      `),
     ]);
-
-    const recentPatientIds = new Set(recentRespondents.map((row) => row.patientId));
-    const questionnairesOverdue = activeQuestionnaires === 0
-      ? 0
-      : Math.max(0, activePatients - recentPatientIds.size);
 
     return {
       generatedAt: now.toISOString(),
       methodology: {
-        questionnaireOverdue: "ACTIVE_PATIENT_WITHOUT_ACTIVE_QUESTIONNAIRE_RESPONSE_IN_LAST_30_DAYS",
+        questionnaireOverdue: "ACTIVE_PATIENT_X_ACTIVE_QUESTIONNAIRE_PAIR_WITHOUT_RESPONSE_IN_LAST_30_DAYS",
         carePlanReview: "ACTIVE_PLAN_REVIEW_AT_BEFORE_SNAPSHOT",
         rpmAlert: "OPEN_OR_ACKNOWLEDGED",
         pendingResult: "SIGNED_LAB_ORDER_WITHOUT_RELEASED_RESULT",
         orphanTask: "ACTIVE_TASK_WITH_INACTIVE_OR_MISSING_PLAN_OR_OWNER_PROVIDER",
       },
       kpis: {
-        questionnairesOverdue,
+        questionnairesOverdue: Number(overdueQuestionnaireCountRows[0]?.count ?? 0n),
         plansWithoutReview: plansWithoutReviewCount,
         rpmAlertsOpen: openAlertsCount,
         pendingResults: pendingResultsCount,
         orphanTasks: Number(orphanTaskCountRows[0]?.count ?? 0n),
       },
       drillDown: {
+        questionnairesOverdue: overdueQuestionnaires,
         plansWithoutReview,
         rpmAlerts: openAlerts,
         pendingResults,
