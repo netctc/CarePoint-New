@@ -88,6 +88,21 @@ extension CarePointTransportApi on CarePointApi {
   Future<List<Map<String, dynamic>>> providerMedicalTransportJobs() async =>
       _asList(await _send('GET', '/provider/medical-transport'));
 
+  Future<Map<String, dynamic>> providerMedicalTransportResources(String requestId) async =>
+      _asMap(await _send('GET', '/provider/medical-transport/$requestId/resources'));
+
+  Future<Map<String, dynamic>> updateProviderMedicalTransportResources(
+    String requestId, {
+    required String transportUnitId,
+    required List<String> crewProviderIds,
+    required String idempotencyKey,
+  }) async =>
+      _asMap(await _send('PATCH', '/provider/medical-transport/$requestId/resources', body: {
+        'transportUnitId': transportUnitId,
+        'crewProviderIds': crewProviderIds,
+        'idempotencyKey': idempotencyKey,
+      }));
+
   Future<Map<String, dynamic>> acceptMedicalTransport(String requestId) async =>
       _asMap(await _send('POST', '/provider/medical-transport/$requestId/accept', body: const {}));
 
