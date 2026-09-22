@@ -6,9 +6,10 @@
     "dev": "next dev -p 3000",
     "build": "next build",
     "start": "next start -p 3000",
-    "test": "npm run c16:admin-backend-egress",
+    "test": "npm run c16:admin-backend-egress && npm run v2:b6-governance",
     "c16:admin-backend-egress": "node scripts/c16-admin-backend-egress-smoke.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "v2:b6-governance": "node scripts/v2-b6-governance-smoke.mjs"
   },
   "dependencies": {
     "next": ">=16 <17",

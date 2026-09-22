@@ -277,7 +277,7 @@ assert.match(policySource, /AbortSignal\.timeout/, "C16 must centrally bound bac
 assert.match(policySource, /getReader\(\)/, "C16 must stream-read backend responses under a byte cap");
 
 const packageSource = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
-assert.equal(packageSource.scripts.test, "npm run c16:admin-backend-egress");
+assert.match(packageSource.scripts.test, /^npm run c16:admin-backend-egress(?: && npm run [a-z0-9:-]+)*$/, "C16 must remain the first Admin test gate");
 assert.equal(packageSource.dependencies.undici, undefined, "C16 must not add a new HTTP dependency");
 
 console.log("Phase C16 Admin backend egress + public-origin resilience acceptance passed");
