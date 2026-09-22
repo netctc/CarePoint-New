@@ -1,0 +1,22 @@
+ARG FLUTTER_IMAGE=ghcr.io/cirruslabs/flutter:3.47.2
+FROM ${FLUTTER_IMAGE} AS build
+
+ARG APP_PATH
+ARG APP_TITLE=CarePoint Test
+ARG CAREPOINT_API_BASE
+
+WORKDIR /workspace
+COPY packages/mobile_core packages/mobile_core
+COPY ${APP_PATH} ${APP_PATH}
+
+WORKDIR /workspace/${APP_PATH}
+RUN flutter config --enable-web \
+ && flutter pub get \
+ && flutter build web --release --dart-define=CAREPOINT_API_BASE=${CAREPOINT_API_BASE} \
+ && mkdir -p /out \
+ && cp -a build/web/. /out/
+
+FROM nginx:1.27-alpine
+COPY ops/test-v2/nginx/flutter-spa.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /out /usr/share/nginx/html
+EXPOSE 80
