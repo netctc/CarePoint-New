@@ -14,6 +14,9 @@ const _transportCopy = <CarePointLocale, Map<String, String>>{
     'emergencyRequested': 'Emergency ambulance requested', 'refresh': 'Refresh status', 'providerTitle': 'Transport operations',
     'available': 'Available requests', 'assigned': 'Assigned jobs', 'accept': 'Accept job', 'notTransportProvider': 'Transport operations are not enabled for this provider category.',
     'advance': 'Advance status', 'noRequests': 'No transport requests yet.', 'noJobs': 'No transport jobs right now.', 'minutes': 'min',
+    'crewUnit': 'Crew & unit', 'resourcesTitle': 'Assigned crew and unit', 'unit': 'Transport unit', 'crew': 'Crew', 'saveResources': 'Save assignment',
+    'noCompatibleUnit': 'No active compatible transport unit is configured for this job.', 'noCompatibleCrew': 'No active compatible crew member is available.',
+    'resourcesLocked': 'Crew and unit can no longer be changed after patient transport starts.', 'assignmentRevision': 'Assignment revision',
   },
   CarePointLocale.ar: {
     'title': 'النقل الطبي', 'scheduled': 'نقل طبي مجدول', 'schedule': 'جدولة النقل', 'history': 'طلبات النقل الخاصة بي',
@@ -28,6 +31,9 @@ const _transportCopy = <CarePointLocale, Map<String, String>>{
     'emergencyRequested': 'تم طلب سيارة الإسعاف', 'refresh': 'تحديث الحالة', 'providerTitle': 'عمليات النقل',
     'available': 'الطلبات المتاحة', 'assigned': 'المهام المسندة', 'accept': 'قبول المهمة', 'notTransportProvider': 'عمليات النقل غير مفعلة لهذه الفئة من مقدمي الخدمة.',
     'advance': 'تحديث المرحلة', 'noRequests': 'لا توجد طلبات نقل بعد.', 'noJobs': 'لا توجد مهام نقل حالياً.', 'minutes': 'دقيقة',
+    'crewUnit': 'الطاقم والمركبة', 'resourcesTitle': 'الطاقم والمركبة المعيّنان', 'unit': 'مركبة النقل', 'crew': 'الطاقم', 'saveResources': 'حفظ التعيين',
+    'noCompatibleUnit': 'لا توجد مركبة نقل نشطة ومتوافقة مهيأة لهذه المهمة.', 'noCompatibleCrew': 'لا يوجد عضو طاقم نشط ومتوافق متاح.',
+    'resourcesLocked': 'لا يمكن تغيير الطاقم أو المركبة بعد بدء نقل المريض.', 'assignmentRevision': 'إصدار التعيين',
   },
   CarePointLocale.fr: {
     'title': 'Transport médical', 'scheduled': 'Transport programmé', 'schedule': 'Programmer un transport', 'history': 'Mes demandes de transport',
@@ -42,6 +48,9 @@ const _transportCopy = <CarePointLocale, Map<String, String>>{
     'emergencyRequested': 'Ambulance d’urgence demandée', 'refresh': 'Actualiser le statut', 'providerTitle': 'Opérations de transport',
     'available': 'Demandes disponibles', 'assigned': 'Missions attribuées', 'accept': 'Accepter la mission', 'notTransportProvider': 'Les opérations de transport ne sont pas activées pour cette catégorie de prestataire.',
     'advance': 'Avancer le statut', 'noRequests': 'Aucune demande de transport.', 'noJobs': 'Aucune mission de transport actuellement.', 'minutes': 'min',
+    'crewUnit': 'Équipe et véhicule', 'resourcesTitle': 'Équipe et véhicule attribués', 'unit': 'Véhicule de transport', 'crew': 'Équipe', 'saveResources': 'Enregistrer l’attribution',
+    'noCompatibleUnit': 'Aucun véhicule de transport actif et compatible n’est configuré pour cette mission.', 'noCompatibleCrew': 'Aucun membre d’équipe actif et compatible n’est disponible.',
+    'resourcesLocked': 'L’équipe et le véhicule ne peuvent plus être modifiés après le début du transport du patient.', 'assignmentRevision': 'Révision de l’attribution',
   },
   CarePointLocale.es: {
     'title': 'Transporte médico', 'scheduled': 'Transporte programado', 'schedule': 'Programar transporte', 'history': 'Mis solicitudes de transporte',
@@ -56,6 +65,9 @@ const _transportCopy = <CarePointLocale, Map<String, String>>{
     'emergencyRequested': 'Ambulancia de emergencia solicitada', 'refresh': 'Actualizar estado', 'providerTitle': 'Operaciones de transporte',
     'available': 'Solicitudes disponibles', 'assigned': 'Servicios asignados', 'accept': 'Aceptar servicio', 'notTransportProvider': 'Las operaciones de transporte no están habilitadas para esta categoría de proveedor.',
     'advance': 'Avanzar estado', 'noRequests': 'Todavía no hay solicitudes de transporte.', 'noJobs': 'No hay servicios de transporte ahora.', 'minutes': 'min',
+    'crewUnit': 'Tripulación y unidad', 'resourcesTitle': 'Tripulación y unidad asignadas', 'unit': 'Unidad de transporte', 'crew': 'Tripulación', 'saveResources': 'Guardar asignación',
+    'noCompatibleUnit': 'No hay una unidad de transporte activa y compatible configurada para este servicio.', 'noCompatibleCrew': 'No hay miembros de tripulación activos y compatibles disponibles.',
+    'resourcesLocked': 'La tripulación y la unidad ya no pueden cambiarse una vez iniciado el transporte del paciente.', 'assignmentRevision': 'Revisión de asignación',
   },
 };
 
