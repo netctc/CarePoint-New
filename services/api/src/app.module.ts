@@ -50,6 +50,7 @@ import { OrdersModule } from "./modules/orders/orders.module";
 import { OtherProviderWorkspaceModule } from "./modules/other-provider-workspace/other-provider-workspace.module";
 import { ProviderWorkQueueModule } from "./modules/other-provider-workspace/provider-work-queue.module";
 import { ProviderFollowUpModule } from "./modules/provider-follow-up/provider-follow-up.module";
+import { ProviderOfflineSyncModule } from "./modules/provider-offline-sync/provider-offline-sync.module";
 import { ProvidersModule } from "./modules/providers/providers.module";
 import { ProviderCategoryFormsModule } from "./modules/provider-category-forms/provider-category-forms.module";
 import { ProviderWorkflowModule } from "./modules/provider-workflow/provider-workflow.module";
@@ -95,6 +96,7 @@ const isolatedSyntheticPilot = isolatedSyntheticPrivatePilotActive(process.env);
     ProviderCategoryFormsModule,
     ProviderWorkflowModule,
     ProviderFollowUpModule,
+    ProviderOfflineSyncModule,
     ProviderFieldMediaModule,
     OtherProviderWorkspaceModule,
     ProviderWorkQueueModule,
