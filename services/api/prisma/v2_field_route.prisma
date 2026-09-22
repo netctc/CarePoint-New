@@ -1,0 +1,19 @@
+model FieldRouteEstimate {
+  id             String   @id @default(uuid())
+  appointmentId  String
+  patientId      String
+  providerId     String
+  revision       Int
+  etaMinutes     Int
+  distanceMeters Int
+  source         String
+  idempotencyKey String   @unique
+  requestDigest  String
+  generatedAt    DateTime
+  createdAt      DateTime @default(now())
+
+  @@unique([appointmentId, revision])
+  @@index([providerId, generatedAt])
+  @@index([patientId, generatedAt])
+  @@index([appointmentId, generatedAt])
+}

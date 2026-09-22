@@ -170,3 +170,4 @@ await import("./v2-provider-work-queue-smoke.mjs");
 await import("./v2-provider-offline-sync-smoke.mjs");
 await import("./v2-provider-field-jobs-smoke.mjs");
 await import("./v2-provider-nursing-workflows-smoke.mjs");
+await import("./v2-provider-field-route-smoke.mjs");
