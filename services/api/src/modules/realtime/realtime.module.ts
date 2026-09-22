@@ -1,9 +1,11 @@
 import { Controller, Get, Header, Module, Query, Sse } from "@nestjs/common";
 import type { AuthPrincipal } from "@carepoint/identity";
 import { CurrentPrincipal } from "../../security/api-security.module";
+import { RequireFeature } from "../feature-flags/feature-flags.module";
 import { RealtimeService, type RealtimeStreamQuery } from "./realtime.service";
 
 @Controller("realtime")
+@RequireFeature("V2_REALTIME")
 class RealtimeController {
   constructor(private readonly realtime: RealtimeService) {}
 
