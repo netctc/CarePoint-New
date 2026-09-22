@@ -58,6 +58,7 @@ import { AvailabilityRequestsModule } from "./modules/scheduling/availability-re
 import { SmartModule } from "./modules/smart/smart.module";
 import { TelehealthModule } from "./modules/telehealth/telehealth.module";
 import { TransportModule } from "./modules/transport/transport.module";
+import { TransportResourcesModule } from "./modules/transport/transport-resources.module";
 import { isolatedSyntheticPrivatePilotActive } from "./infrastructure/release/private-pilot-infrastructure-profile";
 import { carePointRuntimeFeatures } from "./infrastructure/release/private-pilot-policy";
 
@@ -98,6 +99,7 @@ const isolatedSyntheticPilot = isolatedSyntheticPrivatePilotActive(process.env);
     NutritionPlanModule,
     ...(emergencyAmbulanceModuleEnabled(process.env) ? [EmergencyModule] : []),
     TransportModule,
+    TransportResourcesModule,
     IamModule,
     PatientProfileModule,
     HealthProfileModule,
