@@ -4,7 +4,7 @@ This directory defines the repeatable **non-production / synthetic-only** deploy
 
 ## Candidate boundary
 
-- Base commit: `6b360e7b41176078aee278f88f6e62f644c5dccb` (`v2/development`, merged PR #374).
+- Functional base commit: `6b360e7b41176078aee278f88f6e62f644c5dccb` (`v2/development`, merged PR #374).
 - PR #375 (`DOC-082` clinical signature) is intentionally **not included** until its CI is green and it is merged.
 - This lane is for technical/integration/UAT testing with synthetic data. It is **not** production-equivalent KSA acceptance and must not be used with real PHI/PII unless a separately approved data-governance decision explicitly permits it.
 
@@ -18,6 +18,22 @@ This directory defines the repeatable **non-production / synthetic-only** deploy
 - PostgreSQL and Redis are internal to the Docker network and have no host ports.
 
 Host Nginx terminates TLS and routes the public test subdomains to those loopback ports.
+
+## Recommended Ubuntu host
+
+Ubuntu 24.04 LTS is the preferred baseline. A host that also builds all three Flutter Web apps should normally have at least 4 vCPU / 8 GB RAM / 80 GB SSD; 8 vCPU / 16 GB RAM / 120 GB SSD provides more comfortable build headroom. These are test-environment sizing recommendations, not production capacity figures.
+
+## Host bootstrap
+
+From a fresh Ubuntu VPS after creating a non-root sudo operator account:
+
+```bash
+sudo bash ops/test-v2/scripts/bootstrap-ubuntu.sh
+```
+
+The script installs Docker Engine from Docker's official apt repository, Nginx, Fail2ban and Certbot. It deliberately does **not** enable UFW because blindly rewriting a remote firewall can lock out SSH. Configure the real management IP/SSH port first, then allow only management SSH plus TCP 80/443.
+
+Docker-published ports can interact with firewall policy, so the Compose lane binds API/Admin/mobile web ports to numeric loopback only and does not publish PostgreSQL or Redis.
 
 ## Required host variables
 
@@ -42,7 +58,7 @@ chmod +x ops/test-v2/scripts/*.sh
 ops/test-v2/scripts/deploy.sh
 ```
 
-The script validates required variables, builds all five applications, starts PostgreSQL/Redis, runs Prisma migrations, optionally bootstraps the admin account, and starts the test stack.
+The script validates required variables, builds API/Admin plus all three Flutter Web apps, starts PostgreSQL/Redis, runs Prisma migrations, optionally bootstraps the admin account and optionally loads the repository's synthetic private-pilot fixtures.
 
 Run local smoke checks:
 
@@ -52,13 +68,21 @@ ops/test-v2/scripts/smoke.sh
 
 ## Nginx / TLS
 
-1. Install Nginx and Certbot on the Ubuntu host.
-2. Copy `nginx/carepoint-v2-http.conf.template` to `/etc/nginx/sites-available/carepoint-v2-test`.
-3. Replace the five `__..._DOMAIN__` placeholders with the chosen test FQDNs.
-4. Enable the site and run `nginx -t`.
-5. Point DNS A/AAAA records to the VPS.
-6. Run Certbot with all five names; let Certbot upgrade the Nginx server blocks to HTTPS.
-7. Set `CAREPOINT_API_PUBLIC_BASE=https://<api-domain>/api/v1` and `CAREPOINT_ADMIN_PUBLIC_ORIGIN=https://<admin-domain>` before building/deploying.
+Create five DNS records pointing to the VPS, export the five `TEST_*_DOMAIN` values, then install the HTTP routing:
+
+```bash
+sudo -E bash ops/test-v2/scripts/install-nginx-tls.sh
+```
+
+After DNS has propagated, request certificates:
+
+```bash
+export CERTBOT_EMAIL=<operator-email>
+export ISSUE_TLS=true
+sudo -E bash ops/test-v2/scripts/install-nginx-tls.sh
+```
+
+The installer validates the Nginx configuration, obtains one certificate covering the five test names, enables HTTPS redirect, reloads Nginx and runs a Certbot renewal dry-run.
 
 ## Data policy
 
@@ -67,6 +91,14 @@ ops/test-v2/scripts/smoke.sh
 - Test storage and keys are isolated from production.
 - Logs must not contain raw clinical payloads or credentials.
 - The environment must display/operate as NON-PRODUCTION.
+
+## Validation gates
+
+- `Entorno V2 Test Lane`: Node build, three Flutter Web builds and Compose configuration validation.
+- `Entorno V2 VPS Contract`: deployment-script syntax and synthetic-lane boundary checks.
+- Run `smoke.sh` after every VPS deployment.
+
+A green test-lane workflow means the branch is structurally deployable; it does not close Release 1 KSA production, regulatory, security-assessment, real-provider, disaster-recovery or human-UAT gates.
 
 ## Updating the candidate
 
