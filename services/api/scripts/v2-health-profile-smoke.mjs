@@ -163,3 +163,5 @@ console.log(JSON.stringify({
   explicitProviderConsentRequired: true,
   otherProviderCapabilityFailClosed: true,
 }));
+
+await import("./v2-symptom-report-smoke.mjs");
