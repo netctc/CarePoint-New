@@ -14,13 +14,10 @@ CAREPOINT_API_PUBLIC_BASE=https://api-test.example.com/api/v1
 
 Host Nginx / TLS options
 ------------------------
-# configure-nginx-tls.sh always renders/enables the HTTP reverse-proxy site.
-# Set ENABLE_CERTBOT=true only after all five DNS names resolve to the VPS.
-ENABLE_CERTBOT=false
-LETSENCRYPT_EMAIL=<required only when ENABLE_CERTBOT=true>
-CERTBOT_STAGING=false
-DISABLE_NGINX_DEFAULT=true
-NGINX_SITE_NAME=carepoint-v2-test
+# install-nginx-tls.sh always renders/enables the HTTP reverse-proxy site.
+# Set ISSUE_TLS=true only after all five DNS names resolve to the VPS.
+ISSUE_TLS=false
+CERTBOT_EMAIL=<required only when ISSUE_TLS=true>
 
 Infrastructure secrets
 ----------------------
