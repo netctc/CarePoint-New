@@ -1,0 +1,88 @@
+model RetentionPolicy {
+  id             String                   @id @default(uuid())
+  code           String                   @unique
+  domain         String
+  jurisdiction   String
+  active         Boolean                  @default(true)
+  currentVersion Int                      @default(1)
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+  versions       RetentionPolicyVersion[]
+  jobs           DeletionJob[]
+
+  @@index([domain, jurisdiction, active])
+}
+
+model RetentionPolicyVersion {
+  id               String          @id @default(uuid())
+  policyId         String
+  version          Int
+  retentionDays    Int
+  action           String
+  createdByActorId String
+  createdAt        DateTime        @default(now())
+  policy           RetentionPolicy @relation(fields: [policyId], references: [id], onDelete: Restrict)
+
+  @@unique([policyId, version])
+  @@index([policyId, createdAt])
+}
+
+model LegalHold {
+  id               String    @id @default(uuid())
+  domain           String
+  jurisdiction     String
+  subjectType      String
+  subjectId        String?
+  reasonCode       String
+  startsAt         DateTime  @default(now())
+  expiresAt        DateTime?
+  releasedAt       DateTime?
+  createdByActorId String
+  releasedByActorId String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([domain, jurisdiction, releasedAt, expiresAt])
+  @@index([subjectType, subjectId, releasedAt])
+}
+
+model DeletionJob {
+  id               String            @id @default(uuid())
+  policyId         String
+  policyVersion    Int
+  jurisdiction     String
+  domain           String
+  action           String
+  cutoffAt         DateTime
+  status           String            @default("PREVIEWED")
+  planDigest       String
+  candidateCount   Int               @default(0)
+  blockedCount     Int               @default(0)
+  appliedCount     Int               @default(0)
+  createdByActorId String
+  createdAt        DateTime          @default(now())
+  executedAt       DateTime?
+  policy           RetentionPolicy   @relation(fields: [policyId], references: [id], onDelete: Restrict)
+  items            DeletionJobItem[]
+
+  @@index([status, createdAt])
+  @@index([policyId, policyVersion, createdAt])
+}
+
+model DeletionJobItem {
+  id          String      @id @default(uuid())
+  jobId       String
+  entityType  String
+  entityId    String
+  patientId   String?
+  action      String
+  status      String      @default("PLANNED")
+  blockReason String?
+  createdAt   DateTime    @default(now())
+  appliedAt   DateTime?
+  job         DeletionJob @relation(fields: [jobId], references: [id], onDelete: Restrict)
+
+  @@unique([jobId, entityType, entityId])
+  @@index([jobId, status])
+  @@index([patientId, status])
+}
