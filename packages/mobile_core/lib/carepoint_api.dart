@@ -147,6 +147,26 @@ class CarePointApi {
   Future<Map<String, dynamic>> finalizeDiagnosticReport(String reportId) async => _asMap(await _send('POST', '/diagnostic-reports/$reportId/finalize', body: const {}));
   Future<Map<String, dynamic>> releaseDiagnosticReport(String reportId) async => _asMap(await _send('POST', '/diagnostic-reports/$reportId/release', body: const {}));
 
+  Future<Map<String, dynamic>> providerEmergencyAccess() async =>
+      _asMap(await _send('GET', '/provider/emergency-access'));
+  Future<Map<String, dynamic>> createEmergencyAccess({
+    required String patientId,
+    required String scope,
+    required String reasonCode,
+    required int ttlMinutes,
+    required String idempotencyKey,
+  }) async => _asMap(await _send('POST', '/provider/emergency-access', body: {
+    'patientId': patientId,
+    'scope': scope,
+    'reasonCode': reasonCode,
+    'ttlMinutes': ttlMinutes,
+    'idempotencyKey': idempotencyKey,
+  }));
+  Future<Map<String, dynamic>> revokeEmergencyAccess(String grantId) async =>
+      _asMap(await _send('POST', '/provider/emergency-access/' + grantId + '/revoke', body: const {}));
+  Future<Map<String, dynamic>> emergencyClinicalProfile(String grantId) async =>
+      _asMap(await _send('GET', '/provider/emergency-access/' + grantId + '/clinical-profile'));
+
   Future<void> logout() async {
     accessToken = null;
     refreshToken = null;
