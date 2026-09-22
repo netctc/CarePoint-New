@@ -18,9 +18,25 @@ import { DocumentStorageService } from "../documents/document-storage.service";
 import { DocumentsEnvelopeService } from "../documents/documents-envelope.service";
 import { PatientHealthSummaryService } from "../patient-health-summary/patient-health-summary.service";
 
+export const PATIENT_HEALTH_SUMMARY_EXPORT_SCOPES = [
+  "observations",
+  "glucose",
+  "medications",
+  "questionnaire",
+  "carePlan",
+  "alerts",
+] as const;
+
+export type PatientHealthSummaryExportScope = (typeof PATIENT_HEALTH_SUMMARY_EXPORT_SCOPES)[number];
+
 export interface CreatePatientClinicalExportInput {
   format?: string;
   clientRequestId?: string;
+}
+
+export interface CreatePatientHealthSummaryExportInput extends CreatePatientClinicalExportInput {
+  scopes?: string[];
+  confirmed?: boolean;
 }
 
 const ARTIFACT_TTL_MS = 24 * 60 * 60 * 1000;
@@ -28,6 +44,7 @@ const DOWNLOAD_GRANT_TTL_MS = 5 * 60 * 1000;
 const POLL_MS = 2_000;
 const STALE_PROCESSING_MS = 10 * 60 * 1000;
 const EXPORT_SCOPE = "PATIENT_CLINICAL_PORTABILITY";
+const HEALTH_SUMMARY_SCOPE_PREFIX = "PATIENT_HEALTH_SUMMARY:";
 
 @Injectable()
 export class PatientClinicalExportService implements OnModuleInit, OnModuleDestroy {
@@ -53,7 +70,24 @@ export class PatientClinicalExportService implements OnModuleInit, OnModuleDestr
     if (this.timer) clearInterval(this.timer);
   }
 
-  async create(principal: AuthPrincipal, input: CreatePatientClinicalExportInput) {
+  create(principal: AuthPrincipal, input: CreatePatientClinicalExportInput) {
+    return this.createScoped(principal, input, EXPORT_SCOPE, false);
+  }
+
+  createHealthSummary(principal: AuthPrincipal, input: CreatePatientHealthSummaryExportInput) {
+    if (input?.confirmed !== true) {
+      throw new BadRequestException("Explicit confirmation is required before exporting health information.");
+    }
+    const scopes = this.normalizeScopes(input?.scopes);
+    return this.createScoped(principal, input, this.encodeHealthSummaryScope(scopes), true);
+  }
+
+  private async createScoped(
+    principal: AuthPrincipal,
+    input: CreatePatientClinicalExportInput,
+    scope: string,
+    explicitConfirmation: boolean,
+  ) {
     this.assertPatient(principal);
     const format = this.format(input?.format);
     const clientRequestId = this.identifier(input?.clientRequestId, "clientRequestId");
@@ -61,7 +95,7 @@ export class PatientClinicalExportService implements OnModuleInit, OnModuleDestr
     const requestDigest = this.sha256(JSON.stringify({
       patientId: context.patientId,
       format,
-      scope: EXPORT_SCOPE,
+      scope,
     }));
     const existing = await this.prisma.patientClinicalExportJob.findUnique({
       where: { accountId_clientRequestId: { accountId: principal.accountId, clientRequestId } },
@@ -79,7 +113,7 @@ export class PatientClinicalExportService implements OnModuleInit, OnModuleDestr
         accountId: principal.accountId,
         sessionId: principal.sessionId,
         format,
-        scope: EXPORT_SCOPE,
+        scope,
         clientRequestId,
         requestDigest,
         expiresAt: new Date(Date.now() + ARTIFACT_TTL_MS),
@@ -95,7 +129,9 @@ export class PatientClinicalExportService implements OnModuleInit, OnModuleDestr
       metadata: {
         patientId: context.patientId,
         format,
-        scope: EXPORT_SCOPE,
+        scope,
+        selectedScopes: this.scopesFromStoredScope(scope),
+        explicitConfirmation,
         contextMode: context.mode,
         decision: "ALLOW",
       },
@@ -140,7 +176,7 @@ export class PatientClinicalExportService implements OnModuleInit, OnModuleDestr
       objectId: current.id,
       purpose: "PATIENT_ACCESS",
       result: "SUCCESS",
-      metadata: { patientId: current.patientId, format: current.format, expiresAt, decision: "ALLOW" },
+      metadata: { patientId: current.patientId, format: current.format, scope: current.scope, expiresAt, decision: "ALLOW" },
     });
     return {
       jobId: current.id,
@@ -189,6 +225,7 @@ export class PatientClinicalExportService implements OnModuleInit, OnModuleDestr
       metadata: {
         patientId: current.patientId,
         format: current.format,
+        scope: current.scope,
         byteLength: current.byteLength,
         contentDigest: current.contentDigest,
         decision: "ALLOW",
@@ -247,13 +284,21 @@ export class PatientClinicalExportService implements OnModuleInit, OnModuleDestr
       if (snapshot.patientId !== job.patientId) {
         throw new ConflictException("Patient context changed while clinical export was queued.");
       }
+      const selectedScopes = this.scopesFromStoredScope(job.scope);
+      const filteredSections = selectedScopes
+        ? this.filterSections(snapshot.sections as Record<string, unknown>, selectedScopes)
+        : snapshot.sections;
       const packageValue = {
-        schemaVersion: 1,
+        schemaVersion: 2,
         exportId: job.id,
         scope: job.scope,
+        selectedScopes: selectedScopes ?? [...PATIENT_HEALTH_SUMMARY_EXPORT_SCOPES],
         generatedAt: new Date().toISOString(),
         patientId: job.patientId,
-        healthSummary: snapshot,
+        healthSummary: {
+          ...snapshot,
+          sections: filteredSections,
+        },
       };
       const bytes = job.format === "PDF"
         ? this.renderPdf(packageValue)
@@ -289,6 +334,7 @@ export class PatientClinicalExportService implements OnModuleInit, OnModuleDestr
           patientId: job.patientId,
           format: job.format,
           scope: job.scope,
+          selectedScopes,
           byteLength: bytes.byteLength,
           contentDigest,
           storageProvider: this.storage.storageProviderName(),
@@ -308,7 +354,7 @@ export class PatientClinicalExportService implements OnModuleInit, OnModuleDestr
         objectId: job.id,
         purpose: "PATIENT_ACCESS",
         result: "FAILED",
-        metadata: { patientId: job.patientId, format: job.format, errorCode, decision: "DENY" },
+        metadata: { patientId: job.patientId, format: job.format, scope: job.scope, errorCode, decision: "DENY" },
       }).catch(() => undefined);
     }
   }
@@ -360,6 +406,7 @@ export class PatientClinicalExportService implements OnModuleInit, OnModuleDestr
       id: job.id,
       format: job.format,
       scope: job.scope,
+      selectedScopes: this.scopesFromStoredScope(job.scope) ?? [...PATIENT_HEALTH_SUMMARY_EXPORT_SCOPES],
       status: job.status,
       expiresAt: job.expiresAt,
       createdAt: job.createdAt,
@@ -381,6 +428,40 @@ export class PatientClinicalExportService implements OnModuleInit, OnModuleDestr
     const normalized = typeof value === "string" ? value.trim().toUpperCase() : "JSON";
     if (normalized !== "JSON" && normalized !== "PDF") throw new BadRequestException("format must be JSON or PDF.");
     return normalized;
+  }
+
+  private normalizeScopes(value: unknown): PatientHealthSummaryExportScope[] {
+    if (!Array.isArray(value) || value.length === 0) {
+      throw new BadRequestException("At least one health-summary export scope is required.");
+    }
+    const requested = new Set(value.map((item) => typeof item === "string" ? item.trim() : ""));
+    if (requested.has("") || [...requested].some((item) => !PATIENT_HEALTH_SUMMARY_EXPORT_SCOPES.includes(item as PatientHealthSummaryExportScope))) {
+      throw new BadRequestException(`scopes may contain only: ${PATIENT_HEALTH_SUMMARY_EXPORT_SCOPES.join(", ")}.`);
+    }
+    return PATIENT_HEALTH_SUMMARY_EXPORT_SCOPES.filter((scope) => requested.has(scope));
+  }
+
+  private encodeHealthSummaryScope(scopes: readonly PatientHealthSummaryExportScope[]): string {
+    return `${HEALTH_SUMMARY_SCOPE_PREFIX}${scopes.join(",")}`;
+  }
+
+  private scopesFromStoredScope(scope: string): PatientHealthSummaryExportScope[] | null {
+    if (!scope.startsWith(HEALTH_SUMMARY_SCOPE_PREFIX)) return null;
+    const raw = scope.slice(HEALTH_SUMMARY_SCOPE_PREFIX.length).split(",").filter(Boolean);
+    if (raw.length === 0 || raw.some((item) => !PATIENT_HEALTH_SUMMARY_EXPORT_SCOPES.includes(item as PatientHealthSummaryExportScope))) {
+      throw new ConflictException("Stored patient health-summary export scope is invalid.");
+    }
+    const requested = new Set(raw);
+    return PATIENT_HEALTH_SUMMARY_EXPORT_SCOPES.filter((item) => requested.has(item));
+  }
+
+  private filterSections(
+    sections: Record<string, unknown>,
+    scopes: readonly PatientHealthSummaryExportScope[],
+  ): Record<string, unknown> {
+    const output: Record<string, unknown> = {};
+    for (const scope of scopes) output[scope] = sections[scope];
+    return output;
   }
 
   private identifier(value: unknown, field: string): string {
