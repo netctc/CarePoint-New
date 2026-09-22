@@ -94,3 +94,4 @@ assert.match(providerActions, /'workQueue'/);
 assert.match(providerActions, /ProviderWorkQueuePage/);
 
 console.log("V2 PRV-088 explainable operational provider work queue acceptance passed");
+await import("./v2-field-jobs-smoke.mjs");
