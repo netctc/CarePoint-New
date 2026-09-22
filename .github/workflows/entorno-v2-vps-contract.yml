@@ -1,0 +1,36 @@
+name: Entorno V2 VPS Contract
+
+on:
+  push:
+    branches: [entorno-v2]
+    paths:
+      - 'ops/test-v2/**'
+      - '.github/workflows/entorno-v2-vps-contract.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate deployment shell syntax
+        run: |
+          bash -n ops/test-v2/scripts/bootstrap-ubuntu.sh
+          bash -n ops/test-v2/scripts/install-nginx-tls.sh
+          bash -n ops/test-v2/scripts/deploy.sh
+          bash -n ops/test-v2/scripts/smoke.sh
+      - name: Enforce synthetic lane boundaries
+        run: |
+          test -z "$(find ops/test-v2 -type f -name '.env*' -print)"
+          grep -q '127.0.0.1:4000:4000' ops/test-v2/compose.yaml
+          grep -q '127.0.0.1:3000:3000' ops/test-v2/compose.yaml
+          grep -q 'PR #375' ops/test-v2/README.md
+          grep -qi 'synthetic' ops/test-v2/README.md
+      - name: Validate Nginx template placeholders
+        run: |
+          for marker in API ADMIN PATIENT DOCTOR PROVIDER; do
+            grep -q "__${marker}_DOMAIN__" ops/test-v2/nginx/carepoint-v2-http.conf.template
+          done
