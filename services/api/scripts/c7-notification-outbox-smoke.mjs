@@ -33,7 +33,9 @@ function workItem(id, channel, attemptCount = 1) {
       id: `notification-${id}`,
       accountId: "account-c7",
       safeTitleKey: "notification.message.title",
+      safeTitleVersion: 3,
       safeBodyKey: "notification.message.body",
+      safeBodyVersion: 7,
       entityType: "CARE_CONVERSATION",
       entityId: "conversation-c7",
     },
@@ -143,6 +145,8 @@ try {
   assert.equal(normalGateway.sent.length, 1, "IN_APP must not call the external gateway");
   assert.equal(normalGateway.sent[0].channel, "EMAIL");
   assert.equal(normalGateway.sent[0].destinationRef, "account@example.test");
+  assert.equal(normalGateway.sent[0].safeTitleVersion, 3);
+  assert.equal(normalGateway.sent[0].safeBodyVersion, 7);
   assert.equal(normalStore.sent.some((row) => row.id === "in-app" && row.providerRef === undefined), true);
   assert.equal(normalStore.sent.some((row) => row.id === "email" && row.providerRef?.startsWith("provider-")), true);
   assert.deepEqual(normalStore.skipped.map((row) => row.id).sort(), ["push-disabled", "sms-missing"]);
@@ -203,6 +207,7 @@ try {
   process.env.NOTIFICATION_GATEWAY_TIMEOUT_MS = "10000";
   assert.doesNotThrow(() => gateway.assertProductionReady());
 
+  await import("./v2-notification-template-smoke.mjs");
   console.log("Phase C7 durable notification outbox acceptance passed");
 } finally {
   for (const key of Object.keys(process.env)) {
