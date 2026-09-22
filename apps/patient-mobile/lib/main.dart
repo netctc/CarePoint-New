@@ -10,6 +10,7 @@ import 'package:carepoint_mobile_core/nutrition_plan.dart';
 import 'package:carepoint_mobile_core/patient_access_needs.dart';
 import 'package:carepoint_mobile_core/patient_care_journeys.dart';
 import 'package:carepoint_mobile_core/patient_clinical_export.dart';
+import 'package:carepoint_mobile_core/patient_clinical_history.dart';
 import 'package:carepoint_mobile_core/care_visits.dart';
 import 'package:carepoint_mobile_core/care_journeys_localization.dart';
 import 'package:carepoint_mobile_core/transport_localization.dart';
@@ -65,12 +66,20 @@ class _PatientShellState extends State<PatientShell> {
   Future<void> openEmergencyContacts() async { await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => PatientEmergencyContactsPage(session: widget.session, locale: widget.locale))); }
   Future<void> openAccessNeeds() async { await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => PatientAccessNeedsPage(session: widget.session, locale: widget.locale))); }
   Future<void> openClinicalExport() async { await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => PatientClinicalExportPage(session: widget.session, locale: widget.locale))); }
+  Future<void> openHospitalizations() async { await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => PatientHospitalizationsPage(session: widget.session, locale: widget.locale))); }
+  Future<void> openImmunizations() async { await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => PatientImmunizationsPage(session: widget.session, locale: widget.locale))); }
   Future<void> openHomeExercises() async { await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => Directionality(textDirection: widget.locale.textDirection, child: PatientHomeExercisePage(session: widget.session, locale: widget.locale)))); }
   Future<void> openNutritionPlan() async { await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => Directionality(textDirection: widget.locale.textDirection, child: PatientNutritionPlanPage(session: widget.session, locale: widget.locale)))); }
   Future<void> openFollowUps() async { await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => Directionality(textDirection: widget.locale.textDirection, child: PatientFollowUpListPage(session: widget.session, locale: widget.locale)))); }
   Widget healthTab() => Column(children: [
     Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 0), child: SizedBox(width: double.infinity, child: FilledButton.tonalIcon(
       key: const ValueKey('patient-access-needs-entry'), onPressed: openAccessNeeds, icon: const Icon(Icons.accessible_forward_outlined), label: Text(patientAccessNeedsText(widget.locale, 'open')),
+    ))),
+    Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
+      key: const ValueKey('patient-hospitalizations-entry'), onPressed: openHospitalizations, icon: const Icon(Icons.local_hospital_outlined), label: Text(patientClinicalHistoryText(widget.locale, 'hospitalizations')),
+    ))),
+    Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
+      key: const ValueKey('patient-immunizations-entry'), onPressed: openImmunizations, icon: const Icon(Icons.vaccines_outlined), label: Text(patientClinicalHistoryText(widget.locale, 'immunizations')),
     ))),
     Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
       key: const ValueKey('patient-clinical-export-entry'), onPressed: openClinicalExport, icon: const Icon(Icons.ios_share_outlined), label: Text(patientClinicalExportText(widget.locale, 'title')),

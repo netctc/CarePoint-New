@@ -178,6 +178,79 @@ class CarePointApi {
     if (site?.isNotEmpty == true) 'site': site,
   }));
 
+  // PAT-089 / PAT-093 — governed longitudinal patient clinical history.
+  Future<Map<String, dynamic>> patientHospitalizations() async =>
+      _asMap(await _send('GET', '/patient/clinical-history/hospitalizations'));
+  Future<Map<String, dynamic>> createPatientHospitalization({
+    required String idempotencyKey,
+    required String admittedOn,
+    String? dischargedOn,
+    String? facility,
+    String? reason,
+  }) async => _asMap(await _send('POST', '/patient/clinical-history/hospitalizations', body: {
+    'idempotencyKey': idempotencyKey,
+    'admittedOn': admittedOn,
+    if (dischargedOn?.isNotEmpty == true) 'dischargedOn': dischargedOn,
+    if (facility?.isNotEmpty == true) 'facility': facility,
+    if (reason?.isNotEmpty == true) 'reason': reason,
+  }));
+  Future<Map<String, dynamic>> updatePatientHospitalization(
+    String hospitalizationId, {
+    required int expectedVersion,
+    required String admittedOn,
+    String? dischargedOn,
+    String? facility,
+    String? reason,
+  }) async => _asMap(await _send('PATCH', '/patient/clinical-history/hospitalizations/$hospitalizationId', body: {
+    'expectedVersion': expectedVersion,
+    'admittedOn': admittedOn,
+    if (dischargedOn?.isNotEmpty == true) 'dischargedOn': dischargedOn,
+    if (facility?.isNotEmpty == true) 'facility': facility,
+    if (reason?.isNotEmpty == true) 'reason': reason,
+  }));
+
+  Future<Map<String, dynamic>> patientImmunizations() async =>
+      _asMap(await _send('GET', '/patient/clinical-history/immunizations'));
+  Future<Map<String, dynamic>> createPatientImmunization({
+    required String idempotencyKey,
+    required String occurredOn,
+    String? vaccineCodeSystem,
+    String? vaccineCode,
+    String? vaccineDisplay,
+    String? doseNumber,
+    String? lotNumber,
+    String? manufacturer,
+  }) async => _asMap(await _send('POST', '/patient/clinical-history/immunizations', body: {
+    'idempotencyKey': idempotencyKey,
+    'occurredOn': occurredOn,
+    if (vaccineCodeSystem?.isNotEmpty == true) 'vaccineCodeSystem': vaccineCodeSystem,
+    if (vaccineCode?.isNotEmpty == true) 'vaccineCode': vaccineCode,
+    if (vaccineDisplay?.isNotEmpty == true) 'vaccineDisplay': vaccineDisplay,
+    if (doseNumber?.isNotEmpty == true) 'doseNumber': doseNumber,
+    if (lotNumber?.isNotEmpty == true) 'lotNumber': lotNumber,
+    if (manufacturer?.isNotEmpty == true) 'manufacturer': manufacturer,
+  }));
+  Future<Map<String, dynamic>> updatePatientImmunization(
+    String immunizationId, {
+    required int expectedVersion,
+    required String occurredOn,
+    String? vaccineCodeSystem,
+    String? vaccineCode,
+    String? vaccineDisplay,
+    String? doseNumber,
+    String? lotNumber,
+    String? manufacturer,
+  }) async => _asMap(await _send('PATCH', '/patient/clinical-history/immunizations/$immunizationId', body: {
+    'expectedVersion': expectedVersion,
+    'occurredOn': occurredOn,
+    if (vaccineCodeSystem?.isNotEmpty == true) 'vaccineCodeSystem': vaccineCodeSystem,
+    if (vaccineCode?.isNotEmpty == true) 'vaccineCode': vaccineCode,
+    if (vaccineDisplay?.isNotEmpty == true) 'vaccineDisplay': vaccineDisplay,
+    if (doseNumber?.isNotEmpty == true) 'doseNumber': doseNumber,
+    if (lotNumber?.isNotEmpty == true) 'lotNumber': lotNumber,
+    if (manufacturer?.isNotEmpty == true) 'manufacturer': manufacturer,
+  }));
+
   Future<Map<String, dynamic>> patientClinicalOrders() async => _asMap(await _send('GET', '/clinical-orders/me'));
   Future<Map<String, dynamic>> providerClinicalOrders(String patientId) async => _asMap(await _send('GET', '/clinical-orders/patients/$patientId'));
   Future<Map<String, dynamic>> clinicalOrder(String orderId) async => _asMap(await _send('GET', '/clinical-orders/$orderId'));
