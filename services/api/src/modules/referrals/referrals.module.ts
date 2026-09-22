@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Header, Module, Param, Post } from "@nestjs/common";
+import { Body, Controller, Get, Header, Module, Param, Post, Query } from "@nestjs/common";
 import type { AuthPrincipal } from "@carepoint/identity";
 import { CurrentPrincipal, RequirePermissions } from "../../security/api-security.module";
 import { CommunicationsModule } from "../communications/communications.module";
@@ -29,6 +29,16 @@ class ProviderReferralsController {
     @Param("patientId") patientId: string,
   ) {
     return this.referrals.providerPatientReferrals(principal, patientId);
+  }
+
+  @RequirePermissions("CARE_COORDINATION_MANAGE")
+  @Get("referrals/destinations")
+  @Header("Cache-Control", "no-store")
+  destinations(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Query("specialtyCode") specialtyCode?: string,
+  ) {
+    return this.referrals.destinationCatalog(principal, specialtyCode);
   }
 
   @RequirePermissions("CARE_COORDINATION_MANAGE")

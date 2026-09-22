@@ -65,7 +65,8 @@ assert.match(mobileLocalization, /signFinalizePrompt/);
 await import("./v2-doctor-immunization-ui-smoke.mjs");
 await import("./v2-doctor-procedure-ui-smoke.mjs");
 await import("./v2-doctor-care-plan-rpm-ui-smoke.mjs");
-console.log("V2 Doctor clinical integrity UI acceptance passed: DOC-067/DOC-068/DOC-069/DOC-070/DOC-071/DOC-072/DOC-073/DOC-074/DOC-075/DOC-081/DOC-082/DOC-083");
+await import("./v2-doctor-orders-referrals-ui-smoke.mjs");
+console.log("V2 Doctor clinical integrity UI acceptance passed: DOC-067/DOC-068/DOC-069/DOC-070/DOC-071/DOC-072/DOC-073/DOC-074/DOC-075/DOC-076/DOC-077/DOC-078/DOC-081/DOC-082/DOC-083");
 
 function read(relative) {
   return readFileSync(new URL(relative, import.meta.url), "utf8");
