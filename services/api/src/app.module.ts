@@ -25,6 +25,7 @@ import { CommunicationsModule } from "./modules/communications/communications.mo
 import { ConsentModule } from "./modules/consent/consent.module";
 import { ClinicalGovernanceModule } from "./modules/clinical-governance/clinical-governance.module";
 import { DataGovernanceModule } from "./modules/data-governance/data-governance.module";
+import { DataQualityModule } from "./modules/data-quality/data-quality.module";
 import { DependentsModule } from "./modules/dependents/dependents.module";
 import { EmergencyAccessModule } from "./modules/emergency-access/emergency-access.module";
 import { EmergencyContactsModule } from "./modules/emergency-contacts/emergency-contacts.module";
@@ -98,6 +99,7 @@ const isolatedSyntheticPilot = isolatedSyntheticPrivatePilotActive(process.env);
     RefillModule,
     ReferralsModule,
     DataGovernanceModule,
+    DataQualityModule,
     EmergencyAccessModule,
     DependentsModule,
     EmergencyContactsModule,
