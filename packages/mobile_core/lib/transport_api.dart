@@ -82,6 +82,9 @@ extension CarePointTransportApi on CarePointApi {
         if (reason?.trim().isNotEmpty == true) 'reason': reason!.trim(),
       }));
 
+  Future<Map<String, dynamic>> providerWorkQueue() async =>
+      _asMap(await _send('GET', '/provider/jobs/work-queue'));
+
   Future<List<Map<String, dynamic>>> providerAvailableMedicalTransport() async =>
       _asList(await _send('GET', '/provider/medical-transport/available'));
 
