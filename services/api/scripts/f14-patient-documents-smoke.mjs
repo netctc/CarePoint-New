@@ -131,4 +131,5 @@ await safeListCase();
 await singleUseCase();
 await failClosedCase();
 await import('./v2-document-versioning-smoke.mjs');
+await import('./v2-clinical-media-versioning-smoke.mjs');
 console.log(JSON.stringify({ status: 'passed', safePatientDto: true, hashedGrant: true, singleUse: true, failClosed: true }));
