@@ -1,4 +1,6 @@
 import { PrismaClient } from '@prisma/client';
+import { totpCode } from '@carepoint/identity';
+import { MfaEnvelopeService } from '../dist/infrastructure/security/mfa-envelope.service.js';
 
 const apiBase = process.env.CAREPOINT_API_URL || 'http://127.0.0.1:4000/api/v1';
 const webBase = process.env.CAREPOINT_ADMIN_URL || 'http://127.0.0.1:3000';
@@ -16,10 +18,35 @@ async function api(path, options = {}) {
   if (result.status < 200 || result.status >= 300) throw new Error(`${options.method || 'GET'} ${path} -> ${result.status} ${JSON.stringify(result.payload)}`);
   return result.payload;
 }
+async function fixtureMfaSecret(email) {
+  const user = await prisma.user.findUnique({ where: { email }, include: { mfaEnrollment: true } });
+  const enrollment = user?.mfaEnrollment;
+  if (!enrollment?.enabledAt) throw new Error(`MFA challenge for ${email} has no enabled enrollment fixture.`);
+  return new MfaEnvelopeService().decryptSecret({
+    version: 1,
+    algorithm: 'AES-256-GCM',
+    keyId: enrollment.keyId,
+    wrappedKey: enrollment.wrappedKey,
+    iv: enrollment.iv,
+    ciphertext: enrollment.secretCiphertext,
+  });
+}
+
 async function login(email, password) {
   const result = await api('/iam/login', { method: 'POST', body: { email, password } });
-  if (!result.accessToken) throw new Error(`No access token for ${email}`);
-  return result.accessToken;
+  if (result.accessToken) return result.accessToken;
+  if (result.requiresMfa !== true || typeof result.challengeId !== 'string') {
+    throw new Error(`login did not return access token or MFA challenge for ${email}`);
+  }
+  const secret = await fixtureMfaSecret(email);
+  const verified = await api('/iam/mfa/verify', {
+    method: 'POST',
+    body: { challengeId: result.challengeId, code: totpCode(secret) },
+  });
+  if (!verified.accessToken || !verified.sessionId?.startsWith('sesmfa_')) {
+    throw new Error(`MFA verification did not issue an assured session for ${email}`);
+  }
+  return verified.accessToken;
 }
 function cookieHeader(response) {
   const values = typeof response.headers.getSetCookie === 'function' ? response.headers.getSetCookie() : [];
@@ -84,8 +111,19 @@ async function main() {
   if (adminClinicalLogin.status !== 403) throw new Error(`Expected clinical BFF Admin login denial 403, got ${adminClinicalLogin.status}.`);
 
   const clinicalLogin = await web('/api/clinical/auth/login', { method: 'POST', body: { email: 'doctor-clinical-a@carepoint.test', password: doctorPassword } });
-  if (clinicalLogin.status !== 200 || clinicalLogin.payload?.authenticated !== true) throw new Error(`Clinical BFF login failed: ${clinicalLogin.status} ${JSON.stringify(clinicalLogin.payload)}`);
-  const cookie = cookieHeader(clinicalLogin.response);
+  if (clinicalLogin.status !== 200) throw new Error(`Clinical BFF login failed: ${clinicalLogin.status} ${JSON.stringify(clinicalLogin.payload)}`);
+  let clinicalSession = clinicalLogin;
+  if (clinicalLogin.payload?.requiresMfa === true) {
+    const secret = await fixtureMfaSecret('doctor-clinical-a@carepoint.test');
+    clinicalSession = await web('/api/clinical/auth/mfa', {
+      method: 'POST',
+      body: { challengeId: clinicalLogin.payload.challengeId, code: totpCode(secret) },
+    });
+  }
+  if (clinicalSession.status !== 200 || clinicalSession.payload?.authenticated !== true) {
+    throw new Error(`Clinical BFF MFA completion failed: ${clinicalSession.status} ${JSON.stringify(clinicalSession.payload)}`);
+  }
+  const cookie = cookieHeader(clinicalSession.response);
   if (!cookie.includes('carepoint_clinical_access=') || !cookie.includes('carepoint_clinical_refresh=') || !cookie.includes('carepoint_clinical_session=')) throw new Error('Clinical BFF did not issue the isolated HttpOnly session cookie family.');
 
   const webRoster = await web('/api/clinical/roster', { cookie });
