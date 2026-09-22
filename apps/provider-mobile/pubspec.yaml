@@ -10,7 +10,6 @@ dependencies:
     sdk: flutter
   carepoint_mobile_core:
     path: ../../packages/mobile_core
-  image_picker: ^1.1.2
 
 flutter:
   uses-material-design: true
