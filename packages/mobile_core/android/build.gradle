@@ -25,7 +25,7 @@ apply plugin: 'kotlin-android'
 
 android {
     namespace 'com.carepoint.mobile_core'
-    compileSdk 35
+    compileSdk 36
 
     defaultConfig {
         minSdk 21
