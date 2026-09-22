@@ -53,7 +53,7 @@ assert.match(migration, /REVOKE UPDATE, DELETE ON "FieldRouteEstimate"/);
 assert.match(migration, /source_ck.*MAPBOX.*DIRECT_DISTANCE_V1/s);
 
 // External routing obeys the repository egress boundary and degrades without blocking care.
-assert.match(maps, /^const MAPBOX_HOST = "api\\.mapbox\\.com";$/m);
+assert.match(maps, /^const MAPBOX_HOST = "api\.mapbox\.com";$/m);
 assert.match(maps, /url\.hostname !== MAPBOX_HOST/);
 assert.match(maps, /url\.protocol !== "https:"/);
 assert.match(maps, /url\.port !== ""/);
