@@ -8,11 +8,19 @@ import { PatientHealthSummaryModule } from "../patient-health-summary/patient-he
 import {
   PatientClinicalExportService,
   type CreatePatientClinicalExportInput,
+  type CreatePatientHealthSummaryExportInput,
 } from "./patient-clinical-export.service";
 
 @Controller("patient/exports")
 class PatientClinicalExportController {
   constructor(private readonly exports: PatientClinicalExportService) {}
+
+  @RequirePermissions("PATIENT_READ_CLINICAL_RECORD")
+  @Post("health-summary")
+  @Header("Cache-Control", "no-store")
+  createHealthSummary(@CurrentPrincipal() principal: AuthPrincipal, @Body() body: CreatePatientHealthSummaryExportInput) {
+    return this.exports.createHealthSummary(principal, body ?? {});
+  }
 
   @RequirePermissions("PATIENT_READ_CLINICAL_RECORD")
   @Post()
