@@ -273,14 +273,14 @@ class _DoctorCarePlanDetailPageState extends State<DoctorCarePlanDetailPage> {
     final accepted = await showDialog<bool>(context: context, builder: (dialogContext) => StatefulBuilder(builder: (context, setDialogState) => AlertDialog(
       title: Text(t('addGoal')),
       content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
-        DropdownButtonFormField<String>(value: kind, decoration: InputDecoration(labelText: t('goalType')), items: const [
+        DropdownButtonFormField<String>(initialValue: kind, decoration: InputDecoration(labelText: t('goalType')), items: const [
           DropdownMenuItem(value: 'QUALITATIVE', child: Text('QUALITATIVE')),
           DropdownMenuItem(value: 'MEASURABLE', child: Text('MEASURABLE')),
         ], onChanged: (v) => setDialogState(() => kind = v ?? kind)),
         _gap(), _field(label, t('goalLabel')), _gap(), _field(criterion, t('criterion'), maxLines: 2),
         if (kind == 'MEASURABLE') ...[
           _gap(), _field(metric, t('metricCode')),
-          _gap(), DropdownButtonFormField<String>(value: comparator, decoration: InputDecoration(labelText: t('comparator')), items: const [
+          _gap(), DropdownButtonFormField<String>(initialValue: comparator, decoration: InputDecoration(labelText: t('comparator')), items: const [
             DropdownMenuItem(value: 'LT', child: Text('LT')), DropdownMenuItem(value: 'LTE', child: Text('LTE')),
             DropdownMenuItem(value: 'GT', child: Text('GT')), DropdownMenuItem(value: 'GTE', child: Text('GTE')),
           ], onChanged: (v) => setDialogState(() => comparator = v ?? comparator)),
@@ -320,10 +320,10 @@ class _DoctorCarePlanDetailPageState extends State<DoctorCarePlanDetailPage> {
     final accepted = await showDialog<bool>(context: context, builder: (dialogContext) => StatefulBuilder(builder: (context, setDialogState) => AlertDialog(
       title: Text(t('addTask')),
       content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
-        DropdownButtonFormField<String>(value: assignee, decoration: InputDecoration(labelText: t('assignee')), items: const [
+        DropdownButtonFormField<String>(initialValue: assignee, decoration: InputDecoration(labelText: t('assignee')), items: const [
           DropdownMenuItem(value: 'PATIENT', child: Text('PATIENT')), DropdownMenuItem(value: 'PROVIDER', child: Text('PROVIDER')),
         ], onChanged: (v) => setDialogState(() => assignee = v ?? assignee)),
-        _gap(), DropdownButtonFormField<String>(value: kind, decoration: InputDecoration(labelText: t('taskType')), items: const [
+        _gap(), DropdownButtonFormField<String>(initialValue: kind, decoration: InputDecoration(labelText: t('taskType')), items: const [
           DropdownMenuItem(value: 'MEASUREMENT', child: Text('MEASUREMENT')), DropdownMenuItem(value: 'EXERCISE', child: Text('EXERCISE')),
           DropdownMenuItem(value: 'MEDICATION', child: Text('MEDICATION')), DropdownMenuItem(value: 'EDUCATION', child: Text('EDUCATION')),
           DropdownMenuItem(value: 'FOLLOW_UP', child: Text('FOLLOW_UP')), DropdownMenuItem(value: 'OTHER', child: Text('OTHER')),
@@ -361,16 +361,16 @@ class _DoctorCarePlanDetailPageState extends State<DoctorCarePlanDetailPage> {
       title: Text(t('addRule')),
       content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
         DropdownButtonFormField<String>(
-          value: policyVersionId,
+          initialValue: policyVersionId,
           decoration: InputDecoration(labelText: t('policy')),
           items: policies.map((p) => DropdownMenuItem(value: p['policyVersionId'].toString(), child: Text(p['code']?.toString() ?? p['policyVersionId'].toString()))).toList(),
           onChanged: (v) => setDialogState(() => policyVersionId = v ?? policyVersionId),
         ),
         _gap(), _field(metric, t('metricCode')),
-        _gap(), DropdownButtonFormField<String>(value: severity, decoration: InputDecoration(labelText: t('severity')), items: const [
+        _gap(), DropdownButtonFormField<String>(initialValue: severity, decoration: InputDecoration(labelText: t('severity')), items: const [
           DropdownMenuItem(value: 'INFO', child: Text('INFO')), DropdownMenuItem(value: 'WARNING', child: Text('WARNING')), DropdownMenuItem(value: 'CRITICAL', child: Text('CRITICAL')),
         ], onChanged: (v) => setDialogState(() => severity = v ?? severity)),
-        _gap(), DropdownButtonFormField<String>(value: comparator, decoration: InputDecoration(labelText: t('comparator')), items: const [
+        _gap(), DropdownButtonFormField<String>(initialValue: comparator, decoration: InputDecoration(labelText: t('comparator')), items: const [
           DropdownMenuItem(value: 'LT', child: Text('LT')), DropdownMenuItem(value: 'LTE', child: Text('LTE')),
           DropdownMenuItem(value: 'GT', child: Text('GT')), DropdownMenuItem(value: 'GTE', child: Text('GTE')),
         ], onChanged: (v) => setDialogState(() => comparator = v ?? comparator)),
