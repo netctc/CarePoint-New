@@ -82,7 +82,7 @@ class _DoctorOrdersCoordinationPageState extends State<DoctorOrdersCoordinationP
                     _section(t('refillInbox'), Icons.medication_outlined),
                     if (refills.isEmpty) _empty(t('noRefills')) else ...refills.map(_refillCard),
                     const SizedBox(height: 18),
-                    _section(t('imagingOrders'), Icons.radiology_outlined, action: TextButton.icon(
+                    _section(t('imagingOrders'), Icons.image_search_outlined, action: TextButton.icon(
                       onPressed: _createImaging,
                       icon: const Icon(Icons.add),
                       label: Text(t('newImaging')),
