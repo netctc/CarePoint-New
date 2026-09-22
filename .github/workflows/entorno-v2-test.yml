@@ -64,3 +64,30 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: docker compose -f ops/test-v2/compose.yaml config >/dev/null
+
+  ops-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate shell syntax
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          for script in ops/test-v2/scripts/*.sh; do
+            echo "Checking ${script}"
+            bash -n "${script}"
+          done
+      - name: Validate Nginx template contract
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          template=ops/test-v2/nginx/carepoint-v2-http.conf.template
+          for placeholder in \
+            __API_DOMAIN__ __ADMIN_DOMAIN__ __PATIENT_DOMAIN__ __DOCTOR_DOMAIN__ __PROVIDER_DOMAIN__; do
+            grep -q "${placeholder}" "${template}"
+          done
+          grep -q '127.0.0.1:4000' "${template}"
+          grep -q '127.0.0.1:3000' "${template}"
+          grep -q '127.0.0.1:8080' "${template}"
+          grep -q '127.0.0.1:8081' "${template}"
+          grep -q '127.0.0.1:8082' "${template}"
