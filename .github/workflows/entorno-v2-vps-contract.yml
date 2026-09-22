@@ -22,6 +22,7 @@ jobs:
           bash -n ops/test-v2/scripts/install-nginx-tls.sh
           bash -n ops/test-v2/scripts/deploy.sh
           bash -n ops/test-v2/scripts/smoke.sh
+          bash -n ops/test-v2/scripts/verify-public.sh
       - name: Enforce synthetic lane boundaries
         run: |
           test -z "$(find ops/test-v2 -type f -name '.env*' -print)"
@@ -29,6 +30,7 @@ jobs:
           grep -q '127.0.0.1:3000:3000' ops/test-v2/compose.yaml
           grep -q 'PR #375' ops/test-v2/README.md
           grep -qi 'synthetic' ops/test-v2/README.md
+          ! grep -Eq '0\.0\.0\.0:(5432|6379)' ops/test-v2/compose.yaml
       - name: Validate Nginx template placeholders
         run: |
           for marker in API ADMIN PATIENT DOCTOR PROVIDER; do
