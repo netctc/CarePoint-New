@@ -57,4 +57,5 @@ const iamModule = await readFile(new URL("../src/modules/iam/iam.module.ts", imp
 assert.match(iamModule, /patientSelfRegistration/);
 assert.match(iamModule, /Patient self-registration is not available/);
 
+await import("./v2-feature-policy-smoke.mjs");
 console.log("Private pilot runtime policy acceptance passed");
