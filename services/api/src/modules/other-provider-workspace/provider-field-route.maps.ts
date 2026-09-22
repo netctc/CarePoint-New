@@ -60,8 +60,19 @@ export class FieldRouteMapsAdapter {
     const token = process.env.MAPBOX_ACCESS_TOKEN?.trim();
     if (!token) return null;
     const coordinates =
-      `${origin.longitude},${origin.latitude};${destination.longitude},${destination.latitude}`;
-    const url = new URL(`https://${MAPBOX_HOST}/directions/v5/mapbox/driving/${coordinates}`);
+      `${this.coordinate(origin.longitude, -180, 180)},${this.coordinate(origin.latitude, -90, 90)};` +
+      `${this.coordinate(destination.longitude, -180, 180)},${this.coordinate(destination.latitude, -90, 90)}`;
+    const url = new URL("/directions/v5/mapbox/driving/", "https://api.mapbox.com");
+    url.pathname += coordinates;
+    if (
+      url.protocol !== "https:" ||
+      url.hostname !== MAPBOX_HOST ||
+      url.port !== "" ||
+      url.username ||
+      url.password
+    ) {
+      throw new Error("Mapbox route URL failed the fixed-origin egress policy.");
+    }
     url.searchParams.set("access_token", token);
     url.searchParams.set("overview", "false");
     url.searchParams.set("steps", "false");
@@ -101,6 +112,17 @@ export class FieldRouteMapsAdapter {
       clearTimeout(timer);
       if (response?.body) await response.body.cancel().catch(() => undefined);
     }
+  }
+
+  private coordinate(value: number, min: number, max: number): string {
+    if (!Number.isFinite(value) || value < min || value > max) {
+      throw new Error("Route coordinate is outside the accepted numeric bounds.");
+    }
+    const canonical = value.toFixed(6);
+    if (!/^-?\d{1,3}\.\d{6}$/.test(canonical)) {
+      throw new Error("Route coordinate could not be canonicalized.");
+    }
+    return canonical;
   }
 
   private direct(origin: RoutePoint, destination: RoutePoint): FieldRouteEstimateResult {
