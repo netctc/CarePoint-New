@@ -168,7 +168,7 @@ export class RetentionService {
   listLegalHolds(domainInput?: string) {
     const domain = domainInput?.trim() ? this.holdDomain(domainInput) : undefined;
     return this.prisma.legalHold.findMany({
-      where: domain ? { domain } : undefined,
+      ...(domain ? { where: { domain } } : {}),
       orderBy: [{ releasedAt: "asc" }, { startsAt: "desc" }],
       take: 500,
     });
