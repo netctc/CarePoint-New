@@ -61,6 +61,7 @@ import { AvailabilityRequestsModule } from "./modules/scheduling/availability-re
 import { SmartModule } from "./modules/smart/smart.module";
 import { SymptomReportModule } from "./modules/symptom-reports/symptom-report.module";
 import { TelehealthModule } from "./modules/telehealth/telehealth.module";
+import { TerminologyModule } from "./modules/terminology/terminology.module";
 import { TransportModule } from "./modules/transport/transport.module";
 import { TransportResourcesModule } from "./modules/transport/transport-resources.module";
 import { TransportHandoffModule } from "./modules/transport/transport-handoff.module";
@@ -128,6 +129,7 @@ const isolatedSyntheticPilot = isolatedSyntheticPrivatePilotActive(process.env);
     RpmAlertModule,
     ClinicalProfileModule,
     SymptomReportModule,
+    TerminologyModule,
     DoctorSnapshotModule,
     OrdersModule,
     DocumentsModule,
