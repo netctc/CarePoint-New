@@ -1,0 +1,41 @@
+model EmergencyAccessGrant {
+  id                  String   @id @default(uuid())
+  patientId           String
+  providerId          String
+  actorId             String
+  sessionId           String
+  scope               String
+  purpose             String   @default("EMERGENCY_TREATMENT")
+  reasonCode          String
+  status              String   @default("ACTIVE")
+  requestedTtlMinutes Int
+  idempotencyKey      String
+  requestDigest       String
+  grantedAt           DateTime @default(now())
+  expiresAt           DateTime
+  revokedAt           DateTime?
+  revokedByActorId    String?
+  reviewStatus        String   @default("PENDING")
+  reviewedAt          DateTime?
+  reviewedByActorId   String?
+  reviewOutcome       String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@unique([actorId, idempotencyKey])
+  @@index([providerId, patientId, scope, status, expiresAt])
+  @@index([patientId, status, expiresAt])
+  @@index([reviewStatus, grantedAt])
+}
+
+model EmergencyAccessReview {
+  id         String   @id @default(uuid())
+  grantId    String
+  reviewerId String
+  outcome    String
+  reasonCode String
+  createdAt  DateTime @default(now())
+
+  @@index([grantId, createdAt])
+  @@index([reviewerId, createdAt])
+}
