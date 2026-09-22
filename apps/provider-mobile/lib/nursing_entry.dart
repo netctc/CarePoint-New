@@ -70,7 +70,8 @@ class ProviderNursingLauncher extends StatelessWidget {
   final Widget child;
   final Color accent;
 
-  bool get enabled => workflowCapabilities.any({'MED_ADMIN', 'WOUND_CARE', 'PROCEDURE_CHECKLIST'}.contains);
+  bool get procedureEnabled => workflowCapabilities.contains('PROCEDURE_CHECKLIST') && workflowCapabilities.contains('CATEGORY_FORMS');
+  bool get enabled => workflowCapabilities.contains('MED_ADMIN') || workflowCapabilities.contains('WOUND_CARE') || procedureEnabled;
 
   @override
   Widget build(BuildContext context) {
@@ -199,7 +200,7 @@ class ProviderNursingWorkspace extends StatelessWidget {
         ))),
       ));
     }
-    if (workflowCapabilities.contains('PROCEDURE_CHECKLIST')) {
+    if (workflowCapabilities.contains('PROCEDURE_CHECKLIST') && workflowCapabilities.contains('CATEGORY_FORMS')) {
       actions.add(_ActionTile(
         icon: Icons.fact_check_outlined,
         title: nursingText(locale, 'procedure'),
@@ -295,7 +296,7 @@ class _MedicationAdministrationPageState extends State<MedicationAdministrationP
     body: loading ? const Center(child: CircularProgressIndicator()) : ListView(padding: const EdgeInsets.all(16), children: [
       if (error != null) _ErrorCard(error!, _load),
       DropdownButtonFormField<String>(
-        value: selectedOrderId,
+        initialValue: selectedOrderId,
         decoration: InputDecoration(labelText: nursingText(widget.locale, 'prescription'), border: const OutlineInputBorder()),
         items: prescriptions.map((p) {
           final medication = _map(p['medication']);
@@ -404,13 +405,13 @@ class _WoundAssessmentPageState extends State<WoundAssessmentPage> {
       TextField(controller: depth, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: nursingText(widget.locale, 'depth'), border: const OutlineInputBorder())), const SizedBox(height: 10),
       TextField(controller: exudate, decoration: InputDecoration(labelText: nursingText(widget.locale, 'exudate'), border: const OutlineInputBorder())), const SizedBox(height: 10),
       DropdownButtonFormField<String?>(
-        value: mediaId,
+        initialValue: mediaId,
         decoration: InputDecoration(labelText: nursingText(widget.locale, 'photo'), border: const OutlineInputBorder()),
         items: [
           DropdownMenuItem<String?>(value: null, child: Text(nursingText(widget.locale, 'noPhoto'))),
           ...media.map((item) => DropdownMenuItem<String?>(
             value: item['clinicalMediaId']?.toString(),
-            child: Text('${_formatDate(item['capturedAt'])} · ${(item['clinicalMediaId'] ?? '').toString().substring(0, ((item['clinicalMediaId'] ?? '').toString().length).clamp(0, 8)))}'),
+            child: Text('${_formatDate(item['capturedAt'])} · ${_shortId(item['clinicalMediaId'])}'),
           )),
         ],
         onChanged: saving ? null : (value) => setState(() => mediaId = value),
@@ -477,7 +478,7 @@ class _ProcedureChecklistPageState extends State<ProcedureChecklistPage> {
       if (error != null) _ErrorCard(error!, _load),
       if (forms.isEmpty) Text(nursingText(widget.locale, 'noConfig')) else ...[
         DropdownButtonFormField<String>(
-          value: selectedCode,
+          initialValue: selectedCode,
           decoration: InputDecoration(labelText: nursingText(widget.locale, 'checklist'), border: const OutlineInputBorder()),
           items: forms.map((f) => DropdownMenuItem(value: f['code']?.toString(), child: Text(_label(_map(f['labels']), widget.locale)))).toList(),
           onChanged: saving ? null : (value) => setState(() { selectedCode = value; answers = <String, dynamic>{}; }),
@@ -512,7 +513,7 @@ class _QuestionEditor extends StatelessWidget {
     if (type == 'SINGLE_CHOICE') {
       final options = _mapList(question['options']);
       return Padding(padding: const EdgeInsets.only(bottom: 10), child: DropdownButtonFormField<String>(
-        value: value is String ? value : null,
+        initialValue: value is String ? value : null,
         decoration: InputDecoration(labelText: label, border: const OutlineInputBorder()),
         items: options.map((o) => DropdownMenuItem(value: o['value']?.toString(), child: Text(_label(_map(o['labels']), locale)))).toList(),
         onChanged: onChanged,
@@ -526,7 +527,7 @@ class _QuestionEditor extends StatelessWidget {
         Wrap(spacing: 6, children: options.map((o) {
           final option = o['value']?.toString() ?? '';
           return FilterChip(label: Text(_label(_map(o['labels']), locale)), selected: selected.contains(option), onSelected: (active) {
-            final next = {...selected}; active ? next.add(option) : next.remove(option); onChanged(next.toList());
+            final next = <String>{...selected}; active ? next.add(option) : next.remove(option); onChanged(next.toList());
           });
         }).toList()),
       ]));
@@ -576,6 +577,11 @@ Map<String, dynamic> _map(dynamic value) {
 List<Map<String, dynamic>> _mapList(dynamic value) {
   if (value is! List) return <Map<String, dynamic>>[];
   return value.map(_map).toList(growable: false);
+}
+
+String _shortId(dynamic raw) {
+  final value = raw?.toString() ?? '';
+  return value.length <= 8 ? value : value.substring(0, 8);
 }
 
 String _formatDate(dynamic raw) {
