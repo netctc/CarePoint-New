@@ -145,13 +145,46 @@ const fieldMediaMobileSource = readFileSync(
   "utf8",
 );
 assert.match(fieldMediaMobileSource, /workflowCapabilities\.contains\('MEDIA_CAPTURE'\)/);
-assert.match(fieldMediaMobileSource, /ImageSource\.camera/);
-assert.match(fieldMediaMobileSource, /ImageSource\.gallery/);
+assert.match(fieldMediaMobileSource, /CarePointPhotoSource\.camera/);
+assert.match(fieldMediaMobileSource, /CarePointPhotoSource\.gallery/);
+assert.match(fieldMediaMobileSource, /pickCarePointPhoto/);
 assert.match(fieldMediaMobileSource, /captureAllowed/);
 assert.match(fieldMediaMobileSource, /CLINICAL_MEDIA_CAPTURE/);
 assert.match(fieldMediaMobileSource, /clinical-media-v1/);
 assert.match(fieldMediaMobileSource, /base64Encode/);
 assert.match(fieldMediaMobileSource, /8 \* 1024 \* 1024/);
+assert.doesNotMatch(fieldMediaMobileSource, /package:image_picker/);
+
+const photoPickerSource = readFileSync(
+  new URL("../../../packages/mobile_core/lib/carepoint_photo_picker.dart", import.meta.url),
+  "utf8",
+);
+assert.match(photoPickerSource, /enum CarePointPhotoSource \{ camera, gallery \}/);
+assert.match(photoPickerSource, /carepoint_photo_picker_native\.dart/);
+assert.match(photoPickerSource, /carepoint_photo_picker_web\.dart/);
+
+const androidPickerSource = readFileSync(
+  new URL("../../../packages/mobile_core/android/src/main/kotlin/com/carepoint/mobile_core/CarePointMobileCorePlugin.kt", import.meta.url),
+  "utf8",
+);
+assert.match(androidPickerSource, /MediaStore\.ACTION_IMAGE_CAPTURE/);
+assert.match(androidPickerSource, /Intent\.ACTION_OPEN_DOCUMENT/);
+assert.match(androidPickerSource, /carepoint\/mobile\/photo_picker/);
+
+const iosPickerSource = readFileSync(
+  new URL("../../../packages/mobile_core/ios/Classes/CarePointMobileCorePlugin.swift", import.meta.url),
+  "utf8",
+);
+assert.match(iosPickerSource, /UIImagePickerController/);
+assert.match(iosPickerSource, /sourceType = \.camera/);
+assert.match(iosPickerSource, /sourceType = \.photoLibrary/);
+assert.match(iosPickerSource, /carepoint\/mobile\/photo_picker/);
+
+const providerPubspecSource = readFileSync(
+  new URL("../../../apps/provider-mobile/pubspec.yaml", import.meta.url),
+  "utf8",
+);
+assert.doesNotMatch(providerPubspecSource, /image_picker/);
 
 const fieldMediaApiSource = readFileSync(
   new URL("../../../packages/mobile_core/lib/provider_field_media.dart", import.meta.url),
