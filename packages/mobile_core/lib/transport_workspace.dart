@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'carepoint_api.dart';
 import 'carepoint_localization.dart';
+import 'transport_handoff.dart';
 import 'transport_localization.dart';
 
 class ProviderTransportWorkspace extends StatefulWidget {
@@ -143,6 +144,14 @@ class _ProviderTransportWorkspaceState extends State<ProviderTransportWorkspace>
               icon: const Icon(Icons.groups_2_outlined),
               label: Text(transportText(widget.locale, 'crewUnit')),
             ),
+            if (status == 'TRANSPORTING' || status == 'COMPLETED') ...[
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                onPressed: requestId.isEmpty ? null : () => _handoff(requestId, status),
+                icon: const Icon(Icons.how_to_reg_outlined),
+                label: Text(transportHandoffText(widget.locale, 'action')),
+              ),
+            ],
           ],
           if (next != null) ...[
             const SizedBox(height: 10),
@@ -218,6 +227,21 @@ class _ProviderTransportWorkspaceState extends State<ProviderTransportWorkspace>
           accent: widget.accent,
           data: data,
         ),
+      );
+      if (changed == true) await refresh();
+    } catch (value) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value.toString())));
+    }
+  }
+
+  Future<void> _handoff(String requestId, String status) async {
+    try {
+      final changed = await showTransportHandoffSheet(
+        context: context,
+        api: api,
+        requestId: requestId,
+        status: status,
+        locale: widget.locale,
       );
       if (changed == true) await refresh();
     } catch (value) {
