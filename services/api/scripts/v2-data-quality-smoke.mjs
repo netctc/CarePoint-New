@@ -78,3 +78,4 @@ for (const evidence of evidenceSections) {
 }
 
 console.log("V2 BE-044 deterministic data quality acceptance passed");
+await import("./v2-patient-merge-smoke.mjs");
