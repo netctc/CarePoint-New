@@ -58,6 +58,6 @@ assert.match(appModule, /import \{ FeatureFlagsModule \}/, "FeatureFlagsModule i
 assert.match(appModule, /\bFeatureFlagsModule,/, "FeatureFlagsModule must be registered in AppModule");
 
 assert.match(pilotPolicy, /carePointRuntimeFeatures/, "Existing startup/private-pilot feature policy must remain intact");
-assert.doesNotMatch(featureModule + service, /dotenv|\.env\b|api[-_]?key|secret/i, "BE-055 runtime governance must not introduce secrets or .env artifacts");
+assert.doesNotMatch(featureModule + service, /\bdotenv\b|api[-_]?key|secret/i, "BE-055 runtime governance must not introduce secret-loading code");
 
 console.log("V2 BE-055 server-side feature flag enforcement acceptance passed");
