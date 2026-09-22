@@ -6,6 +6,7 @@ import {
   adminApiTimeoutMs,
   adminBackendFetch,
   adminBackendUrl,
+  readBoundedAdminBackendBytes,
   readBoundedAdminBackendText,
 } from "../lib/admin-backend-policy.js";
 import {
@@ -204,6 +205,11 @@ assert.equal(fetchCalls[0].init.redirect, "error", "Admin backend redirects must
 assert.ok(fetchCalls[0].init.signal instanceof AbortSignal, "Admin backend fetch must always carry a timeout signal");
 assert.equal(fetchCalls[0].init.signal.aborted, false);
 assert.equal(await readBoundedAdminBackendText(fetched, productionExternal), '{"ok":true}');
+const binary = await readBoundedAdminBackendBytes(
+  new Response(Uint8Array.from([1, 2, 3, 4]), { headers: { "content-length": "4" } }),
+  productionExternal,
+);
+assert.deepEqual([...binary], [1, 2, 3, 4], "binary Admin downloads must use the same bounded response contract");
 
 let declaredCancelled = false;
 const declaredOversize = new Response(
