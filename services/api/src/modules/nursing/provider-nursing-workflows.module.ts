@@ -324,6 +324,7 @@ class ProviderNursingWorkflowsService {
 
   async procedureChecklists(principal: AuthPrincipal) {
     await this.capabilities.assertWorkflowCapability(principal, "PROCEDURE_CHECKLIST");
+    await this.capabilities.assertWorkflowCapability(principal, "CATEGORY_FORMS");
     const forms = await this.forms.listForProvider(principal);
     return {
       providerId: forms.providerId,
@@ -336,6 +337,7 @@ class ProviderNursingWorkflowsService {
 
   async completeProcedureChecklist(principal: AuthPrincipal, input: JsonObject) {
     const capability = await this.capabilities.assertWorkflowCapability(principal, "PROCEDURE_CHECKLIST");
+    await this.capabilities.assertWorkflowCapability(principal, "CATEGORY_FORMS");
     const appointmentId = this.requiredId(input.appointmentId, "appointmentId");
     const context = await this.requireAppointmentForProvider(capability.providerId, appointmentId);
     const code = this.code(input.code, "code");
