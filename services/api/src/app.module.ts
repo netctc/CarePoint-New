@@ -35,6 +35,7 @@ import { ClinicalMediaModule } from "./modules/documents/clinical-media.module";
 import { DoctorSnapshotModule } from "./modules/doctor-snapshot/doctor-snapshot.module";
 import { emergencyAmbulanceModuleEnabled } from "./modules/emergency/emergency-launch-policy";
 import { EmergencyModule } from "./modules/emergency/emergency.module";
+import { FeatureFlagsModule } from "./modules/feature-flags/feature-flags.module";
 import { FhirModule } from "./modules/fhir/fhir.module";
 import { HealthModule } from "./modules/health/health.module";
 import { HealthProfileModule } from "./modules/health-profile/health-profile.module";
@@ -81,6 +82,7 @@ const isolatedSyntheticPilot = isolatedSyntheticPrivatePilotActive(process.env);
     ExternalSecretsModule,
     SiemExportModule,
     ApiSecurityModule,
+    FeatureFlagsModule,
     HealthModule,
     AccessNeedsModule,
     AdminAnalyticsModule,
