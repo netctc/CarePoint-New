@@ -101,6 +101,34 @@ SELECT
 FROM "ClinicalMedia"
 ON CONFLICT ("mediaId") DO NOTHING;
 
+-- Backward compatibility: pre-BE-029 application writers are allowed to omit
+-- version identity fields. PostgreSQL initializes them before constraints and
+-- the append-only snapshot trigger run. This avoids changing the accepted
+-- encrypted media capture contract while all new rows still receive canonical
+-- version identity.
+CREATE OR REPLACE FUNCTION carepoint_initialize_clinical_media_version_identity()
+RETURNS trigger AS $$
+BEGIN
+  IF NEW."logicalMediaId" IS NULL THEN
+    NEW."logicalMediaId" := NEW."id";
+  END IF;
+  IF NEW."mediaVersion" IS NULL THEN
+    NEW."mediaVersion" := 1;
+  END IF;
+  IF NEW."effectiveDate" IS NULL THEN
+    NEW."effectiveDate" := COALESCE(NEW."createdAt", CURRENT_TIMESTAMP);
+  END IF;
+  IF NEW."sourceType" IS NULL THEN
+    NEW."sourceType" := CASE WHEN NEW."providerId" IS NULL THEN 'PATIENT_UPLOAD' ELSE 'PROVIDER_CAPTURE' END;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER "ClinicalMedia_version_identity_init_trigger"
+BEFORE INSERT ON "ClinicalMedia"
+FOR EACH ROW EXECUTE FUNCTION carepoint_initialize_clinical_media_version_identity();
+
 CREATE OR REPLACE FUNCTION carepoint_snapshot_clinical_media_version()
 RETURNS trigger AS $$
 BEGIN
