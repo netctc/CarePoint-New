@@ -126,6 +126,59 @@ class CarePointApi {
   Future<Map<String, dynamic>> createEncounterAddendum(String appointmentId, {required String reason, required String text}) async =>
       _asMap(await _send('POST', '/provider/encounters/' + appointmentId + '/addenda', body: {'reason': reason, 'text': text}));
 
+  // DOC-068 — Doctor longitudinal immunization history over governed BE-006.
+  Future<Map<String, dynamic>> doctorPatientImmunizations(String patientId) async =>
+      _asMap(await _send('GET', '/doctor/patients/$patientId/clinical-history/immunizations'));
+  Future<Map<String, dynamic>> createDoctorPatientImmunization(
+    String patientId, {
+    required String idempotencyKey,
+    required String occurredOn,
+    String? vaccineCodeSystem,
+    String? vaccineCode,
+    String? vaccineDisplay,
+    String? doseNumber,
+    String? lotNumber,
+    String? manufacturer,
+    String? route,
+    String? site,
+  }) async => _asMap(await _send('POST', '/doctor/patients/$patientId/clinical-history/immunizations', body: {
+    'idempotencyKey': idempotencyKey,
+    'occurredOn': occurredOn,
+    if (vaccineCodeSystem?.isNotEmpty == true) 'vaccineCodeSystem': vaccineCodeSystem,
+    if (vaccineCode?.isNotEmpty == true) 'vaccineCode': vaccineCode,
+    if (vaccineDisplay?.isNotEmpty == true) 'vaccineDisplay': vaccineDisplay,
+    if (doseNumber?.isNotEmpty == true) 'doseNumber': doseNumber,
+    if (lotNumber?.isNotEmpty == true) 'lotNumber': lotNumber,
+    if (manufacturer?.isNotEmpty == true) 'manufacturer': manufacturer,
+    if (route?.isNotEmpty == true) 'route': route,
+    if (site?.isNotEmpty == true) 'site': site,
+  }));
+  Future<Map<String, dynamic>> updateDoctorPatientImmunization(
+    String patientId,
+    String immunizationId, {
+    required int expectedVersion,
+    required String occurredOn,
+    String? vaccineCodeSystem,
+    String? vaccineCode,
+    String? vaccineDisplay,
+    String? doseNumber,
+    String? lotNumber,
+    String? manufacturer,
+    String? route,
+    String? site,
+  }) async => _asMap(await _send('PATCH', '/doctor/patients/$patientId/clinical-history/immunizations/$immunizationId', body: {
+    'expectedVersion': expectedVersion,
+    'occurredOn': occurredOn,
+    if (vaccineCodeSystem?.isNotEmpty == true) 'vaccineCodeSystem': vaccineCodeSystem,
+    if (vaccineCode?.isNotEmpty == true) 'vaccineCode': vaccineCode,
+    if (vaccineDisplay?.isNotEmpty == true) 'vaccineDisplay': vaccineDisplay,
+    if (doseNumber?.isNotEmpty == true) 'doseNumber': doseNumber,
+    if (lotNumber?.isNotEmpty == true) 'lotNumber': lotNumber,
+    if (manufacturer?.isNotEmpty == true) 'manufacturer': manufacturer,
+    if (route?.isNotEmpty == true) 'route': route,
+    if (site?.isNotEmpty == true) 'site': site,
+  }));
+
   // PAT-089 / PAT-093 — governed longitudinal patient clinical history.
   Future<Map<String, dynamic>> patientHospitalizations() async =>
       _asMap(await _send('GET', '/patient/clinical-history/hospitalizations'));

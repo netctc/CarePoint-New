@@ -7,6 +7,7 @@ import 'clinical_localization.dart';
 import 'clinical_orders.dart';
 import 'other_provider_insights.dart';
 import 'follow_up_recommendation.dart';
+import 'doctor_immunizations.dart';
 
 class ClinicalActionButton extends StatelessWidget {
   const ClinicalActionButton({
@@ -80,6 +81,15 @@ class _ClinicalRecordPageState extends State<ClinicalRecordPage> {
       if (!finalized) FilledButton.icon(onPressed: saving ? null : save, icon: const Icon(Icons.lock_outline), label: Text(clinicalText(locale, 'saveRevision'))), if (!finalized) const SizedBox(height: 10),
       if (!finalized) OutlinedButton.icon(onPressed: saving ? null : finalize, icon: const Icon(Icons.task_alt), label: Text(clinicalText(locale, widget.session.role == 'DOCTOR' ? 'signFinalize' : 'finalize'))), const SizedBox(height: 10),
       OutlinedButton.icon(onPressed: showPatientHistory, icon: const Icon(Icons.history), label: Text(clinicalText(locale, 'patientHistory'))), const SizedBox(height: 10),
+      if (widget.session.role == 'DOCTOR') ...[
+        OutlinedButton.icon(
+          key: const ValueKey('doctor-immunization-history-entry'),
+          onPressed: _openImmunizations,
+          icon: const Icon(Icons.vaccines_outlined),
+          label: Text(doctorImmunizationText(locale, 'title')),
+        ),
+        const SizedBox(height: 10),
+      ],
       if (widget.session.role == 'OTHER_PROVIDER') OtherProviderInsightsActionButton(session: widget.session, locale: locale, appointment: widget.appointment),
       if (widget.session.role == 'OTHER_PROVIDER') const SizedBox(height: 10),
       ClinicalOrdersActionButton(
@@ -194,6 +204,18 @@ class _ClinicalRecordPageState extends State<ClinicalRecordPage> {
     } finally {
       if (mounted) setState(() => saving = false);
     }
+  }
+
+  Future<void> _openImmunizations() async {
+    final patientId = _map(widget.appointment['patient'])['id']?.toString();
+    if (patientId == null || patientId.isEmpty) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(doctorImmunizationText(locale, 'missingPatient'))));
+      return;
+    }
+    await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => Directionality(
+      textDirection: locale.textDirection,
+      child: DoctorImmunizationsPage(session: widget.session, locale: locale, patientId: patientId),
+    )));
   }
 
   Future<void> showPatientHistory() async {
