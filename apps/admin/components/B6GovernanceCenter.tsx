@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import type { FormEvent, ReactNode } from "react";
 import { useI18n, type Locale } from "@/lib/i18n";
 import styles from "./B6GovernanceCenter.module.css";
 
@@ -354,21 +355,21 @@ function Localization({ c }: { c: Record<string,string> }) {
     <form className={styles.panel} onSubmit={submit}><h3>{selected?c.publish:c.create}</h3>
       {!selected?<><Field name="key" label={c.key} required/><Field name="namespace" label={c.namespace}/></>:<div className={styles.notice}>{String(selected.key)} · v{String(selected.currentVersion)}</div>}
       <Field name="en" label={c.english} defaultValue={String(version.textEn ?? "")} required/>
-      <Field name="ar" label={c.arabic} defaultValue={String(version.textAr ?? "")}/>
-      <Field name="fr" label={c.french} defaultValue={String(version.textFr ?? "")}/>
-      <Field name="es" label={c.spanish} defaultValue={String(version.textEs ?? "")}/>
+      <Field name="ar" label={c.arabic} defaultValue={String(version.textAr ?? "")} required/>
+      <Field name="fr" label={c.french} defaultValue={String(version.textFr ?? "")} required/>
+      <Field name="es" label={c.spanish} defaultValue={String(version.textEs ?? "")} required/>
       <Field name="reason" label={c.reason} defaultValue={String(version.reasonCode ?? "ADMIN_CONFIGURATION")} required/>
       <button className={styles.primary}>{selected?c.publish:c.create}</button>
     </form>
   </div></>;
 }
 
-function Toolbar({loading=false,message,onRefresh,c,children}:{loading?:boolean;message?:string;onRefresh:()=>void|Promise<void>;c:Record<string,string>;children?:React.ReactNode}) {
+function Toolbar({loading=false,message,onRefresh,c,children}:{loading?:boolean;message?:string;onRefresh:()=>void|Promise<void>;c:Record<string,string>;children?:ReactNode}) {
   return <div className={styles.toolbar}><div>{message?<span className={styles.notice}>{message}</span>:null}{loading?<span>{c.loading}</span>:null}</div><div className={styles.actions}>{children}<button onClick={()=>void onRefresh()}>{c.refresh}</button></div></div>;
 }
 function Metric({label,value}:{label:string;value:string|number}){return <article><span>{label}</span><strong>{value}</strong></article>;}
 function Field({name,label,required=false,defaultValue="",type="text"}:{name:string;label:string;required?:boolean;defaultValue?:string;type?:string}){return <label>{label}<input name={name} type={type} required={required} defaultValue={defaultValue}/></label>;}
-function Table({headers,children}:{headers:string[];children:React.ReactNode}){return <div className={styles.tableWrap}><table><thead><tr>{headers.map(h=><th key={h}>{h}</th>)}</tr></thead><tbody>{children}</tbody></table></div>;}
+function Table({headers,children}:{headers:string[];children:ReactNode}){return <div className={styles.tableWrap}><table><thead><tr>{headers.map(h=><th key={h}>{h}</th>)}</tr></thead><tbody>{children}</tbody></table></div>;}
 
 async function api(path:string,options?:{method?:"POST";body?:unknown}) {
   const response=await fetch(`/api/admin/b6${path}`,{
