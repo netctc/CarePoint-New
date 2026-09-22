@@ -15,8 +15,15 @@ class LocalizationController {
   @Public()
   @Get()
   @Header("Cache-Control", "public, max-age=60, stale-while-revalidate=300")
-  bundle(@Query() query: LocalizationBundleQuery) {
-    return this.localization.bundle(query);
+  async bundle(@Query() query: LocalizationBundleQuery) {
+    const bundle = await this.localization.bundle(query);
+    return {
+      ...bundle,
+      items: bundle.items.map((item) => ({
+        ...item,
+        contentVersion: item.translationVersion,
+      })),
+    };
   }
 }
 
