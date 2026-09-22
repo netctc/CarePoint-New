@@ -1,6 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { totpCode } from '@carepoint/identity';
-import { MfaEnvelopeService } from '../src/infrastructure/security/mfa-envelope.service.js';
+import { MfaEnvelopeService } from '../dist/infrastructure/security/mfa-envelope.service.js';
 
 const base = process.env.CAREPOINT_API_URL || 'http://127.0.0.1:4000/api/v1';
 const prisma = new PrismaClient();
