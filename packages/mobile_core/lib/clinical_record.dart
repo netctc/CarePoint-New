@@ -78,7 +78,7 @@ class _ClinicalRecordPageState extends State<ClinicalRecordPage> {
       Text(clinicalText(locale, 'vitals'), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)), const SizedBox(height: 8),
       Wrap(spacing: 10, runSpacing: 10, children: [_numberField(heartRate, 'heartRate'), _numberField(systolic, 'systolic'), _numberField(diastolic, 'diastolic'), _numberField(oxygen, 'oxygen')]), const SizedBox(height: 18),
       if (!finalized) FilledButton.icon(onPressed: saving ? null : save, icon: const Icon(Icons.lock_outline), label: Text(clinicalText(locale, 'saveRevision'))), if (!finalized) const SizedBox(height: 10),
-      if (!finalized) OutlinedButton.icon(onPressed: saving ? null : finalize, icon: const Icon(Icons.task_alt), label: Text(clinicalText(locale, 'finalize'))), const SizedBox(height: 10),
+      if (!finalized) OutlinedButton.icon(onPressed: saving ? null : finalize, icon: const Icon(Icons.task_alt), label: Text(clinicalText(locale, widget.session.role == 'DOCTOR' ? 'signFinalize' : 'finalize'))), const SizedBox(height: 10),
       OutlinedButton.icon(onPressed: showPatientHistory, icon: const Icon(Icons.history), label: Text(clinicalText(locale, 'patientHistory'))), const SizedBox(height: 10),
       if (widget.session.role == 'OTHER_PROVIDER') OtherProviderInsightsActionButton(session: widget.session, locale: locale, appointment: widget.appointment),
       if (widget.session.role == 'OTHER_PROVIDER') const SizedBox(height: 10),
@@ -171,8 +171,29 @@ class _ClinicalRecordPageState extends State<ClinicalRecordPage> {
   }
 
   Future<void> finalize() async {
-    final ok = await showDialog<bool>(context: context, builder: (_) => AlertDialog(title: Text(clinicalText(locale, 'finalize')), content: Text(clinicalText(locale, 'finalizePrompt')), actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: Text(cpText(locale, 'common.cancel'))), FilledButton(onPressed: () => Navigator.pop(context, true), child: Text(clinicalText(locale, 'finalize')))]));
-    if (ok != true) return; setState(() => saving = true); try { encounter = await api.finalizeClinicalEncounter(appointmentId); if (mounted) setState(() {}); } catch (value) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value.toString()))); } finally { if (mounted) setState(() => saving = false); }
+    final doctorSignature = widget.session.role == 'DOCTOR';
+    final ok = await showDialog<bool>(context: context, builder: (dialogContext) => AlertDialog(
+      title: Text(clinicalText(locale, doctorSignature ? 'signFinalize' : 'finalize')),
+      content: Text(clinicalText(locale, doctorSignature ? 'signFinalizePrompt' : 'finalizePrompt')),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: Text(cpText(locale, 'common.cancel'))),
+        FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: Text(clinicalText(locale, doctorSignature ? 'signFinalize' : 'finalize'))),
+      ],
+    ));
+    if (ok != true) return;
+    setState(() => saving = true);
+    try {
+      if (doctorSignature) await api.signClinicalEncounter(appointmentId);
+      encounter = await api.finalizeClinicalEncounter(appointmentId);
+      if (mounted) {
+        setState(() {});
+        if (doctorSignature) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(clinicalText(locale, 'signedFinalized'))));
+      }
+    } catch (value) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value.toString())));
+    } finally {
+      if (mounted) setState(() => saving = false);
+    }
   }
 
   Future<void> showPatientHistory() async {
