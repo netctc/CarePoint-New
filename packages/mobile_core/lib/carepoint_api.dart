@@ -352,6 +352,18 @@ class CarePointApi {
   Future<Map<String, dynamic>> actDoctorReferral(String referralId, Map<String, dynamic> body) async =>
       _asMap(await _send('POST', '/provider/referrals/$referralId/actions', body: body));
 
+  // DOC-084 — exact-version Doctor questionnaire requests.
+  Future<Map<String, dynamic>> doctorQuestionnaireRequestOptions(String patientId, String appointmentId) async =>
+      _asMap(await _send('GET', '/doctor/patients/$patientId/questionnaire-requests/available', query: {'appointmentId': appointmentId}));
+  Future<Map<String, dynamic>> doctorQuestionnaireRequests(String patientId) async =>
+      _asMap(await _send('GET', '/doctor/patients/$patientId/questionnaire-requests'));
+  Future<Map<String, dynamic>> createDoctorQuestionnaireRequest(String patientId, Map<String, dynamic> body) async =>
+      _asMap(await _send('POST', '/doctor/patients/$patientId/questionnaire-requests', body: body));
+  Future<Map<String, dynamic>> patientQuestionnaireRequests() async =>
+      _asMap(await _send('GET', '/patient/questionnaire-requests'));
+  Future<Map<String, dynamic>> submitPatientQuestionnaireRequest(String requestId, Map<String, dynamic> body) async =>
+      _asMap(await _send('POST', '/patient/questionnaire-requests/$requestId/responses', body: body));
+
   Future<Map<String, dynamic>> patientClinicalOrders() async => _asMap(await _send('GET', '/clinical-orders/me'));
   Future<Map<String, dynamic>> providerClinicalOrders(String patientId) async => _asMap(await _send('GET', '/clinical-orders/patients/$patientId'));
   Future<Map<String, dynamic>> clinicalOrder(String orderId) async => _asMap(await _send('GET', '/clinical-orders/$orderId'));

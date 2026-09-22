@@ -22,6 +22,7 @@ import 'package:carepoint_mobile_core/patient_follow_up_list.dart';
 import 'package:carepoint_mobile_core/patient_messages.dart';
 import 'package:carepoint_mobile_core/patient_notifications.dart';
 import 'package:carepoint_mobile_core/patient_profile.dart';
+import 'package:carepoint_mobile_core/questionnaire_requests.dart';
 import 'package:carepoint_mobile_core/patient_consents.dart';
 import 'package:carepoint_mobile_core/patient_consents_localization.dart';
 import 'package:flutter/material.dart';
@@ -71,9 +72,13 @@ class _PatientShellState extends State<PatientShell> {
   Future<void> openHomeExercises() async { await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => Directionality(textDirection: widget.locale.textDirection, child: PatientHomeExercisePage(session: widget.session, locale: widget.locale)))); }
   Future<void> openNutritionPlan() async { await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => Directionality(textDirection: widget.locale.textDirection, child: PatientNutritionPlanPage(session: widget.session, locale: widget.locale)))); }
   Future<void> openFollowUps() async { await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => Directionality(textDirection: widget.locale.textDirection, child: PatientFollowUpListPage(session: widget.session, locale: widget.locale)))); }
+  Future<void> openRequestedQuestionnaires() async { await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => Directionality(textDirection: widget.locale.textDirection, child: PatientQuestionnaireRequestsPage(session: widget.session, locale: widget.locale)))); }
   Widget healthTab() => Column(children: [
     Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 0), child: SizedBox(width: double.infinity, child: FilledButton.tonalIcon(
       key: const ValueKey('patient-access-needs-entry'), onPressed: openAccessNeeds, icon: const Icon(Icons.accessible_forward_outlined), label: Text(patientAccessNeedsText(widget.locale, 'open')),
+    ))),
+    Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
+      key: const ValueKey('patient-questionnaire-requests-entry'), onPressed: openRequestedQuestionnaires, icon: const Icon(Icons.fact_check_outlined), label: Text(questionnaireRequestText(widget.locale, 'patientTitle')),
     ))),
     Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
       key: const ValueKey('patient-hospitalizations-entry'), onPressed: openHospitalizations, icon: const Icon(Icons.local_hospital_outlined), label: Text(patientClinicalHistoryText(widget.locale, 'hospitalizations')),

@@ -56,3 +56,26 @@ model QuestionnaireResponse {
   @@index([patientId, questionnaireId, completedAt])
   @@index([questionnaireVersionId, completedAt])
 }
+
+model QuestionnaireRequest {
+  id                     String   @id @default(uuid())
+  idempotencyKey         String   @unique
+  patientId              String
+  providerId             String
+  questionnaireId        String
+  questionnaireVersionId String
+  appointmentId          String
+  context                String
+  dueAt                  DateTime
+  status                 String   @default("REQUESTED")
+  completedResponseId    String?
+  requestedByActorId     String
+  requestedAt            DateTime @default(now())
+  completedAt            DateTime?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@index([patientId, status, dueAt])
+  @@index([providerId, patientId, requestedAt])
+  @@index([appointmentId, status])
+}
