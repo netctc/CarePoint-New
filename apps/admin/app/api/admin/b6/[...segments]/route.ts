@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { forwardAdminJson } from "@/lib/admin-api";
+import { forwardAdminBinary, forwardAdminJson } from "@/lib/admin-api";
 import { noStore } from "@/lib/admin-auth";
 
 const SAFE_ID = /^[A-Za-z0-9_.:-]{1,180}$/;
@@ -9,6 +9,8 @@ type RouteContext = { params: Promise<{ segments: string[] }> };
 
 export async function GET(request: NextRequest, context: RouteContext) {
   const { segments } = await context.params;
+  const download = resolveAuditDownload(segments, request.nextUrl.searchParams);
+  if (download) return forwardAdminBinary(request, download);
   const resolved = resolveGet(segments, request.nextUrl.searchParams);
   if (!resolved) return invalid("Unsupported B6 governance read route.");
   return forwardAdminJson(request, resolved);
@@ -73,6 +75,22 @@ function resolveGet(segments: string[], query: URLSearchParams): string | null {
   if (path === "notification-templates") return "/admin/notification-templates";
   if (path === "feature-flags") return "/admin/feature-flags";
   if (path === "localization") return "/admin/localization";
+  if (path === "patient-duplicates") {
+    const limit = cleanLimit(query.get("limit"), 1, 250);
+    return limit ? "/admin/patient-duplicates?limit=" + limit : "/admin/patient-duplicates";
+  }
+  if (path === "integrations") return "/admin/integrations";
+  if (path === "clinical-operations") {
+    const limit = cleanLimit(query.get("limit"), 1, 200);
+    return limit ? "/admin/clinical-operations?limit=" + limit : "/admin/clinical-operations";
+  }
+  if (path === "audit-exports") {
+    const limit = cleanLimit(query.get("limit"), 1, 100);
+    return limit ? "/admin/audit-exports?limit=" + limit : "/admin/audit-exports";
+  }
+  if (segments.length === 2 && segments[0] === "audit-exports" && safeId(segments[1])) {
+    return "/admin/audit-exports/" + encodeURIComponent(segments[1]);
+  }
   return null;
 }
 
@@ -136,7 +154,28 @@ function resolvePost(segments: string[]): string | null {
   ) {
     return `/admin/localization/keys/${encodeURIComponent(segments[2])}/versions`;
   }
+  if (path === "audit-exports") return "/admin/audit-exports";
+  if (
+    segments.length === 3 &&
+    segments[0] === "audit-exports" &&
+    safeId(segments[1]) &&
+    segments[2] === "download-token"
+  ) {
+    return "/admin/audit-exports/" + encodeURIComponent(segments[1]) + "/download-token";
+  }
   return null;
+}
+
+function resolveAuditDownload(segments: string[], query: URLSearchParams): string | null {
+  if (
+    segments.length !== 3
+    || segments[0] !== "audit-exports"
+    || !safeId(segments[1])
+    || segments[2] !== "download"
+  ) return null;
+  const token = query.get("token")?.trim() ?? "";
+  if (!/^[A-Za-z0-9_-]{40,100}$/.test(token)) return null;
+  return "/admin/audit-exports/" + encodeURIComponent(segments[1]) + "/download?token=" + encodeURIComponent(token);
 }
 
 function safeId(value: string | undefined): value is string {

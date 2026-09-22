@@ -139,6 +139,54 @@ export async function readBoundedAdminBackendText(response, env = process.env) {
   }
 }
 
+export async function readBoundedAdminBackendBytes(response, env = process.env) {
+  const limit = adminApiMaxResponseBytes(env);
+  const declared = response.headers.get("content-length");
+  if (declared !== null) {
+    const normalized = declared.trim();
+    if (!/^\d+$/.test(normalized)) {
+      await cancelResponseBody(response);
+      throw new Error("CarePoint API response Content-Length is invalid.");
+    }
+    const declaredBytes = Number(normalized);
+    if (!Number.isSafeInteger(declaredBytes) || declaredBytes > limit) {
+      await cancelResponseBody(response);
+      throw new Error(`CarePoint API response exceeds ${limit} bytes.`);
+    }
+  }
+
+  if (!response.body) return new Uint8Array();
+  const reader = response.body.getReader();
+  const chunks = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      total += value.byteLength;
+      if (total > limit) throw new Error(`CarePoint API response exceeds ${limit} bytes.`);
+      chunks.push(value);
+    }
+    const output = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) {
+      output.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    return output;
+  } catch (error) {
+    try {
+      await reader.cancel();
+    } catch {
+      // Best effort only; the bounded-read failure remains authoritative.
+    }
+    throw error;
+  } finally {
+    reader.releaseLock();
+  }
+}
+
 function rejectDotSegments(path) {
   const pathname = path.split("?", 1)[0] || "";
   for (const segment of pathname.split("/")) {
