@@ -37,6 +37,7 @@ import { DocumentsModule } from "./modules/documents/documents.module";
 import { DocumentVersioningModule } from "./modules/documents/document-versioning.module";
 import { ClinicalMediaModule } from "./modules/documents/clinical-media.module";
 import { DoctorSnapshotModule } from "./modules/doctor-snapshot/doctor-snapshot.module";
+import { DoctorWorkQueueModule } from "./modules/doctor-work-queue/doctor-work-queue.module";
 import { emergencyAmbulanceModuleEnabled } from "./modules/emergency/emergency-launch-policy";
 import { EmergencyModule } from "./modules/emergency/emergency.module";
 import { FeatureFlagsModule } from "./modules/feature-flags/feature-flags.module";
@@ -158,6 +159,7 @@ const isolatedSyntheticPilot = isolatedSyntheticPrivatePilotActive(process.env);
     SymptomReportModule,
     TerminologyModule,
     DoctorSnapshotModule,
+    DoctorWorkQueueModule,
     OrdersModule,
     DocumentsModule,
     DocumentVersioningModule,
