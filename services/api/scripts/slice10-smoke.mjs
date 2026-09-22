@@ -1,5 +1,5 @@
 import { PrismaClient } from "@prisma/client";
-import { hashPasswordAsync } from "@carepoint/identity";
+import { hashPasswordAsync, totpCode } from "@carepoint/identity";
 
 const base = process.env.CAREPOINT_API_URL || "http://127.0.0.1:4000/api/v1";
 const prisma = new PrismaClient();
@@ -36,6 +36,27 @@ async function login(email, password) {
   return result.accessToken;
 }
 
+async function mfaAssuredLogin(existingToken, email, password) {
+  const enrollment = await request("/iam/mfa/enroll", { method: "POST", token: existingToken });
+  if (typeof enrollment.secret !== "string" || enrollment.secret.length < 16) {
+    throw new Error(`MFA enrollment did not return a valid secret for ${email}.`);
+  }
+  await request("/iam/mfa/confirm", {
+    method: "POST", token: existingToken, body: { code: totpCode(enrollment.secret) },
+  });
+  const challenged = await request("/iam/login", { method: "POST", body: { email, password } });
+  if (challenged.requiresMfa !== true || typeof challenged.challengeId !== "string") {
+    throw new Error(`MFA-enabled login did not return a challenge for ${email}.`);
+  }
+  const verified = await request("/iam/mfa/verify", {
+    method: "POST", body: { challengeId: challenged.challengeId, code: totpCode(enrollment.secret) },
+  });
+  if (!verified.accessToken || !verified.sessionId?.startsWith("sesmfa_")) {
+    throw new Error(`MFA verification did not issue an assured session for ${email}.`);
+  }
+  return verified.accessToken;
+}
+
 async function registerPatient(email, firstName) {
   await request("/iam/register/patient", {
     method: "POST",
@@ -66,7 +87,8 @@ try {
   const provider = await prisma.provider.create({
     data: { userId: doctorUser.id, class: "DOCTOR", displayName: "FHIR Test Doctor", status: "ACTIVE" },
   });
-  const doctorToken = await login(doctorEmail, doctorPassword);
+  let doctorToken = await login(doctorEmail, doctorPassword);
+  doctorToken = await mfaAssuredLogin(doctorToken, doctorEmail, doctorPassword);
 
   const service = await request("/provider/services", {
     method: "POST",
@@ -209,6 +231,10 @@ try {
     throw new Error(`Expected missing Observation search parameter to return FHIR 400, got ${JSON.stringify(missingObservationSearch)}`);
   }
 
+  const signature = await request(`/provider/encounters/${appointment.id}/sign`, { method: "POST", token: doctorToken, body: {} });
+  if (signature.recordId !== clinicalRecord.id || signature.mfaAssured !== true) {
+    throw new Error(`Clinical signature did not bind the current FHIR encounter record: ${JSON.stringify(signature)}`);
+  }
   const finalized = await request(`/clinical/appointments/${appointment.id}/finalize`, { method: "POST", token: doctorToken, body: {} });
   if (!finalized.finalized || finalized.appointment?.status !== "COMPLETED") throw new Error(`Clinical encounter finalization failed: ${JSON.stringify(finalized)}`);
 
