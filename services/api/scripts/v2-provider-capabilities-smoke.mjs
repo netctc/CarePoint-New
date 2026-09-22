@@ -168,3 +168,4 @@ await import("./v2-transport-incidents-smoke.mjs");
 await import("./v2-transport-advanced-lifecycle-smoke.mjs");
 await import("./v2-provider-work-queue-smoke.mjs");
 await import("./v2-provider-offline-sync-smoke.mjs");
+await import("./v2-provider-field-jobs-smoke.mjs");
