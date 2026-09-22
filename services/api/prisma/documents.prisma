@@ -32,35 +32,44 @@ enum DiagnosticReportStatus {
 }
 
 model ClinicalDocument {
-  id                   String                  @id @default(uuid())
-  patientId            String
-  providerId           String?
-  encounterRef         String?
-  orderId              String?
-  kind                 ClinicalDocumentKind
-  status               ClinicalDocumentStatus @default(AVAILABLE)
-  storageMode          DocumentStorageMode
-  storageProvider      String
-  objectKey            String?                 @unique
-  mediaType            String?
-  byteLength           Int?
-  contentDigest        String?
-  blobAlgorithm        String?
-  blobKeyId            String?
-  blobWrappedKey       String?
-  blobIv               String?
-  metadataAlgorithm    String
-  metadataKeyId        String
-  metadataWrappedKey   String
-  metadataIv           String
-  metadataCiphertext   String
-  releasedToPatient    Boolean                 @default(false)
-  createdByAccountId   String
-  releasedAt           DateTime?
-  removedAt            DateTime?
-  createdAt            DateTime                @default(now())
-  updatedAt            DateTime                @updatedAt
+  id                    String                  @id @default(uuid())
+  patientId             String
+  providerId            String?
+  encounterRef          String?
+  orderId               String?
+  kind                  ClinicalDocumentKind
+  status                ClinicalDocumentStatus @default(AVAILABLE)
+  logicalDocumentId     String                  @default(uuid())
+  documentVersion       Int                     @default(1)
+  effectiveDate         DateTime                @default(now())
+  sourceType            String                  @default("AUTO")
+  sourceRef             String?
+  supersedesDocumentId  String?
+  storageMode           DocumentStorageMode
+  storageProvider       String
+  objectKey             String?                 @unique
+  mediaType             String?
+  byteLength            Int?
+  contentDigest         String?
+  blobAlgorithm         String?
+  blobKeyId             String?
+  blobWrappedKey        String?
+  blobIv                String?
+  metadataAlgorithm     String
+  metadataKeyId         String
+  metadataWrappedKey    String
+  metadataIv            String
+  metadataCiphertext    String
+  releasedToPatient     Boolean                 @default(false)
+  createdByAccountId    String
+  releasedAt            DateTime?
+  removedAt             DateTime?
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
 
+  @@unique([logicalDocumentId, documentVersion])
+  @@index([logicalDocumentId, documentVersion])
+  @@index([supersedesDocumentId])
   @@index([patientId, status, createdAt])
   @@index([providerId, createdAt])
   @@index([encounterRef, kind, status])
