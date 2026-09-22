@@ -33,9 +33,9 @@ assert.match(shell, /Gobernanza V2/);
 assert.match(shell, /href="\/governance"/);
 assert.match(shell, /active === "12"/);
 
-assert.match(center, /'ar':/);
-assert.match(center, /'fr':/);
-assert.match(center, /'es':/);
+assert.match(center, /\bar:\s*\{/);
+assert.match(center, /\bfr:\s*\{/);
+assert.match(center, /\bes:\s*\{/);
 assert.match(center, /section === "terminology"/);
 assert.match(center, /section === "data-quality"/);
 assert.match(center, /section === "patient-merge"/);
