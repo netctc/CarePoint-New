@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:flutter/services.dart';
 
 const MethodChannel _channel = MethodChannel('carepoint/mobile/photo_picker');
