@@ -84,19 +84,27 @@ sudo -E bash ops/test-v2/scripts/install-nginx-tls.sh
 
 The installer validates the Nginx configuration, obtains one certificate covering the five test names, enables HTTPS redirect, reloads Nginx and runs a Certbot renewal dry-run.
 
+After TLS is active, verify the five public endpoints and HTTP-to-HTTPS redirects:
+
+```bash
+ops/test-v2/scripts/verify-public.sh
+```
+
 ## Data policy
 
 - Synthetic personas only.
 - Payment / insurance / claims / notification / telehealth adapters remain mock unless an explicit sandbox is being tested.
 - Test storage and keys are isolated from production.
 - Logs must not contain raw clinical payloads or credentials.
+- PostgreSQL and Redis must remain unexposed on the host network.
 - The environment must display/operate as NON-PRODUCTION.
 
 ## Validation gates
 
-- `Entorno V2 Test Lane`: Node build, three Flutter Web builds and Compose configuration validation.
-- `Entorno V2 VPS Contract`: deployment-script syntax and synthetic-lane boundary checks.
+- `Entorno V2 Test Lane`: Node build, three Flutter Web builds, Compose configuration and deployment-script contract checks.
+- `Entorno V2 VPS Contract`: deployment-script syntax and synthetic-lane boundary checks, including the public verification script.
 - Run `smoke.sh` after every VPS deployment.
+- Run `verify-public.sh` after DNS/TLS activation or routing changes.
 
 A green test-lane workflow means the branch is structurally deployable; it does not close Release 1 KSA production, regulatory, security-assessment, real-provider, disaster-recovery or human-UAT gates.
 
