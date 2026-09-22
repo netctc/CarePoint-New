@@ -15,7 +15,7 @@ export class PatientClinicalExportAdminService {
     const status = this.status(statusInput);
     const limit = this.limit(limitInput);
     const rows = await this.prisma.patientClinicalExportJob.findMany({
-      where: status ? { status } : undefined,
+      ...(status ? { where: { status } } : {}),
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: limit,
     });
