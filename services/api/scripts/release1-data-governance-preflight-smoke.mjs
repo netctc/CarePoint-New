@@ -135,3 +135,4 @@ const preservePolicy = JSON.stringify({
 
 console.log("Release 1 data-residency and retention-policy preflight acceptance passed");
 await import("./v2-retention-legal-hold-smoke.mjs");
+await import("./v2-admin-privacy-smoke.mjs");
