@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminBackendFetch, readBoundedAdminBackendText } from "@/lib/admin-backend-policy.js";
+import { adminBackendFetch, readBoundedAdminBackendBytes, readBoundedAdminBackendText } from "@/lib/admin-backend-policy.js";
 import {
   clearAdminCookies,
   isTrustedSameOrigin,
@@ -67,6 +67,67 @@ export async function forwardAdminJson(request: NextRequest, path: string, optio
   if (auth.rotatedTokens) writeAdminCookies(response, auth.rotatedTokens);
   if (backend.status === 401) clearAdminCookies(response);
   return noStore(response);
+}
+
+export async function forwardAdminBinary(request: NextRequest, path: string) {
+  const auth = await resolveAdminAccess(request);
+  if (!auth.accessToken) {
+    const response = NextResponse.json({ message: "Administrator authentication is required." }, { status: 401 });
+    clearAdminCookies(response);
+    return noStore(response);
+  }
+
+  let backend: Response;
+  try {
+    backend = await adminBackendFetch(path, {
+      method: "GET",
+      headers: {
+        accept: "application/x-ndjson, application/octet-stream;q=0.9",
+        authorization: `Bearer ${auth.accessToken}`,
+      },
+    });
+  } catch {
+    return noStore(NextResponse.json({ message: "CarePoint API is temporarily unavailable." }, { status: 503 }));
+  }
+
+  if (!backend.ok) {
+    let message = "CarePoint API request failed.";
+    try {
+      const text = await readBoundedAdminBackendText(backend);
+      if (text) {
+        const payload = JSON.parse(text) as { message?: unknown };
+        if (typeof payload.message === "string") message = payload.message;
+      }
+    } catch {
+      // Preserve generic bounded failure message.
+    }
+    const response = NextResponse.json({ message }, { status: backend.status });
+    if (auth.rotatedTokens) writeAdminCookies(response, auth.rotatedTokens);
+    if (backend.status === 401) clearAdminCookies(response);
+    return noStore(response);
+  }
+
+  let bytes: Uint8Array;
+  try {
+    bytes = await readBoundedAdminBackendBytes(backend);
+  } catch {
+    const response = NextResponse.json({ message: "Invalid or oversized CarePoint API response." }, { status: 502 });
+    if (auth.rotatedTokens) writeAdminCookies(response, auth.rotatedTokens);
+    return noStore(response);
+  }
+
+  const response = new NextResponse(bytes, {
+    status: backend.status,
+    headers: {
+      "content-type": backend.headers.get("content-type") || "application/octet-stream",
+      "content-disposition": backend.headers.get("content-disposition") || 'attachment; filename="carepoint-export.bin"',
+      "cache-control": "private, no-store, max-age=0",
+      pragma: "no-cache",
+      "x-content-type-options": "nosniff",
+    },
+  });
+  if (auth.rotatedTokens) writeAdminCookies(response, auth.rotatedTokens);
+  return response;
 }
 
 async function resolveAdminAccess(request: NextRequest): Promise<{ accessToken: string | null; rotatedTokens?: AdminSessionTokens }> {
