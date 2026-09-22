@@ -63,7 +63,8 @@ assert.match(mobileRecord, /if \(doctorSignature\) await api\.signClinicalEncoun
 assert.match(mobileLocalization, /signFinalizePrompt/);
 
 await import("./v2-doctor-immunization-ui-smoke.mjs");
-console.log("V2 Doctor clinical integrity UI acceptance passed: DOC-068/DOC-081/DOC-082/DOC-083");
+await import("./v2-doctor-procedure-ui-smoke.mjs");
+console.log("V2 Doctor clinical integrity UI acceptance passed: DOC-067/DOC-068/DOC-081/DOC-082/DOC-083");
 
 function read(relative) {
   return readFileSync(new URL(relative, import.meta.url), "utf8");
