@@ -130,7 +130,9 @@ export class NotificationOutboxWorkerService implements OnModuleInit, OnModuleDe
         destinationRef: routing.destinationRef,
         locale: routing.locale,
         safeTitleKey: item.notification.safeTitleKey,
+        safeTitleVersion: item.notification.safeTitleVersion ?? undefined,
         safeBodyKey: item.notification.safeBodyKey,
+        safeBodyVersion: item.notification.safeBodyVersion ?? undefined,
         entityType: item.notification.entityType,
         entityId: item.notification.entityId,
       });
