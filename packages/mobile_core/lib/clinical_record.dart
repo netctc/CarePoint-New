@@ -6,6 +6,7 @@ import 'clinical_documents.dart';
 import 'clinical_localization.dart';
 import 'clinical_orders.dart';
 import 'other_provider_insights.dart';
+import 'follow_up_recommendation.dart';
 
 class ClinicalActionButton extends StatelessWidget {
   const ClinicalActionButton({
@@ -88,12 +89,78 @@ class _ClinicalRecordPageState extends State<ClinicalRecordPage> {
         clinicalOrderCapabilities: widget.clinicalOrderCapabilities,
       ), const SizedBox(height: 10),
       ClinicalDocumentsActionButton(session: widget.session, locale: locale, appointment: widget.appointment),
+      if (widget.session.role == 'DOCTOR' && finalized) ...[
+        const SizedBox(height: 10),
+        OutlinedButton.icon(onPressed: saving ? null : _addAddendum, icon: const Icon(Icons.post_add_outlined), label: Text(clinicalText(locale, 'addendum'))),
+        const SizedBox(height: 10),
+        OutlinedButton.icon(
+          onPressed: () => Navigator.push<void>(context, MaterialPageRoute(builder: (_) => Directionality(
+            textDirection: locale.textDirection,
+            child: ProviderFollowUpPage(session: widget.session, locale: locale, appointment: widget.appointment),
+          ))),
+          icon: const Icon(Icons.event_repeat_outlined),
+          label: Text(clinicalText(locale, 'followUp')),
+        ),
+      ],
+      if (_list(encounter?['addenda']).isNotEmpty) ...[
+        const SizedBox(height: 16),
+        _addendaSection(),
+      ],
     ]),
   );
 
   Widget _textField(TextEditingController controller, String key, int maxLines) => Padding(padding: const EdgeInsets.only(bottom: 12), child: TextField(enabled: !finalized, controller: controller, decoration: InputDecoration(labelText: clinicalText(locale, key), border: const OutlineInputBorder()), maxLines: maxLines));
   Widget _numberField(TextEditingController controller, String key) => SizedBox(width: 170, child: TextField(enabled: !finalized, controller: controller, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: clinicalText(locale, key), border: const OutlineInputBorder())));
   Widget _summary() { final latest = _map(encounter?['latestRecord']); return Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(children: [const Icon(Icons.shield_outlined), const SizedBox(width: 8), Expanded(child: Text(clinicalText(locale, 'encrypted'), style: const TextStyle(fontWeight: FontWeight.w800))), if (finalized) Chip(label: Text(clinicalText(locale, 'finalized')))]), if (latest['revision'] != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text('${clinicalText(locale, 'revision')}: ${latest['revision']}')), if (encounter?['accessBasis'] != null) Text('${clinicalText(locale, 'accessBasis')}: ${encounter!['accessBasis']}')]))); }
+
+  Widget _addendaSection() {
+    final addenda = _list(encounter?['addenda']);
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Text(clinicalText(locale, 'addenda'), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+      const SizedBox(height: 8),
+      ...addenda.map((item) {
+        final data = _map(item['data']);
+        return Card(child: ListTile(
+          leading: const Icon(Icons.verified_user_outlined),
+          title: Text(data['reason']?.toString() ?? clinicalText(locale, 'addendum')),
+          subtitle: Text((data['text']?.toString() ?? '') + '\n' + _dateTime(DateTime.tryParse(item['signedAt']?.toString() ?? '')?.toLocal())),
+          isThreeLine: true,
+        ));
+      }),
+    ]);
+  }
+
+  Future<void> _addAddendum() async {
+    if (!finalized) return;
+    final reason = TextEditingController();
+    final text = TextEditingController();
+    final accepted = await showDialog<bool>(context: context, builder: (dialogContext) => AlertDialog(
+      title: Text(clinicalText(locale, 'addendum')),
+      content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        TextField(controller: reason, maxLines: 2, decoration: InputDecoration(labelText: clinicalText(locale, 'addendumReason'), border: const OutlineInputBorder())),
+        const SizedBox(height: 12),
+        TextField(controller: text, maxLines: 6, decoration: InputDecoration(labelText: clinicalText(locale, 'addendumText'), border: const OutlineInputBorder())),
+      ])),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: Text(cpText(locale, 'common.cancel'))),
+        FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: Text(cpText(locale, 'common.save'))),
+      ],
+    ));
+    final reasonValue = reason.text.trim();
+    final textValue = text.text.trim();
+    reason.dispose(); text.dispose();
+    if (accepted != true || reasonValue.isEmpty || textValue.isEmpty) return;
+    setState(() => saving = true);
+    try {
+      await api.createEncounterAddendum(appointmentId, reason: reasonValue, text: textValue);
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(clinicalText(locale, 'addendumSaved'))));
+      await load();
+    } catch (value) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value.toString())));
+    } finally {
+      if (mounted) setState(() => saving = false);
+    }
+  }
 
   Future<void> save() async {
     final body = <String, dynamic>{}; void add(String key, TextEditingController controller) { if (controller.text.trim().isNotEmpty) body[key] = controller.text.trim(); }
