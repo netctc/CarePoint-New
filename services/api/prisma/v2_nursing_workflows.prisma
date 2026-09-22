@@ -1,0 +1,73 @@
+model MedicationAdministration {
+  id                    String   @id @default(uuid())
+  idempotencyKey        String   @unique
+  requestDigest         String
+  prescriptionOrderId   String
+  appointmentId         String
+  patientId             String
+  providerId            String
+  sourceActorId         String
+  administrationStatus  String
+  administeredAt        DateTime
+  algorithm             String
+  keyId                 String
+  wrappedKey            String
+  iv                     String
+  ciphertext             String
+  payloadDigest          String
+  signatureAlgorithm    String
+  signatureKeyId        String
+  signature             String
+  signedAt              DateTime
+  createdAt             DateTime @default(now())
+
+  @@index([patientId, administeredAt])
+  @@index([providerId, administeredAt])
+  @@index([appointmentId, administeredAt])
+  @@index([prescriptionOrderId, administeredAt])
+}
+
+model WoundAssessment {
+  id              String   @id @default(uuid())
+  idempotencyKey  String   @unique
+  requestDigest   String
+  appointmentId   String
+  patientId       String
+  providerId      String
+  sourceActorId   String
+  clinicalMediaId String?
+  assessedAt      DateTime
+  algorithm       String
+  keyId           String
+  wrappedKey      String
+  iv               String
+  ciphertext      String
+  createdAt       DateTime @default(now())
+
+  @@index([patientId, assessedAt])
+  @@index([providerId, assessedAt])
+  @@index([appointmentId, assessedAt])
+  @@index([clinicalMediaId])
+}
+
+model ProcedureChecklistCompletion {
+  id             String   @id @default(uuid())
+  idempotencyKey String   @unique
+  requestDigest  String
+  formId         String
+  formResponseId String   @unique
+  appointmentId  String
+  patientId      String
+  providerId     String
+  sourceActorId  String
+  formVersion    Int
+  sequence       Int
+  requiredCount  Int
+  state          String   @default("COMPLETED")
+  completedAt    DateTime @default(now())
+
+  @@index([appointmentId, completedAt])
+  @@index([patientId, completedAt])
+  @@index([providerId, completedAt])
+  @@index([formId, completedAt])
+}
