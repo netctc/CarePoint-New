@@ -3,9 +3,9 @@ import 'dart:typed_data';
 
 import 'package:carepoint_mobile_core/carepoint_api.dart';
 import 'package:carepoint_mobile_core/carepoint_localization.dart';
+import 'package:carepoint_mobile_core/carepoint_photo_picker.dart';
 import 'package:carepoint_mobile_core/provider_field_media.dart';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 
 String fieldMediaText(CarePointLocale locale, String key) =>
     _fieldMediaStrings[locale.name]?[key] ?? _fieldMediaStrings['en']?[key] ?? key;
@@ -248,7 +248,6 @@ class ProviderFieldMediaPage extends StatefulWidget {
 }
 
 class _ProviderFieldMediaPageState extends State<ProviderFieldMediaPage> {
-  final ImagePicker _picker = ImagePicker();
   final TextEditingController _caption = TextEditingController();
   final TextEditingController _bodySite = TextEditingController();
   late final ProviderFieldMediaApi _api;
@@ -296,17 +295,12 @@ class _ProviderFieldMediaPageState extends State<ProviderFieldMediaPage> {
     }
   }
 
-  Future<void> _pick(ImageSource source) async {
+  Future<void> _pick(CarePointPhotoSource source) async {
     if (!captureAllowed || saving) return;
     try {
-      final file = await _picker.pickImage(
-        source: source,
-        maxWidth: 2048,
-        imageQuality: 85,
-      );
-      if (file == null) return;
-      final bytes = await file.readAsBytes();
-      if (!mounted) return;
+      final photo = await pickCarePointPhoto(source);
+      if (photo == null || !mounted) return;
+      final bytes = photo.bytes;
       if (bytes.lengthInBytes > 8 * 1024 * 1024) {
         _show(fieldMediaText(widget.locale, 'tooLarge'));
         return;
@@ -319,7 +313,7 @@ class _ProviderFieldMediaPageState extends State<ProviderFieldMediaPage> {
       setState(() {
         selectedBytes = bytes;
         selectedMediaType = mediaType;
-        selectedCapturedAt = DateTime.now().toUtc();
+        selectedCapturedAt = photo.capturedAt;
       });
     } catch (value) {
       if (mounted) _show(value.toString());
@@ -465,12 +459,12 @@ class _ProviderFieldMediaPageState extends State<ProviderFieldMediaPage> {
               runSpacing: 10,
               children: [
                 FilledButton.icon(
-                  onPressed: saving ? null : () => _pick(ImageSource.camera),
+                  onPressed: saving ? null : () => _pick(CarePointPhotoSource.camera),
                   icon: const Icon(Icons.photo_camera_outlined),
                   label: Text(fieldMediaText(widget.locale, 'camera')),
                 ),
                 OutlinedButton.icon(
-                  onPressed: saving ? null : () => _pick(ImageSource.gallery),
+                  onPressed: saving ? null : () => _pick(CarePointPhotoSource.gallery),
                   icon: const Icon(Icons.photo_library_outlined),
                   label: Text(fieldMediaText(widget.locale, 'gallery')),
                 ),
