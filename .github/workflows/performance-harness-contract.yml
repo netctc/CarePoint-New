@@ -32,6 +32,9 @@ jobs:
       - name: Self-test Release 1 performance harness
         run: node .ci/release-performance-harness.mjs --self-test
 
+      - name: Validate BE-043 observation hot-path contract
+        run: node services/api/scripts/v2-observation-performance-smoke.mjs
+
       - name: Validate disabled draft traffic-model catalog
         run: node .ci/release-performance-harness.mjs --validate-draft ops/release-1/performance-traffic-model.example.json
 
@@ -61,6 +64,7 @@ jobs:
             echo "### Release 1 performance harness contract"
             echo "- Source SHA: \`$CAREPOINT_PERF_SOURCE_SHA\`"
             echo "- Harness self-test: PASS"
+            echo "- BE-043 Observation hot-path/index contract: PASS"
             echo "- Mandatory scenario catalog: PASS"
             echo "- Source p95 gates: common reads < 500 ms; search < 800 ms"
             echo "- Immutable workflow artifact digest: \`${{ steps.upload.outputs.artifact-digest }}\`"
