@@ -58,6 +58,7 @@ import { OnboardingModule } from "./modules/onboarding/onboarding.module";
 import { ObservationModule } from "./modules/observation/observation.module";
 import { OrdersModule } from "./modules/orders/orders.module";
 import { OtherProviderWorkspaceModule } from "./modules/other-provider-workspace/other-provider-workspace.module";
+import { ProviderFieldJobsModule } from "./modules/other-provider-workspace/provider-field-jobs.module";
 import { ProviderWorkQueueModule } from "./modules/other-provider-workspace/provider-work-queue.module";
 import { ProviderFollowUpModule } from "./modules/provider-follow-up/provider-follow-up.module";
 import { ProviderOfflineSyncModule } from "./modules/provider-offline-sync/provider-offline-sync.module";
@@ -117,6 +118,7 @@ const isolatedSyntheticPilot = isolatedSyntheticPrivatePilotActive(process.env);
     ProviderOfflineSyncModule,
     ProviderFieldMediaModule,
     OtherProviderWorkspaceModule,
+    ProviderFieldJobsModule,
     ProviderWorkQueueModule,
     ProviderNursingWorkflowsModule,
     PhysiotherapyModule,
