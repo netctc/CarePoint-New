@@ -1,0 +1,182 @@
+name: carepoint-v2-test
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: carepoint_test
+      POSTGRES_USER: carepoint_test
+      POSTGRES_PASSWORD: ${TEST_POSTGRES_PASSWORD:?TEST_POSTGRES_PASSWORD is required}
+    volumes:
+      - carepoint_test_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U carepoint_test -d carepoint_test"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks: [carepoint_test]
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    environment:
+      REDIS_PASSWORD: ${TEST_REDIS_PASSWORD:?TEST_REDIS_PASSWORD is required}
+    command: ["sh", "-c", "exec redis-server --appendonly yes --requirepass \"$$REDIS_PASSWORD\""]
+    volumes:
+      - carepoint_test_redis:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" ping | grep PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks: [carepoint_test]
+
+  api:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+      target: api
+      args:
+        RELEASE_SHA: ${TEST_RELEASE_SHA:-entorno-v2}
+        RELEASE_VERSION: ${TEST_RELEASE_VERSION:-entorno-v2}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      PORT: "4000"
+      DATABASE_URL: postgresql://carepoint_test:${TEST_POSTGRES_PASSWORD:?TEST_POSTGRES_PASSWORD is required}@postgres:5432/carepoint_test?schema=public
+      DATABASE_MIN_SERVER_MAJOR: "16"
+      REDIS_URL: redis://:${TEST_REDIS_PASSWORD:?TEST_REDIS_PASSWORD is required}@redis:6379
+      ALLOWED_ORIGINS: https://${TEST_ADMIN_DOMAIN:?},https://${TEST_PATIENT_DOMAIN:?},https://${TEST_DOCTOR_DOMAIN:?},https://${TEST_PROVIDER_DOMAIN:?}
+      JSON_BODY_LIMIT_BYTES: "12582912"
+      FORM_BODY_LIMIT_BYTES: "131072"
+      MFA_KEY_PROVIDER: local
+      MFA_ENVELOPE_KEY_ID: test-mfa-kek-v1
+      MFA_ENVELOPE_KEY_BASE64: ${MFA_ENVELOPE_KEY_BASE64:?}
+      CLINICAL_KEY_PROVIDER: local
+      CLINICAL_ENVELOPE_KEY_ID: test-clinical-kek-v1
+      CLINICAL_ENVELOPE_KEY_BASE64: ${CLINICAL_ENVELOPE_KEY_BASE64:?}
+      ORDER_KEY_PROVIDER: local
+      ORDER_ENVELOPE_KEY_ID: test-orders-kek-v1
+      ORDER_ENVELOPE_KEY_BASE64: ${ORDER_ENVELOPE_KEY_BASE64:?}
+      ORDER_SIGNING_PROVIDER: local
+      ORDER_SIGNING_KEY_ID: test-orders-signing-v1
+      ORDER_SIGNING_SECRET_BASE64: ${ORDER_SIGNING_SECRET_BASE64:?}
+      DOCUMENT_STORAGE_PROVIDER: local
+      DOCUMENT_STORAGE_LOCAL_ROOT: /var/lib/carepoint-test/documents
+      DOCUMENT_KEY_PROVIDER: local
+      DOCUMENT_ENVELOPE_KEY_ID: test-documents-kek-v1
+      DOCUMENT_ENVELOPE_KEY_BASE64: ${DOCUMENT_ENVELOPE_KEY_BASE64:?}
+      DOCUMENT_SIGNING_PROVIDER: local
+      DOCUMENT_SIGNING_KEY_ID: test-documents-signing-v1
+      DOCUMENT_SIGNING_SECRET_BASE64: ${DOCUMENT_SIGNING_SECRET_BASE64:?}
+      DOCUMENT_SCAN_PROVIDER: mock
+      DICOMWEB_PROVIDER: mock
+      MESSAGING_KEY_PROVIDER: local
+      MESSAGING_ENVELOPE_KEY_ID: test-messaging-kek-v1
+      MESSAGING_ENVELOPE_KEY_BASE64: ${MESSAGING_ENVELOPE_KEY_BASE64:?}
+      TELEHEALTH_PROVIDER: mock
+      TELEHEALTH_KEY_PROVIDER: local
+      TELEHEALTH_ENVELOPE_KEY_ID: test-telehealth-kek-v1
+      TELEHEALTH_ENVELOPE_KEY_BASE64: ${TELEHEALTH_ENVELOPE_KEY_BASE64:?}
+      TELEHEALTH_MOCK_SIGNING_SECRET: ${TELEHEALTH_MOCK_SIGNING_SECRET:?}
+      PAYMENT_GATEWAY_PROVIDER: mock
+      INSURANCE_GATEWAY_PROVIDER: mock
+      CLAIMS_GATEWAY_PROVIDER: mock
+      NOTIFICATION_GATEWAY_PROVIDER: mock
+      SIEM_EXPORT_ENABLED: "false"
+      CAREPOINT_OTEL_EXPORT_MODE: best-effort
+      OTEL_DEPLOYMENT_ENVIRONMENT: test
+      BULK_EXPORT_STORAGE_PROVIDER: local
+      BULK_EXPORT_STORAGE_LOCAL_ROOT: /var/lib/carepoint-test/bulk-export
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+    volumes:
+      - carepoint_test_documents:/var/lib/carepoint-test/documents
+      - carepoint_test_bulk:/var/lib/carepoint-test/bulk-export
+    ports:
+      - "127.0.0.1:4000:4000"
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"const n=require('net');const s=n.connect(4000,'127.0.0.1',()=>{s.end();process.exit(0)});s.on('error',()=>process.exit(1));setTimeout(()=>process.exit(1),3000)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+    networks: [carepoint_test]
+
+  admin:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+      target: admin
+      args:
+        RELEASE_SHA: ${TEST_RELEASE_SHA:-entorno-v2}
+        RELEASE_VERSION: ${TEST_RELEASE_VERSION:-entorno-v2}
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      CAREPOINT_API_URL: ${CAREPOINT_API_PUBLIC_BASE:?CAREPOINT_API_PUBLIC_BASE is required}
+      CAREPOINT_ADMIN_PUBLIC_ORIGIN: https://${TEST_ADMIN_DOMAIN:?}
+      CAREPOINT_API_TIMEOUT_MS: "10000"
+      CAREPOINT_API_MAX_RESPONSE_BYTES: "4194304"
+    extra_hosts:
+      - "${TEST_API_DOMAIN:?}:host-gateway"
+    ports:
+      - "127.0.0.1:3000:3000"
+    networks: [carepoint_test]
+
+  patient-web:
+    build:
+      context: ../..
+      dockerfile: ops/test-v2/Dockerfile.flutter-web
+      args:
+        APP_PATH: apps/patient-mobile
+        APP_TITLE: CarePoint Patient Test
+        CAREPOINT_API_BASE: ${CAREPOINT_API_PUBLIC_BASE:?}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:80"
+    networks: [carepoint_test]
+
+  doctor-web:
+    build:
+      context: ../..
+      dockerfile: ops/test-v2/Dockerfile.flutter-web
+      args:
+        APP_PATH: apps/doctor-mobile
+        APP_TITLE: CarePoint Doctor Test
+        CAREPOINT_API_BASE: ${CAREPOINT_API_PUBLIC_BASE:?}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8081:80"
+    networks: [carepoint_test]
+
+  provider-web:
+    build:
+      context: ../..
+      dockerfile: ops/test-v2/Dockerfile.flutter-web
+      args:
+        APP_PATH: apps/provider-mobile
+        APP_TITLE: CarePoint Provider Test
+        CAREPOINT_API_BASE: ${CAREPOINT_API_PUBLIC_BASE:?}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8082:80"
+    networks: [carepoint_test]
+
+networks:
+  carepoint_test:
+    driver: bridge
+
+volumes:
+  carepoint_test_postgres:
+  carepoint_test_redis:
+  carepoint_test_documents:
+  carepoint_test_bulk:
