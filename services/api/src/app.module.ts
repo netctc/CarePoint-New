@@ -33,6 +33,7 @@ import { RefillModule } from "./modules/refill/refill.module";
 import { ReferralsModule } from "./modules/referrals/referrals.module";
 import { RetentionModule } from "./modules/retention/retention.module";
 import { DocumentsModule } from "./modules/documents/documents.module";
+import { DocumentVersioningModule } from "./modules/documents/document-versioning.module";
 import { ClinicalMediaModule } from "./modules/documents/clinical-media.module";
 import { DoctorSnapshotModule } from "./modules/doctor-snapshot/doctor-snapshot.module";
 import { emergencyAmbulanceModuleEnabled } from "./modules/emergency/emergency-launch-policy";
@@ -149,6 +150,7 @@ const isolatedSyntheticPilot = isolatedSyntheticPrivatePilotActive(process.env);
     DoctorSnapshotModule,
     OrdersModule,
     DocumentsModule,
+    DocumentVersioningModule,
     ClinicalMediaModule,
     ...(runtimeFeatures.payments ? [BillingModule, ClaimsModule] : []),
     CommunicationsModule,
