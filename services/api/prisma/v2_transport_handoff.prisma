@@ -1,0 +1,26 @@
+model TransportHandoff {
+  id                   String   @id @default(uuid())
+  idempotencyKey       String   @unique
+  requestDigest        String
+  transportRequestId   String   @unique
+  providerId           String
+  patientId            String
+  crewAssignmentId     String
+  receiverName         String
+  receiverRole         String
+  signatureRequired    Boolean  @default(false)
+  signatureMethod      String?
+  handoffSummaryDigest String
+  transportContextDigest String
+  algorithm            String
+  keyId                String
+  wrappedKey           String
+  iv                    String
+  ciphertext           String
+  handedOffAt          DateTime
+  createdAt            DateTime @default(now())
+
+  @@index([providerId, handedOffAt])
+  @@index([patientId, handedOffAt])
+  @@index([crewAssignmentId])
+}
