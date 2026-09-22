@@ -9,10 +9,24 @@ export class IntegrationCenterService {
 
   async snapshot() {
     const now = new Date().toISOString();
-    const [activeTerminologySystems, pendingSiem, failedSiem] = await Promise.all([
+    const [
+      activeTerminologySystems,
+      latestTerminologyChange,
+      latestFhirJob,
+      pendingSiem,
+      failedSiem,
+      latestSiemExport,
+    ] = await Promise.all([
       this.prisma.codingSystem.count({ where: { active: true } }),
+      this.prisma.codingSystem.findFirst({ orderBy: { updatedAt: "desc" }, select: { updatedAt: true } }),
+      this.prisma.fhirBulkExportJobState.findFirst({ orderBy: { updatedAt: "desc" }, select: { updatedAt: true, lastError: true } }),
       this.prisma.siemAuditDelivery.count({ where: { status: { in: ["PENDING", "PROCESSING"] } } }),
       this.prisma.siemAuditDelivery.count({ where: { status: "FAILED" } }),
+      this.prisma.siemAuditDelivery.findFirst({
+        where: { exportedAt: { not: null } },
+        orderBy: { exportedAt: "desc" },
+        select: { exportedAt: true },
+      }),
     ]);
 
     const siemEnabled = process.env.SIEM_EXPORT_ENABLED?.trim().toLowerCase() === "true";
@@ -32,21 +46,21 @@ export class IntegrationCenterService {
           state: activeTerminologySystems > 0 ? "HEALTHY" : "DEGRADED",
           configured: true,
           credentialReferences: [],
-          lastSyncAt: null,
+          lastSyncAt: latestTerminologyChange?.updatedAt.toISOString() ?? null,
           lastErrorCode: activeTerminologySystems > 0 ? null : "NO_ACTIVE_CODING_SYSTEM",
           details: { activeCodingSystems: activeTerminologySystems, mode: "INTERNAL_VERSIONED_CATALOG" },
         }),
         this.connector({
           key: "FHIR_R4",
           label: "FHIR R4 + SMART",
-          state: "HEALTHY",
+          state: latestFhirJob?.lastError ? "DEGRADED" : "HEALTHY",
           configured: true,
           credentialReferences: this.refs([
             ["SMART_BACKEND_CLIENTS_JSON", process.env.SMART_BACKEND_CLIENTS_JSON],
             ["SMART_BACKEND_CLIENTS_FILE", process.env.SMART_BACKEND_CLIENTS_FILE],
           ]),
-          lastSyncAt: null,
-          lastErrorCode: null,
+          lastSyncAt: latestFhirJob?.updatedAt.toISOString() ?? null,
+          lastErrorCode: latestFhirJob?.lastError ? "FHIR_BULK_JOB_ERROR" : null,
           details: { mode: "READ_ONLY_FACADE_AND_DURABLE_BULK_EXPORT", bulkStorageConfigured },
         }),
         this.connector({
@@ -75,7 +89,7 @@ export class IntegrationCenterService {
           state: this.siemState(siemEnabled, failedSiem),
           configured: siemEnabled,
           credentialReferences: siemEnabled ? ["siem-export-api-key"] : [],
-          lastSyncAt: null,
+          lastSyncAt: latestSiemExport?.exportedAt?.toISOString() ?? null,
           lastErrorCode: failedSiem > 0 ? "FAILED_OUTBOX_ITEMS" : null,
           details: { pendingDeliveries: pendingSiem, failedDeliveries: failedSiem },
         }),
