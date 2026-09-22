@@ -1,0 +1,59 @@
+model ProviderFieldJobEvent {
+  id                 String   @id @default(uuid())
+  sourceType         String
+  sourceId           String
+  providerId         String
+  patientId          String
+  sequence           Int
+  eventType          String
+  sourceStatus       String
+  idempotencyKey     String   @unique
+  requestDigest      String
+  actorAccountId     String
+  occurredAt         DateTime
+  createdAt          DateTime @default(now())
+
+  @@unique([sourceType, sourceId, sequence])
+  @@index([providerId, occurredAt])
+  @@index([patientId, occurredAt])
+  @@index([sourceType, sourceId, occurredAt])
+}
+
+model ProviderFieldJobChecklistRevision {
+  id                 String   @id @default(uuid())
+  sourceType         String
+  sourceId           String
+  providerId         String
+  patientId          String
+  revision           Int
+  items               Json
+  idempotencyKey     String   @unique
+  requestDigest      String
+  recordedByAccountId String
+  recordedAt         DateTime
+  createdAt          DateTime @default(now())
+
+  @@unique([sourceType, sourceId, revision])
+  @@index([providerId, recordedAt])
+  @@index([patientId, recordedAt])
+  @@index([sourceType, sourceId, recordedAt])
+}
+
+model ProviderFieldServiceCompletion {
+  id                 String   @id @default(uuid())
+  sourceType         String
+  sourceId           String
+  providerId         String
+  patientId          String
+  completionCode     String
+  sourceStatus       String
+  idempotencyKey     String   @unique
+  requestDigest      String
+  completedByAccountId String
+  completedAt        DateTime
+  createdAt          DateTime @default(now())
+
+  @@unique([sourceType, sourceId])
+  @@index([providerId, completedAt])
+  @@index([patientId, completedAt])
+}
