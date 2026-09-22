@@ -9,6 +9,8 @@ CREATE TABLE "EmergencyAccessGrant" (
   "reasonCode" TEXT NOT NULL,
   "status" TEXT NOT NULL DEFAULT 'ACTIVE',
   "requestedTtlMinutes" INTEGER NOT NULL,
+  "idempotencyKey" TEXT NOT NULL,
+  "requestDigest" TEXT NOT NULL,
   "grantedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "expiresAt" TIMESTAMP(3) NOT NULL,
   "revokedAt" TIMESTAMP(3),
@@ -17,11 +19,6 @@ CREATE TABLE "EmergencyAccessGrant" (
   "reviewedAt" TIMESTAMP(3),
   "reviewedByActorId" TEXT,
   "reviewOutcome" TEXT,
-  "algorithm" TEXT NOT NULL,
-  "keyId" TEXT NOT NULL,
-  "wrappedKey" TEXT NOT NULL,
-  "iv" TEXT NOT NULL,
-  "ciphertext" TEXT NOT NULL,
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updatedAt" TIMESTAMP(3) NOT NULL,
   CONSTRAINT "EmergencyAccessGrant_pkey" PRIMARY KEY ("id"),
@@ -43,6 +40,8 @@ CREATE TABLE "EmergencyAccessReview" (
   CONSTRAINT "EmergencyAccessReview_outcome_check" CHECK ("outcome" IN ('APPROPRIATE', 'INAPPROPRIATE', 'NEEDS_FOLLOW_UP'))
 );
 
+CREATE UNIQUE INDEX "EmergencyAccessGrant_actorId_idempotencyKey_key"
+  ON "EmergencyAccessGrant"("actorId", "idempotencyKey");
 CREATE INDEX "EmergencyAccessGrant_provider_patient_scope_active_idx"
   ON "EmergencyAccessGrant"("providerId", "patientId", "scope", "status", "expiresAt");
 CREATE INDEX "EmergencyAccessGrant_patient_active_idx"
