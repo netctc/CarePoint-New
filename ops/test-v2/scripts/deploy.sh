@@ -76,6 +76,13 @@ else
   echo "==> BOOTSTRAP_ADMIN_EMAIL/PASSWORD not both set; skipping bootstrap"
 fi
 
+if [[ "${LOAD_SYNTHETIC_PILOT_FIXTURES:-false}" == "true" ]]; then
+  echo "==> Loading repository synthetic private-pilot fixtures"
+  docker compose -f "$COMPOSE_FILE" run --rm api npm run db:pilot-fixtures
+else
+  echo "==> Synthetic pilot fixtures disabled (set LOAD_SYNTHETIC_PILOT_FIXTURES=true to load them)"
+fi
+
 echo "==> Starting complete test stack"
 docker compose -f "$COMPOSE_FILE" up -d api admin patient-web doctor-web provider-web
 
