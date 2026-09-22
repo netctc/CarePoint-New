@@ -18,6 +18,7 @@ import { AppointmentContinuityModule } from "./modules/appointment-continuity/ap
 import { AuditModule } from "./modules/audit/audit.module";
 import { BillingModule } from "./modules/billing/billing.module";
 import { ClaimsModule } from "./modules/claims/claims.module";
+import { ClinicalHistoryModule } from "./modules/clinical-history/clinical-history.module";
 import { ClinicalModule } from "./modules/clinical/clinical.module";
 import { ClinicalProfileModule } from "./modules/clinical-profile/clinical-profile.module";
 import { CommunicationsModule } from "./modules/communications/communications.module";
@@ -122,6 +123,7 @@ const isolatedSyntheticPilot = isolatedSyntheticPrivatePilotActive(process.env);
     AvailabilityRequestsModule,
     ...(runtimeFeatures.telehealth ? [TelehealthModule] : []),
     ClinicalModule,
+    ClinicalHistoryModule,
     RpmAlertModule,
     ClinicalProfileModule,
     DoctorSnapshotModule,
