@@ -88,6 +88,26 @@ export class ProviderCarePlanController {
   }
 
   @RequirePermissions("CARE_COORDINATION_MANAGE")
+  @Get("care-plans/:carePlanId/goals")
+  @Header("Cache-Control", "no-store")
+  goals(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Param("carePlanId") carePlanId: string,
+  ) {
+    return this.carePlans.providerGoals(principal, carePlanId);
+  }
+
+  @RequirePermissions("CARE_COORDINATION_MANAGE")
+  @Get("care-plans/:carePlanId/tasks")
+  @Header("Cache-Control", "no-store")
+  tasks(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Param("carePlanId") carePlanId: string,
+  ) {
+    return this.carePlans.providerTasks(principal, carePlanId);
+  }
+
+  @RequirePermissions("CARE_COORDINATION_MANAGE")
   @Post("care-plans/:carePlanId/goals")
   @Header("Cache-Control", "no-store")
   addGoal(
