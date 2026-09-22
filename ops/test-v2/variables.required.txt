@@ -12,6 +12,16 @@ TEST_DOCTOR_DOMAIN=doctor-test.example.com
 TEST_PROVIDER_DOMAIN=provider-test.example.com
 CAREPOINT_API_PUBLIC_BASE=https://api-test.example.com/api/v1
 
+Host Nginx / TLS options
+------------------------
+# configure-nginx-tls.sh always renders/enables the HTTP reverse-proxy site.
+# Set ENABLE_CERTBOT=true only after all five DNS names resolve to the VPS.
+ENABLE_CERTBOT=false
+LETSENCRYPT_EMAIL=<required only when ENABLE_CERTBOT=true>
+CERTBOT_STAGING=false
+DISABLE_NGINX_DEFAULT=true
+NGINX_SITE_NAME=carepoint-v2-test
+
 Infrastructure secrets
 ----------------------
 TEST_POSTGRES_PASSWORD=<URL-safe random secret; recommended: openssl rand -hex 24>
