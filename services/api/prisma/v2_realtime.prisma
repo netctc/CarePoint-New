@@ -1,0 +1,19 @@
+model RealtimeSubscription {
+  id               String   @id @default(uuid())
+  actorId          String
+  sessionId        String
+  topic            String
+  scopeKey         String
+  subjectType      String
+  subjectId        String
+  connectedAt      DateTime @default(now())
+  lastAuthorizedAt DateTime @default(now())
+  disconnectedAt   DateTime?
+  disconnectReason String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([actorId, connectedAt])
+  @@index([sessionId, disconnectedAt])
+  @@index([topic, subjectType, subjectId, connectedAt])
+}

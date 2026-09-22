@@ -56,6 +56,7 @@ import { ProviderOfflineSyncModule } from "./modules/provider-offline-sync/provi
 import { ProvidersModule } from "./modules/providers/providers.module";
 import { ProviderCategoryFormsModule } from "./modules/provider-category-forms/provider-category-forms.module";
 import { ProviderWorkflowModule } from "./modules/provider-workflow/provider-workflow.module";
+import { RealtimeModule } from "./modules/realtime/realtime.module";
 import { RpmAlertModule } from "./modules/rpm/rpm-alert.module";
 import { SchedulingModule } from "./modules/scheduling/scheduling.module";
 import { AvailabilityRequestsModule } from "./modules/scheduling/availability-requests.module";
@@ -129,6 +130,7 @@ const isolatedSyntheticPilot = isolatedSyntheticPrivatePilotActive(process.env);
     ClinicalModule,
     ClinicalHistoryModule,
     RpmAlertModule,
+    RealtimeModule,
     ClinicalProfileModule,
     SymptomReportModule,
     TerminologyModule,
