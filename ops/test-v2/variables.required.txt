@@ -1,0 +1,55 @@
+CarePoint V2 test runtime variables
+===================================
+
+Do not commit a .env file. Export these values in the deployment shell or configure them in the VPS/CI secret store.
+
+Public test routing
+-------------------
+TEST_API_DOMAIN=api-test.example.com
+TEST_ADMIN_DOMAIN=admin-test.example.com
+TEST_PATIENT_DOMAIN=patient-test.example.com
+TEST_DOCTOR_DOMAIN=doctor-test.example.com
+TEST_PROVIDER_DOMAIN=provider-test.example.com
+CAREPOINT_API_PUBLIC_BASE=https://api-test.example.com/api/v1
+
+Infrastructure secrets
+----------------------
+TEST_POSTGRES_PASSWORD=<URL-safe random secret; recommended: openssl rand -hex 24>
+TEST_REDIS_PASSWORD=<URL-safe random secret; recommended: openssl rand -hex 24>
+
+Local test-only crypto material (all values must be independent)
+----------------------------------------------------------------
+MFA_ENVELOPE_KEY_BASE64=<openssl rand -base64 32>
+CLINICAL_ENVELOPE_KEY_BASE64=<openssl rand -base64 32>
+ORDER_ENVELOPE_KEY_BASE64=<openssl rand -base64 32>
+ORDER_SIGNING_SECRET_BASE64=<openssl rand -base64 32>
+DOCUMENT_ENVELOPE_KEY_BASE64=<openssl rand -base64 32>
+DOCUMENT_SIGNING_SECRET_BASE64=<openssl rand -base64 32>
+MESSAGING_ENVELOPE_KEY_BASE64=<openssl rand -base64 32>
+TELEHEALTH_ENVELOPE_KEY_BASE64=<openssl rand -base64 32>
+TELEHEALTH_MOCK_SIGNING_SECRET=<openssl rand -base64 32>
+
+Synthetic bootstrap admin (recommended for a fresh test DB)
+------------------------------------------------------------
+BOOTSTRAP_ADMIN_EMAIL=<test-only email>
+BOOTSTRAP_ADMIN_PASSWORD=<strong test-only password>
+
+Build identity (optional; deploy.sh fills TEST_RELEASE_SHA automatically when omitted)
+--------------------------------------------------------------------------------------
+TEST_RELEASE_SHA=<git SHA>
+TEST_RELEASE_VERSION=entorno-v2
+
+Optional routing / ETA sandbox variables
+----------------------------------------
+FIELD_ROUTE_MAPS_PROVIDER=DIRECT_DISTANCE_V1
+# For a Mapbox sandbox instead:
+# FIELD_ROUTE_MAPS_PROVIDER=MAPBOX
+# MAPBOX_ACCESS_TOKEN=<sandbox token>
+# FIELD_ROUTE_MAPS_TIMEOUT_MS=5000
+
+Rules
+-----
+- Never reuse production secrets, DB passwords, tokens, signing keys, or provider credentials.
+- Never put real PHI/PII/card data in this synthetic environment.
+- Keep payment, insurance, claims, notification, DICOM and telehealth providers on mock/sandbox unless that integration is explicitly under test.
+- Rotate/remove test secrets when the environment is retired.
