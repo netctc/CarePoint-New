@@ -2,12 +2,13 @@ import { BadRequestException, Body, Controller, Get, Headers, HttpCode, Module, 
 import type { TelehealthReadinessInput } from "@carepoint/contracts";
 import type { AuthPrincipal } from "@carepoint/identity";
 import { PrismaModule } from "../../infrastructure/prisma/prisma.module";
-import { CurrentPrincipal, Public, RequirePermissions } from "../../security/api-security.module";
+import { CurrentPrincipal, Public, RequireFeature, RequirePermissions } from "../../security/api-security.module";
 import { TelehealthEnvelopeService } from "./telehealth-envelope.service";
 import { TelehealthProviderService } from "./telehealth-provider.service";
 import { TelehealthService } from "./telehealth.service";
 
 @Controller("telehealth")
+@RequireFeature("TELEHEALTH")
 class TelehealthController {
   constructor(private readonly telehealth: TelehealthService) {}
 
