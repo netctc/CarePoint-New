@@ -1,5 +1,6 @@
 enum ClinicalMediaStatus {
   AVAILABLE
+  SUPERSEDED
   REMOVED
 }
 
@@ -34,6 +35,12 @@ model ClinicalMedia {
   consentEvidenceId          String              @unique
   purpose                    String
   status                     ClinicalMediaStatus @default(AVAILABLE)
+  logicalMediaId             String?
+  mediaVersion               Int                 @default(1)
+  effectiveDate              DateTime            @default(now())
+  sourceType                 String?
+  sourceRef                  String?
+  supersedesMediaId          String?
   mediaType                  String
   byteLength                 Int
   contentDigest              String
@@ -61,6 +68,8 @@ model ClinicalMedia {
   updatedAt                  DateTime            @updatedAt
   removedAt                  DateTime?
 
+  @@unique([logicalMediaId, mediaVersion])
+  @@index([logicalMediaId, mediaVersion])
   @@index([patientId, status, createdAt])
   @@index([providerId, status, createdAt])
   @@index([purpose, createdAt])
