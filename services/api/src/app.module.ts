@@ -42,6 +42,7 @@ import { NutritionPlanModule } from "./modules/nutrition/nutrition-plan.module";
 import { PatientHealthSummaryModule } from "./modules/patient-health-summary/patient-health-summary.module";
 import { PatientProfileModule } from "./modules/patient-profile/patient-profile.module";
 import { PhysiotherapyModule } from "./modules/physiotherapy/physiotherapy.module";
+import { ProviderFieldMediaModule } from "./modules/provider-field-media/provider-field-media.module";
 import { QuestionnaireModule } from "./modules/questionnaire/questionnaire.module";
 import { OnboardingModule } from "./modules/onboarding/onboarding.module";
 import { ObservationModule } from "./modules/observation/observation.module";
@@ -93,6 +94,7 @@ const isolatedSyntheticPilot = isolatedSyntheticPrivatePilotActive(process.env);
     ProviderCategoryFormsModule,
     ProviderWorkflowModule,
     ProviderFollowUpModule,
+    ProviderFieldMediaModule,
     OtherProviderWorkspaceModule,
     PhysiotherapyModule,
     NutritionModule,

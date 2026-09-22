@@ -16,5 +16,6 @@ assertProductionClinicalMediaBodyCapacity();
     DocumentsEnvelopeService,
     DocumentMalwareScannerService,
   ],
+  exports: [ClinicalMediaService],
 })
 export class ClinicalMediaModule {}
