@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Header, Module, Param, Post, Query } from "@nestjs/common";
 import type { AuthPrincipal } from "@carepoint/identity";
 import { CurrentPrincipal, RequirePermissions } from "../../security/api-security.module";
+import { ClinicalModule } from "../clinical/clinical.module";
 import {
   EmergencyAccessService,
   type CreateEmergencyAccessInput,
@@ -23,6 +24,16 @@ class ProviderEmergencyAccessController {
   @Header("Cache-Control", "no-store")
   list(@CurrentPrincipal() principal: AuthPrincipal) {
     return this.emergencyAccess.listMine(principal);
+  }
+
+  @RequirePermissions("CLINICAL_PROFILE_READ")
+  @Get(":grantId/clinical-profile")
+  @Header("Cache-Control", "no-store")
+  clinicalProfile(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Param("grantId") grantId: string,
+  ) {
+    return this.emergencyAccess.readClinicalProfile(principal, grantId);
   }
 
   @RequirePermissions("CLINICAL_RECORD_READ")
@@ -60,6 +71,7 @@ class AdminEmergencyAccessController {
 }
 
 @Module({
+  imports: [ClinicalModule],
   controllers: [ProviderEmergencyAccessController, AdminEmergencyAccessController],
   providers: [EmergencyAccessService],
   exports: [EmergencyAccessService],
