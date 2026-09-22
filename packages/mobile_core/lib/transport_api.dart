@@ -103,6 +103,32 @@ extension CarePointTransportApi on CarePointApi {
         'idempotencyKey': idempotencyKey,
       }));
 
+  Future<Map<String, dynamic>> providerTransportHandoff(String requestId) async =>
+      _asMap(await _send('GET', '/provider/transport/jobs/$requestId/handoff'));
+
+  Future<Map<String, dynamic>> recordProviderTransportHandoff(
+    String requestId, {
+    required String idempotencyKey,
+    required String receiverName,
+    required String receiverRole,
+    String? receiverOrganization,
+    required String handoffSummary,
+    required DateTime handedOffAt,
+    String? signatureMethod,
+    String? drawnSignatureData,
+  }) async =>
+      _asMap(await _send('POST', '/provider/transport/jobs/$requestId/handoff', body: {
+        'idempotencyKey': idempotencyKey,
+        'receiverName': receiverName.trim(),
+        'receiverRole': receiverRole.trim(),
+        if (receiverOrganization?.trim().isNotEmpty == true) 'receiverOrganization': receiverOrganization!.trim(),
+        'handoffSummary': handoffSummary.trim(),
+        'handedOffAt': handedOffAt.toUtc().toIso8601String(),
+        'receiverAcceptedHandoff': true,
+        if (signatureMethod?.trim().isNotEmpty == true) 'signatureMethod': signatureMethod!.trim(),
+        if (drawnSignatureData?.trim().isNotEmpty == true) 'drawnSignatureData': drawnSignatureData!.trim(),
+      }));
+
   Future<Map<String, dynamic>> acceptMedicalTransport(String requestId) async =>
       _asMap(await _send('POST', '/provider/medical-transport/$requestId/accept', body: const {}));
 
