@@ -1,3 +1,4 @@
+import "./v2-doctor-clinical-integrity-ui-smoke.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 

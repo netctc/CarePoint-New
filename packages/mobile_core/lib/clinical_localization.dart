@@ -7,7 +7,7 @@ const Map<CarePointLocale, Map<String, String>> _clinicalMessages = {
     'heartRate': 'Heart rate (bpm)', 'systolic': 'Systolic BP', 'diastolic': 'Diastolic BP', 'oxygen': 'Oxygen saturation %',
     'saveRevision': 'Save encrypted revision', 'finalize': 'Finalize encounter', 'finalizePrompt': 'Finalizing makes this clinical encounter immutable. Continue?',
     'finalized': 'Finalized', 'encrypted': 'Encrypted clinical record', 'noRecords': 'No clinical records are available yet.', 'revision': 'Revision',
-    'accessBasis': 'Access basis', 'diagnoses': 'Diagnoses', 'provider': 'Provider', 'service': 'Service', 'close': 'Close', 'saved': 'Clinical revision saved.',
+    'accessBasis': 'Access basis', 'diagnoses': 'Diagnoses', 'provider': 'Provider', 'service': 'Service', 'close': 'Close', 'saved': 'Clinical revision saved.', 'addendum': 'Add signed addendum', 'addenda': 'Signed addenda', 'addendumReason': 'Reason for addendum', 'addendumText': 'Addendum text', 'addendumSaved': 'Signed addendum added.', 'followUp': 'Recommend follow-up',
   },
   CarePointLocale.ar: {
     'healthRecord': 'السجل الصحي', 'clinicalChart': 'الملف السريري', 'patientHistory': 'التاريخ الصحي للمريض', 'chiefComplaint': 'الشكوى الرئيسية',
@@ -15,7 +15,7 @@ const Map<CarePointLocale, Map<String, String>> _clinicalMessages = {
     'heartRate': 'معدل القلب', 'systolic': 'الضغط الانقباضي', 'diastolic': 'الضغط الانبساطي', 'oxygen': 'تشبع الأكسجين %',
     'saveRevision': 'حفظ نسخة مشفرة', 'finalize': 'إنهاء السجل السريري', 'finalizePrompt': 'بعد الإنهاء يصبح هذا السجل غير قابل للتعديل. متابعة؟',
     'finalized': 'مغلق', 'encrypted': 'سجل سريري مشفر', 'noRecords': 'لا توجد سجلات سريرية بعد.', 'revision': 'النسخة',
-    'accessBasis': 'أساس الصلاحية', 'diagnoses': 'التشخيصات', 'provider': 'مقدم الرعاية', 'service': 'الخدمة', 'close': 'إغلاق', 'saved': 'تم حفظ النسخة السريرية.',
+    'accessBasis': 'أساس الصلاحية', 'diagnoses': 'التشخيصات', 'provider': 'مقدم الرعاية', 'service': 'الخدمة', 'close': 'إغلاق', 'saved': 'تم حفظ النسخة السريرية.', 'addendum': 'إضافة ملحق موقع', 'addenda': 'الملاحق الموقعة', 'addendumReason': 'سبب الملحق', 'addendumText': 'نص الملحق', 'addendumSaved': 'تمت إضافة الملحق الموقع.', 'followUp': 'اقتراح متابعة',
   },
   CarePointLocale.fr: {
     'healthRecord': 'Dossier de santé', 'clinicalChart': 'Dossier clinique', 'patientHistory': 'Historique du patient', 'chiefComplaint': 'Motif principal',
@@ -23,7 +23,7 @@ const Map<CarePointLocale, Map<String, String>> _clinicalMessages = {
     'heartRate': 'Fréquence cardiaque', 'systolic': 'TA systolique', 'diastolic': 'TA diastolique', 'oxygen': 'Saturation O2 %',
     'saveRevision': 'Enregistrer la version chiffrée', 'finalize': 'Finaliser la consultation', 'finalizePrompt': 'La finalisation rend ce dossier clinique immuable. Continuer ?',
     'finalized': 'Finalisé', 'encrypted': 'Dossier clinique chiffré', 'noRecords': 'Aucun dossier clinique disponible.', 'revision': 'Version',
-    'accessBasis': 'Base d’accès', 'diagnoses': 'Diagnostics', 'provider': 'Prestataire', 'service': 'Service', 'close': 'Fermer', 'saved': 'Version clinique enregistrée.',
+    'accessBasis': 'Base d’accès', 'diagnoses': 'Diagnostics', 'provider': 'Prestataire', 'service': 'Service', 'close': 'Fermer', 'saved': 'Version clinique enregistrée.', 'addendum': 'Ajouter un addendum signé', 'addenda': 'Addenda signés', 'addendumReason': 'Motif de l’addendum', 'addendumText': 'Texte de l’addendum', 'addendumSaved': 'Addendum signé ajouté.', 'followUp': 'Recommander un suivi',
   },
   CarePointLocale.es: {
     'healthRecord': 'Historia clínica', 'clinicalChart': 'Ficha clínica', 'patientHistory': 'Historial del paciente', 'chiefComplaint': 'Motivo principal',
@@ -31,7 +31,7 @@ const Map<CarePointLocale, Map<String, String>> _clinicalMessages = {
     'heartRate': 'Frecuencia cardiaca', 'systolic': 'Tensión sistólica', 'diastolic': 'Tensión diastólica', 'oxygen': 'Saturación O2 %',
     'saveRevision': 'Guardar revisión cifrada', 'finalize': 'Finalizar encuentro', 'finalizePrompt': 'Al finalizar, este encuentro clínico quedará inmutable. ¿Continuar?',
     'finalized': 'Finalizado', 'encrypted': 'Registro clínico cifrado', 'noRecords': 'Todavía no hay registros clínicos.', 'revision': 'Revisión',
-    'accessBasis': 'Base de acceso', 'diagnoses': 'Diagnósticos', 'provider': 'Proveedor', 'service': 'Servicio', 'close': 'Cerrar', 'saved': 'Revisión clínica guardada.',
+    'accessBasis': 'Base de acceso', 'diagnoses': 'Diagnósticos', 'provider': 'Proveedor', 'service': 'Servicio', 'close': 'Cerrar', 'saved': 'Revisión clínica guardada.', 'addendum': 'Añadir addendum firmado', 'addenda': 'Addenda firmados', 'addendumReason': 'Motivo del addendum', 'addendumText': 'Texto del addendum', 'addendumSaved': 'Addendum firmado añadido.', 'followUp': 'Recomendar seguimiento',
   },
 };
 
