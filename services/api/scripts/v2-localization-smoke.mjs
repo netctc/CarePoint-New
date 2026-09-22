@@ -30,6 +30,7 @@ assert.match(service, /value: key, sourceLocale: "key"/, "Unknown translation ke
 assert.match(service, /return \{ value: version\.textEn, sourceLocale: "en"/, "Missing locale text must fall back to English");
 assert.match(service, /MAX_BUNDLE_KEYS\s*=\s*500/, "Localization bundle size must remain bounded");
 assert.match(service, /catalogVersion: catalog\.currentVersion/, "Clients must receive a monotonic catalog revision");
+assert.match(moduleSource, /contentVersion:\s*item\.translationVersion/, "Runtime bundle must expose canonical contentVersion for signed/dynamic forms");
 
 assert.match(service, /expectedVersion/, "Translation publication must use optimistic concurrency");
 assert.match(service, /Translation version conflict/, "Stale translation publication must fail explicitly");
