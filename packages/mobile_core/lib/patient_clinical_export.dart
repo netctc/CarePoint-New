@@ -247,7 +247,7 @@ class _PatientClinicalExportPageState extends State<PatientClinicalExportPage> {
     poller = Timer.periodic(const Duration(seconds: 2), (_) {
       final status = job?['status']?.toString();
       if (status == 'PENDING' || status == 'PROCESSING') {
-        void refreshStatus();
+        unawaited(refreshStatus());
       } else {
         poller?.cancel();
       }
