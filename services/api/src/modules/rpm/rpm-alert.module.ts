@@ -51,6 +51,13 @@ class ProviderRpmController {
   constructor(private readonly rpm: RpmAlertService) {}
 
   @RequirePermissions("CARE_COORDINATION_MANAGE")
+  @Get("rpm/policies")
+  @Header("Cache-Control", "no-store")
+  policies(@CurrentPrincipal() principal: AuthPrincipal) {
+    return this.rpm.providerPolicyCatalog(principal);
+  }
+
+  @RequirePermissions("CARE_COORDINATION_MANAGE")
   @Post("care-plans/:carePlanId/alert-rules")
   createRule(@CurrentPrincipal() principal: AuthPrincipal, @Param("carePlanId") carePlanId: string, @Body() body: CreateAlertRuleInput) {
     return this.rpm.createRule(principal, carePlanId, body);

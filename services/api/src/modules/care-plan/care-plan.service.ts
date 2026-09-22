@@ -297,6 +297,30 @@ export class CarePlanService {
     return { patientId, accessBasis: access.basis, items };
   }
 
+  async providerGoals(principal: AuthPrincipal, carePlanId: string) {
+    const access = await this.requireReadablePlan(principal, carePlanId);
+    const rows = await this.prisma.carePlanGoal.findMany({
+      where: { carePlanId: access.plan.id },
+      orderBy: [{ status: "asc" }, { periodStart: "asc" }],
+      take: MAX_ITEMS,
+    });
+    const items = [];
+    for (const row of rows) items.push(this.presentGoal(row, await this.decrypt(row), access.basis));
+    return { patientId: access.plan.patientId, carePlanId: access.plan.id, accessBasis: access.basis, items };
+  }
+
+  async providerTasks(principal: AuthPrincipal, carePlanId: string) {
+    const access = await this.requireReadablePlan(principal, carePlanId);
+    const rows = await this.prisma.careTask.findMany({
+      where: { carePlanId: access.plan.id },
+      orderBy: [{ status: "asc" }, { dueAt: "asc" }, { createdAt: "asc" }],
+      take: MAX_ITEMS,
+    });
+    const items = [];
+    for (const row of rows) items.push(this.presentTask(row, await this.decrypt(row), access.basis));
+    return { patientId: access.plan.patientId, carePlanId: access.plan.id, accessBasis: access.basis, items };
+  }
+
   async updatePlan(principal: AuthPrincipal, carePlanId: string, input: UpdateCarePlanInput) {
     const row = await this.prisma.carePlan.findUnique({
       where: { id: carePlanId },
