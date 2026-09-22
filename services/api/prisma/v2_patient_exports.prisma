@@ -1,0 +1,52 @@
+model PatientClinicalExportJob {
+  id                String   @id @default(uuid())
+  patientId         String
+  accountId         String
+  idempotencyKey    String
+  requestDigest     String
+  format            String
+  scopes            Json
+  status            String   @default("QUEUED")
+  snapshotAt        DateTime
+  expiresAt         DateTime
+  storageProvider   String?
+  objectKey         String?  @unique
+  mediaType         String?
+  byteLength        Int?
+  contentDigest     String?
+  blobAlgorithm     String?
+  blobKeyId         String?
+  blobWrappedKey    String?
+  blobIv            String?
+  attemptCount      Int      @default(0)
+  availableAt       DateTime @default(now())
+  leaseOwner        String?
+  leaseUntil        DateTime?
+  errorCode         String?
+  readyAt           DateTime?
+  expiredAt         DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  grants            PatientClinicalExportDownloadGrant[]
+
+  @@unique([accountId, idempotencyKey])
+  @@index([accountId, createdAt])
+  @@index([patientId, status, createdAt])
+  @@index([status, availableAt])
+  @@index([leaseUntil])
+  @@index([expiresAt, status])
+}
+
+model PatientClinicalExportDownloadGrant {
+  id         String                   @id @default(uuid())
+  jobId      String
+  accountId  String
+  tokenHash  String                   @unique
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime                 @default(now())
+  job        PatientClinicalExportJob @relation(fields: [jobId], references: [id], onDelete: Restrict)
+
+  @@index([jobId, accountId, expiresAt])
+  @@index([expiresAt, consumedAt])
+}
