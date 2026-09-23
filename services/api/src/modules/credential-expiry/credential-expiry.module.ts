@@ -14,6 +14,18 @@ const SWEEP_MS = 6 * 60 * 60 * 1000;
 const DEFAULT_WINDOWS = [90, 30, 7];
 
 type State = "CURRENT" | "EXPIRING" | "EXPIRED" | "MISSING";
+type ExpiryItem = {
+  providerId: string;
+  providerDisplayName: string;
+  providerClass: string;
+  accountId: string;
+  credentialType: string;
+  credentialId: string | null;
+  state: State;
+  validUntil: string | null;
+  daysRemaining: number | null;
+  operationallyBlocked: boolean;
+};
 type UpdatePolicyBody = { notificationsEnabled?: boolean; warningDays?: number[] };
 
 @Injectable()
@@ -143,7 +155,7 @@ class CredentialExpiryService implements OnModuleInit, OnModuleDestroy {
       },
       orderBy: [{ displayName: "asc" }, { id: "asc" }],
     });
-    const out: Array<Record<string, unknown>> = [];
+    const out: ExpiryItem[] = [];
     for (const provider of providers) {
       if (!provider.userId) continue;
       const required = provider.class === "DOCTOR"
@@ -175,7 +187,7 @@ class CredentialExpiryService implements OnModuleInit, OnModuleDestroy {
     return out;
   }
 
-  private row(provider: {id:string;displayName:string;class:string;userId:string|null}, type:string, credentialId:string, validUntil:Date|null, days:number|null, state:State) {
+  private row(provider: {id:string;displayName:string;class:string;userId:string|null}, type:string, credentialId:string, validUntil:Date|null, days:number|null, state:State): ExpiryItem {
     return {
       providerId: provider.id, providerDisplayName: provider.displayName, providerClass: provider.class,
       accountId: provider.userId, credentialType: type, credentialId, state,
