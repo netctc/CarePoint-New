@@ -42,6 +42,15 @@ type BuilderQuestion = {
   maxLength: string;
 };
 
+type TaxonomyCopy = Record<
+  | "title" | "eyebrow" | "subtitle" | "category" | "capabilities" | "save"
+  | "saving" | "saved" | "forms" | "newForm" | "code" | "purpose"
+  | "create" | "labels" | "questions" | "addQuestion" | "draft" | "activate"
+  | "required" | "options" | "observations" | "questionnaires" | "offlineHint"
+  | "signatureHint" | "empty" | "reload" | "error",
+  string
+>;
+
 const MODALITIES = ["CLINIC", "TELEMEDICINE", "HOME_VISIT"] as const;
 const ORDER_CAPS = ["PRESCRIPTION", "LABORATORY", "IMAGING", "LAB_RESULT_ENTRY", "LAB_RESULT_VALIDATE", "SPECIMEN_COLLECTION", "PHYSIOTHERAPY", "NUTRITION"] as const;
 const SUMMARY = ["HEALTH_PROFILE", "ALLERGIES", "CONDITIONS", "MEDICATIONS"] as const;
@@ -49,7 +58,7 @@ const WORKFLOW = ["CATEGORY_FORMS", "HOME_VISIT_ARRIVAL", "SERVICE_COMPLETION_CH
 const PURPOSES = ["GENERAL", "HOME_VISIT", "SERVICE_COMPLETION", "PROCEDURE_CHECKLIST", "TRANSPORT_EQUIPMENT"] as const;
 const TYPES: QuestionType[] = ["BOOLEAN", "SINGLE_CHOICE", "MULTI_CHOICE", "NUMBER", "TEXT", "DATE"];
 
-const copy: Record<Locale, Record<string, string>> = {
+const copy: Record<Locale, TaxonomyCopy> = {
   en: { title: "Provider taxonomy", eyebrow: "P0 · ADM-106 / ADM-107", subtitle: "Versioned category forms and server-enforced capability matrix.", category: "Category", capabilities: "Capabilities", save: "Save capabilities", saving: "Saving…", saved: "Saved.", forms: "Versioned forms", newForm: "New form", code: "Code", purpose: "Purpose", create: "Create form", labels: "Labels", questions: "Questions", addQuestion: "Add question", draft: "Create draft version", activate: "Activate", required: "Required", options: "Choice options", observations: "Observation codes", questionnaires: "Questionnaire codes", offlineHint: "HOME_VISIT enables offline field-sync eligibility; server appointment checks still apply.", signatureHint: "SERVICE_COMPLETION_CHECKLIST governs service receipt/signature together with server evidence checks.", empty: "No forms for this category.", reload: "Reload", error: "Request failed." },
   ar: { title: "تصنيف مقدمي الخدمة", eyebrow: "P0 · ADM-106 / ADM-107", subtitle: "نماذج حسب الفئة بإصدارات ومصفوفة صلاحيات يفرضها الخادم.", category: "الفئة", capabilities: "الصلاحيات", save: "حفظ الصلاحيات", saving: "جارٍ الحفظ…", saved: "تم الحفظ.", forms: "النماذج ذات الإصدارات", newForm: "نموذج جديد", code: "الرمز", purpose: "الغرض", create: "إنشاء النموذج", labels: "التسميات", questions: "الأسئلة", addQuestion: "إضافة سؤال", draft: "إنشاء نسخة مسودة", activate: "تفعيل", required: "إلزامي", options: "خيارات الاختيار", observations: "رموز القياسات", questionnaires: "رموز الاستبيانات", offlineHint: "HOME_VISIT يتيح أهلية المزامنة دون اتصال مع بقاء تحقق الخادم من الموعد.", signatureHint: "SERVICE_COMPLETION_CHECKLIST يحكم توقيع/استلام الخدمة مع تحقق الأدلة في الخادم.", empty: "لا توجد نماذج لهذه الفئة.", reload: "تحديث", error: "فشل الطلب." },
   fr: { title: "Taxonomie des prestataires", eyebrow: "P0 · ADM-106 / ADM-107", subtitle: "Formulaires versionnés par catégorie et matrice de capacités imposée par le serveur.", category: "Catégorie", capabilities: "Capacités", save: "Enregistrer les capacités", saving: "Enregistrement…", saved: "Enregistré.", forms: "Formulaires versionnés", newForm: "Nouveau formulaire", code: "Code", purpose: "But", create: "Créer le formulaire", labels: "Libellés", questions: "Questions", addQuestion: "Ajouter une question", draft: "Créer une version brouillon", activate: "Activer", required: "Obligatoire", options: "Options de choix", observations: "Codes d’observation", questionnaires: "Codes de questionnaire", offlineHint: "HOME_VISIT autorise l’éligibilité à la synchro hors ligne; le serveur vérifie toujours le rendez-vous.", signatureHint: "SERVICE_COMPLETION_CHECKLIST gouverne la signature/réception avec contrôle serveur des preuves.", empty: "Aucun formulaire pour cette catégorie.", reload: "Actualiser", error: "Échec de la requête." },

@@ -27,6 +27,7 @@ interface UpdateOtherProviderCapabilitiesInput {
   clinicalOrderCapabilities?: string[];
   clinicalSummarySections?: string[];
   observationCodes?: string[];
+  questionnaireCodes?: string[];
   workflowCapabilities?: string[];
 }
 
