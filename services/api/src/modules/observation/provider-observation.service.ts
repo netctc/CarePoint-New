@@ -4,6 +4,7 @@ import type { EncryptedEnvelope } from "@carepoint/security";
 import { PrismaService } from "../../infrastructure/prisma/prisma.module";
 import { DatabaseAuditService } from "../../infrastructure/audit/audit.service";
 import { ClinicalEnvelopeService } from "../clinical/clinical-envelope.service";
+import { ProviderCategoryCapabilityService } from "../providers/provider-category-capability.service";
 import {
   assertCanonicalRange,
   convertMeasurement,
@@ -42,16 +43,47 @@ export class ProviderObservationService {
     private readonly prisma: PrismaService,
     private readonly audit: DatabaseAuditService,
     private readonly envelope: ClinicalEnvelopeService,
+    private readonly capabilities: ProviderCategoryCapabilityService,
   ) {}
 
+  async catalog(principal: AuthPrincipal) {
+    const scope = await this.providerObservationScope(principal);
+    if (scope !== null && scope.size === 0) return { items: [], capabilityEnforced: true };
+    const versions = await this.prisma.observationTypeVersion.findMany({
+      where: {
+        status: "ACTIVE",
+        observationType: {
+          active: true,
+          ...(scope === null ? {} : { code: { in: [...scope] } }),
+        },
+      },
+      include: { observationType: true },
+      orderBy: { observationType: { code: "asc" } },
+    });
+    return {
+      items: versions.map((item) => ({
+        id: item.observationType.id,
+        code: item.observationType.code,
+        labels: item.observationType.labels,
+        category: item.observationType.category,
+        version: item.version,
+        canonicalUnitCode: item.canonicalUnitCode,
+        allowedUnitCodes: this.jsonStringArray(item.allowedUnitCodes),
+        precision: item.precision,
+      })),
+      capabilityEnforced: principal.role === "OTHER_PROVIDER",
+    };
+  }
+
   async record(principal: AuthPrincipal, patientId: string, raw: Record<string, unknown>) {
-    const provider = await this.requireDoctor(principal);
+    const input = this.input(raw);
+    const code = normalizeMetricCode(input.code);
+    const provider = await this.requireProvider(principal, code);
     const patient = await this.prisma.patientProfile.findUnique({
       where: { id: this.id(patientId, "patientId") },
       select: { id: true },
     });
     if (!patient) throw new NotFoundException("Patient not found.");
-    const input = this.input(raw);
     const observedAt = normalizeObservedAt(input.observedAt);
 
     let encounter: { id: string; patientId: string; providerId: string; status: string } | null = null;
@@ -97,7 +129,6 @@ export class ProviderObservationService {
       throw new ForbiddenException("Provider observation write requires a current treatment assignment.");
     }
 
-    const code = normalizeMetricCode(input.code);
     const version = await this.prisma.observationTypeVersion.findFirst({
       where: { status: "ACTIVE", observationType: { code, active: true } },
       include: { observationType: true },
@@ -190,18 +221,34 @@ export class ProviderObservationService {
     };
   }
 
-  private async requireDoctor(principal: AuthPrincipal) {
-    if (principal.role !== "DOCTOR") {
-      throw new ForbiddenException("Provider observation entry requires DOCTOR role.");
+  private async requireProvider(principal: AuthPrincipal, code: string) {
+    if (principal.role === "DOCTOR") {
+      const provider = await this.prisma.provider.findUnique({
+        where: { userId: principal.accountId },
+        select: { id: true, class: true, status: true },
+      });
+      if (!provider || provider.class !== "DOCTOR" || provider.status !== "ACTIVE") {
+        throw new ForbiddenException("An active doctor provider profile is required.");
+      }
+      return provider;
     }
-    const provider = await this.prisma.provider.findUnique({
-      where: { userId: principal.accountId },
-      select: { id: true, class: true, status: true },
-    });
-    if (!provider || provider.class !== "DOCTOR" || provider.status !== "ACTIVE") {
-      throw new ForbiddenException("An active doctor provider profile is required.");
+    if (principal.role === "OTHER_PROVIDER") {
+      const context = await this.capabilities.workspaceContext(principal);
+      if (!context.observationCodes.has(code)) {
+        throw new ForbiddenException(`Other Provider category is not authorized for observation ${code}.`);
+      }
+      return { id: context.providerId, class: "OTHER_PROVIDER", status: "ACTIVE" };
     }
-    return provider;
+    throw new ForbiddenException("Provider observation entry requires an active healthcare provider role.");
+  }
+
+  private async providerObservationScope(principal: AuthPrincipal): Promise<Set<string> | null> {
+    if (principal.role === "DOCTOR") return null;
+    if (principal.role === "OTHER_PROVIDER") {
+      const context = await this.capabilities.workspaceContext(principal);
+      return context.observationCodes;
+    }
+    throw new ForbiddenException("Provider observation catalog requires an active healthcare provider role.");
   }
 
   private async currentTreatmentRelationship(providerId: string, patientId: string) {

@@ -2,6 +2,7 @@ import { Body, Controller, Get, Header, Module, Param, Patch, Post, Query } from
 import type { AuthPrincipal } from "@carepoint/identity";
 import { CurrentPrincipal, RequirePermissions } from "../../security/api-security.module";
 import { ClinicalModule } from "../clinical/clinical.module";
+import { ProvidersModule } from "../providers/providers.module";
 import {
   ObservationService,
   type CreateConversionInput,
@@ -187,6 +188,18 @@ class DoctorObservationController {
   }
 }
 
+@Controller("provider/observations")
+class ProviderObservationCatalogController {
+  constructor(private readonly observations: ProviderObservationService) {}
+
+  @RequirePermissions("CLINICAL_RECORD_WRITE")
+  @Get("catalog")
+  @Header("Cache-Control", "no-store")
+  catalog(@CurrentPrincipal() principal: AuthPrincipal) {
+    return this.observations.catalog(principal);
+  }
+}
+
 @Controller("provider/patients")
 class ProviderObservationController {
   constructor(
@@ -221,11 +234,12 @@ class ProviderObservationController {
 }
 
 @Module({
-  imports: [ClinicalModule],
+  imports: [ClinicalModule, ProvidersModule],
   controllers: [
     AdminClinicalMetricController,
     PatientObservationController,
     DoctorObservationController,
+    ProviderObservationCatalogController,
     ProviderObservationController,
   ],
   providers: [ObservationService, ProviderObservationService, ObservationTrendService, ObservationContextService, ObservationCorrectionService],

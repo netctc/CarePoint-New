@@ -27,12 +27,13 @@ class _ProviderAppState extends State<ProviderApp> {
       CarePointLoginGate(locale: locale, expectedRole: 'OTHER_PROVIDER', title: cpText(locale, 'provider.title'), accent: const Color(0xFF10B981),
         builder: (_, session, signOut) => OtherProviderAccessGate(session: session, locale: locale, onSignOut: signOut, accent: const Color(0xFF10B981),
           activeBuilder: (_) => OtherProviderCapabilityScope(session: session, locale: locale, accent: const Color(0xFF10B981),
-            builder: (_, serviceModalities, clinicalOrderCapabilities, workflowCapabilities) => CareProviderActions(session: session, locale: locale, onSignOut: signOut, accent: const Color(0xFF10B981), transport: true,
+            builder: (_, serviceModalities, clinicalOrderCapabilities, observationCodes, workflowCapabilities) => CareProviderActions(session: session, locale: locale, onSignOut: signOut, accent: const Color(0xFF10B981), transport: true,
               allowedModalities: serviceModalities.toList(),
               child: ProviderNursingLauncher(
                 session: session,
                 locale: locale,
                 workflowCapabilities: workflowCapabilities,
+                observationCodes: observationCodes,
                 accent: const Color(0xFF10B981),
                 child: ProviderFieldMediaLauncher(
                   session: session,
