@@ -37,7 +37,7 @@ type Relation = {
 
 type Queue = { items: Relation[] };
 
-const copy: Record<Locale, Record<string, string>> = {
+const copy = {
   en: {
     title: "Dependent relationship review",
     eyebrow: "ADM-098 · Family access governance",
@@ -182,7 +182,7 @@ const copy: Record<Locale, Record<string, string>> = {
     revoked: "Revocada",
     noExpiry: "Sin vencimiento",
   },
-};
+} as const satisfies Record<Locale, Record<string, string>>;
 
 const SAFE_REASON = /^[A-Z][A-Z0-9_:-]{1,63}$/;
 
