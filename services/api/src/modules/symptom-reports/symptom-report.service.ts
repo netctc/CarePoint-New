@@ -166,7 +166,10 @@ export class SymptomReportService {
         patientId,
         ...(reportedAt ? { reportedAt } : {}),
       },
-      orderBy: { reportedAt: "desc" },
+      orderBy: [
+        { occurredAt: { sort: "desc", nulls: "last" } },
+        { reportedAt: "desc" },
+      ],
       take: limit,
     });
     const items = [];
@@ -478,6 +481,7 @@ export class SymptomReportService {
       notes: payload.notes,
       occurredAt: row.occurredAt,
       reportedAt: row.reportedAt,
+      effectiveAt: row.occurredAt ?? row.reportedAt,
       appointmentId: row.appointmentId,
       carePlanId: row.carePlanId,
       provenance: {
