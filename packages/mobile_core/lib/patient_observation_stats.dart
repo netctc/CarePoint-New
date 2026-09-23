@@ -24,6 +24,7 @@ class _PatientObservationStatsPageState extends State<PatientObservationStatsPag
   String? selectedCode;
   String selectedPeriod = '30D';
   Map<String, dynamic> stats = const {};
+  List<Map<String, dynamic>> measurements = const [];
 
   CarePointApi get api => widget.session.api;
   CarePointLocale get locale => widget.locale;
@@ -69,15 +70,28 @@ class _PatientObservationStatsPageState extends State<PatientObservationStatsPag
     });
     try {
       final range = _range(selectedPeriod);
-      final payload = await api.patientObservationStats(
-        code,
-        from: range.$1?.toIso8601String(),
-        to: range.$2?.toIso8601String(),
-      );
+      final values = await Future.wait<Map<String, dynamic>>([
+        api.patientObservationStats(
+          code,
+          from: range.$1?.toIso8601String(),
+          to: range.$2?.toIso8601String(),
+        ),
+        api.patientObservationHistory(
+          code,
+          from: range.$1?.toIso8601String(),
+          to: range.$2?.toIso8601String(),
+          limit: 100,
+        ),
+      ]);
+      final payload = values[0];
+      final history = values[1];
       if (payload['automatedClinicalInference'] != false || payload['automatedDiagnosis'] != false) {
         throw StateError(patientObservationStatsText(locale, 'unsafeProjection'));
       }
-      if (mounted) setState(() => stats = payload);
+      if (mounted) setState(() {
+        stats = payload;
+        measurements = _maps(history['items']);
+      });
     } catch (value) {
       if (mounted) setState(() => error = value.toString());
     } finally {
@@ -134,6 +148,7 @@ class _PatientObservationStatsPageState extends State<PatientObservationStatsPag
                         setState(() {
                           selectedCode = value;
                           stats = const {};
+                          measurements = const [];
                         });
                         await _loadStats();
                       },
@@ -150,6 +165,7 @@ class _PatientObservationStatsPageState extends State<PatientObservationStatsPag
                           setState(() {
                             selectedPeriod = period;
                             stats = const {};
+                            measurements = const [];
                           });
                           await _loadStats();
                         },
@@ -167,6 +183,8 @@ class _PatientObservationStatsPageState extends State<PatientObservationStatsPag
                       _periodSummary(),
                       const SizedBox(height: 10),
                       ..._series.map(_seriesCard),
+                      const SizedBox(height: 12),
+                      _measurementSection(),
                     ],
                   ],
                 ],
@@ -223,6 +241,127 @@ class _PatientObservationStatsPageState extends State<PatientObservationStatsPag
         ),
       );
 
+
+  Widget _measurementSection() => Card(
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Text(patientObservationStatsText(locale, 'sourceMeasurements'), style: const TextStyle(fontWeight: FontWeight.w900)),
+            const SizedBox(height: 6),
+            Text(patientObservationStatsText(locale, 'contextSafety'), style: const TextStyle(fontSize: 12)),
+            const SizedBox(height: 8),
+            if (measurements.isEmpty)
+              Text(patientObservationStatsText(locale, 'emptyMeasurements'))
+            else
+              ...measurements.reversed.take(100).map(_measurementTile),
+          ]),
+        ),
+      );
+
+  Widget _measurementTile(Map<String, dynamic> item) => ListTile(
+        contentPadding: EdgeInsets.zero,
+        leading: const Icon(Icons.monitor_heart_outlined),
+        title: Text('${_number(item['value'])} ${item['unitCode'] ?? ''}'.trim(), style: const TextStyle(fontWeight: FontWeight.w800)),
+        subtitle: Text([
+          _dateTime(item['observedAt']),
+          '${patientObservationStatsText(locale, 'source')}: ${item['sourceType'] ?? '—'}',
+        ].join('\n')),
+        trailing: IconButton(
+          key: ValueKey('patient-observation-context-${item['id']}'),
+          onPressed: () => _editContext(item),
+          tooltip: patientObservationStatsText(locale, 'notesContext'),
+          icon: const Icon(Icons.notes_outlined),
+        ),
+      );
+
+  Future<void> _editContext(Map<String, dynamic> measurement) async {
+    final observationId = measurement['id']?.toString() ?? '';
+    if (observationId.isEmpty) return;
+    try {
+      final current = await api.patientObservationContext(observationId);
+      if (!mounted) return;
+      final latest = _map(current['latest']);
+      final contextController = TextEditingController(text: latest['context']?.toString() ?? '');
+      final noteController = TextEditingController(text: latest['note']?.toString() ?? '');
+      final currentSequence = current['currentSequence'] is num
+          ? (current['currentSequence'] as num).toInt()
+          : int.tryParse(current['currentSequence']?.toString() ?? '') ?? 0;
+      final revisionCount = _maps(current['revisions']).length;
+      final accepted = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(patientObservationStatsText(locale, 'notesContext')),
+          content: SingleChildScrollView(
+            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              Text(
+                '${_number(measurement['value'])} ${measurement['unitCode'] ?? ''} · ${_dateTime(measurement['observedAt'])}',
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 6),
+              Text(patientObservationStatsText(locale, 'valueImmutable'), style: const TextStyle(fontSize: 12)),
+              if (revisionCount > 0)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text('${patientObservationStatsText(locale, 'contextRevisions')}: $revisionCount'),
+                ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: contextController,
+                maxLines: 3,
+                decoration: InputDecoration(
+                  labelText: patientObservationStatsText(locale, 'context'),
+                  border: const OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: noteController,
+                maxLines: 5,
+                decoration: InputDecoration(
+                  labelText: patientObservationStatsText(locale, 'note'),
+                  border: const OutlineInputBorder(),
+                ),
+              ),
+            ]),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: Text(patientObservationStatsText(locale, 'cancel')),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: Text(patientObservationStatsText(locale, 'saveContext')),
+            ),
+          ],
+        ),
+      );
+      final contextValue = contextController.text.trim();
+      final noteValue = noteController.text.trim();
+      contextController.dispose();
+      noteController.dispose();
+      if (accepted != true) return;
+      if (contextValue.isEmpty && noteValue.isEmpty) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(patientObservationStatsText(locale, 'contextRequired'))));
+        return;
+      }
+      final updated = await api.updatePatientObservationContext(
+        observationId,
+        expectedSequence: currentSequence,
+        context: contextValue.isEmpty ? null : contextValue,
+        note: noteValue.isEmpty ? null : noteValue,
+      );
+      if (updated['valueMutated'] != false) {
+        throw StateError(patientObservationStatsText(locale, 'unsafeContextWrite'));
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(patientObservationStatsText(locale, 'contextSaved'))));
+      }
+    } catch (value) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value.toString())));
+    }
+  }
+
   Widget _row(String key, String value) => Padding(
         padding: const EdgeInsets.only(bottom: 6),
         child: Row(children: [
@@ -275,6 +414,7 @@ String patientObservationStatsText(CarePointLocale locale, String key) =>
 
 const Map<CarePointLocale, Map<String, String>> _patientObservationStatsCopy = {
   CarePointLocale.en: {
+    'sourceMeasurements':'Source measurements','contextSafety':'Notes/context are versioned separately. Editing them never changes the recorded measurement value.','emptyMeasurements':'No source measurements in this period.','source':'Source','notesContext':'Notes & context','valueImmutable':'The value, unit and measurement time are read-only in this action.','contextRevisions':'Context revisions','context':'Measurement context','note':'Note','cancel':'Cancel','saveContext':'Save revision','contextRequired':'Enter context or a note.','contextSaved':'Measurement context revision saved.','unsafeContextWrite':'Context update did not confirm value immutability.',
     'title':'Measurement summary','refresh':'Refresh','metric':'Measurement type',
     'safety':'This summary is descriptive only. It does not diagnose a condition or classify values as normal or abnormal.',
     'emptyCatalog':'No active measurement types are available.','emptyPeriod':'No measurements are available in this period.',
@@ -285,6 +425,7 @@ const Map<CarePointLocale, Map<String, String>> _patientObservationStatsCopy = {
     'unsafeProjection':'Observation statistics did not declare clinical inference disabled.',
   },
   CarePointLocale.ar: {
+    'sourceMeasurements':'القياسات المصدرية','contextSafety':'تُحفظ الملاحظات والسياق كمراجعات منفصلة ولا يؤدي تعديلها إلى تغيير قيمة القياس المسجلة.','emptyMeasurements':'لا توجد قياسات مصدرية في هذه الفترة.','source':'المصدر','notesContext':'ملاحظات وسياق','valueImmutable':'القيمة والوحدة ووقت القياس للقراءة فقط في هذه العملية.','contextRevisions':'مراجعات السياق','context':'سياق القياس','note':'ملاحظة','cancel':'إلغاء','saveContext':'حفظ المراجعة','contextRequired':'أدخل سياقاً أو ملاحظة.','contextSaved':'تم حفظ مراجعة سياق القياس.','unsafeContextWrite':'لم يؤكد تحديث السياق عدم تغيير قيمة القياس.',
     'title':'ملخص القياسات','refresh':'تحديث','metric':'نوع القياس',
     'safety':'هذا الملخص وصفي فقط. لا يشخّص حالة ولا يصنّف القيم تلقائياً كطبيعية أو غير طبيعية.',
     'emptyCatalog':'لا توجد أنواع قياس نشطة.','emptyPeriod':'لا توجد قياسات في هذه الفترة.',
@@ -295,6 +436,7 @@ const Map<CarePointLocale, Map<String, String>> _patientObservationStatsCopy = {
     'unsafeProjection':'إحصاءات القياس لم تصرّح بأن الاستنتاج السريري معطل.',
   },
   CarePointLocale.fr: {
+    'sourceMeasurements':'Mesures sources','contextSafety':'Les notes et le contexte sont versionnés séparément. Leur modification ne change jamais la valeur mesurée.','emptyMeasurements':'Aucune mesure source sur cette période.','source':'Source','notesContext':'Notes et contexte','valueImmutable':'La valeur, l’unité et l’heure de mesure sont en lecture seule ici.','contextRevisions':'Révisions du contexte','context':'Contexte de mesure','note':'Note','cancel':'Annuler','saveContext':'Enregistrer la révision','contextRequired':'Saisissez un contexte ou une note.','contextSaved':'Révision du contexte enregistrée.','unsafeContextWrite':'La mise à jour du contexte n’a pas confirmé l’immutabilité de la valeur.',
     'title':'Résumé des mesures','refresh':'Actualiser','metric':'Type de mesure',
     'safety':'Ce résumé est uniquement descriptif. Il ne diagnostique pas et ne classe pas automatiquement les valeurs comme normales ou anormales.',
     'emptyCatalog':'Aucun type de mesure actif.','emptyPeriod':'Aucune mesure disponible sur cette période.',
@@ -305,6 +447,7 @@ const Map<CarePointLocale, Map<String, String>> _patientObservationStatsCopy = {
     'unsafeProjection':'Les statistiques n’ont pas déclaré l’inférence clinique désactivée.',
   },
   CarePointLocale.es: {
+    'sourceMeasurements':'Mediciones fuente','contextSafety':'Las notas y el contexto se versionan por separado. Editarlos nunca cambia el valor registrado.','emptyMeasurements':'No hay mediciones fuente en este periodo.','source':'Origen','notesContext':'Notas y contexto','valueImmutable':'El valor, la unidad y la hora de medición son de solo lectura en esta acción.','contextRevisions':'Revisiones de contexto','context':'Contexto de medición','note':'Nota','cancel':'Cancelar','saveContext':'Guardar revisión','contextRequired':'Introduce contexto o una nota.','contextSaved':'Revisión de contexto guardada.','unsafeContextWrite':'La actualización de contexto no confirmó la inmutabilidad del valor.',
     'title':'Resumen de mediciones','refresh':'Actualizar','metric':'Tipo de medición',
     'safety':'Este resumen es solo descriptivo. No diagnostica ni clasifica automáticamente los valores como normales o anormales.',
     'emptyCatalog':'No hay tipos de medición activos.','emptyPeriod':'No hay mediciones disponibles en este periodo.',

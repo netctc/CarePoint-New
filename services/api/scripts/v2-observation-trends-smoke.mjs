@@ -70,4 +70,5 @@ test("empty trend is explicit and carries no inferred normality", () => {
 });
 
 await import("./v2-patient-observation-stats-ui-smoke.mjs");
+await import("./v2-patient-observation-context-smoke.mjs");
 console.log("V2 observation trend acceptance passed");
