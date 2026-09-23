@@ -57,6 +57,66 @@ extension CarePointSelfServiceApi on CarePointApi {
   Future<List<Map<String, dynamic>>> patientConsents() async => _asList(await _send('GET', '/consents/me'));
   Future<Map<String, dynamic>> revokePatientConsent(String consentId) async => _asMap(await _send('POST', '/consents/${Uri.encodeComponent(consentId)}/revoke', body: const {}));
   Future<Map<String, dynamic>> regrantPatientConsent(String consentId) async => _asMap(await _send('POST', '/consents/${Uri.encodeComponent(consentId)}/regrant', body: const {}));
+
+  // PAT-133 / PAT-134 / PAT-135 — dependent authority, context and isolated consent.
+  Future<Map<String, dynamic>> patientDependents() async =>
+      _asMap(await _send('GET', '/patient/dependents'));
+  Future<Map<String, dynamic>> patientContext() async =>
+      _asMap(await _send('GET', '/patient/context'));
+  Future<Map<String, dynamic>> switchPatientContext({String? patientId, required String mode}) async =>
+      _asMap(await _send('POST', '/patient/context/switch', body: {
+        'mode': mode,
+        if (patientId?.trim().isNotEmpty == true) 'patientId': patientId!.trim(),
+      }));
+  Future<Map<String, dynamic>> requestDependentRelation({
+    required String targetPatientId,
+    required String relationshipType,
+    required List<String> scopes,
+    String? validUntil,
+    required List<Map<String, dynamic>> evidence,
+  }) async => _asMap(await _send('POST', '/patient/dependents', body: {
+    'targetPatientId': targetPatientId.trim(),
+    'relationshipType': relationshipType,
+    'scopes': scopes,
+    if (validUntil?.trim().isNotEmpty == true) 'validUntil': validUntil!.trim(),
+    'evidence': evidence,
+  }));
+  Future<Map<String, dynamic>> updateDependentRelation(
+    String relationId, {
+    required String relationshipType,
+    required List<String> scopes,
+    String? validUntil,
+    List<Map<String, dynamic>>? evidence,
+  }) async => _asMap(await _send('PATCH', '/patient/dependents/${Uri.encodeComponent(relationId)}', body: {
+    'relationshipType': relationshipType,
+    'scopes': scopes,
+    'validUntil': validUntil?.trim().isNotEmpty == true ? validUntil!.trim() : null,
+    if (evidence != null) 'evidence': evidence,
+  }));
+  Future<Map<String, dynamic>> revokeDependentRelation(String relationId) async =>
+      _asMap(await _send('POST', '/patient/dependents/${Uri.encodeComponent(relationId)}/revoke', body: const {}));
+  Future<Map<String, dynamic>> dependentConsents(String patientId) async =>
+      _asMap(await _send('GET', '/patient/dependents/patient/${Uri.encodeComponent(patientId)}/consents'));
+  Future<Map<String, dynamic>> grantDependentConsent(
+    String patientId, {
+    String? providerId,
+    required String scope,
+    required String version,
+    String purpose = 'TREATMENT',
+    String? expiresAt,
+  }) async => _asMap(await _send('POST', '/patient/dependents/patient/${Uri.encodeComponent(patientId)}/consents', body: {
+    if (providerId?.trim().isNotEmpty == true) 'providerId': providerId!.trim(),
+    'scope': scope,
+    'version': version,
+    'purpose': purpose,
+    if (expiresAt?.trim().isNotEmpty == true) 'expiresAt': expiresAt!.trim(),
+  }));
+  Future<Map<String, dynamic>> revokeDependentConsent(String patientId, String consentId) async =>
+      _asMap(await _send(
+        'POST',
+        '/patient/dependents/patient/${Uri.encodeComponent(patientId)}/consents/${Uri.encodeComponent(consentId)}/revoke',
+        body: const {},
+      ));
   /// Server revocation is best effort; local sign-out always clears secrets.
   Future<void> signOutCurrentSession() async {
     try {

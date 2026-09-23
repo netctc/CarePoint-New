@@ -32,6 +32,7 @@ import 'package:carepoint_mobile_core/patient_symptom_journal.dart';
 import 'package:carepoint_mobile_core/patient_social_history.dart';
 import 'package:carepoint_mobile_core/patient_clinical_alerts.dart';
 import 'package:carepoint_mobile_core/patient_consents.dart';
+import 'package:carepoint_mobile_core/patient_dependents.dart';
 import 'package:carepoint_mobile_core/patient_consents_localization.dart';
 import 'package:flutter/material.dart';
 import 'clinical_timeline.dart';
@@ -66,12 +67,40 @@ class PatientShell extends StatefulWidget {
 }
 class _PatientShellState extends State<PatientShell> {
   int tab = 0, visitsVersion = 0;
+  Map<String, dynamic> activePatientContext = const {};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPatientContext();
+  }
+
+  Future<void> _loadPatientContext() async {
+    try {
+      final value = await widget.session.api.patientContext();
+      if (mounted) setState(() => activePatientContext = value);
+    } catch (_) {
+      if (mounted) setState(() => activePatientContext = const {});
+    }
+  }
   Future<void> openAvailability({String? requestId}) async {
     final booked = await Navigator.push<bool>(context, MaterialPageRoute(builder: (_) => CareAvailabilityCentrePage(session: widget.session, locale: widget.locale, focusRequestId: requestId)));
     if (mounted && booked == true) setState(() { visitsVersion++; tab = 1; });
   }
   Future<void> openProfile() async { await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => PatientProfilePage(session: widget.session, locale: widget.locale))); }
   Future<void> openConsents() async { await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => PatientConsentLifecyclePage(session: widget.session, locale: widget.locale))); }
+  Future<void> openDependents() async {
+    final changed = await Navigator.push<bool>(context, MaterialPageRoute(builder: (_) => Directionality(
+      textDirection: widget.locale.textDirection,
+      child: PatientDependentsPage(session: widget.session, locale: widget.locale),
+    )));
+    if (changed == true) {
+      await _loadPatientContext();
+      if (mounted) setState(() => visitsVersion++);
+    } else {
+      await _loadPatientContext();
+    }
+  }
   Future<void> openEmergencyContacts() async { await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => PatientEmergencyContactsPage(session: widget.session, locale: widget.locale))); }
   Future<void> openEmergencyCard() async { await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => Directionality(textDirection: widget.locale.textDirection, child: PatientEmergencyCardPage(session: widget.session, locale: widget.locale)))); }
   Future<void> openAccessNeeds() async { await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => PatientAccessNeedsPage(session: widget.session, locale: widget.locale))); }
@@ -89,6 +118,15 @@ class _PatientShellState extends State<PatientShell> {
   Future<void> openSocialHistory() async { await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => Directionality(textDirection: widget.locale.textDirection, child: PatientSocialHistoryPage(session: widget.session, locale: widget.locale)))); }
   Future<void> openClinicalAlerts() async { await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => Directionality(textDirection: widget.locale.textDirection, child: PatientClinicalAlertsPage(session: widget.session, locale: widget.locale)))); }
   Future<void> openObservationStats() async { await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => Directionality(textDirection: widget.locale.textDirection, child: PatientObservationStatsPage(session: widget.session, locale: widget.locale)))); }
+  Widget _withPatientContext(Widget child) => Column(children: [
+    PatientActiveContextBanner(
+      locale: widget.locale,
+      contextData: activePatientContext,
+      onOpen: openDependents,
+    ),
+    Expanded(child: child),
+  ]);
+
   Widget healthTab() => Column(children: [
     Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 0), child: SizedBox(width: double.infinity, child: FilledButton.tonalIcon(
       key: const ValueKey('patient-access-needs-entry'), onPressed: openAccessNeeds, icon: const Icon(Icons.accessible_forward_outlined), label: Text(patientAccessNeedsText(widget.locale, 'open')),
@@ -143,6 +181,9 @@ class _PatientShellState extends State<PatientShell> {
   ]);
   Widget accountTab() => Column(children: [
     Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 0), child: SizedBox(width: double.infinity, child: FilledButton.tonalIcon(
+      key: const ValueKey('patient-dependents-entry'), onPressed: openDependents, icon: const Icon(Icons.family_restroom), label: Text(patientDependentsText(widget.locale, 'title')),
+    ))),
+    Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 0), child: SizedBox(width: double.infinity, child: FilledButton.tonalIcon(
       key: const ValueKey('patient-edit-profile-entry'), onPressed: openProfile, icon: const Icon(Icons.edit_outlined), label: Text(patientProfileText(widget.locale, 'edit')),
     ))),
     Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
@@ -155,9 +196,22 @@ class _PatientShellState extends State<PatientShell> {
   ]);
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('CarePoint'), actions: [PopupMenuButton<String>(onSelected: (v) { if (v == 'logout') widget.onSignOut(); }, itemBuilder: (_) => [PopupMenuItem(value: 'logout', child: Text(cpText(widget.locale, 'auth.signOut')))])]),
+    appBar: AppBar(
+      title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Text('CarePoint'),
+        if (activePatientContext.isNotEmpty)
+          Text(
+            '${activePatientContext['patientName'] ?? patientDependentsText(widget.locale, 'self')} · ${patientDependentsText(widget.locale, activePatientContext['mode']?.toString() ?? 'SELF')}',
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+          ),
+      ]),
+      actions: [
+        IconButton(onPressed: openDependents, icon: const Icon(Icons.family_restroom), tooltip: patientDependentsText(widget.locale, 'title')),
+        PopupMenuButton<String>(onSelected: (v) { if (v == 'logout') widget.onSignOut(); }, itemBuilder: (_) => [PopupMenuItem(value: 'logout', child: Text(cpText(widget.locale, 'auth.signOut')))]),
+      ],
+    ),
     body: IndexedStack(index: tab, children: [
-      CareDiscoveryPage(session: widget.session, locale: widget.locale, onBooked: () => setState(() { visitsVersion++; tab = 1; }), header: Padding(padding: const EdgeInsets.only(bottom: 20), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      _withPatientContext(CareDiscoveryPage(session: widget.session, locale: widget.locale, onBooked: () => setState(() { visitsVersion++; tab = 1; }), header: Padding(padding: const EdgeInsets.only(bottom: 20), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         FilledButton.icon(onPressed: () => openEmergencyAmbulanceFlow(context, session: widget.session, locale: widget.locale), icon: const Icon(Icons.emergency_share_outlined), label: Text(cpText(widget.locale, 'patient.emergencyAction'))),
         Text(cpText(widget.locale, 'patient.emergencyHint')),
         PatientActiveEmergencyEntryButton(session: widget.session, locale: widget.locale),
@@ -165,11 +219,11 @@ class _PatientShellState extends State<PatientShell> {
         PatientNotificationCentreEntryButton(session: widget.session, locale: widget.locale),
         PatientMessagesEntryButton(session: widget.session, locale: widget.locale),
         AvailabilityAlertEntryButton(session: widget.session, locale: widget.locale, onOpen: (requestId) => openAvailability(requestId: requestId)),
-      ]))),
-      CareVisitsPage(key: ValueKey(visitsVersion), session: widget.session, locale: widget.locale),
-      healthTab(),
-      PatientFinancialWorkspace(key: ValueKey('finance-$visitsVersion'), session: widget.session, locale: widget.locale),
-      accountTab(),
+      ])))),
+      _withPatientContext(CareVisitsPage(key: ValueKey(visitsVersion), session: widget.session, locale: widget.locale)),
+      _withPatientContext(healthTab()),
+      _withPatientContext(PatientFinancialWorkspace(key: ValueKey('finance-$visitsVersion'), session: widget.session, locale: widget.locale)),
+      _withPatientContext(accountTab()),
     ]),
     bottomNavigationBar: NavigationBar(selectedIndex: tab, onDestinationSelected: (v) => setState(() { tab = v; if (v == 1) visitsVersion++; }), destinations: [
       NavigationDestination(icon: const Icon(Icons.search), label: journeyText(widget.locale, 'search')),

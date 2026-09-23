@@ -133,7 +133,8 @@ export class ChangesSinceLastVisitService {
     const labResults = orderView.items.flatMap((order) => {
       if (order.type !== "LABORATORY") return [];
       const lab = this.object(order.labResult);
-      const status = lab.status === "VALIDATED" || lab.status === "RELEASED" ? lab.status : null;
+      const status: "VALIDATED" | "RELEASED" | null =
+        lab.status === "VALIDATED" || lab.status === "RELEASED" ? lab.status : null;
       const laboratoryResultId = this.text(lab.id);
       const occurredAt = this.date(lab.releasedAt) ?? this.date(lab.validatedAt);
       if (!status || !laboratoryResultId || !occurredAt || occurredAt <= since) return [];
