@@ -8,6 +8,11 @@ import { ClinicalEnvelopeService } from "../clinical/clinical-envelope.service";
 import { NotificationsService } from "../communications/notifications.service";
 import { PatientContextService } from "../dependents/dependents.service";
 import {
+  diffQuestionnaireAnswers,
+  normalizeQuestionnaireAnswers,
+  normalizeQuestionnaireSchema,
+} from "../questionnaire/questionnaire.engine";
+import {
   normalizeDueAt,
   normalizeFollowUpPayload,
   normalizePrepTask,
@@ -20,6 +25,18 @@ import {
 export interface ConfigurePrepInput { tasks: unknown[]; }
 export interface UpdatePrepTaskInput { status: string; sourceRef?: string | null; }
 export interface QuestionnaireRequestInput { questionnaireVersionId: string; appointmentId?: string | null; dueAt?: string | null; }
+export interface DoctorQuestionnaireRequestInput {
+  questionnaireVersionId: string;
+  appointmentId: string;
+  context: "PRE_VISIT" | "POST_VISIT" | "FOLLOW_UP";
+  dueAt: string;
+  idempotencyKey: string;
+}
+export interface SubmitRequestedQuestionnaireInput {
+  expectedLatestSequence: number;
+  answers: unknown;
+  healthChanged?: boolean | null;
+}
 export interface FollowUpInput { expectedVersion?: number; release?: boolean; reasonCode?: string | null; followUp: unknown; }
 
 type EnvelopeRow = { algorithm: string; keyId: string; wrappedKey: string; iv: string; ciphertext: string };
@@ -82,6 +99,368 @@ export class AppointmentContinuityService {
     const { appointment } = await this.providerAppointment(principal, appointmentId, true);
     await this.ensureDefaultPrepTasks(appointment, principal.accountId);
     return this.prepProjection(appointment.id, appointment.patientId);
+  }
+
+
+  async availableQuestionnaires(principal: AuthPrincipal, patientId: string, appointmentId: string) {
+    const provider = await this.requireDoctor(principal);
+    const normalizedPatientId = this.id(patientId, "patientId");
+    const normalizedAppointmentId = this.id(appointmentId, "appointmentId");
+    const appointment = await this.prisma.appointment.findFirst({
+      where: {
+        id: normalizedAppointmentId,
+        patientId: normalizedPatientId,
+        providerId: provider.id,
+        status: { in: ["CONFIRMED", "COMPLETED"] },
+      },
+      select: { id: true },
+    });
+    if (!appointment) throw new ForbiddenException("Authorized Doctor appointment context is required.");
+
+    const versions = await this.prisma.questionnaireVersion.findMany({
+      where: { status: "ACTIVE", questionnaire: { active: true } },
+      include: { questionnaire: true },
+      orderBy: [{ questionnaireId: "asc" }, { version: "desc" }],
+    });
+    const seen = new Set<string>();
+    return {
+      patientId: normalizedPatientId,
+      appointmentId: appointment.id,
+      items: versions.flatMap((item) => {
+        if (seen.has(item.questionnaireId)) return [];
+        seen.add(item.questionnaireId);
+        return [{
+          questionnaireVersionId: item.id,
+          code: item.questionnaire.code,
+          labels: item.questionnaire.labels,
+          descriptionLabels: item.questionnaire.descriptionLabels,
+          questionnaireVersion: item.version,
+        }];
+      }),
+    };
+  }
+
+  async doctorQuestionnaireRequests(principal: AuthPrincipal, patientId: string) {
+    const provider = await this.requireDoctor(principal);
+    const normalizedPatientId = this.id(patientId, "patientId");
+    const rows = await this.prisma.questionnaireRequest.findMany({
+      where: { providerId: provider.id, patientId: normalizedPatientId },
+      orderBy: { createdAt: "desc" },
+      take: 250,
+    });
+    return { patientId: normalizedPatientId, items: await this.presentQuestionnaireRequests(rows) };
+  }
+
+  async requestQuestionnaireForVisit(
+    principal: AuthPrincipal,
+    patientId: string,
+    input: DoctorQuestionnaireRequestInput,
+  ) {
+    const provider = await this.requireDoctor(principal);
+    const normalizedPatientId = this.id(patientId, "patientId");
+    const appointmentId = this.id(input?.appointmentId, "appointmentId");
+    const versionId = this.id(input?.questionnaireVersionId, "questionnaireVersionId");
+    const idempotencyKey = this.idempotency(input?.idempotencyKey);
+    const context = this.requestContext(input?.context);
+    const dueAt = normalizeDueAt(input?.dueAt);
+    if (!dueAt) throw new BadRequestException("dueAt is required.");
+
+    const [patient, appointment, version] = await Promise.all([
+      this.prisma.patientProfile.findUnique({
+        where: { id: normalizedPatientId },
+        select: { id: true, userId: true },
+      }),
+      this.prisma.appointment.findFirst({
+        where: {
+          id: appointmentId,
+          patientId: normalizedPatientId,
+          providerId: provider.id,
+          status: { in: ["CONFIRMED", "COMPLETED"] },
+        },
+        select: { id: true, status: true, startsAt: true },
+      }),
+      this.prisma.questionnaireVersion.findUnique({
+        where: { id: versionId },
+        include: { questionnaire: { select: { active: true, code: true, labels: true } } },
+      }),
+    ]);
+    if (!patient) throw new NotFoundException("Patient not found.");
+    if (!appointment) throw new ForbiddenException("Authorized Doctor appointment context is required.");
+    if (!version || version.status !== "ACTIVE" || !version.questionnaire.active) {
+      throw new BadRequestException("An ACTIVE questionnaire version is required.");
+    }
+
+    const now = Date.now();
+    if (dueAt.getTime() <= now) throw new BadRequestException("dueAt must be in the future.");
+    if (dueAt.getTime() > now + 30 * 24 * 60 * 60 * 1000) {
+      throw new BadRequestException("dueAt cannot exceed 30 days.");
+    }
+    if (context === "PRE_VISIT") {
+      if (appointment.status !== "CONFIRMED") throw new ConflictException("PRE_VISIT requires a confirmed appointment.");
+      if (dueAt.getTime() >= appointment.startsAt.getTime()) {
+        throw new BadRequestException("PRE_VISIT dueAt must be before appointment start.");
+      }
+    } else if (appointment.status !== "COMPLETED") {
+      throw new ConflictException(`${context} requires a completed appointment.`);
+    }
+
+    const existing = await this.prisma.questionnaireRequest.findUnique({ where: { idempotencyKey } });
+    if (existing) {
+      if (
+        existing.patientId !== normalizedPatientId ||
+        existing.providerId !== provider.id ||
+        existing.appointmentId !== appointment.id ||
+        existing.questionnaireVersionId !== version.id ||
+        existing.context !== context
+      ) {
+        throw new ConflictException("idempotencyKey is bound to another questionnaire request.");
+      }
+      return (await this.presentQuestionnaireRequests([existing]))[0];
+    }
+
+    const request = await this.prisma.questionnaireRequest.create({
+      data: {
+        patientId: patient.id,
+        providerId: provider.id,
+        appointmentId: appointment.id,
+        questionnaireVersionId: version.id,
+        status: "REQUESTED",
+        dueAt,
+        idempotencyKey,
+        context,
+        createdByActorId: principal.accountId,
+      },
+    });
+    await this.notifications.notifyAccount({
+      accountId: patient.userId,
+      dedupeKey: `questionnaire-request:${request.id}`,
+      type: "CARE_COORDINATION",
+      entityType: "QUESTIONNAIRE_REQUEST",
+      entityId: request.id,
+      safeTitleKey: "notification.questionnaire_request.title",
+      safeBodyKey: "notification.questionnaire_request.body",
+    });
+    await this.audit.writeClinical({
+      actorId: principal.accountId,
+      action: "QUESTIONNAIRE_REQUESTED",
+      objectType: "QUESTIONNAIRE_REQUEST",
+      objectId: request.id,
+      purpose: "TREATMENT",
+      result: "SUCCESS",
+      metadata: {
+        domain: "APPOINTMENT_PREP",
+        patientId: patient.id,
+        providerId: provider.id,
+        appointmentId: appointment.id,
+        resourceId: request.id,
+        resourceVersion: version.version,
+        requestContext: context,
+        decision: "ALLOW",
+      },
+    });
+    return (await this.presentQuestionnaireRequests([request]))[0];
+  }
+
+  async patientQuestionnaireRequests(principal: AuthPrincipal) {
+    const patient = await this.patientSelf(principal);
+    const now = new Date();
+    const rows = await this.prisma.questionnaireRequest.findMany({
+      where: { patientId: patient.id, status: "REQUESTED", dueAt: { gt: now } },
+      orderBy: [{ dueAt: "asc" }, { createdAt: "asc" }],
+      take: 100,
+    });
+    if (rows.length === 0) return { patientId: patient.id, items: [] };
+
+    const versions = await this.prisma.questionnaireVersion.findMany({
+      where: { id: { in: [...new Set(rows.map((item) => item.questionnaireVersionId))] } },
+      include: { questionnaire: true },
+    });
+    const byVersion = new Map(versions.map((item) => [item.id, item]));
+    const questionnaireIds = [...new Set(versions.map((item) => item.questionnaireId))];
+    const responses = await this.prisma.questionnaireResponse.findMany({
+      where: { patientId: patient.id, questionnaireId: { in: questionnaireIds } },
+      orderBy: { sequence: "desc" },
+      select: { questionnaireId: true, sequence: true },
+    });
+    const latestSequence = new Map<string, number>();
+    for (const response of responses) {
+      if (!latestSequence.has(response.questionnaireId)) latestSequence.set(response.questionnaireId, response.sequence);
+    }
+
+    const items = rows.flatMap((request) => {
+      const version = byVersion.get(request.questionnaireVersionId);
+      if (!version) return [];
+      return [{
+        id: request.id,
+        appointmentId: request.appointmentId,
+        context: request.context,
+        dueAt: request.dueAt,
+        requestedAt: request.createdAt,
+        code: version.questionnaire.code,
+        labels: version.questionnaire.labels,
+        descriptionLabels: version.questionnaire.descriptionLabels,
+        questionnaireVersion: version.version,
+        schema: version.schema,
+        latestSequence: latestSequence.get(version.questionnaireId) ?? 0,
+      }];
+    });
+    return { patientId: patient.id, items };
+  }
+
+  async submitRequestedQuestionnaire(
+    principal: AuthPrincipal,
+    requestId: string,
+    input: SubmitRequestedQuestionnaireInput,
+  ) {
+    const patient = await this.patientSelf(principal);
+    const normalizedRequestId = this.id(requestId, "requestId");
+    const request = await this.prisma.questionnaireRequest.findUnique({ where: { id: normalizedRequestId } });
+    if (!request || request.patientId !== patient.id) throw new NotFoundException("Questionnaire request not found.");
+    if (request.status !== "REQUESTED") throw new ConflictException("Questionnaire request is already completed.");
+    if (!request.dueAt || request.dueAt.getTime() <= Date.now()) throw new ConflictException("Questionnaire request has expired.");
+
+    const version = await this.prisma.questionnaireVersion.findUnique({
+      where: { id: request.questionnaireVersionId },
+      include: { questionnaire: true },
+    });
+    if (!version) throw new ConflictException("Requested questionnaire version is unavailable.");
+
+    const expectedLatestSequence = this.nonNegativeInteger(input?.expectedLatestSequence, "expectedLatestSequence");
+    const healthChanged = this.optionalBoolean(input?.healthChanged, "healthChanged");
+    const schema = normalizeQuestionnaireSchema(version.schema);
+    const answers = normalizeQuestionnaireAnswers(schema, input?.answers);
+    const observed = await this.prisma.questionnaireResponse.findFirst({
+      where: { patientId: patient.id, questionnaireId: version.questionnaireId },
+      orderBy: { sequence: "desc" },
+    });
+    if ((observed?.sequence ?? 0) !== expectedLatestSequence) {
+      throw new ConflictException({
+        message: "Questionnaire response sequence conflict.",
+        currentSequence: observed?.sequence ?? 0,
+      });
+    }
+
+    const previousPayload = observed ? await this.questionnairePayload(observed) : null;
+    const diff = diffQuestionnaireAnswers(previousPayload?.answers ?? null, answers);
+    const nextSequence = expectedLatestSequence + 1;
+    const encrypted = await this.envelope.encryptRecord({
+      schemaVersion: 1,
+      questionnaireCode: version.questionnaire.code,
+      questionnaireVersion: version.version,
+      healthChanged,
+      answers,
+    });
+
+    const response = await this.prisma.$transaction(async (tx) => {
+      await this.audit.reserveIntegrityChainForSerializableTransaction(tx);
+      await tx.$queryRaw(Prisma.sql`SELECT id FROM "PatientProfile" WHERE id = ${patient.id} FOR UPDATE`);
+      const currentRequest = await tx.questionnaireRequest.findUnique({ where: { id: normalizedRequestId } });
+      if (
+        !currentRequest ||
+        currentRequest.patientId !== patient.id ||
+        currentRequest.status !== "REQUESTED" ||
+        !currentRequest.dueAt ||
+        currentRequest.dueAt.getTime() <= Date.now()
+      ) {
+        throw new ConflictException("Questionnaire request is no longer available.");
+      }
+      const current = await tx.questionnaireResponse.findFirst({
+        where: { patientId: patient.id, questionnaireId: version.questionnaireId },
+        orderBy: { sequence: "desc" },
+        select: { id: true, sequence: true },
+      });
+      if ((current?.sequence ?? 0) !== expectedLatestSequence) {
+        throw new ConflictException({
+          message: "Questionnaire response sequence conflict.",
+          currentSequence: current?.sequence ?? 0,
+        });
+      }
+
+      const created = await tx.questionnaireResponse.create({
+        data: {
+          questionnaireId: version.questionnaireId,
+          questionnaireVersionId: version.id,
+          patientId: patient.id,
+          sequence: nextSequence,
+          previousResponseId: current?.id ?? null,
+          healthChanged,
+          changedQuestionIds: diff.changedQuestionIds as unknown as Prisma.InputJsonValue,
+          sourceType: "PATIENT",
+          sourceActorId: principal.accountId,
+          ...this.envelopeData(encrypted),
+        },
+      });
+      const updated = await tx.questionnaireRequest.updateMany({
+        where: { id: normalizedRequestId, patientId: patient.id, status: "REQUESTED" },
+        data: { status: "COMPLETED", responseId: created.id, completedAt: created.completedAt },
+      });
+      if (updated.count !== 1) throw new ConflictException("Questionnaire request changed concurrently.");
+
+      await this.audit.writeClinicalInTransaction(tx, {
+        actorId: principal.accountId,
+        action: "QUESTIONNAIRE_RESPONSE_SUBMITTED",
+        objectType: "QUESTIONNAIRE_RESPONSE",
+        objectId: created.id,
+        purpose: "PATIENT_ACCESS",
+        result: "SUCCESS",
+        metadata: {
+          domain: "QUESTIONNAIRE",
+          patientId: patient.id,
+          resourceId: created.id,
+          resourceVersion: created.sequence,
+          changedFields: diff.changedQuestionIds,
+          requestId: normalizedRequestId,
+          decision: "ALLOW",
+        },
+      });
+      await this.audit.writeClinicalInTransaction(tx, {
+        actorId: principal.accountId,
+        action: "QUESTIONNAIRE_REQUEST_COMPLETED",
+        objectType: "QUESTIONNAIRE_REQUEST",
+        objectId: normalizedRequestId,
+        purpose: "PATIENT_ACCESS",
+        result: "SUCCESS",
+        metadata: {
+          domain: "APPOINTMENT_PREP",
+          patientId: patient.id,
+          providerId: currentRequest.providerId,
+          appointmentId: currentRequest.appointmentId ?? undefined,
+          resourceId: normalizedRequestId,
+          resourceVersion: created.sequence,
+          decision: "ALLOW",
+        },
+      });
+      return { created, providerId: currentRequest.providerId };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+
+    const provider = await this.prisma.provider.findUnique({
+      where: { id: response.providerId },
+      select: { userId: true },
+    });
+    if (provider?.userId) {
+      await this.notifications.notifyAccount({
+        accountId: provider.userId,
+        dedupeKey: `questionnaire-request:${normalizedRequestId}:completed`,
+        type: "CARE_COORDINATION",
+        entityType: "QUESTIONNAIRE_REQUEST",
+        entityId: normalizedRequestId,
+        safeTitleKey: "notification.questionnaire_completed.title",
+        safeBodyKey: "notification.questionnaire_completed.body",
+      });
+    }
+
+    return {
+      requestId: normalizedRequestId,
+      status: "COMPLETED",
+      response: {
+        id: response.created.id,
+        sequence: response.created.sequence,
+        questionnaireVersion: version.version,
+        completedAt: response.created.completedAt,
+        changedQuestionIds: diff.changedQuestionIds,
+        encryptedAtRest: true,
+      },
+    };
   }
 
   async requestQuestionnaire(principal: AuthPrincipal, patientId: string, input: QuestionnaireRequestInput) {
@@ -227,6 +606,98 @@ export class AppointmentContinuityService {
 
   private async decrypt(row: EnvelopeRow) {
     return this.envelope.decryptRecord<Record<string, unknown>>({ version: 1, algorithm: row.algorithm as "AES-256-GCM", keyId: row.keyId, wrappedKey: row.wrappedKey, iv: row.iv, ciphertext: row.ciphertext });
+  }
+
+
+  private async presentQuestionnaireRequests(rows: Array<{
+    id: string;
+    patientId: string;
+    providerId: string;
+    appointmentId: string | null;
+    questionnaireVersionId: string;
+    status: string;
+    dueAt: Date | null;
+    responseId: string | null;
+    idempotencyKey: string | null;
+    context: string | null;
+    completedAt: Date | null;
+    createdAt: Date;
+  }>) {
+    if (rows.length === 0) return [];
+    const versions = await this.prisma.questionnaireVersion.findMany({
+      where: { id: { in: [...new Set(rows.map((item) => item.questionnaireVersionId))] } },
+      include: { questionnaire: { select: { code: true, labels: true } } },
+    });
+    const byVersion = new Map(versions.map((item) => [item.id, item]));
+    const now = Date.now();
+    return rows.map((item) => {
+      const version = byVersion.get(item.questionnaireVersionId);
+      return {
+        id: item.id,
+        patientId: item.patientId,
+        appointmentId: item.appointmentId,
+        context: item.context,
+        dueAt: item.dueAt,
+        status: item.status === "REQUESTED" && item.dueAt && item.dueAt.getTime() <= now ? "EXPIRED" : item.status,
+        requestedAt: item.createdAt,
+        completedAt: item.completedAt,
+        responseId: item.responseId,
+        code: version?.questionnaire.code ?? null,
+        labels: version?.questionnaire.labels ?? null,
+        questionnaireVersion: version?.version ?? null,
+      };
+    });
+  }
+
+  private async patientSelf(principal: AuthPrincipal) {
+    if (principal.role !== "PATIENT") throw new ForbiddenException("Patient questionnaire request access requires PATIENT role.");
+    const patient = await this.prisma.patientProfile.findUnique({
+      where: { userId: principal.accountId },
+      select: { id: true, userId: true },
+    });
+    if (!patient) throw new NotFoundException("Patient profile not found.");
+    return patient;
+  }
+
+  private async questionnairePayload(row: EnvelopeRow) {
+    return this.envelope.decryptRecord<{ answers: Record<string, unknown> }>({
+      version: 1,
+      algorithm: row.algorithm as "AES-256-GCM",
+      keyId: row.keyId,
+      wrappedKey: row.wrappedKey,
+      iv: row.iv,
+      ciphertext: row.ciphertext,
+    });
+  }
+
+  private requestContext(value: unknown): "PRE_VISIT" | "POST_VISIT" | "FOLLOW_UP" {
+    const normalized = String(value ?? "").trim().toUpperCase();
+    if (!["PRE_VISIT", "POST_VISIT", "FOLLOW_UP"].includes(normalized)) {
+      throw new BadRequestException("context is invalid.");
+    }
+    return normalized as "PRE_VISIT" | "POST_VISIT" | "FOLLOW_UP";
+  }
+
+  private idempotency(value: unknown) {
+    if (typeof value !== "string") throw new BadRequestException("idempotencyKey is required.");
+    const normalized = value.trim();
+    if (normalized.length < 8 || normalized.length > 128 || /\p{Cc}/u.test(normalized)) {
+      throw new BadRequestException("idempotencyKey is invalid.");
+    }
+    return normalized;
+  }
+
+  private nonNegativeInteger(value: unknown, field: string) {
+    if (!Number.isInteger(value) || Number(value) < 0) {
+      throw new BadRequestException(`${field} must be a non-negative integer.`);
+    }
+    return Number(value);
+  }
+
+  private optionalBoolean(value: unknown, field: string): boolean | null {
+    if (value == null) return null;
+    if (typeof value !== "boolean") throw new BadRequestException(`${field} must be boolean.`);
+    return value;
   }
 
   private envelopeData(envelope: EncryptedEnvelope) { return { algorithm: envelope.algorithm, keyId: envelope.keyId, wrappedKey: envelope.wrappedKey, iv: envelope.iv, ciphertext: envelope.ciphertext }; }

@@ -72,7 +72,7 @@ class _DoctorQuestionnaireRequestsPageState extends State<DoctorQuestionnaireReq
     }
 
     String code = options.first['code'].toString();
-    String context = canPreVisit ? 'PRE_VISIT' : 'POST_VISIT';
+    String requestContext = canPreVisit ? 'PRE_VISIT' : 'POST_VISIT';
     final accepted = await showDialog<bool>(
       context: this.context,
       builder: (dialogContext) => StatefulBuilder(builder: (context, setLocal) => AlertDialog(
@@ -90,13 +90,13 @@ class _DoctorQuestionnaireRequestsPageState extends State<DoctorQuestionnaireReq
           const SizedBox(height: 12),
           if (canPostVisit)
             DropdownButtonFormField<String>(
-              initialValue: context,
+              initialValue: requestContext,
               decoration: InputDecoration(labelText: t('context')),
               items: const [
                 DropdownMenuItem(value: 'POST_VISIT', child: Text('POST_VISIT')),
                 DropdownMenuItem(value: 'FOLLOW_UP', child: Text('FOLLOW_UP')),
               ],
-              onChanged: (value) => setLocal(() => context = value ?? context),
+              onChanged: (value) => setLocal(() => requestContext = value ?? requestContext),
             )
           else
             ListTile(
@@ -116,15 +116,19 @@ class _DoctorQuestionnaireRequestsPageState extends State<DoctorQuestionnaireReq
     );
     if (accepted != true) return;
 
-    final dueAt = context == 'PRE_VISIT'
+    final dueAt = requestContext == 'PRE_VISIT'
         ? preVisitDue
         : now.add(const Duration(days: 7));
     if (dueAt == null) return;
+    final selectedTemplate = options.firstWhere(
+      (item) => item['code']?.toString() == code,
+      orElse: () => options.first,
+    );
     try {
       await api.createDoctorQuestionnaireRequest(widget.patientId, {
-        'questionnaireCode': code,
+        'questionnaireVersionId': selectedTemplate['questionnaireVersionId'].toString(),
         'appointmentId': widget.appointment['id'].toString(),
-        'context': context,
+        'context': requestContext,
         'dueAt': dueAt.toIso8601String(),
         'idempotencyKey': 'mobile-qreq-${DateTime.now().microsecondsSinceEpoch}',
       });
