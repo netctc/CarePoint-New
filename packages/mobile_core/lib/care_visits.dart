@@ -9,6 +9,7 @@ import 'care_planning.dart';
 import 'care_planning_localization.dart';
 import 'patient_messages.dart';
 import 'patient_messages_localization.dart';
+import 'patient_appointment_continuity.dart';
 
 class CareVisitsPage extends StatefulWidget {
   const CareVisitsPage({super.key, required this.session, required this.locale, this.focusAppointmentId});
@@ -96,6 +97,18 @@ class _CareVisitsPageState extends State<CareVisitsPage> {
         Chip(label: Text(t(visit['status'].toString()))),
         JourneyVisitContext(locale: widget.locale, value: journeyMap(visit['visitContext'])),
         if (visit['modality'] == 'TELEMEDICINE' && visit['status'] == 'CONFIRMED') TelehealthActionButton(session: widget.session, locale: widget.locale, appointment: visit),
+        if (visit['status'] == 'REQUESTED' || visit['status'] == 'CONFIRMED') OutlinedButton.icon(
+          key: ValueKey('visit-prep-${visit['id']}'),
+          onPressed: busy ? null : () => open(PatientAppointmentPrepPage(session: widget.session, locale: widget.locale, appointment: visit)),
+          icon: const Icon(Icons.fact_check_outlined),
+          label: Text(patientAppointmentContinuityText(widget.locale, 'prepTitle')),
+        ),
+        if (visit['status'] == 'COMPLETED') OutlinedButton.icon(
+          key: ValueKey('visit-follow-up-plan-${visit['id']}'),
+          onPressed: busy ? null : () => open(PatientEncounterFollowUpPage(session: widget.session, locale: widget.locale, appointment: visit)),
+          icon: const Icon(Icons.assignment_turned_in_outlined),
+          label: Text(patientAppointmentContinuityText(widget.locale, 'followUpTitle')),
+        ),
         if (patientCareConversationEligibleStatus(visit['status'])) OutlinedButton.icon(
           key: ValueKey('visit-message-${visit['id']}'),
           onPressed: busy ? null : () => open(AppointmentCommunicationsPage(

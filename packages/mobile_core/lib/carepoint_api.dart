@@ -98,6 +98,19 @@ class CarePointApi {
   Future<Map<String, dynamic>> book({required String slotId, required String idempotencyKey}) async => _asMap(await _send('POST', '/bookings', body: {'slotId': slotId, 'idempotencyKey': idempotencyKey}));
   Future<List<Map<String, dynamic>>> myAppointments() async => _asList(await _send('GET', '/bookings/me'));
   Future<Map<String, dynamic>> cancelAppointment(String appointmentId, {String? reason}) async => _asMap(await _send('POST', '/bookings/$appointmentId/cancel', body: {if (reason?.trim().isNotEmpty == true) 'reason': reason!.trim()}));
+  Future<Map<String, dynamic>> patientAppointmentPrep(String appointmentId) async =>
+      _asMap(await _send('GET', '/patient/appointments/$appointmentId/prep'));
+  Future<Map<String, dynamic>> updatePatientAppointmentPrep(
+    String appointmentId,
+    String taskCode, {
+    required String status,
+    String? sourceRef,
+  }) async => _asMap(await _send('PATCH', '/patient/appointments/$appointmentId/prep/$taskCode', body: {
+    'status': status,
+    if (sourceRef?.trim().isNotEmpty == true) 'sourceRef': sourceRef!.trim(),
+  }));
+  Future<Map<String, dynamic>> patientEncounterFollowUp(String appointmentId) async =>
+      _asMap(await _send('GET', '/patient/encounters/$appointmentId/follow-up'));
 
   Future<List<Map<String, dynamic>>> providerServices() async => _asList(await _send('GET', '/provider/services'));
   Future<Map<String, dynamic>> createProviderService({required String name, required String modality, required int durationMinutes, required int priceMinor, String currency = 'USD'}) async {
