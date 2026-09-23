@@ -7,15 +7,17 @@ type State="CURRENT"|"EXPIRING"|"EXPIRED"|"MISSING";
 type Item={providerId:string;providerDisplayName:string;providerClass:string;credentialType:string;state:State;validUntil:string|null;daysRemaining:number|null;operationallyBlocked:boolean};
 type Snapshot={generatedAt:string;policy:{notificationsEnabled:boolean;warningDays:number[]};summary:Record<State,number>;items:Item[]};
 
-const copy:Record<Locale,Record<string,string>>={
+const copy={
 en:{title:"Credential expiration governance",eyebrow:"ADM-108 · Provider governance",refresh:"Refresh",save:"Save reminder policy",run:"Run reminders",windows:"Reminder windows (days)",notify:"Reminder notifications enabled",invariant:"Operational blocking on expiry is always enforced and cannot be disabled here.",privacy:"Credential numbers, issuers and documents are intentionally excluded.",provider:"Provider",kind:"Class",credential:"Required credential",state:"State",expiry:"Expiry",days:"Days remaining",blocked:"Blocked",yes:"Yes",no:"No",CURRENT:"Current",EXPIRING:"Expiring",EXPIRED:"Expired",MISSING:"Missing",invalid:"Use 1-5 unique integers from 1 to 365.",failed:"Request failed."},
 ar:{title:"حوكمة انتهاء صلاحية الاعتمادات",eyebrow:"ADM-108 · حوكمة مقدمي الخدمة",refresh:"تحديث",save:"حفظ سياسة التذكير",run:"تشغيل التذكيرات",windows:"نوافذ التذكير (أيام)",notify:"تفعيل إشعارات التذكير",invariant:"يظل حظر التشغيل عند انتهاء الاعتماد إلزامياً ولا يمكن تعطيله من هنا.",privacy:"يتم استبعاد أرقام الاعتمادات والجهات المصدرة والمستندات.",provider:"مقدم الخدمة",kind:"الفئة",credential:"الاعتماد المطلوب",state:"الحالة",expiry:"الانتهاء",days:"الأيام المتبقية",blocked:"محظور",yes:"نعم",no:"لا",CURRENT:"ساري",EXPIRING:"قارب على الانتهاء",EXPIRED:"منتهي",MISSING:"مفقود",invalid:"استخدم 1-5 أعداد صحيحة فريدة من 1 إلى 365.",failed:"فشل الطلب."},
 fr:{title:"Gouvernance des expirations de justificatifs",eyebrow:"ADM-108 · Gouvernance prestataires",refresh:"Actualiser",save:"Enregistrer la politique",run:"Exécuter les rappels",windows:"Fenêtres de rappel (jours)",notify:"Notifications de rappel activées",invariant:"Le blocage opérationnel à l’expiration reste obligatoire et ne peut pas être désactivé ici.",privacy:"Les numéros, émetteurs et documents sont volontairement exclus.",provider:"Prestataire",kind:"Classe",credential:"Justificatif requis",state:"État",expiry:"Expiration",days:"Jours restants",blocked:"Bloqué",yes:"Oui",no:"Non",CURRENT:"Valide",EXPIRING:"Expire bientôt",EXPIRED:"Expiré",MISSING:"Manquant",invalid:"Utilisez 1 à 5 entiers uniques de 1 à 365.",failed:"Échec de la requête."},
 es:{title:"Gobernanza de vencimiento de credenciales",eyebrow:"ADM-108 · Gobernanza de proveedores",refresh:"Actualizar",save:"Guardar política de avisos",run:"Ejecutar recordatorios",windows:"Ventanas de aviso (días)",notify:"Notificaciones de credenciales activadas",invariant:"El bloqueo operativo al vencer una credencial es obligatorio y no puede desactivarse aquí.",privacy:"Los números, emisores y documentos de credenciales se excluyen intencionadamente.",provider:"Proveedor",kind:"Clase",credential:"Credencial requerida",state:"Estado",expiry:"Vencimiento",days:"Días restantes",blocked:"Bloqueado",yes:"Sí",no:"No",CURRENT:"Vigente",EXPIRING:"Próxima a vencer",EXPIRED:"Vencida",MISSING:"Faltante",invalid:"Usa entre 1 y 5 enteros únicos de 1 a 365.",failed:"La solicitud falló."}
-};
+} as const satisfies Record<Locale, Record<string, string>>;
 
 async function api(path:string,method="GET",body?:unknown){
- const response=await fetch("/api/admin/b6/"+path,{method,headers:{"content-type":"application/json"},body:body===undefined?undefined:JSON.stringify(body),cache:"no-store"});
+ const init:RequestInit={method,headers:{"content-type":"application/json"},cache:"no-store"};
+ if(body!==undefined)init.body=JSON.stringify(body);
+ const response=await fetch("/api/admin/b6/"+path,init);
  const payload=await response.json().catch(()=>({}));
  if(!response.ok)throw new Error(typeof payload?.message==="string"?payload.message:"Request failed.");
  return payload;

@@ -190,7 +190,7 @@ class CredentialExpiryService implements OnModuleInit, OnModuleDestroy {
   private row(provider: {id:string;displayName:string;class:string;userId:string|null}, type:string, credentialId:string, validUntil:Date|null, days:number|null, state:State): ExpiryItem {
     return {
       providerId: provider.id, providerDisplayName: provider.displayName, providerClass: provider.class,
-      accountId: provider.userId, credentialType: type, credentialId, state,
+      accountId: provider.userId!, credentialType: type, credentialId, state,
       validUntil: validUntil?.toISOString() ?? null, daysRemaining: days,
       operationallyBlocked: state === "EXPIRED" || state === "MISSING",
     };
