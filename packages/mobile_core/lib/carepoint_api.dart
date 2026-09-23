@@ -388,6 +388,31 @@ class CarePointApi {
         if (reason?.trim().isNotEmpty == true) 'reason': reason!.trim(),
       }));
 
+  // PAT-129 — Patient-managed medication schedules; never mutates the clinical source.
+  Future<Map<String, dynamic>> patientMedicationReminders() async =>
+      _asMap(await _send('GET', '/patient/medication-reminders'));
+  Future<Map<String, dynamic>> createPatientMedicationReminder({
+    required String sourceKind,
+    required String sourceId,
+    required List<String> localTimes,
+    required String timeZone,
+  }) async => _asMap(await _send('POST', '/patient/medication-reminders', body: {
+    'sourceKind': sourceKind,
+    'sourceId': sourceId,
+    'localTimes': localTimes,
+    'timeZone': timeZone,
+  }));
+  Future<Map<String, dynamic>> updatePatientMedicationReminder(
+    String reminderId, {
+    bool? enabled,
+    List<String>? localTimes,
+    String? timeZone,
+  }) async => _asMap(await _send('PATCH', '/patient/medication-reminders/$reminderId', body: {
+    if (enabled != null) 'enabled': enabled,
+    if (localTimes != null) 'localTimes': localTimes,
+    if (timeZone != null) 'timeZone': timeZone,
+  }));
+
   // DOC-076..078 — Doctor refill, imaging and referral coordination.
   Future<Map<String, dynamic>> doctorRefillRequests() async =>
       _asMap(await _send('GET', '/provider/refill-requests'));
