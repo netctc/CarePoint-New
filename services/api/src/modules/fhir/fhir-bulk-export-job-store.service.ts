@@ -86,6 +86,16 @@ export class FhirBulkExportJobStoreService {
   async syncFromLegacy(jobId: string, ttlSeconds: number): Promise<DurableBulkJobRecord | null> {
     const legacy = await this.redis.getEphemeral(this.legacyKey(jobId));
     if (!legacy) return this.get(jobId);
+
+    // PostgreSQL is authoritative once a job reaches a terminal state. A delayed
+    // compatibility write must never regress COMPLETED/FAILED back to RUNNING/QUEUED.
+    const durableRow = await this.prisma.fhirBulkExportJobState.findUnique({ where: { id: jobId } });
+    if (durableRow && this.terminal(durableRow.status)) {
+      const durable = this.map(durableRow);
+      await this.restoreLegacy(durable, true);
+      return durable;
+    }
+
     const payload = this.parseLegacy(legacy);
     const clientId = this.payloadString(payload, "clientId");
     const status = this.payloadString(payload, "status");
@@ -94,10 +104,12 @@ export class FhirBulkExportJobStoreService {
     return this.get(jobId);
   }
 
-  async restoreLegacy(record: DurableBulkJobRecord): Promise<boolean> {
+  async restoreLegacy(record: DurableBulkJobRecord, overwrite = false): Promise<boolean> {
     if (record.purgeAt.getTime() <= Date.now()) return false;
-    const existing = await this.redis.getEphemeral(this.legacyKey(record.id));
-    if (existing) return true;
+    if (!overwrite) {
+      const existing = await this.redis.getEphemeral(this.legacyKey(record.id));
+      if (existing) return true;
+    }
     await this.redis.setEphemeral(this.legacyKey(record.id), JSON.stringify(record.payload), this.redisTtl(record.purgeAt));
     return true;
   }
@@ -257,6 +269,10 @@ export class FhirBulkExportJobStoreService {
 
   private redisCompatWrite(): boolean {
     return process.env.BULK_EXPORT_REDIS_COMPAT_WRITE !== "false";
+  }
+
+  private terminal(status: string): boolean {
+    return status === "COMPLETED" || status === "FAILED";
   }
 
   private legacyKey(jobId: string): string {

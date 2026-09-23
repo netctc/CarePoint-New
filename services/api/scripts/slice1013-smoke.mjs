@@ -168,6 +168,31 @@ try {
   const restoredRedis = await redis.get(`carepoint:fhir:bulk-export:${recoveredJobId}`);
   if (!restoredRedis) throw new Error("PostgreSQL status restore did not rebuild the rolling-compatibility Redis state.");
 
+  // A stale rolling-compatibility snapshot must never regress a durable terminal job.
+  const recoveredTerminalPayload = recovered.payload && typeof recovered.payload === "object" && !Array.isArray(recovered.payload)
+    ? recovered.payload
+    : null;
+  if (!recoveredTerminalPayload) throw new Error("Recovered durable terminal payload is invalid.");
+  await redis.set(
+    `carepoint:fhir:bulk-export:${recoveredJobId}`,
+    JSON.stringify({
+      ...recoveredTerminalPayload,
+      status: "RUNNING",
+      completedAt: null,
+    }),
+    "EX",
+    3600,
+  );
+  const monotonicStatus = await raw(`${fhirBase}/$export-status/${recoveredJobId}`, { token });
+  if (monotonicStatus.status !== 200 || !Array.isArray(monotonicStatus.payload.output)) {
+    throw new Error(`Stale Redis state regressed durable terminal job: ${JSON.stringify(monotonicStatus)}`);
+  }
+  const monotonicRedis = await redis.get(`carepoint:fhir:bulk-export:${recoveredJobId}`);
+  const monotonicPayload = monotonicRedis ? JSON.parse(monotonicRedis) : null;
+  if (monotonicPayload?.status !== "COMPLETED") {
+    throw new Error(`Durable terminal state was not restored over stale Redis: ${monotonicRedis}`);
+  }
+
   // Expired durable rows are removed by the cleanup worker even when no Redis copy exists.
   const expiredJobId = randomBytes(24).toString("base64url");
   await prisma.fhirBulkExportJobState.create({
@@ -200,6 +225,7 @@ try {
     persistedBeforeResponse: true,
     leaseRecovery: true,
     redisLossRecovery: true,
+    terminalStateMonotonicity: true,
     cleanupLifecycle: true,
     clientBoundOwnership: normalRow.clientId === clientId,
   }));
