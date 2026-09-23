@@ -10,7 +10,7 @@ String nursingText(CarePointLocale locale, String key) =>
 const _nursingStrings = <String, Map<String, String>>{
   'en': {
     'title': 'Nursing workflows', 'chooseVisit': 'Choose patient visit', 'empty': 'No confirmed or completed visits are available.',
-    'medAdmin': 'Medication administration', 'wound': 'Wound assessment', 'procedure': 'Procedure checklist',
+    'observations': 'Vitals & observations', 'medAdmin': 'Medication administration', 'wound': 'Wound assessment', 'procedure': 'Procedure checklist',
     'prescription': 'Active prescription', 'administered': 'Administered', 'omitted': 'Omitted', 'dose': 'Dose', 'route': 'Route',
     'omission': 'Omission reason', 'note': 'Note (optional)', 'save': 'Save signed record', 'saved': 'Record saved.', 'history': 'History',
     'site': 'Body/site code', 'woundType': 'Wound type', 'length': 'Length (cm)', 'width': 'Width (cm)', 'depth': 'Depth (cm, optional)',
@@ -21,7 +21,7 @@ const _nursingStrings = <String, Map<String, String>>{
   },
   'ar': {
     'title': 'مسارات التمريض', 'chooseVisit': 'اختر زيارة المريض', 'empty': 'لا توجد زيارات مؤكدة أو مكتملة.',
-    'medAdmin': 'تسجيل إعطاء الدواء', 'wound': 'تقييم الجرح', 'procedure': 'قائمة تحقق الإجراء',
+    'observations': 'العلامات الحيوية والملاحظات', 'medAdmin': 'تسجيل إعطاء الدواء', 'wound': 'تقييم الجرح', 'procedure': 'قائمة تحقق الإجراء',
     'prescription': 'وصفة فعالة', 'administered': 'تم الإعطاء', 'omitted': 'لم يُعطَ', 'dose': 'الجرعة', 'route': 'طريقة الإعطاء',
     'omission': 'سبب عدم الإعطاء', 'note': 'ملاحظة اختيارية', 'save': 'حفظ السجل الموقّع', 'saved': 'تم حفظ السجل.', 'history': 'السجل',
     'site': 'رمز موضع الجسم', 'woundType': 'نوع الجرح', 'length': 'الطول (سم)', 'width': 'العرض (سم)', 'depth': 'العمق (سم، اختياري)',
@@ -32,7 +32,7 @@ const _nursingStrings = <String, Map<String, String>>{
   },
   'fr': {
     'title': 'Parcours infirmiers', 'chooseVisit': 'Choisir la visite patient', 'empty': 'Aucune visite confirmée ou terminée.',
-    'medAdmin': 'Administration du médicament', 'wound': 'Évaluation de plaie', 'procedure': 'Checklist de procédure',
+    'observations': 'Constantes et observations', 'medAdmin': 'Administration du médicament', 'wound': 'Évaluation de plaie', 'procedure': 'Checklist de procédure',
     'prescription': 'Prescription active', 'administered': 'Administré', 'omitted': 'Omis', 'dose': 'Dose', 'route': 'Voie',
     'omission': 'Motif d’omission', 'note': 'Note (facultatif)', 'save': 'Enregistrer le dossier signé', 'saved': 'Dossier enregistré.', 'history': 'Historique',
     'site': 'Code du site corporel', 'woundType': 'Type de plaie', 'length': 'Longueur (cm)', 'width': 'Largeur (cm)', 'depth': 'Profondeur (cm, facultatif)',
@@ -43,7 +43,7 @@ const _nursingStrings = <String, Map<String, String>>{
   },
   'es': {
     'title': 'Flujos de enfermería', 'chooseVisit': 'Elegir visita del paciente', 'empty': 'No hay visitas confirmadas o completadas.',
-    'medAdmin': 'Administración de medicación', 'wound': 'Evaluación de heridas', 'procedure': 'Checklist de procedimiento',
+    'observations': 'Constantes y observaciones', 'medAdmin': 'Administración de medicación', 'wound': 'Evaluación de heridas', 'procedure': 'Checklist de procedimiento',
     'prescription': 'Prescripción activa', 'administered': 'Administrado', 'omitted': 'Omitido', 'dose': 'Dosis', 'route': 'Vía',
     'omission': 'Motivo de omisión', 'note': 'Nota (opcional)', 'save': 'Guardar registro firmado', 'saved': 'Registro guardado.', 'history': 'Historial',
     'site': 'Código de zona corporal', 'woundType': 'Tipo de herida', 'length': 'Longitud (cm)', 'width': 'Anchura (cm)', 'depth': 'Profundidad (cm, opcional)',
@@ -60,6 +60,7 @@ class ProviderNursingLauncher extends StatelessWidget {
     required this.session,
     required this.locale,
     required this.workflowCapabilities,
+    required this.observationCodes,
     required this.child,
     this.accent = const Color(0xFF10B981),
   });
@@ -67,11 +68,12 @@ class ProviderNursingLauncher extends StatelessWidget {
   final CarePointSession session;
   final CarePointLocale locale;
   final Set<String> workflowCapabilities;
+  final Set<String> observationCodes;
   final Widget child;
   final Color accent;
 
   bool get procedureEnabled => workflowCapabilities.contains('PROCEDURE_CHECKLIST') && workflowCapabilities.contains('CATEGORY_FORMS');
-  bool get enabled => workflowCapabilities.contains('MED_ADMIN') || workflowCapabilities.contains('WOUND_CARE') || procedureEnabled;
+  bool get enabled => observationCodes.isNotEmpty || workflowCapabilities.contains('MED_ADMIN') || workflowCapabilities.contains('WOUND_CARE') || procedureEnabled;
 
   @override
   Widget build(BuildContext context) {
@@ -149,6 +151,7 @@ class ProviderNursingLauncher extends StatelessWidget {
             locale: locale,
             appointment: selected,
             workflowCapabilities: workflowCapabilities,
+            observationCodes: observationCodes,
             accent: accent,
           ),
         )),
@@ -166,6 +169,7 @@ class ProviderNursingWorkspace extends StatelessWidget {
     required this.locale,
     required this.appointment,
     required this.workflowCapabilities,
+    required this.observationCodes,
     required this.accent,
   });
 
@@ -173,6 +177,7 @@ class ProviderNursingWorkspace extends StatelessWidget {
   final CarePointLocale locale;
   final Map<String, dynamic> appointment;
   final Set<String> workflowCapabilities;
+  final Set<String> observationCodes;
   final Color accent;
 
   @override
@@ -180,6 +185,22 @@ class ProviderNursingWorkspace extends StatelessWidget {
     final patient = _map(appointment['patient']);
     final name = [patient['firstName'], patient['lastName']].whereType<String>().where((v) => v.trim().isNotEmpty).join(' ');
     final actions = <Widget>[];
+    if (observationCodes.isNotEmpty) {
+      actions.add(_ActionTile(
+        icon: Icons.monitor_heart_outlined,
+        title: nursingText(locale, 'observations'),
+        onTap: () => Navigator.push<void>(context, MaterialPageRoute(builder: (_) => Directionality(
+          textDirection: locale.textDirection,
+          child: ProviderObservationPanelPage(
+            session: session,
+            locale: locale,
+            appointment: appointment,
+            allowedCodes: observationCodes,
+            accent: accent,
+          ),
+        ))),
+      ));
+    }
     if (workflowCapabilities.contains('MED_ADMIN')) {
       actions.add(_ActionTile(
         icon: Icons.medication_outlined,
@@ -225,6 +246,211 @@ class ProviderNursingWorkspace extends StatelessWidget {
       ]),
     );
   }
+}
+
+
+class ProviderObservationPanelPage extends StatefulWidget {
+  const ProviderObservationPanelPage({
+    super.key,
+    required this.session,
+    required this.locale,
+    required this.appointment,
+    required this.allowedCodes,
+    required this.accent,
+  });
+
+  final CarePointSession session;
+  final CarePointLocale locale;
+  final Map<String, dynamic> appointment;
+  final Set<String> allowedCodes;
+  final Color accent;
+
+  @override
+  State<ProviderObservationPanelPage> createState() => _ProviderObservationPanelPageState();
+}
+
+class _ProviderObservationPanelPageState extends State<ProviderObservationPanelPage> {
+  bool loading = true;
+  String? error;
+  List<Map<String, dynamic>> catalog = const [];
+  final Map<String, TextEditingController> values = {};
+  final Map<String, String> units = {};
+  final Set<String> saving = {};
+
+  String get patientId => _patientId(widget.appointment);
+  String get encounterId => widget.appointment['id']?.toString() ?? '';
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void dispose() {
+    for (final controller in values.values) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    if (mounted) setState(() { loading = true; error = null; });
+    try {
+      final result = await widget.session.api.providerObservationCatalog();
+      final next = _mapList(result['items'])
+          .where((item) => widget.allowedCodes.contains(item['code']?.toString()))
+          .toList(growable: false);
+      for (final item in next) {
+        final code = item['code']?.toString() ?? '';
+        if (code.isEmpty) continue;
+        values.putIfAbsent(code, TextEditingController.new);
+        final allowed = (item['allowedUnitCodes'] is List)
+            ? (item['allowedUnitCodes'] as List).whereType<String>().toList(growable: false)
+            : const <String>[];
+        units[code] = units[code] ?? (allowed.isNotEmpty ? allowed.first : item['canonicalUnitCode']?.toString() ?? '');
+      }
+      if (!mounted) return;
+      setState(() => catalog = next);
+    } catch (value) {
+      if (mounted) setState(() => error = value.toString());
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
+
+  Future<void> _save(Map<String, dynamic> metric) async {
+    final code = metric['code']?.toString() ?? '';
+    final controller = values[code];
+    final value = double.tryParse(controller?.text.trim() ?? '');
+    final unit = units[code] ?? '';
+    if (code.isEmpty || value == null || unit.isEmpty || patientId.isEmpty || encounterId.isEmpty) {
+      _message(observationPanelText(widget.locale, 'invalid'));
+      return;
+    }
+    setState(() => saving.add(code));
+    try {
+      await widget.session.api.recordProviderObservation(
+        patientId,
+        code: code,
+        value: value,
+        unitCode: unit,
+        observedAt: DateTime.now(),
+        encounterId: encounterId,
+      );
+      controller?.clear();
+      _message(observationPanelText(widget.locale, 'saved'));
+    } catch (value) {
+      _message(value.toString());
+    } finally {
+      if (mounted) setState(() => saving.remove(code));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(
+      title: Text(observationPanelText(widget.locale, 'title')),
+      actions: [IconButton(onPressed: loading ? null : _load, icon: const Icon(Icons.refresh_outlined))],
+    ),
+    body: loading
+        ? const Center(child: CircularProgressIndicator())
+        : RefreshIndicator(
+            onRefresh: _load,
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                if (error != null) _ErrorCard(error!, _load),
+                Card(child: ListTile(
+                  leading: const Icon(Icons.shield_outlined),
+                  title: Text(observationPanelText(widget.locale, 'capabilityBound'), style: const TextStyle(fontWeight: FontWeight.w700)),
+                  subtitle: Text(observationPanelText(widget.locale, 'noInference')),
+                )),
+                if (catalog.isEmpty && error == null)
+                  Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Text(observationPanelText(widget.locale, 'empty'), textAlign: TextAlign.center),
+                  )
+                else
+                  ...catalog.map(_metricCard),
+              ],
+            ),
+          ),
+  );
+
+  Widget _metricCard(Map<String, dynamic> metric) {
+    final code = metric['code']?.toString() ?? '';
+    final allowedUnits = (metric['allowedUnitCodes'] is List)
+        ? (metric['allowedUnitCodes'] as List).whereType<String>().toList(growable: false)
+        : const <String>[];
+    final label = _label(_map(metric['labels']), widget.locale);
+    return Card(child: Padding(
+      padding: const EdgeInsets.all(14),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Row(children: [
+          Icon(Icons.monitor_heart_outlined, color: widget.accent),
+          const SizedBox(width: 8),
+          Expanded(child: Text(label.isEmpty ? code : label, style: const TextStyle(fontWeight: FontWeight.w800))),
+          Text(code, style: Theme.of(context).textTheme.labelSmall),
+        ]),
+        const SizedBox(height: 12),
+        Row(children: [
+          Expanded(child: TextField(
+            controller: values[code],
+            enabled: !saving.contains(code),
+            keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+            decoration: InputDecoration(
+              labelText: observationPanelText(widget.locale, 'value'),
+              border: const OutlineInputBorder(),
+            ),
+          )),
+          const SizedBox(width: 10),
+          SizedBox(
+            width: 132,
+            child: DropdownButtonFormField<String>(
+              initialValue: units[code],
+              decoration: InputDecoration(
+                labelText: observationPanelText(widget.locale, 'unit'),
+                border: const OutlineInputBorder(),
+              ),
+              items: allowedUnits.map((unit) => DropdownMenuItem(value: unit, child: Text(unit))).toList(growable: false),
+              onChanged: saving.contains(code) ? null : (value) => setState(() {
+                if (value != null) units[code] = value;
+              }),
+            ),
+          ),
+        ]),
+        const SizedBox(height: 10),
+        FilledButton.icon(
+          onPressed: saving.contains(code) ? null : () => _save(metric),
+          icon: const Icon(Icons.save_outlined),
+          label: Text(observationPanelText(widget.locale, 'record')),
+        ),
+      ]),
+    ));
+  }
+
+  void _message(String value) {
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value)));
+  }
+}
+
+String observationPanelText(CarePointLocale locale, String key) {
+  const values = <CarePointLocale, Map<String, String>>{
+    CarePointLocale.en: {
+      'title':'Vitals & observations','capabilityBound':'Capability-bound panel','noInference':'Only metrics authorized for this provider category are shown. Units/ranges are enforced by the server; no automated diagnosis is produced.','empty':'No observation metric is enabled for this category.','value':'Value','unit':'Unit','record':'Record observation','saved':'Observation recorded.','invalid':'Enter a valid value and unit for this visit.'
+    },
+    CarePointLocale.ar: {
+      'title':'العلامات الحيوية والملاحظات','capabilityBound':'لوحة مقيدة بالصلاحيات','noInference':'تظهر فقط المقاييس المسموح بها لفئة مقدم الخدمة. يفرض الخادم الوحدات والنطاقات ولا ينتج أي تشخيص آلي.','empty':'لا يوجد مقياس ملاحظات مفعّل لهذه الفئة.','value':'القيمة','unit':'الوحدة','record':'تسجيل الملاحظة','saved':'تم تسجيل الملاحظة.','invalid':'أدخل قيمة ووحدة صالحتين لهذه الزيارة.'
+    },
+    CarePointLocale.fr: {
+      'title':'Constantes et observations','capabilityBound':'Panneau limité par capacité','noInference':'Seules les métriques autorisées pour cette catégorie sont affichées. Le serveur impose unités/plages et ne produit aucun diagnostic automatisé.','empty':'Aucune métrique d’observation n’est activée pour cette catégorie.','value':'Valeur','unit':'Unité','record':'Enregistrer','saved':'Observation enregistrée.','invalid':'Saisissez une valeur et une unité valides pour cette visite.'
+    },
+    CarePointLocale.es: {
+      'title':'Constantes y observaciones','capabilityBound':'Panel limitado por capability','noInference':'Solo se muestran métricas autorizadas para esta categoría. El servidor aplica unidades/rangos y no genera diagnóstico automático.','empty':'No hay ninguna métrica de observación habilitada para esta categoría.','value':'Valor','unit':'Unidad','record':'Registrar observación','saved':'Observación registrada.','invalid':'Introduce un valor y una unidad válidos para esta visita.'
+    },
+  };
+  return values[locale]?[key] ?? values[CarePointLocale.en]![key] ?? key;
 }
 
 class MedicationAdministrationPage extends StatefulWidget {
