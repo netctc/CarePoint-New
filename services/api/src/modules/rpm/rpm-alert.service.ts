@@ -137,6 +137,32 @@ export class RpmAlertService {
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   }
 
+  async providerPolicyCatalog(principal: AuthPrincipal) {
+    await this.requireDoctor(principal);
+    const rows = await this.prisma.alertPolicy.findMany({
+      where: { active: true },
+      include: {
+        versions: {
+          where: { status: "ACTIVE" },
+          orderBy: { version: "desc" },
+          take: 1,
+        },
+      },
+      orderBy: { code: "asc" },
+    });
+    return {
+      items: rows.flatMap((policy) => policy.versions.map((version) => ({
+        policyId: policy.id,
+        code: policy.code,
+        labels: policy.labels,
+        policyVersionId: version.id,
+        version: version.version,
+        config: normalizeAlertPolicyConfig(version.config),
+      }))),
+      clinicalPayloadIncluded: false,
+    };
+  }
+
   async createRule(principal: AuthPrincipal, carePlanId: string, input: CreateAlertRuleInput) {
     const access = await this.requireOwnedCarePlan(principal, carePlanId, "WRITE");
     const policy = await this.activePolicyVersion(this.id(input?.policyVersionId, "policyVersionId"));
@@ -483,7 +509,20 @@ export class RpmAlertService {
   }
 
   private patientAlert(row: any, viewed: boolean) {
-    return { id: row.id, carePlanId: row.carePlanId, metricCode: row.metricCode, severity: row.severity, status: row.status, patientActionKey: row.patientActionKey, sourceObservationId: row.sourceObservationId, createdAt: row.createdAt, viewed, automatedDiagnosis: false };
+    return {
+      id: row.id,
+      carePlanId: row.carePlanId,
+      ruleId: row.ruleId,
+      ruleVersion: row.ruleVersion,
+      metricCode: row.metricCode,
+      severity: row.severity,
+      status: row.status,
+      patientActionKey: row.patientActionKey,
+      sourceObservationId: row.sourceObservationId,
+      createdAt: row.createdAt,
+      viewed,
+      automatedDiagnosis: false,
+    };
   }
 
   private labels(value: unknown): Labels {

@@ -43,6 +43,78 @@ export class ReferralsService {
     private readonly notifications: NotificationsService,
   ) {}
 
+  async destinationCatalog(principal: AuthPrincipal, specialtyCodeRaw?: string) {
+    const referring = await this.requireActiveDoctor(principal);
+    const specialtyCode = specialtyCodeRaw?.trim()
+      ? specialtyCodeRaw.trim().toUpperCase()
+      : null;
+    if (specialtyCode && !/^[A-Z][A-Z0-9_:-]{1,63}$/.test(specialtyCode)) {
+      throw new BadRequestException("specialtyCode is invalid.");
+    }
+    const rows = await this.prisma.provider.findMany({
+      where: {
+        id: { not: referring.id },
+        status: "ACTIVE",
+        class: "DOCTOR",
+        ...(specialtyCode ? {
+          doctorProfile: {
+            is: {
+              specialties: {
+                some: {
+                  specialty: { code: specialtyCode, active: true },
+                },
+              },
+            },
+          },
+        } : {}),
+      },
+      select: {
+        id: true,
+        displayName: true,
+        doctorProfile: {
+          select: {
+            specialties: {
+              select: {
+                primary: true,
+                specialty: {
+                  select: { code: true, labels: true, active: true },
+                },
+              },
+            },
+          },
+        },
+      },
+      orderBy: [{ displayName: "asc" }, { id: "asc" }],
+      take: 200,
+    });
+    const items = rows.map((provider) => ({
+      id: provider.id,
+      displayName: provider.displayName,
+      specialties: (provider.doctorProfile?.specialties ?? [])
+        .filter((item) => item.specialty.active)
+        .map((item) => ({
+          code: item.specialty.code,
+          labels: item.specialty.labels,
+          primary: item.primary,
+        })),
+    }));
+    await this.audit.write({
+      actorId: principal.accountId,
+      action: "REFERRAL_DESTINATIONS_READ",
+      objectType: "PROVIDER_DIRECTORY",
+      objectId: referring.id,
+      purpose: "TREATMENT",
+      result: "SUCCESS",
+      metadata: {
+        providerId: referring.id,
+        specialtyCode,
+        itemCount: items.length,
+        clinicalPayloadIncluded: false,
+      },
+    });
+    return { items, clinicalPayloadIncluded: false };
+  }
+
   async create(principal: AuthPrincipal, patientId: string, raw: Record<string, unknown>) {
     const referring = await this.requireActiveDoctor(principal);
     const patient = await this.requirePatient(patientId);

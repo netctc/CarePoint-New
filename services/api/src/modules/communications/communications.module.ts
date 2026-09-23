@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Module, Param, Patch, Post } from "@nestjs/common";
+import { Body, Controller, Get, Header, Module, Param, Patch, Post } from "@nestjs/common";
 import type {
   AddCareParticipantInput,
   CreateCareConversationInput,
@@ -15,6 +15,11 @@ import { MessagingEnvelopeService } from "./messaging-envelope.service";
 import { NotificationGatewayService } from "./notification-gateway.service";
 import { NotificationOutboxStoreService } from "./notification-outbox-store.service";
 import { NotificationOutboxWorkerService } from "./notification-outbox-worker.service";
+import {
+  NotificationTemplateService,
+  type CreateNotificationTemplateInput,
+  type PublishNotificationTemplateVersionInput,
+} from "./notification-template.service";
 import { NotificationsService } from "./notifications.service";
 
 @Controller("communications")
@@ -133,18 +138,52 @@ class NotificationsController {
   }
 }
 
+@Controller("admin/notification-templates")
+class AdminNotificationTemplateController {
+  constructor(private readonly templates: NotificationTemplateService) {}
+
+  @RequirePermissions("NOTIFICATION_OPERATE")
+  @Get()
+  @Header("Cache-Control", "no-store")
+  list() {
+    return this.templates.list();
+  }
+
+  @RequirePermissions("NOTIFICATION_OPERATE")
+  @Post()
+  @Header("Cache-Control", "no-store")
+  create(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Body() body: CreateNotificationTemplateInput,
+  ) {
+    return this.templates.create(principal, body);
+  }
+
+  @RequirePermissions("NOTIFICATION_OPERATE")
+  @Post(":templateId/versions")
+  @Header("Cache-Control", "no-store")
+  publish(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Param("templateId") templateId: string,
+    @Body() body: PublishNotificationTemplateVersionInput,
+  ) {
+    return this.templates.publishVersion(principal, templateId, body);
+  }
+}
+
 @Module({
-  controllers: [CommunicationsController, NotificationsController],
+  controllers: [CommunicationsController, NotificationsController, AdminNotificationTemplateController],
   providers: [
     CommunicationsService,
     CareMembershipAccessService,
     MessagingEnvelopeService,
     NotificationsService,
+    NotificationTemplateService,
     NotificationGatewayService,
     NotificationOutboxStoreService,
     NotificationOutboxWorkerService,
     AppointmentNotificationOrchestratorService,
   ],
-  exports: [NotificationsService],
+  exports: [NotificationsService, NotificationTemplateService],
 })
 export class CommunicationsModule {}

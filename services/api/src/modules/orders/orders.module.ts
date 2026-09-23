@@ -6,11 +6,15 @@ import { ProviderCategoryCapabilityService } from "../providers/provider-categor
 import { ProvidersModule } from "../providers/providers.module";
 import { ImagingOrdersController } from "./imaging-orders.controller";
 import { ImagingOrdersService } from "./imaging-orders.service";
+import { ProviderLabSeriesController } from "./lab-series.controller";
+import { LabSeriesService } from "./lab-series.service";
 import { OrdersService } from "./orders.service";
 import { OrdersEnvelopeService } from "./orders-envelope.service";
 import { OrdersAttestationService } from "./orders-attestation.service";
 import { OrdersSystemExportService } from "./orders-system-export.service";
 import { PrescriptionNotificationService } from "./prescription-notification.service";
+import { ProviderSpecimensController } from "./specimens.controller";
+import { SpecimensService } from "./specimens.service";
 
 @Controller("clinical-orders")
 class OrdersController {
@@ -97,8 +101,17 @@ class OrdersController {
 
 @Module({
   imports: [ProvidersModule, CommunicationsModule],
-  controllers: [OrdersController, ImagingOrdersController],
-  providers: [OrdersService, ImagingOrdersService, OrdersEnvelopeService, OrdersAttestationService, OrdersSystemExportService, PrescriptionNotificationService],
-  exports: [OrdersService, OrdersEnvelopeService, OrdersAttestationService, OrdersSystemExportService],
+  controllers: [OrdersController, ImagingOrdersController, ProviderLabSeriesController, ProviderSpecimensController],
+  providers: [
+    OrdersService,
+    ImagingOrdersService,
+    LabSeriesService,
+    SpecimensService,
+    OrdersEnvelopeService,
+    OrdersAttestationService,
+    OrdersSystemExportService,
+    PrescriptionNotificationService,
+  ],
+  exports: [OrdersService, LabSeriesService, SpecimensService, OrdersEnvelopeService, OrdersAttestationService, OrdersSystemExportService],
 })
 export class OrdersModule {}

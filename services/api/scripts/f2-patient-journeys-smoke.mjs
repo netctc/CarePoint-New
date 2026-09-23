@@ -51,7 +51,10 @@ function fixture(config = {}) {
     telehealthSession:{update:async q => {calls.push(['telehealth',q]);return {}; }},
   };
   const prisma = {...tx,$transaction:async (work,options) => {calls.push(['transaction',options]);return work(tx);}};
-  const audit = {writeInTransaction:async (db,event) => {assert.equal(db,tx);calls.push(['audit',event]);}};
+  const audit = {
+    reserveIntegrityChainForSerializableTransaction:async () => {},
+    writeInTransaction:async (db,event) => {assert.equal(db,tx);calls.push(['audit',event]);},
+  };
   return {service:new PatientJourneysService(prisma,audit),calls,appointment,destination,record:()=>record,entry:()=>entry};
 }
 test('F2 strict date parsing rejects impossible civil values and missing timezone', () => {

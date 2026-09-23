@@ -3,7 +3,7 @@ import { Prisma, type PatientAppointmentChange } from "@prisma/client";
 import { roleHasPermission, type AuthPrincipal } from "@carepoint/identity";
 import { PrismaService } from "../../infrastructure/prisma/prisma.module";
 import { DatabaseAuditService } from "../../infrastructure/audit/audit.service";
-import { assertFutureChange, DAY_MS, journeyHash, journeyId, journeyInstant, journeyWindow, TELEHEALTH_CHANGE_BUFFER_MS } from "./patient-journeys.policy";
+import { assertFutureChange, DAY_MS, journeyHash, journeyId, journeyInstant, journeyWindow, SCHEDULING_SERIALIZABLE_RETRY_ATTEMPTS, schedulingSerializableRetryBackoff, TELEHEALTH_CHANGE_BUFFER_MS } from "./patient-journeys.policy";
 
 type RescheduleInput = { slotId?: unknown; idempotencyKey?: unknown; expectedUpdatedAt?: unknown; waitlistEntryId?: unknown };
 type WaitInput = { from?: unknown; to?: unknown; expectedUpdatedAt?: unknown };
@@ -30,15 +30,26 @@ export class PatientJourneysService {
     return appointment;
   }
   private async serial<T>(work: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
-    for (let attempt = 0; attempt < 3; attempt++) {
-      try { return await this.prisma.$transaction(work, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }); }
+    for (let attempt = 0; attempt < SCHEDULING_SERIALIZABLE_RETRY_ATTEMPTS; attempt++) {
+      try {
+        return await this.prisma.$transaction(async (tx) => {
+          // F2 mutations always emit immutable audit evidence. Reserve the audit
+          // chain before the SERIALIZABLE snapshot performs any business read so
+          // unrelated audit writers cannot advance the singleton head mid-flight.
+          await this.audit.reserveIntegrityChainForSerializableTransaction(tx);
+          return work(tx);
+        }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+      }
       catch (error) {
         if (error instanceof Prisma.PrismaClientKnownRequestError) {
           // Raw-query row-lock conflicts use P2010 rather than P2034.
           // Always retry the full transaction with a fresh database snapshot.
           const rawConflict = error.code === "P2010" && ["40001", "40P01"].includes(String(error.meta?.code));
           const retryable = rawConflict || error.code === "P2034" || error.code === "P2002";
-          if (retryable && attempt < 2) continue;
+          if (retryable && attempt < SCHEDULING_SERIALIZABLE_RETRY_ATTEMPTS - 1) {
+            await schedulingSerializableRetryBackoff(attempt);
+            continue;
+          }
           if (retryable || error.code === "P2004") throw new ConflictException("Concurrent scheduling change. Refresh and retry the same request.");
         }
         throw error;

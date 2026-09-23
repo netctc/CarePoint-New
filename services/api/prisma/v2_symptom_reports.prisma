@@ -1,0 +1,24 @@
+model SymptomReport {
+  id             String   @id @default(uuid())
+  patientId      String
+  appointmentId  String?
+  carePlanId     String?
+  idempotencyKey String
+  requestDigest  String
+  sourceType     String   @default("PATIENT_REPORTED")
+  sourceActorId  String
+  occurredAt     DateTime?
+  reportedAt     DateTime @default(now())
+  algorithm      String
+  keyId          String
+  wrappedKey     String
+  iv             String
+  ciphertext     String
+  createdAt      DateTime @default(now())
+
+  @@unique([patientId, idempotencyKey])
+  @@index([patientId, reportedAt])
+  @@index([patientId, occurredAt])
+  @@index([appointmentId, reportedAt])
+  @@index([carePlanId, reportedAt])
+}

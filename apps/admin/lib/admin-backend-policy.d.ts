@@ -9,3 +9,4 @@ export function adminBackendFetch(
   fetchImpl?: typeof fetch,
 ): Promise<Response>;
 export function readBoundedAdminBackendText(response: Response, env?: NodeJS.ProcessEnv): Promise<string>;
+export function readBoundedAdminBackendBytes(response: Response, env?: NodeJS.ProcessEnv): Promise<Uint8Array>;

@@ -1,0 +1,21 @@
+model ClinicalMediaVersion {
+  id                     String   @id
+  logicalMediaId         String
+  mediaId                String   @unique
+  version                Int
+  mediaType              String
+  effectiveDate          DateTime
+  sourceType             String
+  sourceRef              String?
+  contentDigest          String
+  thumbnailContentDigest String?
+  patientId              String
+  providerId             String?
+  consentEvidenceId      String
+  supersedesMediaId      String?
+  createdAt              DateTime
+
+  @@unique([logicalMediaId, version])
+  @@index([patientId, effectiveDate])
+  @@index([providerId, effectiveDate])
+}

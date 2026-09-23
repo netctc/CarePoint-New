@@ -1,0 +1,22 @@
+enum AttachmentScanStatus {
+  QUARANTINED
+  CLEAN
+  INFECTED
+  REJECTED
+  ERROR
+}
+
+model AttachmentScanResult {
+  id                String               @id @default(uuid())
+  contentDigest     String
+  byteLength        Int
+  detectedMediaType String
+  provider          String
+  status            AttachmentScanStatus @default(QUARANTINED)
+  reasonCode        String?
+  quarantinedAt     DateTime             @default(now())
+  completedAt       DateTime?
+
+  @@index([contentDigest, completedAt])
+  @@index([status, quarantinedAt])
+}

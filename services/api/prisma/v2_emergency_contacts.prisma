@@ -1,0 +1,20 @@
+enum EmergencyContactStatus {
+  ACTIVE
+  REVOKED
+}
+
+model EmergencyContact {
+  id            String                 @id @default(uuid())
+  patientId     String
+  displayName   String
+  relationship  String
+  phone         String
+  priority      Int
+  status        EmergencyContactStatus @default(ACTIVE)
+  revokedAt     DateTime?
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+
+  @@index([patientId, status, priority])
+  @@index([patientId, updatedAt])
+}

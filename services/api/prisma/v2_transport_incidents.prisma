@@ -1,0 +1,25 @@
+model TransportIncident {
+  id                 String   @id @default(uuid())
+  transportRequestId String
+  providerId         String
+  patientId          String
+  category           String
+  severity           String
+  reasonCode         String
+  idempotencyKey     String   @unique
+  requestDigest      String
+  crewAssignmentId   String?
+  algorithm          String
+  keyId              String
+  wrappedKey         String
+  iv                 String
+  ciphertext         String
+  occurredAt         DateTime
+  reportedByAccountId String
+  createdAt          DateTime @default(now())
+
+  @@index([transportRequestId, occurredAt])
+  @@index([providerId, occurredAt])
+  @@index([patientId, occurredAt])
+  @@index([severity, occurredAt])
+}

@@ -23,6 +23,7 @@ export type OtherProviderCapabilityContext = {
   clinicalOrderCapabilities: Set<string>;
   clinicalSummarySections: Set<ClinicalSummarySection>;
   observationCodes: Set<string>;
+  questionnaireCodes: Set<string>;
   workflowCapabilities: Set<OtherProviderWorkflowCapability>;
 };
 
@@ -169,6 +170,7 @@ export class ProviderCategoryCapabilityService {
       clinicalOrderCapabilities: new Set(parsed.clinicalOrderCapabilities),
       clinicalSummarySections: new Set(parsed.clinicalSummarySections),
       observationCodes: new Set(parsed.observationCodes),
+      questionnaireCodes: new Set(parsed.questionnaireCodes),
       workflowCapabilities: new Set(parsed.workflowCapabilities),
     };
   }

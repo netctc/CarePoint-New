@@ -2,6 +2,7 @@ import { Body, Controller, Header, Module, Param, Post } from "@nestjs/common";
 import type { AuthPrincipal } from "@carepoint/identity";
 import { CurrentPrincipal, RequirePermissions } from "../../security/api-security.module";
 import { ProvidersModule } from "../providers/providers.module";
+import { ServiceSignatureModule } from "../service-signature/service-signature.module";
 import {
   ProviderWorkflowService,
   type CompleteHomeVisitInput,
@@ -68,7 +69,7 @@ class ProviderWorkflowController {
 }
 
 @Module({
-  imports: [ProvidersModule],
+  imports: [ProvidersModule, ServiceSignatureModule],
   controllers: [ProviderWorkflowController],
   providers: [ProviderWorkflowService],
 })

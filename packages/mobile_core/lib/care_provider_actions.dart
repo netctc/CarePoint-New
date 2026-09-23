@@ -10,7 +10,10 @@ import 'availability_demand_localization.dart';
 import 'financial_workspace.dart';
 import 'communications_workspace.dart';
 import 'professional_account_workspace.dart';
+import 'provider_offline_drafts.dart';
+import 'provider_work_queue.dart';
 import 'transport_workspace.dart';
+import 'emergency_access.dart';
 
 /// Labelled provider workspaces remain behind existing credential/capability gates.
 class CareProviderActions extends StatelessWidget {
@@ -22,14 +25,27 @@ class CareProviderActions extends StatelessWidget {
   final VoidCallback onSignOut;
   final Color accent;
   final bool dark, transport;
-  String t(String key) => key == 'availabilityDemand' ? availabilityDemandText(locale, 'title') : key == 'waiting' ? planningText(locale, 'demand') : journeyText(locale, key);
+  String t(String key) => key == 'emergencyAccess'
+      ? emergencyAccessText(locale, 'title')
+      : key == 'availabilityDemand'
+          ? availabilityDemandText(locale, 'title')
+      : key == 'waiting'
+          ? planningText(locale, 'demand')
+          : key == 'workQueue'
+              ? providerWorkQueueText(locale, 'title')
+              : key == 'offlineDrafts'
+                  ? providerOfflineDraftText(locale, 'title')
+                  : journeyText(locale, key);
   @override
   Widget build(BuildContext context) => Stack(children: [child,
     PositionedDirectional(start: 16, bottom: 90, child: SafeArea(child: Material(elevation: 4, borderRadius: BorderRadius.circular(16), child: PopupMenuButton<String>(
       tooltip: t('actions'),
-      itemBuilder: (_) => ['schedule', 'waiting', 'availabilityDemand', 'finance', 'messages', if (transport) 'transport', 'account'].map((key) => PopupMenuItem(value: key, child: Text(t(key)))).toList(),
+      itemBuilder: (_) => ['workQueue', if (session.role == 'DOCTOR') 'emergencyAccess', if (allowedModalities.contains('HOME_VISIT')) 'offlineDrafts', 'schedule', 'waiting', 'availabilityDemand', 'finance', 'messages', if (transport) 'transport', 'account'].map((key) => PopupMenuItem(value: key, child: Text(t(key)))).toList(),
       onSelected: (key) {
         final Widget page = switch (key) {
+          'workQueue' => ProviderWorkQueuePage(session: session, locale: locale, accent: accent),
+          'emergencyAccess' => EmergencyAccessPage(session: session, locale: locale),
+          'offlineDrafts' => ProviderOfflineDraftsPage(session: session, locale: locale, accent: accent),
           'schedule' => CareProviderSchedule(session: session, locale: locale, allowedModalities: allowedModalities),
           'waiting' => CareWaitlistPage(session: session, locale: locale, provider: true),
           'availabilityDemand' => ProviderAvailabilityDemandPage(session: session, locale: locale),

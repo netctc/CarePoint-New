@@ -1,10 +1,11 @@
-import { Body, Controller, Get, Header, Module, Param, Post } from "@nestjs/common";
+import { Body, Controller, Get, Header, Module, Param, Patch, Post } from "@nestjs/common";
 import type { AuthPrincipal } from "@carepoint/identity";
 import { CurrentPrincipal, RequirePermissions } from "../../security/api-security.module";
 import { ClinicalModule } from "../clinical/clinical.module";
 import { QuestionnaireReviewService } from "./questionnaire-review.service";
 import {
   QuestionnaireService,
+  type ConfirmQuestionnaireNoChangesInput,
   type CreateQuestionnaireInput,
   type CreateQuestionnaireVersionInput,
   type SubmitQuestionnaireInput,
@@ -62,6 +63,24 @@ class PatientQuestionnaireController {
   }
 
   @RequirePermissions("PATIENT_MANAGE_QUESTIONNAIRE")
+  @Get("status")
+  @Header("Cache-Control", "no-store")
+  status(@CurrentPrincipal() principal: AuthPrincipal) {
+    return this.questionnaires.statusMine(principal);
+  }
+
+  @RequirePermissions("PATIENT_MANAGE_QUESTIONNAIRE")
+  @Post(":code/confirm-no-changes")
+  @Header("Cache-Control", "no-store")
+  confirmNoChanges(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Param("code") code: string,
+    @Body() body: ConfirmQuestionnaireNoChangesInput,
+  ) {
+    return this.questionnaires.confirmNoChangesMine(principal, code, body);
+  }
+
+  @RequirePermissions("PATIENT_MANAGE_QUESTIONNAIRE")
   @Post(":code/responses")
   @Header("Cache-Control", "no-store")
   submit(
@@ -84,6 +103,29 @@ class PatientQuestionnaireController {
   @Header("Cache-Control", "no-store")
   diff(@CurrentPrincipal() principal: AuthPrincipal, @Param("code") code: string) {
     return this.questionnaires.diffMine(principal, code);
+  }
+}
+
+
+@Controller("patient/social-history")
+class PatientSocialHistoryController {
+  constructor(private readonly questionnaires: QuestionnaireService) {}
+
+  @RequirePermissions("PATIENT_MANAGE_QUESTIONNAIRE")
+  @Get()
+  @Header("Cache-Control", "no-store")
+  get(@CurrentPrincipal() principal: AuthPrincipal) {
+    return this.questionnaires.socialHistoryMine(principal);
+  }
+
+  @RequirePermissions("PATIENT_MANAGE_QUESTIONNAIRE")
+  @Patch()
+  @Header("Cache-Control", "no-store")
+  update(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Body() body: SubmitQuestionnaireInput,
+  ) {
+    return this.questionnaires.updateSocialHistoryMine(principal, body);
   }
 }
 
@@ -146,6 +188,7 @@ class DoctorQuestionnaireController {
   controllers: [
     AdminQuestionnaireController,
     PatientQuestionnaireController,
+    PatientSocialHistoryController,
     DoctorQuestionnaireController,
   ],
   providers: [QuestionnaireService, QuestionnaireReviewService],

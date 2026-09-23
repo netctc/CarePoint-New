@@ -61,3 +61,5 @@ assert.deepEqual(
 );
 
 console.log("V2 clinical audit metadata minimization acceptance passed");
+await import("./v2-realtime-events-smoke.mjs");
+await import("./v2-data-quality-smoke.mjs");

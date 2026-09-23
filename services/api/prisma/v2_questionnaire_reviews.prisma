@@ -1,11 +1,11 @@
 model QuestionnaireResponseReview {
-  id              String   @id @default(uuid())
-  responseId      String
-  patientId       String
+  id               String   @id @default(uuid())
+  responseId       String
+  patientId        String
   responseSequence Int
-  providerId      String
-  reviewerActorId String
-  reviewedAt      DateTime @default(now())
+  providerId       String
+  reviewerActorId  String
+  reviewedAt       DateTime @default(now())
 
   @@unique([responseId, providerId])
   @@index([patientId, reviewedAt])

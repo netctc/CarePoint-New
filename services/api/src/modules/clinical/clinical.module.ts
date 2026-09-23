@@ -12,6 +12,7 @@ import { ClinicalService } from "./clinical.service";
 import { ClinicalSystemExportService } from "./clinical-system-export.service";
 import { ClinicalWorkspaceService } from "./clinical-workspace.service";
 import { EncounterAddendaService } from "./encounter-addenda.service";
+import { ClinicalSignatureService } from "./clinical-signature.service";
 
 @Controller("clinical")
 class ClinicalController {
@@ -69,7 +70,17 @@ class ClinicalController {
 
 @Controller("provider/encounters")
 class ProviderEncounterAddendaController {
-  constructor(private readonly addenda: EncounterAddendaService) {}
+  constructor(private readonly addenda: EncounterAddendaService, private readonly signatures: ClinicalSignatureService) {}
+
+  @RequirePermissions("CLINICAL_RECORD_WRITE")
+  @Post(":encounterId/sign")
+  @Header("Cache-Control", "no-store")
+  sign(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Param("encounterId") encounterId: string,
+  ) {
+    return this.signatures.sign(principal, encounterId);
+  }
 
   @RequirePermissions("CLINICAL_RECORD_WRITE")
   @Post(":encounterId/addenda")
@@ -100,6 +111,7 @@ class ProviderEncounterAddendaController {
     ClinicalSystemExportService,
     ClinicalWorkspaceService,
     EncounterAddendaService,
+    ClinicalSignatureService,
     CarePlanService,
     CarePlanTemplateService,
   ],

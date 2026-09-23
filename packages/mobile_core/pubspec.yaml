@@ -16,3 +16,12 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: com.carepoint.mobile_core
+        pluginClass: CarePointMobileCorePlugin
+      ios:
+        pluginClass: CarePointMobileCorePlugin

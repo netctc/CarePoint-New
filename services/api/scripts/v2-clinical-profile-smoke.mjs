@@ -61,3 +61,8 @@ assert.throws(
 );
 
 console.log("V2 longitudinal clinical-profile entry validation passed");
+
+await import("./v2-clinical-history-smoke.mjs");
+await import("./v2-emergency-access-smoke.mjs");
+
+await import("./v2-patient-extended-clinical-profile-smoke.mjs");

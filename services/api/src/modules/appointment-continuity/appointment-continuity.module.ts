@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Header, Module, Param, Patch, Post } from "@nestjs/common";
+import { Body, Controller, Get, Header, Module, Param, Patch, Post, Query } from "@nestjs/common";
 import type { AuthPrincipal } from "@carepoint/identity";
 import { CurrentPrincipal, RequirePermissions } from "../../security/api-security.module";
 import { ClinicalModule } from "../clinical/clinical.module";
@@ -8,7 +8,9 @@ import {
   AppointmentContinuityService,
   type ConfigurePrepInput,
   type FollowUpInput,
+  type DoctorQuestionnaireRequestInput,
   type QuestionnaireRequestInput,
+  type SubmitRequestedQuestionnaireInput,
   type UpdatePrepTaskInput,
 } from "./appointment-continuity.service";
 
@@ -50,6 +52,64 @@ class ProviderQuestionnaireRequestController {
   request(@CurrentPrincipal() principal: AuthPrincipal, @Param("patientId") patientId: string, @Body() body: QuestionnaireRequestInput) { return this.continuity.requestQuestionnaire(principal, patientId, body); }
 }
 
+
+@Controller("doctor/patients")
+class DoctorRequestedQuestionnaireController {
+  constructor(private readonly continuity: AppointmentContinuityService) {}
+
+  @RequirePermissions("CARE_COORDINATION_MANAGE")
+  @Get(":patientId/questionnaire-requests/available")
+  @Header("Cache-Control", "no-store")
+  available(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Param("patientId") patientId: string,
+    @Query("appointmentId") appointmentId: string,
+  ) {
+    return this.continuity.availableQuestionnaires(principal, patientId, appointmentId);
+  }
+
+  @RequirePermissions("CARE_COORDINATION_MANAGE")
+  @Get(":patientId/questionnaire-requests")
+  @Header("Cache-Control", "no-store")
+  list(@CurrentPrincipal() principal: AuthPrincipal, @Param("patientId") patientId: string) {
+    return this.continuity.doctorQuestionnaireRequests(principal, patientId);
+  }
+
+  @RequirePermissions("CARE_COORDINATION_MANAGE")
+  @Post(":patientId/questionnaire-requests")
+  @Header("Cache-Control", "no-store")
+  request(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Param("patientId") patientId: string,
+    @Body() body: DoctorQuestionnaireRequestInput,
+  ) {
+    return this.continuity.requestQuestionnaireForVisit(principal, patientId, body);
+  }
+}
+
+@Controller("patient/questionnaire-requests")
+class PatientRequestedQuestionnaireController {
+  constructor(private readonly continuity: AppointmentContinuityService) {}
+
+  @RequirePermissions("PATIENT_MANAGE_QUESTIONNAIRE")
+  @Get()
+  @Header("Cache-Control", "no-store")
+  list(@CurrentPrincipal() principal: AuthPrincipal) {
+    return this.continuity.patientQuestionnaireRequests(principal);
+  }
+
+  @RequirePermissions("PATIENT_MANAGE_QUESTIONNAIRE")
+  @Post(":requestId/responses")
+  @Header("Cache-Control", "no-store")
+  submit(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Param("requestId") requestId: string,
+    @Body() body: SubmitRequestedQuestionnaireInput,
+  ) {
+    return this.continuity.submitRequestedQuestionnaire(principal, requestId, body);
+  }
+}
+
 @Controller("provider/encounters")
 class ProviderFollowUpController {
   constructor(private readonly continuity: AppointmentContinuityService) {}
@@ -72,7 +132,15 @@ class PatientFollowUpController {
 
 @Module({
   imports: [ClinicalModule, CommunicationsModule, DependentsModule],
-  controllers: [PatientAppointmentPrepController, ProviderAppointmentPrepController, ProviderQuestionnaireRequestController, ProviderFollowUpController, PatientFollowUpController],
+  controllers: [
+    PatientAppointmentPrepController,
+    ProviderAppointmentPrepController,
+    ProviderQuestionnaireRequestController,
+    DoctorRequestedQuestionnaireController,
+    PatientRequestedQuestionnaireController,
+    ProviderFollowUpController,
+    PatientFollowUpController,
+  ],
   providers: [AppointmentContinuityService],
   exports: [AppointmentContinuityService],
 })

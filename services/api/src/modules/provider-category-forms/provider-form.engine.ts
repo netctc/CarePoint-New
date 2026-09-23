@@ -10,6 +10,7 @@ export const ProviderFormPurposes = [
   "GENERAL",
   "HOME_VISIT",
   "SERVICE_COMPLETION",
+  "PROCEDURE_CHECKLIST",
   "TRANSPORT_EQUIPMENT",
 ] as const;
 export type ProviderFormPurpose = (typeof ProviderFormPurposes)[number];
@@ -60,8 +61,8 @@ export function assertProviderFormPurposeContext(
       throw new BadRequestException("HOME_VISIT forms require a HOME_VISIT appointment context.");
     }
   }
-  if (purpose === "SERVICE_COMPLETION" && contextType !== "APPOINTMENT") {
-    throw new BadRequestException("SERVICE_COMPLETION forms require an appointment context.");
+  if ((purpose === "SERVICE_COMPLETION" || purpose === "PROCEDURE_CHECKLIST") && contextType !== "APPOINTMENT") {
+    throw new BadRequestException(`${purpose} forms require an appointment context.`);
   }
   if (purpose === "TRANSPORT_EQUIPMENT" && contextType !== "MEDICAL_TRANSPORT") {
     throw new BadRequestException("TRANSPORT_EQUIPMENT forms require a medical transport context.");

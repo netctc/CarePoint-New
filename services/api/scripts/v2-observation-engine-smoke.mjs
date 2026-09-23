@@ -9,6 +9,8 @@ const {
   normalizeObservedAt,
 } = require("../dist/modules/observation/observation.engine.js");
 
+await import("./v2-lab-series-smoke.mjs");
+
 const conversions = [
   { fromUnitCode: "LB", toUnitCode: "KG", multiplier: 0.45359237, offset: 0 },
   { fromUnitCode: "DEG_F", toUnitCode: "CEL", multiplier: 5 / 9, offset: -17.7777777778 },
@@ -42,3 +44,5 @@ assert.throws(
 );
 
 console.log("V2 observation conversion and validation acceptance passed");
+
+await import("./v2-terminology-smoke.mjs");

@@ -20,6 +20,13 @@ type NotificationInput = {
   safeBodyKey: string;
 };
 
+type TemplateBinding = {
+  titleKey: string;
+  titleVersion: number | null;
+  bodyKey: string;
+  bodyVersion: number | null;
+} | null;
+
 @Injectable()
 export class NotificationsService {
   constructor(
@@ -84,15 +91,24 @@ export class NotificationsService {
       orderBy: { createdAt: "desc" },
       take: 200,
     });
-    return rows.map((row) => this.presentNotification(row));
+    const bindings = rows.length === 0
+      ? []
+      : await this.prisma.notificationEventTemplateBinding.findMany({
+          where: { notificationId: { in: rows.map((row) => row.id) } },
+        });
+    const byNotification = new Map(bindings.map((binding) => [binding.notificationId, binding]));
+    return rows.map((row) => this.presentNotification(row, byNotification.get(row.id) ?? null));
   }
 
   async markRead(principal: AuthPrincipal, notificationId: string) {
     const updated = await this.prisma.notificationEvent.updateMany({ where: { id: notificationId, accountId: principal.accountId }, data: { readAt: new Date() } });
     if (updated.count === 0) throw new NotFoundException("Notification not found.");
-    const row = await this.prisma.notificationEvent.findUnique({ where: { id: notificationId }, include: { deliveries: { orderBy: { channel: "asc" } } } });
+    const [row, binding] = await Promise.all([
+      this.prisma.notificationEvent.findUnique({ where: { id: notificationId }, include: { deliveries: { orderBy: { channel: "asc" } } } }),
+      this.prisma.notificationEventTemplateBinding.findUnique({ where: { notificationId } }),
+    ]);
     if (!row) throw new NotFoundException("Notification not found.");
-    return this.presentNotification(row);
+    return this.presentNotification(row, binding);
   }
 
   async notifyAccount(input: NotificationInput) {
@@ -106,10 +122,24 @@ export class NotificationsService {
 
   async enqueueAccountInTransaction(tx: Prisma.TransactionClient, input: NotificationInput) {
     const normalized = this.normalizedNotification(input);
+    const [titleTemplate, bodyTemplate] = await Promise.all([
+      tx.notificationTemplate.findUnique({ where: { key: normalized.safeTitleKey }, select: { active: true, currentVersion: true } }),
+      tx.notificationTemplate.findUnique({ where: { key: normalized.safeBodyKey }, select: { active: true, currentVersion: true } }),
+    ]);
     const notification = await tx.notificationEvent.upsert({
       where: { dedupeKey: normalized.dedupeKey },
       create: normalized,
       update: {},
+    });
+    await tx.notificationEventTemplateBinding.createMany({
+      data: [{
+        notificationId: notification.id,
+        titleKey: normalized.safeTitleKey,
+        titleVersion: titleTemplate?.active ? titleTemplate.currentVersion : null,
+        bodyKey: normalized.safeBodyKey,
+        bodyVersion: bodyTemplate?.active ? bodyTemplate.currentVersion : null,
+      }],
+      skipDuplicates: true,
     });
     await tx.notificationDelivery.createMany({
       data: OUTBOX_CHANNELS.map((channel) => ({
@@ -160,14 +190,16 @@ export class NotificationsService {
     readAt: Date | null;
     createdAt: Date;
     deliveries: Array<{ channel: string; status: string; attemptedAt: Date | null }>;
-  }) {
+  }, binding: TemplateBinding) {
     return {
       id: notification.id,
       type: notification.type,
       entityType: notification.entityType,
       entityId: notification.entityId,
       safeTitleKey: notification.safeTitleKey,
+      safeTitleVersion: binding?.titleVersion ?? null,
       safeBodyKey: notification.safeBodyKey,
+      safeBodyVersion: binding?.bodyVersion ?? null,
       readAt: notification.readAt,
       createdAt: notification.createdAt,
       deliveries: notification.deliveries.map((delivery) => ({ channel: delivery.channel, status: delivery.status, attemptedAt: delivery.attemptedAt })),

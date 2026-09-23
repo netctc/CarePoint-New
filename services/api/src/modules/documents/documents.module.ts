@@ -1,7 +1,8 @@
-import { BadRequestException, Body, Controller, Get, Header, Module, Param, Post, Query, StreamableFile } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Get, Header, Module, Param, Post, Query, StreamableFile, UsePipes } from "@nestjs/common";
 import type { AuthPrincipal } from "@carepoint/identity";
 import { CurrentPrincipal, RequirePermissions } from "../../security/api-security.module";
 import { CommunicationsModule } from "../communications/communications.module";
+import { AttachmentUploadPolicyPipe } from "./attachment-upload-policy.pipe";
 import { DocumentsService } from "./documents.service";
 import { DocumentStorageService } from "./document-storage.service";
 import { DocumentsEnvelopeService } from "./documents-envelope.service";
@@ -22,6 +23,7 @@ class ClinicalDocumentsController {
   ) {}
 
   @RequirePermissions("CLINICAL_DOCUMENT_WRITE")
+  @UsePipes(AttachmentUploadPolicyPipe)
   @Post("appointments/:appointmentId/upload")
   upload(@CurrentPrincipal() principal: AuthPrincipal, @Param("appointmentId") appointmentId: string, @Body() body: any) {
     return this.documents.uploadForEncounter(principal, appointmentId, body);
@@ -34,6 +36,7 @@ class ClinicalDocumentsController {
   }
 
   @RequirePermissions("PATIENT_WRITE_CLINICAL_DOCUMENTS")
+  @UsePipes(AttachmentUploadPolicyPipe)
   @Post("me/upload")
   patientUpload(@CurrentPrincipal() principal: AuthPrincipal, @Body() body: any) {
     return this.documents.patientUpload(principal, body);
@@ -196,6 +199,7 @@ class DiagnosticReportsController {
   imports: [CommunicationsModule],
   controllers: [ClinicalDocumentsController, DiagnosticReportsController],
   providers: [
+    AttachmentUploadPolicyPipe,
     DocumentsService,
     DocumentStorageService,
     DocumentsEnvelopeService,

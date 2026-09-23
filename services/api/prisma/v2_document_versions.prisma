@@ -1,0 +1,25 @@
+model DocumentVersion {
+  id                String   @id
+  logicalDocumentId String
+  documentId        String   @unique
+  version           Int
+  documentType      String
+  effectiveDate     DateTime
+  sourceType        String
+  sourceRef         String?
+  hashAlgorithm     String
+  versionHash       String
+  patientId         String
+  providerId        String?
+  encounterRef      String?
+  orderId           String?
+  supersedesDocumentId String?
+  createdAt         DateTime @default(now())
+
+  @@unique([logicalDocumentId, version])
+  @@index([logicalDocumentId, version])
+  @@index([patientId, effectiveDate])
+  @@index([providerId, effectiveDate])
+  @@index([encounterRef, documentType])
+  @@index([orderId, documentType])
+}

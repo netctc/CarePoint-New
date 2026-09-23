@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { totpCode } from '@carepoint/identity';
 
 const base = process.env.CAREPOINT_API_URL || 'http://127.0.0.1:4000/api/v1';
 const prisma = new PrismaClient();
@@ -23,6 +24,27 @@ async function login(email, password) {
   return result.accessToken;
 }
 
+async function mfaAssuredLogin(existingToken, email, password) {
+  const enrollment = await request('/iam/mfa/enroll', { method: 'POST', token: existingToken });
+  if (typeof enrollment.secret !== 'string' || enrollment.secret.length < 16) {
+    throw new Error(`MFA enrollment did not return a valid secret for ${email}.`);
+  }
+  await request('/iam/mfa/confirm', {
+    method: 'POST', token: existingToken, body: { code: totpCode(enrollment.secret) },
+  });
+  const challenged = await request('/iam/login', { method: 'POST', body: { email, password } });
+  if (challenged.requiresMfa !== true || typeof challenged.challengeId !== 'string') {
+    throw new Error(`MFA-enabled login did not return a challenge for ${email}.`);
+  }
+  const verified = await request('/iam/mfa/verify', {
+    method: 'POST', body: { challengeId: challenged.challengeId, code: totpCode(enrollment.secret) },
+  });
+  if (!verified.accessToken || !verified.sessionId?.startsWith('sesmfa_')) {
+    throw new Error(`MFA verification did not issue an assured session for ${email}.`);
+  }
+  return verified.accessToken;
+}
+
 async function createApprovedDoctor(adminToken, suffix, specialtyId) {
   const email = `doctor-clinical-${suffix}@carepoint.test`;
   const password = process.env.SLICE6_DOCTOR_PASSWORD;
@@ -38,7 +60,7 @@ async function createApprovedDoctor(adminToken, suffix, specialtyId) {
   await request(`/onboarding/${onboarding.id}/approve`, { method: 'POST', token: adminToken });
   const user = await prisma.user.findUnique({ where: { email }, include: { provider: true } });
   if (!user?.provider?.id) throw new Error('Approved doctor provider profile was not created.');
-  return { token, providerId: user.provider.id };
+  return { token, providerId: user.provider.id, email, password };
 }
 
 async function main() {
@@ -50,6 +72,7 @@ async function main() {
   if (!specialty?.id) throw new Error('No specialty available for Slice 3.1 smoke test.');
   const doctorA = await createApprovedDoctor(adminToken, 'a', specialty.id);
   const doctorB = await createApprovedDoctor(adminToken, 'b', specialty.id);
+  doctorA.token = await mfaAssuredLogin(doctorA.token, doctorA.email, doctorA.password);
 
   const service = await request('/provider/services', {
     method: 'POST', token: doctorA.token, body: {
@@ -115,6 +138,10 @@ async function main() {
   const consentView = await request(`/clinical/patients/${patient.patientProfile.id}/timeline`, { token: doctorB.token });
   if (consentView.accessBasis !== 'PATIENT_CONSENT' || !consentView.items?.[0]?.latestRecord?.data?.subjective?.includes(marker)) throw new Error('Consent-authorized cross-provider timeline failed.');
 
+  const signature = await request(`/provider/encounters/${appointment.id}/sign`, { method: 'POST', token: doctorA.token });
+  if (signature.recordId !== written.id || signature.mfaAssured !== true) {
+    throw new Error('Clinical signature was not bound to the current record revision with MFA assurance.');
+  }
   const finalized = await request(`/clinical/appointments/${appointment.id}/finalize`, { method: 'POST', token: doctorA.token });
   if (!finalized.finalized || finalized.appointment.status !== 'COMPLETED') throw new Error('Encounter finalization did not complete appointment.');
   const immutable = await raw(`/clinical/appointments/${appointment.id}/records`, { method: 'POST', token: doctorA.token, body: { assessment: 'Should not be writable after finalization.' } });

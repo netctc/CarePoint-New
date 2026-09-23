@@ -163,3 +163,7 @@ console.log(JSON.stringify({
   explicitProviderConsentRequired: true,
   otherProviderCapabilityFailClosed: true,
 }));
+
+await import("./v2-symptom-report-smoke.mjs");
+await import("./v2-patient-clinical-export-smoke.mjs");
+await import("./v2-patient-clinical-history-ui-smoke.mjs");

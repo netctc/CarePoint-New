@@ -82,6 +82,25 @@ const recent = evaluateQuestionnaireActivation(
 assert.equal(recent.due, false);
 assert.equal(recent.askHealthChanged, true);
 
+const complianceSource = readFileSync(
+  new URL("../src/modules/admin-questionnaire-compliance/admin-questionnaire-compliance.module.ts", import.meta.url),
+  "utf8",
+);
+assert.match(complianceSource, /aggregateOnly:\s*true/);
+assert.match(complianceSource, /encryptedQuestionnairePayloadNotRead:\s*true/);
+assert.match(complianceSource, /Cache-Control/);
+assert.match(complianceSource, /ADMIN_QUESTIONNAIRE_COMPLIANCE_READ/);
+assert.doesNotMatch(complianceSource, /\.ciphertext\b|decryptResponse|ClinicalEnvelopeService/);
+assert.doesNotMatch(complianceSource, /firstName|lastName|email/);
+
+const monitorSource = readFileSync(
+  new URL("../../../apps/admin/components/QuestionnaireComplianceMonitor.tsx", import.meta.url),
+  "utf8",
+);
+assert.match(monitorSource, /\/api\/admin\/analytics\/questionnaires/);
+assert.match(monitorSource, /Questionnaire compliance monitor/);
+
+
 const reviewModel = readFileSync(new URL("../prisma/v2_questionnaire_reviews.prisma", import.meta.url), "utf8");
 const reviewMigration = readFileSync(
   new URL("../prisma/migrations/20260919111000_v2_questionnaire_reviews/migration.sql", import.meta.url),
@@ -112,4 +131,9 @@ assert.doesNotMatch(reviewService, /\bciphertext\b/);
 assert.match(questionnaireModule, /@Get\(":patientId\/questionnaires\/:code\/responses\/:responseId\/review"\)/);
 assert.match(questionnaireModule, /@Post\(":patientId\/questionnaires\/:code\/responses\/:responseId\/review"\)/);
 
-console.log("V2 questionnaire engine and immutable review acceptance passed");
+console.log("V2 questionnaire engine + ADM-077 compliance + immutable review acceptance passed");
+
+await import("./v2-doctor-questionnaire-request-ui-smoke.mjs");
+
+await import("./v2-patient-questionnaire-status-ui-smoke.mjs");
+await import("./v2-patient-social-history-smoke.mjs");

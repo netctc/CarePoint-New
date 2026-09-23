@@ -15,7 +15,9 @@ export interface DurableNotificationWorkItem {
     accountId: string;
     dedupeKey: string;
     safeTitleKey: string;
+    safeTitleVersion: number | null;
     safeBodyKey: string;
+    safeBodyVersion: number | null;
     entityType: string;
     entityId: string;
   };
@@ -71,6 +73,9 @@ export class NotificationOutboxStoreService {
       include: { notification: true },
     });
     if (!row) return null;
+    const binding = await this.prisma.notificationEventTemplateBinding.findUnique({
+      where: { notificationId: row.notificationId },
+    });
     return {
       id: row.id,
       notificationId: row.notificationId,
@@ -81,7 +86,9 @@ export class NotificationOutboxStoreService {
         accountId: row.notification.accountId,
         dedupeKey: row.notification.dedupeKey,
         safeTitleKey: row.notification.safeTitleKey,
+        safeTitleVersion: binding?.titleVersion ?? null,
         safeBodyKey: row.notification.safeBodyKey,
+        safeBodyVersion: binding?.bodyVersion ?? null,
         entityType: row.notification.entityType,
         entityId: row.notification.entityId,
       },
