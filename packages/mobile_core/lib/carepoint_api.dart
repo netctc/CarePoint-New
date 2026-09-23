@@ -338,6 +338,11 @@ class CarePointApi {
       _asMap(await _send('PATCH', '/provider/care-plans/$carePlanId/alert-rules/$ruleId', body: body));
   Future<Map<String, dynamic>> doctorMonitoringQueue({String? severity}) async =>
       _asMap(await _send('GET', '/provider/monitoring-queue', query: {if (severity?.isNotEmpty == true) 'severity': severity!}));
+  Future<Map<String, dynamic>> patientClinicalAlerts() async =>
+      _asMap(await _send('GET', '/patient/clinical-alerts'));
+  Future<Map<String, dynamic>> markPatientClinicalAlertViewed(String alertId) async =>
+      _asMap(await _send('POST', '/patient/clinical-alerts/$alertId/viewed', body: const {}));
+
   Future<Map<String, dynamic>> doctorClinicalAlertAction(String alertId, String action, {String? reasonCode}) async =>
       _asMap(await _send('POST', '/provider/clinical-alerts/$alertId/actions', body: {
         'action': action,
