@@ -57,3 +57,5 @@ test("provider provenance is explicit and never implies an automated diagnosis",
 });
 
 console.log("V2 provider observation acceptance passed");
+
+await import("./v2-other-provider-observation-panel-smoke.mjs");
