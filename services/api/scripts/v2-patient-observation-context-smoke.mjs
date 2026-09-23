@@ -48,3 +48,5 @@ console.log("PAT-120 versioned Observation context acceptance passed");
 function read(relative) {
   return readFileSync(new URL(relative, import.meta.url), "utf8");
 }
+
+await import("./v2-patient-observation-correction-smoke.mjs");

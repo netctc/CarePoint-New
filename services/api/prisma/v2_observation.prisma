@@ -82,6 +82,7 @@ model Observation {
   observationType          ObservationType        @relation(fields: [observationTypeId], references: [id], onDelete: Restrict)
   observationTypeVersion   ObservationTypeVersion @relation(fields: [observationTypeVersionId], references: [id], onDelete: Restrict)
   contextRevisions          ObservationContextRevision[]
+  correctionRevisions       ObservationCorrectionRevision[]
 
   @@index([patientId, observationTypeId, observedAt])
   @@index([observationTypeVersionId, observedAt])
@@ -89,6 +90,23 @@ model Observation {
 
 
 model ObservationContextRevision {
+  id               String      @id @default(uuid())
+  observationId    String
+  sequence         Int
+  algorithm        String
+  keyId            String
+  wrappedKey       String
+  iv               String
+  ciphertext       String
+  createdByActorId String
+  createdAt        DateTime    @default(now())
+  observation      Observation @relation(fields: [observationId], references: [id], onDelete: Restrict)
+
+  @@unique([observationId, sequence])
+  @@index([observationId, createdAt])
+}
+
+model ObservationCorrectionRevision {
   id               String      @id @default(uuid())
   observationId    String
   sequence         Int

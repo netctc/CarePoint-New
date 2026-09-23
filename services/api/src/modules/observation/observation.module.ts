@@ -12,6 +12,7 @@ import {
 } from "./observation.service";
 import { ObservationTrendService } from "./observation-trend.service";
 import { ObservationContextService, type UpdateObservationContextInput } from "./observation-context.service";
+import { ObservationCorrectionService, type CorrectObservationInput } from "./observation-correction.service";
 import { ProviderObservationService } from "./provider-observation.service";
 
 @Controller("admin/clinical-metrics")
@@ -69,6 +70,7 @@ class PatientObservationController {
     private readonly observations: ObservationService,
     private readonly trends: ObservationTrendService,
     private readonly contexts: ObservationContextService,
+    private readonly corrections: ObservationCorrectionService,
   ) {}
 
   @RequirePermissions("PATIENT_MANAGE_OBSERVATIONS")
@@ -116,6 +118,27 @@ class PatientObservationController {
     @Body() body: UpdateObservationContextInput,
   ) {
     return this.contexts.updateMine(principal, observationId, body);
+  }
+
+  @RequirePermissions("PATIENT_MANAGE_OBSERVATIONS")
+  @Get(":observationId/corrections")
+  @Header("Cache-Control", "no-store")
+  correctionsForMeasurement(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Param("observationId") observationId: string,
+  ) {
+    return this.corrections.readMine(principal, observationId);
+  }
+
+  @RequirePermissions("PATIENT_MANAGE_OBSERVATIONS")
+  @Post(":observationId/corrections")
+  @Header("Cache-Control", "no-store")
+  correctMeasurement(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Param("observationId") observationId: string,
+    @Body() body: CorrectObservationInput,
+  ) {
+    return this.corrections.correctMine(principal, observationId, body);
   }
 
   @RequirePermissions("PATIENT_MANAGE_OBSERVATIONS")
@@ -205,7 +228,7 @@ class ProviderObservationController {
     DoctorObservationController,
     ProviderObservationController,
   ],
-  providers: [ObservationService, ProviderObservationService, ObservationTrendService, ObservationContextService],
-  exports: [ObservationService, ProviderObservationService, ObservationTrendService, ObservationContextService],
+  providers: [ObservationService, ProviderObservationService, ObservationTrendService, ObservationContextService, ObservationCorrectionService],
+  exports: [ObservationService, ProviderObservationService, ObservationTrendService, ObservationContextService, ObservationCorrectionService],
 })
 export class ObservationModule {}
