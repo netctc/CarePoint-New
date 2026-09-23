@@ -4,6 +4,7 @@ import { CurrentPrincipal, RequirePermissions } from "../../security/api-securit
 import { ClinicalModule } from "../clinical/clinical.module";
 import {
   QuestionnaireService,
+  type ConfirmQuestionnaireNoChangesInput,
   type CreateQuestionnaireInput,
   type CreateQuestionnaireVersionInput,
   type SubmitQuestionnaireInput,
@@ -58,6 +59,24 @@ class PatientQuestionnaireController {
   @Header("Cache-Control", "no-store")
   due(@CurrentPrincipal() principal: AuthPrincipal) {
     return this.questionnaires.dueMine(principal);
+  }
+
+  @RequirePermissions("PATIENT_MANAGE_QUESTIONNAIRE")
+  @Get("status")
+  @Header("Cache-Control", "no-store")
+  status(@CurrentPrincipal() principal: AuthPrincipal) {
+    return this.questionnaires.statusMine(principal);
+  }
+
+  @RequirePermissions("PATIENT_MANAGE_QUESTIONNAIRE")
+  @Post(":code/confirm-no-changes")
+  @Header("Cache-Control", "no-store")
+  confirmNoChanges(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Param("code") code: string,
+    @Body() body: ConfirmQuestionnaireNoChangesInput,
+  ) {
+    return this.questionnaires.confirmNoChangesMine(principal, code, body);
   }
 
   @RequirePermissions("PATIENT_MANAGE_QUESTIONNAIRE")
