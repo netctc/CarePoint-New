@@ -24,3 +24,4 @@ assert.match(main,/patient-extended-clinical-profile-entry/);
 for(const locale of ["CarePointLocale.en","CarePointLocale.ar","CarePointLocale.fr","CarePointLocale.es"]) assert.ok(ui.includes(locale),`Missing extended-profile locale ${locale}`);
 console.log("PAT-090/PAT-094/PAT-096 extended Clinical Profile acceptance passed");
 function read(relative){return readFileSync(new URL(relative,import.meta.url),"utf8");}
+await import("./v2-patient-emergency-card-smoke.mjs");
