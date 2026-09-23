@@ -27,6 +27,7 @@ const privacyLabels: Record<Locale, string> = { en:"Privacy & Governance", ar:"�
 const v2GovernanceLabels: Record<Locale, string> = { en:"V2 Governance", ar:"حوكمة V2", fr:"Gouvernance V2", es:"Gobernanza V2" };
 const consentMatrixLabels: Record<Locale, string> = { en:"Consent Access Matrix", ar:"مصفوفة وصول الموافقات", fr:"Matrice d’accès consentement", es:"Matriz de acceso por consentimiento" };
 const clinicalAccessLabels: Record<Locale, string> = { en:"Clinical Access Audit", ar:"تدقيق الوصول السريري", fr:"Audit des accès cliniques", es:"Auditoría de acceso clínico" };
+const credentialExpiryLabels: Record<Locale, string> = { en:"Credential Expirations", ar:"انتهاء صلاحية الاعتمادات", fr:"Expirations des justificatifs", es:"Vencimiento de credenciales" };
 
 type Props = Readonly<{
   active: string;
@@ -55,6 +56,7 @@ export function AppShell({ active, titleKey, eyebrowKey, title, eyebrow, childre
         <Link className={`nav-item ${active === "12" ? "active" : ""}`} href="/governance"><small>12</small><span>{v2GovernanceLabels[locale]}</span><b>{direction === "rtl" ? "‹" : "›"}</b></Link>
         <Link className={`nav-item ${active === "15" ? "active" : ""}`} href="/consent-policies"><small>15</small><span>{consentMatrixLabels[locale]}</span><b>{direction === "rtl" ? "‹" : "›"}</b></Link>
         <Link className={`nav-item ${active === "16" ? "active" : ""}`} href="/clinical-access"><small>16</small><span>{clinicalAccessLabels[locale]}</span><b>{direction === "rtl" ? "‹" : "›"}</b></Link>
+        <Link className={`nav-item ${active === "17" ? "active" : ""}`} href="/governance/expirations"><small>17</small><span>{credentialExpiryLabels[locale]}</span><b>{direction === "rtl" ? "‹" : "›"}</b></Link>
       </nav>
       <div className="security-pill"><div><small>{t("shell.e2eeStatus")}</small><strong>{t("shell.shieldPolicy")}</strong></div><i /></div>
     </aside>

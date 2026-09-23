@@ -75,3 +75,14 @@ assert.doesNotMatch(proxy, /process\.env/);
 assert.doesNotMatch(center, /NEXT_PUBLIC_.*API|localhost:|127\.0\.0\.1/);
 
 console.log("V2 B6 Admin governance acceptance passed: ADM-084/088/090/100/101/110");
+const credentialExpiryPage = readFileSync(new URL("../app/governance/expirations/page.tsx", import.meta.url), "utf8");
+assert.match(credentialExpiryPage, /ADM-108/);
+assert.match(credentialExpiryPage, /active="17"/);
+assert.match(credentialExpiryPage, /credential-expirations\/policy/);
+assert.match(credentialExpiryPage, /credential-expirations\/run-reminders/);
+assert.match(credentialExpiryPage, /blocking on expiry is always enforced/i);
+assert.doesNotMatch(credentialExpiryPage, /\bcredentialNumber\b|\bissuer\b|\bdocumentId\b/);
+assert.match(shell, /governance\/expirations/);
+assert.match(proxy, /admin\/governance\/credential-expirations/);
+assert.match(proxy, /credential-expirations\/run-reminders/);
+console.log("ADM-108 Admin credential expiry UI acceptance passed");
