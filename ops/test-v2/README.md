@@ -4,8 +4,9 @@ This directory defines the repeatable **non-production / synthetic-only** deploy
 
 ## Candidate boundary
 
-- Functional base commit: `6b360e7b41176078aee278f88f6e62f644c5dccb` (`v2/development`, merged PR #374).
-- PR #375 (`DOC-082` clinical signature) is intentionally **not included** until its CI is green and it is merged.
+- Functional baseline: current `v2/development` head `0e473de12f3d0b71885d5f3843f984f08bec6329`, synchronized into `entorno-v2` by PR #399.
+- PR #375 (`DOC-082` clinical signature / MFA-assured Doctor signatures) is included because it was merged into `v2/development` on 2026-09-22 before this synchronization.
+- Synchronization merge commit: `122975790c23c3df514ad94653fc954b00962244`.
 - This lane is for technical/integration/UAT testing with synthetic data. It is **not** production-equivalent KSA acceptance and must not be used with real PHI/PII unless a separately approved data-governance decision explicitly permits it.
 
 ## Applications exposed
