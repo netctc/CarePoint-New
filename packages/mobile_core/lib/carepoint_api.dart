@@ -413,6 +413,32 @@ class CarePointApi {
     if (timeZone != null) 'timeZone': timeZone,
   }));
 
+  // PAT-131 — patient-reported possible medication effects; causality is never inferred.
+  Future<Map<String, dynamic>> patientAdverseEvents({String? sourceKind, String? sourceId}) async =>
+      _asMap(await _send('GET', '/patient/adverse-events', query: {
+        if (sourceKind != null) 'sourceKind': sourceKind,
+        if (sourceId != null) 'sourceId': sourceId,
+      }));
+  Future<Map<String, dynamic>> createPatientAdverseEvent({
+    required String sourceKind,
+    required String sourceId,
+    required String symptom,
+    required int severityDeclared,
+    required String idempotencyKey,
+    String? notes,
+    DateTime? occurredAt,
+  }) async => _asMap(await _send('POST', '/patient/adverse-events', body: {
+    'sourceKind': sourceKind,
+    'sourceId': sourceId,
+    'symptom': symptom,
+    'severityDeclared': severityDeclared,
+    'idempotencyKey': idempotencyKey,
+    if (notes?.trim().isNotEmpty == true) 'notes': notes!.trim(),
+    if (occurredAt != null) 'occurredAt': occurredAt.toUtc().toIso8601String(),
+  }));
+  Future<Map<String, dynamic>> doctorAdverseEventInbox() async =>
+      _asMap(await _send('GET', '/provider/adverse-events'));
+
   // DOC-076..078 — Doctor refill, imaging and referral coordination.
   Future<Map<String, dynamic>> doctorRefillRequests() async =>
       _asMap(await _send('GET', '/provider/refill-requests'));

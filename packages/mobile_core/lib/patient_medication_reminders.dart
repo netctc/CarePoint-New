@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'carepoint_api.dart';
 import 'carepoint_localization.dart';
+import 'patient_adverse_events.dart';
 
 class PatientMedicationRemindersPage extends StatefulWidget {
   const PatientMedicationRemindersPage({
@@ -167,6 +168,27 @@ class _PatientMedicationRemindersPageState extends State<PatientMedicationRemind
             ].where((value) => value.trim().isNotEmpty).join('\n')),
             isThreeLine: reminder != null,
           ),
+          OutlinedButton.icon(
+            key: ValueKey('patient-adverse-event-report-${source['sourceId']}'),
+            onPressed: () => Navigator.push<void>(
+              context,
+              MaterialPageRoute(
+                builder: (_) => Directionality(
+                  textDirection: widget.locale.textDirection,
+                  child: PatientAdverseEventReportPage(
+                    session: widget.session,
+                    locale: widget.locale,
+                    sourceKind: source['sourceKind'].toString(),
+                    sourceId: source['sourceId'].toString(),
+                    sourceLabel: source['label']?.toString() ?? t('medication'),
+                  ),
+                ),
+              ),
+            ),
+            icon: const Icon(Icons.report_gmailerrorred_outlined),
+            label: Text(patientAdverseEventText(widget.locale, 'report')),
+          ),
+          const SizedBox(height: 8),
           if (reminder == null)
             FilledButton.tonalIcon(
               key: ValueKey('patient-medication-reminder-create-${source['sourceId']}'),
