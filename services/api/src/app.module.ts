@@ -30,6 +30,7 @@ import { DataQualityModule } from "./modules/data-quality/data-quality.module";
 import { DependentsModule } from "./modules/dependents/dependents.module";
 import { EmergencyAccessModule } from "./modules/emergency-access/emergency-access.module";
 import { EmergencyContactsModule } from "./modules/emergency-contacts/emergency-contacts.module";
+import { EncounterTemplatesModule } from "./modules/encounter-templates/encounter-templates.module";
 import { RefillModule } from "./modules/refill/refill.module";
 import { ReferralsModule } from "./modules/referrals/referrals.module";
 import { RetentionModule } from "./modules/retention/retention.module";
@@ -115,6 +116,7 @@ const isolatedSyntheticPilot = isolatedSyntheticPrivatePilotActive(process.env);
     EmergencyAccessModule,
     DependentsModule,
     EmergencyContactsModule,
+    EncounterTemplatesModule,
     ProvidersModule,
     ProviderCategoryFormsModule,
     ProviderWorkflowModule,
