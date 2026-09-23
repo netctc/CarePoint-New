@@ -29,12 +29,16 @@ model QuestionnaireRequest {
   status                 String   @default("REQUESTED")
   dueAt                  DateTime?
   responseId             String?
+  idempotencyKey         String?  @unique
+  context                String?
+  completedAt            DateTime?
   createdByActorId       String
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 
   @@index([patientId, status, dueAt])
   @@index([providerId, status, createdAt])
+  @@index([providerId, patientId, createdAt])
   @@index([appointmentId, status])
   @@index([questionnaireVersionId])
 }

@@ -11,6 +11,7 @@ import 'doctor_immunizations.dart';
 import 'doctor_procedures.dart';
 import 'doctor_care_plan_rpm.dart';
 import 'doctor_orders_coordination.dart';
+import 'questionnaire_requests.dart';
 
 class ClinicalActionButton extends StatelessWidget {
   const ClinicalActionButton({
@@ -85,6 +86,13 @@ class _ClinicalRecordPageState extends State<ClinicalRecordPage> {
       if (!finalized) OutlinedButton.icon(onPressed: saving ? null : finalize, icon: const Icon(Icons.task_alt), label: Text(clinicalText(locale, widget.session.role == 'DOCTOR' ? 'signFinalize' : 'finalize'))), const SizedBox(height: 10),
       OutlinedButton.icon(onPressed: showPatientHistory, icon: const Icon(Icons.history), label: Text(clinicalText(locale, 'patientHistory'))), const SizedBox(height: 10),
       if (widget.session.role == 'DOCTOR') ...[
+        OutlinedButton.icon(
+          key: const ValueKey('doctor-questionnaire-request-entry'),
+          onPressed: _openQuestionnaireRequests,
+          icon: const Icon(Icons.fact_check_outlined),
+          label: Text(questionnaireRequestText(locale, 'doctorTitle')),
+        ),
+        const SizedBox(height: 10),
         OutlinedButton.icon(
           key: const ValueKey('doctor-orders-coordination-entry'),
           onPressed: _openOrdersCoordination,
@@ -228,6 +236,23 @@ class _ClinicalRecordPageState extends State<ClinicalRecordPage> {
     } finally {
       if (mounted) setState(() => saving = false);
     }
+  }
+
+  Future<void> _openQuestionnaireRequests() async {
+    final patientId = _map(widget.appointment['patient'])['id']?.toString();
+    if (patientId == null || patientId.isEmpty) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(questionnaireRequestText(locale, 'invalidAppointment'))));
+      return;
+    }
+    await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => Directionality(
+      textDirection: locale.textDirection,
+      child: DoctorQuestionnaireRequestsPage(
+        session: widget.session,
+        locale: locale,
+        patientId: patientId,
+        appointment: widget.appointment,
+      ),
+    )));
   }
 
   Future<void> _openOrdersCoordination() async {
