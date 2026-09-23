@@ -362,6 +362,14 @@ class CarePointApi {
         if (reasonCode?.trim().isNotEmpty == true) 'reasonCode': reasonCode!.trim().toUpperCase(),
       }));
 
+  // PAT-132 — Patient refill requests.
+  Future<Map<String, dynamic>> patientRefillRequests() async =>
+      _asMap(await _send('GET', '/patient/refill-requests'));
+  Future<Map<String, dynamic>> requestPatientRefill(String prescriptionId, {String? reason}) async =>
+      _asMap(await _send('POST', '/patient/prescriptions/$prescriptionId/refill-requests', body: {
+        if (reason?.trim().isNotEmpty == true) 'reason': reason!.trim(),
+      }));
+
   // DOC-076..078 — Doctor refill, imaging and referral coordination.
   Future<Map<String, dynamic>> doctorRefillRequests() async =>
       _asMap(await _send('GET', '/provider/refill-requests'));

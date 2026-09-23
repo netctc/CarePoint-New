@@ -29,3 +29,5 @@ test("patient refill request reason remains optional", () => {
 });
 
 console.log("V2 refill workflow acceptance passed");
+
+await import("./v2-patient-refill-ui-smoke.mjs");
