@@ -214,6 +214,32 @@ class CarePointApi {
     if (site?.isNotEmpty == true) 'site': site,
   }));
 
+  // PAT-117 — append-only patient-reported symptom journal.
+  Future<Map<String, dynamic>> patientSymptoms({DateTime? from, DateTime? to, int limit = 50}) async =>
+      _asMap(await _send('GET', '/patient/symptoms', query: {
+        if (from != null) 'from': from.toUtc().toIso8601String(),
+        if (to != null) 'to': to.toUtc().toIso8601String(),
+        'limit': limit.toString(),
+      }));
+  Future<Map<String, dynamic>> createPatientSymptom({
+    required String idempotencyKey,
+    required String symptom,
+    required int severity,
+    required num durationValue,
+    required String durationUnit,
+    required String context,
+    required DateTime occurredAt,
+    String? notes,
+  }) async => _asMap(await _send('POST', '/patient/symptoms', body: {
+    'idempotencyKey': idempotencyKey,
+    'symptom': symptom,
+    'severity': severity,
+    'duration': {'value': durationValue, 'unit': durationUnit},
+    'context': context,
+    'occurredAt': occurredAt.toUtc().toIso8601String(),
+    if (notes?.trim().isNotEmpty == true) 'notes': notes!.trim(),
+  }));
+
   // PAT-089 / PAT-093 — governed longitudinal patient clinical history.
   Future<Map<String, dynamic>> patientHospitalizations() async =>
       _asMap(await _send('GET', '/patient/clinical-history/hospitalizations'));
