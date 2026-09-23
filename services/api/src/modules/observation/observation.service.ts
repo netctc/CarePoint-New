@@ -37,6 +37,14 @@ type StoredObservation = {
   canonicalUnitCode: string;
   verificationStatus: "PATIENT_DECLARED";
 };
+type StoredObservationCorrection = {
+  schemaVersion: 1;
+  value: number;
+  unitCode: string;
+  canonicalValue: number;
+  canonicalUnitCode: string;
+  reason: string;
+};
 
 export interface CreateUnitInput {
   code: string;
@@ -383,6 +391,7 @@ export class ObservationService {
       },
       include: {
         observationTypeVersion: { select: { version: true } },
+        correctionRevisions: { orderBy: { sequence: "desc" }, take: 1 },
       },
       orderBy: { observedAt: "desc" },
       take,
@@ -391,7 +400,9 @@ export class ObservationService {
     const items = [];
     for (const row of rows) {
       const payload = await this.decrypt(row);
-      items.push(this.present(row, payload, type.labels, accessBasis));
+      const correctionRow = row.correctionRevisions[0] ?? null;
+      const correction = correctionRow ? await this.decryptCorrection(correctionRow) : null;
+      items.push(this.present(row, payload, type.labels, accessBasis, correctionRow, correction));
     }
 
     await this.audit.writeClinical({
@@ -632,6 +643,8 @@ export class ObservationService {
     payload: StoredObservation,
     labels: unknown,
     accessBasis: string,
+    correctionRow?: { sequence: number; createdAt: Date } | null,
+    correction?: StoredObservationCorrection | null,
   ) {
     return {
       id: row.id,
@@ -639,10 +652,18 @@ export class ObservationService {
       code: payload.metricCode,
       labels,
       metricVersion: payload.metricVersion,
-      value: payload.originalValue,
-      unitCode: payload.originalUnitCode,
-      canonicalValue: payload.canonicalValue,
-      canonicalUnitCode: payload.canonicalUnitCode,
+      value: correction?.value ?? payload.originalValue,
+      unitCode: correction?.unitCode ?? payload.originalUnitCode,
+      canonicalValue: correction?.canonicalValue ?? payload.canonicalValue,
+      canonicalUnitCode: correction?.canonicalUnitCode ?? payload.canonicalUnitCode,
+      originalValue: payload.originalValue,
+      originalUnitCode: payload.originalUnitCode,
+      originalCanonicalValue: payload.canonicalValue,
+      originalCanonicalUnitCode: payload.canonicalUnitCode,
+      correctionSequence: correctionRow?.sequence ?? 0,
+      correctedAt: correctionRow?.createdAt ?? null,
+      isCorrected: Boolean(correctionRow),
+      originalPreserved: true,
       verificationStatus: payload.verificationStatus,
       observedAt: row.observedAt,
       sourceType: row.sourceType,
@@ -650,5 +671,22 @@ export class ObservationService {
       recordedAt: row.createdAt,
       accessBasis,
     };
+  }
+
+  private decryptCorrection(row: {
+    algorithm: string;
+    keyId: string;
+    wrappedKey: string;
+    iv: string;
+    ciphertext: string;
+  }) {
+    return this.envelope.decryptRecord<StoredObservationCorrection>({
+      version: 1,
+      algorithm: row.algorithm as "AES-256-GCM",
+      keyId: row.keyId,
+      wrappedKey: row.wrappedKey,
+      iv: row.iv,
+      ciphertext: row.ciphertext,
+    });
   }
 }

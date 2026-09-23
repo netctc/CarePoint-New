@@ -49,8 +49,14 @@ export interface CreateQuestionnaireVersionInput {
 
 export interface SubmitQuestionnaireInput {
   expectedLatestSequence: number;
+  expectedQuestionnaireVersionId?: string;
   answers: unknown;
   healthChanged?: boolean | null;
+}
+
+export interface ConfirmQuestionnaireNoChangesInput {
+  expectedLatestSequence: number;
+  expectedQuestionnaireVersionId: string;
 }
 
 @Injectable()
@@ -161,12 +167,16 @@ export class QuestionnaireService {
     const responses = await this.prisma.questionnaireResponse.findMany({
       where: { patientId: patient.id, questionnaireId: { in: questionnaireIds } },
       orderBy: { completedAt: "desc" },
-      select: { questionnaireId: true, sequence: true, completedAt: true },
+      select: { questionnaireId: true, questionnaireVersionId: true, sequence: true, completedAt: true },
     });
-    const latest = new Map<string, { sequence: number; completedAt: Date }>();
+    const latest = new Map<string, { questionnaireVersionId: string; sequence: number; completedAt: Date }>();
     for (const response of responses) {
       if (!latest.has(response.questionnaireId)) {
-        latest.set(response.questionnaireId, { sequence: response.sequence, completedAt: response.completedAt });
+        latest.set(response.questionnaireId, {
+          questionnaireVersionId: response.questionnaireVersionId,
+          sequence: response.sequence,
+          completedAt: response.completedAt,
+        });
       }
     }
 
@@ -178,10 +188,16 @@ export class QuestionnaireService {
         questionnaireId: item.questionnaireId,
         code: item.questionnaire.code,
         labels: item.questionnaire.labels,
+        questionnaireVersionId: item.id,
         questionnaireVersion: item.version,
         schema: item.schema,
         latestSequence: previous?.sequence ?? 0,
+        latestQuestionnaireVersionId: previous?.questionnaireVersionId ?? null,
         lastCompletedAt: previous?.completedAt ?? null,
+        canConfirmNoChanges:
+          activation.due &&
+          previous !== null &&
+          previous.questionnaireVersionId === item.id,
         ...activation,
       };
     });
@@ -204,9 +220,90 @@ export class QuestionnaireService {
     return { patientId: patient.id, items };
   }
 
+  async statusMine(principal: AuthPrincipal) {
+    return this.dueMine(principal);
+  }
+
+  async confirmNoChangesMine(
+    principal: AuthPrincipal,
+    code: string,
+    input: ConfirmQuestionnaireNoChangesInput,
+  ) {
+    const patient = await this.requirePatient(principal);
+    const normalizedCode = this.code(code);
+    const expectedLatestSequence = this.nonNegativeInteger(input?.expectedLatestSequence, "expectedLatestSequence");
+    const expectedQuestionnaireVersionId = this.identifier(
+      input?.expectedQuestionnaireVersionId,
+      "expectedQuestionnaireVersionId",
+    );
+
+    const active = await this.prisma.questionnaireVersion.findFirst({
+      where: {
+        status: "ACTIVE",
+        questionnaire: { code: normalizedCode, active: true },
+      },
+      include: { questionnaire: true },
+      orderBy: { version: "desc" },
+    });
+    if (!active) throw new NotFoundException("Active questionnaire not found.");
+    if (active.id !== expectedQuestionnaireVersionId) {
+      throw new ConflictException("Questionnaire version changed; complete the current questionnaire.");
+    }
+
+    const previous = await this.prisma.questionnaireResponse.findFirst({
+      where: { patientId: patient.id, questionnaireId: active.questionnaireId },
+      orderBy: { sequence: "desc" },
+    });
+    if (!previous) throw new ConflictException("No previous questionnaire response can be confirmed.");
+    if (previous.sequence !== expectedLatestSequence) {
+      throw new ConflictException({
+        message: "Questionnaire response sequence conflict.",
+        currentSequence: previous.sequence,
+      });
+    }
+    if (previous.questionnaireVersionId !== active.id) {
+      throw new ConflictException("Questionnaire version changed; complete the current questionnaire.");
+    }
+
+    const activation = evaluateQuestionnaireActivation(
+      normalizeActivationRules(active.activationRules),
+      previous.completedAt,
+    );
+    if (!activation.due) throw new ConflictException("Questionnaire is not due for review.");
+
+    const previousPayload = await this.decryptResponse(previous);
+    const response = await this.submitMine(principal, normalizedCode, {
+      expectedLatestSequence,
+      expectedQuestionnaireVersionId: active.id,
+      answers: previousPayload.answers,
+      healthChanged: false,
+    });
+
+    await this.audit.writeClinical({
+      actorId: principal.accountId,
+      action: "QUESTIONNAIRE_NO_CHANGES_CONFIRMED",
+      objectType: "QUESTIONNAIRE_RESPONSE",
+      objectId: response.id,
+      purpose: "PATIENT_ACCESS",
+      result: "SUCCESS",
+      metadata: {
+        domain: "QUESTIONNAIRE",
+        patientId: patient.id,
+        resourceId: response.id,
+        resourceVersion: response.sequence,
+        questionnaireVersion: active.version,
+        decision: "ALLOW",
+      },
+    });
+    return { ...response, confirmedNoChanges: true };
+  }
+
   async submitMine(principal: AuthPrincipal, code: string, input: SubmitQuestionnaireInput) {
     const patient = await this.requirePatient(principal);
     const expectedLatestSequence = this.nonNegativeInteger(input?.expectedLatestSequence, "expectedLatestSequence");
+    const expectedQuestionnaireVersionId = input?.expectedQuestionnaireVersionId == null
+      ? null
+      : this.identifier(input.expectedQuestionnaireVersionId, "expectedQuestionnaireVersionId");
     const healthChanged = this.optionalBoolean(input?.healthChanged, "healthChanged");
     const normalizedCode = this.code(code);
     const active = await this.prisma.questionnaireVersion.findFirst({
@@ -218,6 +315,9 @@ export class QuestionnaireService {
       orderBy: { version: "desc" },
     });
     if (!active) throw new NotFoundException("Active questionnaire not found.");
+    if (expectedQuestionnaireVersionId && active.id !== expectedQuestionnaireVersionId) {
+      throw new ConflictException("Questionnaire version changed; reload the current questionnaire.");
+    }
 
     const schema = normalizeQuestionnaireSchema(active.schema);
     const answers = normalizeQuestionnaireAnswers(schema, input?.answers);
@@ -246,6 +346,13 @@ export class QuestionnaireService {
 
     const response = await this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw(Prisma.sql`SELECT id FROM "PatientProfile" WHERE id = ${patient.id} FOR UPDATE`);
+      const activeVersion = await tx.questionnaireVersion.findUnique({
+        where: { id: active.id },
+        select: { status: true },
+      });
+      if (activeVersion?.status !== "ACTIVE") {
+        throw new ConflictException("Questionnaire version changed; reload the current questionnaire.");
+      }
       const current = await tx.questionnaireResponse.findFirst({
         where: { patientId: patient.id, questionnaireId: active.questionnaireId },
         orderBy: { sequence: "desc" },
@@ -495,6 +602,15 @@ export class QuestionnaireService {
     });
     if (!patient) throw new NotFoundException("Patient profile not found.");
     return patient;
+  }
+
+  private identifier(value: unknown, field: string): string {
+    if (typeof value !== "string") throw new BadRequestException(`${field} is required.`);
+    const normalized = value.trim();
+    if (!/^[A-Za-z0-9_.:-]{1,180}$/.test(normalized)) {
+      throw new BadRequestException(`${field} is invalid.`);
+    }
+    return normalized;
   }
 
   private code(value: unknown): string {

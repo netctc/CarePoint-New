@@ -49,7 +49,7 @@ class _PatientSymptomJournalPageState extends State<PatientSymptomJournalPage> {
   Future<void> _add() async {
     final symptom = TextEditingController();
     final duration = TextEditingController(text: '1');
-    final context = TextEditingController();
+    final contextController = TextEditingController();
     final notes = TextEditingController();
     var severity = 5;
     var durationUnit = 'HOURS';
@@ -134,7 +134,7 @@ class _PatientSymptomJournalPageState extends State<PatientSymptomJournalPage> {
                 ),
                 const SizedBox(height: 12),
                 TextField(
-                  controller: context,
+                  controller: contextController,
                   maxLines: 2,
                   decoration: InputDecoration(
                     labelText: t('context'),
@@ -177,7 +177,7 @@ class _PatientSymptomJournalPageState extends State<PatientSymptomJournalPage> {
                   setLocal(() => validation = t('durationRequired'));
                   return;
                 }
-                if (context.text.trim().isEmpty) {
+                if (contextController.text.trim().isEmpty) {
                   setLocal(() => validation = t('contextRequired'));
                   return;
                 }
@@ -202,7 +202,7 @@ class _PatientSymptomJournalPageState extends State<PatientSymptomJournalPage> {
           severity: severity,
           durationValue: num.parse(duration.text.trim()),
           durationUnit: durationUnit,
-          context: context.text.trim(),
+          context: contextController.text.trim(),
           occurredAt: occurredAt,
           notes: notes.text.trim(),
         );
@@ -219,7 +219,7 @@ class _PatientSymptomJournalPageState extends State<PatientSymptomJournalPage> {
 
     symptom.dispose();
     duration.dispose();
-    context.dispose();
+    contextController.dispose();
     notes.dispose();
   }
 
