@@ -495,6 +495,24 @@ class CarePointApi {
     'data': data,
   }));
 
+  Future<Map<String, dynamic>> patientEmergencyCard() async =>
+      _asMap(await _send('GET', '/patient/emergency-card'));
+  Future<Map<String, dynamic>> patientEmergencyCardSettings() async =>
+      _asMap(await _send('GET', '/patient/emergency-card/settings'));
+  Future<Map<String, dynamic>> updatePatientEmergencyCardSettings({
+    required int expectedVersion,
+    required bool includeSevereAllergies,
+    required bool includeActiveMedications,
+    required bool includeActiveConditions,
+    String? emergencyContactId,
+  }) async => _asMap(await _send('PATCH', '/patient/emergency-card/settings', body: {
+    'expectedVersion': expectedVersion,
+    'includeSevereAllergies': includeSevereAllergies,
+    'includeActiveMedications': includeActiveMedications,
+    'includeActiveConditions': includeActiveConditions,
+    'emergencyContactId': emergencyContactId,
+  }));
+
   Future<Map<String, dynamic>> patientClinicalOrders() async => _asMap(await _send('GET', '/clinical-orders/me'));
   Future<Map<String, dynamic>> providerClinicalOrders(String patientId) async => _asMap(await _send('GET', '/clinical-orders/patients/$patientId'));
   Future<Map<String, dynamic>> doctorLabSeries(String patientId) async =>
