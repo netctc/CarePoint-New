@@ -403,6 +403,110 @@ export class QuestionnaireService {
     return this.presentResponse(response, active.questionnaire.code, active.version, payload, diff.changedQuestionIds, "PATIENT_SELF");
   }
 
+  async socialHistoryMine(principal: AuthPrincipal) {
+    const patient = await this.requirePatient(principal);
+    const active = await this.prisma.questionnaireVersion.findFirst({
+      where: {
+        status: "ACTIVE",
+        questionnaire: { code: "SOCIAL_HISTORY", active: true },
+      },
+      include: { questionnaire: true },
+      orderBy: { version: "desc" },
+    });
+
+    if (!active) {
+      await this.audit.writeClinical({
+        actorId: principal.accountId,
+        action: "SOCIAL_HISTORY_CONFIG_READ",
+        objectType: "PATIENT",
+        objectId: patient.id,
+        purpose: "PATIENT_ACCESS",
+        result: "SUCCESS",
+        metadata: {
+          domain: "SOCIAL_HISTORY",
+          patientId: patient.id,
+          configured: false,
+          policySource: "ACTIVE_SOCIAL_HISTORY_QUESTIONNAIRE",
+          decision: "ALLOW",
+        },
+      });
+      return {
+        patientId: patient.id,
+        configured: false,
+        code: "SOCIAL_HISTORY",
+        policySource: "ACTIVE_SOCIAL_HISTORY_QUESTIONNAIRE",
+        versioned: true,
+      };
+    }
+
+    const latest = await this.prisma.questionnaireResponse.findFirst({
+      where: {
+        patientId: patient.id,
+        questionnaireId: active.questionnaireId,
+      },
+      orderBy: { sequence: "desc" },
+    });
+    const payload = latest ? await this.decryptResponse(latest) : null;
+
+    await this.audit.writeClinical({
+      actorId: principal.accountId,
+      action: "SOCIAL_HISTORY_READ",
+      objectType: "PATIENT",
+      objectId: patient.id,
+      purpose: "PATIENT_ACCESS",
+      result: "SUCCESS",
+      metadata: {
+        domain: "SOCIAL_HISTORY",
+        patientId: patient.id,
+        configured: true,
+        resourceVersion: latest?.sequence ?? 0,
+        questionnaireVersion: active.version,
+        policySource: "ACTIVE_SOCIAL_HISTORY_QUESTIONNAIRE",
+        decision: "ALLOW",
+      },
+    });
+
+    return {
+      patientId: patient.id,
+      configured: true,
+      code: "SOCIAL_HISTORY",
+      labels: active.questionnaire.labels,
+      descriptionLabels: active.questionnaire.descriptionLabels,
+      questionnaireVersionId: active.id,
+      questionnaireVersion: active.version,
+      schema: active.schema,
+      latestSequence: latest?.sequence ?? 0,
+      latestQuestionnaireVersionId: latest?.questionnaireVersionId ?? null,
+      lastCompletedAt: latest?.completedAt ?? null,
+      answers: payload?.answers ?? {},
+      policySource: "ACTIVE_SOCIAL_HISTORY_QUESTIONNAIRE",
+      versioned: true,
+    };
+  }
+
+  async updateSocialHistoryMine(principal: AuthPrincipal, input: SubmitQuestionnaireInput) {
+    const response = await this.submitMine(principal, "SOCIAL_HISTORY", input);
+    await this.audit.writeClinical({
+      actorId: principal.accountId,
+      action: "SOCIAL_HISTORY_UPDATED",
+      objectType: "QUESTIONNAIRE_RESPONSE",
+      objectId: response.id,
+      purpose: "PATIENT_ACCESS",
+      result: "SUCCESS",
+      metadata: {
+        domain: "SOCIAL_HISTORY",
+        patientId: response.patientId,
+        resourceId: response.id,
+        resourceVersion: response.sequence,
+        questionnaireVersion: response.questionnaireVersion,
+        changedFields: response.changedQuestionIds,
+        policySource: "ACTIVE_SOCIAL_HISTORY_QUESTIONNAIRE",
+        decision: "ALLOW",
+      },
+    });
+    return { ...response, socialHistory: true, versioned: true };
+  }
+
   async latestMine(principal: AuthPrincipal, code: string) {
     const patient = await this.requirePatient(principal);
     return this.latestForPatient(patient.id, this.code(code), "PATIENT_SELF");
