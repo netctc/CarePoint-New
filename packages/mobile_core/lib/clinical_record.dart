@@ -8,6 +8,7 @@ import 'clinical_orders.dart';
 import 'other_provider_insights.dart';
 import 'follow_up_recommendation.dart';
 import 'doctor_immunizations.dart';
+import 'doctor_lab_series.dart';
 import 'doctor_procedures.dart';
 import 'doctor_care_plan_rpm.dart';
 import 'doctor_orders_coordination.dart';
@@ -122,6 +123,13 @@ class _ClinicalRecordPageState extends State<ClinicalRecordPage> {
           onPressed: _openOrdersCoordination,
           icon: const Icon(Icons.rule_folder_outlined),
           label: Text(doctorOrdersCoordinationText(locale, 'title')),
+        ),
+        const SizedBox(height: 10),
+        OutlinedButton.icon(
+          key: const ValueKey('doctor-lab-series-entry'),
+          onPressed: _openLabSeries,
+          icon: const Icon(Icons.show_chart_outlined),
+          label: Text(doctorLabSeriesText(locale, 'title')),
         ),
         const SizedBox(height: 10),
         OutlinedButton.icon(
@@ -444,6 +452,18 @@ class _ClinicalRecordPageState extends State<ClinicalRecordPage> {
         patientId: patientId,
         appointment: widget.appointment,
       ),
+    )));
+  }
+
+  Future<void> _openLabSeries() async {
+    final patientId = _map(widget.appointment['patient'])['id']?.toString();
+    if (patientId == null || patientId.isEmpty) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(doctorLabSeriesText(locale, 'missingPatient'))));
+      return;
+    }
+    await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => Directionality(
+      textDirection: locale.textDirection,
+      child: DoctorLabSeriesPage(session: widget.session, locale: locale, patientId: patientId),
     )));
   }
 
