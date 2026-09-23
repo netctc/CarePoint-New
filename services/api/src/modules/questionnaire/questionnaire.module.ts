@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Header, Module, Param, Post } from "@nestjs/common";
+import { Body, Controller, Get, Header, Module, Param, Patch, Post } from "@nestjs/common";
 import type { AuthPrincipal } from "@carepoint/identity";
 import { CurrentPrincipal, RequirePermissions } from "../../security/api-security.module";
 import { ClinicalModule } from "../clinical/clinical.module";
@@ -105,6 +105,29 @@ class PatientQuestionnaireController {
   }
 }
 
+
+@Controller("patient/social-history")
+class PatientSocialHistoryController {
+  constructor(private readonly questionnaires: QuestionnaireService) {}
+
+  @RequirePermissions("PATIENT_MANAGE_QUESTIONNAIRE")
+  @Get()
+  @Header("Cache-Control", "no-store")
+  get(@CurrentPrincipal() principal: AuthPrincipal) {
+    return this.questionnaires.socialHistoryMine(principal);
+  }
+
+  @RequirePermissions("PATIENT_MANAGE_QUESTIONNAIRE")
+  @Patch()
+  @Header("Cache-Control", "no-store")
+  update(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Body() body: SubmitQuestionnaireInput,
+  ) {
+    return this.questionnaires.updateSocialHistoryMine(principal, body);
+  }
+}
+
 @Controller("doctor/patients")
 class DoctorQuestionnaireController {
   constructor(private readonly questionnaires: QuestionnaireService) {}
@@ -137,6 +160,7 @@ class DoctorQuestionnaireController {
   controllers: [
     AdminQuestionnaireController,
     PatientQuestionnaireController,
+    PatientSocialHistoryController,
     DoctorQuestionnaireController,
   ],
   providers: [QuestionnaireService],
