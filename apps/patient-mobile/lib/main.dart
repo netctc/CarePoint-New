@@ -89,6 +89,7 @@ class _PatientShellState extends State<PatientShell> {
     Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
       key: const ValueKey('patient-symptom-journal-entry'), onPressed: openSymptoms, icon: const Icon(Icons.sick_outlined), label: Text(patientSymptomText(widget.locale, 'title')),
     ))),
+    PatientQuestionnaireStatusCard(session: widget.session, locale: widget.locale),
     Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
       key: const ValueKey('patient-questionnaire-requests-entry'), onPressed: openRequestedQuestionnaires, icon: const Icon(Icons.fact_check_outlined), label: Text(questionnaireRequestText(widget.locale, 'patientTitle')),
     ))),
