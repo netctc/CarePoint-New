@@ -30,6 +30,7 @@ import { DataQualityModule } from "./modules/data-quality/data-quality.module";
 import { DependentsModule } from "./modules/dependents/dependents.module";
 import { EmergencyAccessModule } from "./modules/emergency-access/emergency-access.module";
 import { EmergencyContactsModule } from "./modules/emergency-contacts/emergency-contacts.module";
+import { EncounterTemplatesModule } from "./modules/encounter-templates/encounter-templates.module";
 import { RefillModule } from "./modules/refill/refill.module";
 import { ReferralsModule } from "./modules/referrals/referrals.module";
 import { RetentionModule } from "./modules/retention/retention.module";
@@ -37,6 +38,7 @@ import { DocumentsModule } from "./modules/documents/documents.module";
 import { DocumentVersioningModule } from "./modules/documents/document-versioning.module";
 import { ClinicalMediaModule } from "./modules/documents/clinical-media.module";
 import { DoctorSnapshotModule } from "./modules/doctor-snapshot/doctor-snapshot.module";
+import { DoctorWorkQueueModule } from "./modules/doctor-work-queue/doctor-work-queue.module";
 import { emergencyAmbulanceModuleEnabled } from "./modules/emergency/emergency-launch-policy";
 import { EmergencyModule } from "./modules/emergency/emergency.module";
 import { FeatureFlagsModule } from "./modules/feature-flags/feature-flags.module";
@@ -50,6 +52,7 @@ import { NutritionPlanModule } from "./modules/nutrition/nutrition-plan.module";
 import { ProviderNursingWorkflowsModule } from "./modules/nursing/provider-nursing-workflows.module";
 import { PatientClinicalExportModule } from "./modules/patient-clinical-export/patient-clinical-export.module";
 import { PatientHealthSummaryModule } from "./modules/patient-health-summary/patient-health-summary.module";
+import { PatientEmergencyCardModule } from "./modules/patient-emergency-card/patient-emergency-card.module";
 import { PatientMergeModule } from "./modules/patient-merge/patient-merge.module";
 import { PatientProfileModule } from "./modules/patient-profile/patient-profile.module";
 import { PhysiotherapyModule } from "./modules/physiotherapy/physiotherapy.module";
@@ -114,6 +117,7 @@ const isolatedSyntheticPilot = isolatedSyntheticPrivatePilotActive(process.env);
     EmergencyAccessModule,
     DependentsModule,
     EmergencyContactsModule,
+    EncounterTemplatesModule,
     ProvidersModule,
     ProviderCategoryFormsModule,
     ProviderWorkflowModule,
@@ -140,6 +144,7 @@ const isolatedSyntheticPilot = isolatedSyntheticPrivatePilotActive(process.env);
     PatientMergeModule,
     HealthProfileModule,
     PatientHealthSummaryModule,
+    PatientEmergencyCardModule,
     PatientClinicalExportModule,
     QuestionnaireModule,
     ObservationModule,
@@ -158,6 +163,7 @@ const isolatedSyntheticPilot = isolatedSyntheticPrivatePilotActive(process.env);
     SymptomReportModule,
     TerminologyModule,
     DoctorSnapshotModule,
+    DoctorWorkQueueModule,
     OrdersModule,
     DocumentsModule,
     DocumentVersioningModule,

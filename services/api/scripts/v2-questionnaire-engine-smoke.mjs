@@ -101,3 +101,7 @@ assert.match(monitorSource, /\/api\/admin\/analytics\/questionnaires/);
 assert.match(monitorSource, /Questionnaire compliance monitor/);
 
 console.log("V2 questionnaire engine + ADM-077 compliance acceptance passed");
+
+await import("./v2-doctor-questionnaire-request-ui-smoke.mjs");
+
+await import("./v2-patient-questionnaire-status-ui-smoke.mjs");

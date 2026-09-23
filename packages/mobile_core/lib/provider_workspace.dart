@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'carepoint_api.dart';
 import 'carepoint_localization.dart';
 import 'clinical_record.dart';
+import 'doctor_work_queue.dart';
 import 'telehealth_room.dart';
 
 class ProviderWorkspace extends StatefulWidget {
@@ -36,6 +37,8 @@ class _ProviderWorkspaceState extends State<ProviderWorkspace> {
   List<Map<String, dynamic>> appointments = const [];
   List<Map<String, dynamic>> services = const [];
   List<Map<String, dynamic>> rules = const [];
+  Map<String, dynamic> doctorQueue = const {};
+  String doctorQueueFilter = 'ALL';
   CarePointApi get api => widget.session.api;
   CarePointLocale get locale => widget.locale;
 
@@ -61,13 +64,20 @@ class _ProviderWorkspaceState extends State<ProviderWorkspace> {
     setState(() { busy = true; error = null; });
     try {
       final now = DateTime.now();
-      final values = await Future.wait([
+      final calls = <Future<dynamic>>[
         api.providerAppointments(from: now.subtract(const Duration(days: 1)), to: now.add(const Duration(days: 31))),
         api.providerServices(),
         api.availabilityRules(),
-      ]);
+        if (widget.session.role == 'DOCTOR') api.doctorWorkQueue(),
+      ];
+      final values = await Future.wait(calls);
       if (!mounted) return;
-      setState(() { appointments = values[0]; services = values[1]; rules = values[2]; });
+      setState(() {
+        appointments = _list(values[0]);
+        services = _list(values[1]);
+        rules = _list(values[2]);
+        doctorQueue = values.length > 3 ? _map(values[3]) : const {};
+      });
     } catch (value) { if (mounted) setState(() => error = value.toString()); }
     finally { if (mounted) setState(() => busy = false); }
   }
@@ -93,36 +103,64 @@ class _ProviderWorkspaceState extends State<ProviderWorkspace> {
   );
 
   Widget _agenda() {
-    if (appointments.isEmpty) return _empty(cpText(locale, 'workspace.noAppointments'), Icons.event_busy_outlined);
-    return RefreshIndicator(onRefresh: refreshAll, child: ListView.builder(padding: const EdgeInsets.all(16), itemCount: appointments.length, itemBuilder: (_, index) {
-      final item = appointments[index];
-      final service = _map(item['service']);
-      final patient = _map(item['patient']);
-      final starts = DateTime.tryParse(item['startsAt']?.toString() ?? '')?.toLocal();
-      final patientName = [patient['firstName'], patient['lastName']].whereType<String>().where((v) => v.isNotEmpty).join(' ');
-      final isTelemedicine = item['modality'] == 'TELEMEDICINE' && item['status'] == 'CONFIRMED';
-      final clinical = item['status'] == 'CONFIRMED' || item['status'] == 'COMPLETED';
-      return Card(child: Padding(padding: const EdgeInsets.only(bottom: 10), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        ListTile(
-          leading: CircleAvatar(backgroundColor: widget.accent.withValues(alpha: .14), child: Icon(_modalityIcon(item['modality']?.toString()), color: widget.accent)),
-          title: Text(patientName.isEmpty ? service['name']?.toString() ?? 'Appointment' : patientName, style: const TextStyle(fontWeight: FontWeight.w700)),
-          subtitle: Text('${_dateTime(starts)} · ${service['name'] ?? item['modality'] ?? ''}\n${item['status'] ?? ''}'), isThreeLine: true,
-        ),
-        if (isTelemedicine) Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          child: TelehealthActionButton(session: widget.session, locale: locale, appointment: item, providerMode: true),
-        ),
-        if (clinical) Padding(
-          padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
-          child: ClinicalActionButton(
-            session: widget.session,
+    final visible = _doctorFilteredAppointments();
+    return RefreshIndicator(onRefresh: refreshAll, child: ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        if (widget.session.role == 'DOCTOR') ...[
+          DoctorWorkQueuePanel(
+            payload: doctorQueue,
             locale: locale,
-            appointment: item,
-            clinicalOrderCapabilities: widget.clinicalOrderCapabilities,
+            accent: widget.accent,
+            selected: doctorQueueFilter,
+            onSelected: (value) => setState(() => doctorQueueFilter = value),
           ),
+          const SizedBox(height: 12),
+        ],
+        if (visible.isEmpty)
+          _empty(cpText(locale, 'workspace.noAppointments'), Icons.event_busy_outlined, embedded: true)
+        else
+          ...visible.map(_appointmentCard),
+      ],
+    ));
+  }
+
+  List<Map<String, dynamic>> _doctorFilteredAppointments() {
+    if (widget.session.role != 'DOCTOR' || doctorQueueFilter == 'ALL') return appointments;
+    final patientIds = doctorWorkQueuePatientIds(doctorQueue, doctorQueueFilter);
+    return appointments.where((item) {
+      final patientId = _map(item['patient'])['id']?.toString();
+      return patientId != null && patientIds.contains(patientId);
+    }).toList(growable: false);
+  }
+
+  Widget _appointmentCard(Map<String, dynamic> item) {
+    final service = _map(item['service']);
+    final patient = _map(item['patient']);
+    final starts = DateTime.tryParse(item['startsAt']?.toString() ?? '')?.toLocal();
+    final patientName = [patient['firstName'], patient['lastName']].whereType<String>().where((v) => v.isNotEmpty).join(' ');
+    final isTelemedicine = item['modality'] == 'TELEMEDICINE' && item['status'] == 'CONFIRMED';
+    final clinical = item['status'] == 'CONFIRMED' || item['status'] == 'COMPLETED';
+    return Card(child: Padding(padding: const EdgeInsets.only(bottom: 10), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      ListTile(
+        leading: CircleAvatar(backgroundColor: widget.accent.withValues(alpha: .14), child: Icon(_modalityIcon(item['modality']?.toString()), color: widget.accent)),
+        title: Text(patientName.isEmpty ? service['name']?.toString() ?? 'Appointment' : patientName, style: const TextStyle(fontWeight: FontWeight.w700)),
+        subtitle: Text('${_dateTime(starts)} · ${service['name'] ?? item['modality'] ?? ''}\n${item['status'] ?? ''}'), isThreeLine: true,
+      ),
+      if (isTelemedicine) Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        child: TelehealthActionButton(session: widget.session, locale: locale, appointment: item, providerMode: true),
+      ),
+      if (clinical) Padding(
+        padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
+        child: ClinicalActionButton(
+          session: widget.session,
+          locale: locale,
+          appointment: item,
+          clinicalOrderCapabilities: widget.clinicalOrderCapabilities,
         ),
-      ])));
-    }));
+      ),
+    ])));
   }
 
   Widget _services() {

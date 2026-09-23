@@ -225,8 +225,39 @@ export class CarePlanService {
       orderBy: [{ dueAt: "asc" }, { createdAt: "asc" }],
       take: MAX_ITEMS,
     });
+    const taskIds = rows.map((row) => row.id);
+    const completions = taskIds.length === 0
+      ? []
+      : await this.prisma.careTaskCompletion.findMany({
+          where: { taskId: { in: taskIds } },
+          orderBy: [{ occurredAt: "desc" }, { id: "desc" }],
+          take: MAX_ITEMS * 4,
+        });
+    const latestCompletion = new Map<string, {
+      id: string;
+      occurrenceKey: string;
+      outcome: string;
+      reasonCode: string | null;
+      occurredAt: Date;
+    }>();
+    for (const completion of completions) {
+      if (!latestCompletion.has(completion.taskId)) {
+        latestCompletion.set(completion.taskId, {
+          id: completion.id,
+          occurrenceKey: completion.occurrenceKey,
+          outcome: completion.outcome,
+          reasonCode: completion.reasonCode,
+          occurredAt: completion.occurredAt,
+        });
+      }
+    }
     const items = [];
-    for (const row of rows) items.push(this.presentTask(row, await this.decrypt(row), "PATIENT_SELF"));
+    for (const row of rows) {
+      items.push({
+        ...this.presentTask(row, await this.decrypt(row), "PATIENT_SELF"),
+        latestCompletion: latestCompletion.get(row.id) ?? null,
+      });
+    }
     return { patientId: patient.id, carePlanId: plan.id, items };
   }
 
@@ -295,6 +326,30 @@ export class CarePlanService {
       items.push(this.presentPlan(row, await this.decrypt(revision), access.basis));
     }
     return { patientId, accessBasis: access.basis, items };
+  }
+
+  async providerGoals(principal: AuthPrincipal, carePlanId: string) {
+    const access = await this.requireReadablePlan(principal, carePlanId);
+    const rows = await this.prisma.carePlanGoal.findMany({
+      where: { carePlanId: access.plan.id },
+      orderBy: [{ status: "asc" }, { periodStart: "asc" }],
+      take: MAX_ITEMS,
+    });
+    const items = [];
+    for (const row of rows) items.push(this.presentGoal(row, await this.decrypt(row), access.basis));
+    return { patientId: access.plan.patientId, carePlanId: access.plan.id, accessBasis: access.basis, items };
+  }
+
+  async providerTasks(principal: AuthPrincipal, carePlanId: string) {
+    const access = await this.requireReadablePlan(principal, carePlanId);
+    const rows = await this.prisma.careTask.findMany({
+      where: { carePlanId: access.plan.id },
+      orderBy: [{ status: "asc" }, { dueAt: "asc" }, { createdAt: "asc" }],
+      take: MAX_ITEMS,
+    });
+    const items = [];
+    for (const row of rows) items.push(this.presentTask(row, await this.decrypt(row), access.basis));
+    return { patientId: access.plan.patientId, carePlanId: access.plan.id, accessBasis: access.basis, items };
   }
 
   async updatePlan(principal: AuthPrincipal, carePlanId: string, input: UpdateCarePlanInput) {

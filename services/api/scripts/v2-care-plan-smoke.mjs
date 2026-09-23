@@ -43,3 +43,5 @@ test("completion outcomes and occurrence keys are closed vocabularies", () => {
 });
 
 console.log("V2 Care Plan engine acceptance passed");
+
+await import("./v2-patient-care-plan-ui-smoke.mjs");

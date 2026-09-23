@@ -1,0 +1,21 @@
+model ClinicalSignature {
+  id                 String   @id @default(uuid())
+  encounterId        String
+  recordId           String
+  patientId          String
+  providerId         String
+  actorId            String
+  sessionId          String
+  policyVersion      String   @default("DOCTOR_ENCOUNTER_SIGNATURE_V1")
+  payloadDigest      String
+  signatureAlgorithm String
+  signatureKeyId     String
+  signature          String
+  signedAt           DateTime
+  createdAt          DateTime @default(now())
+
+  @@unique([encounterId, recordId])
+  @@index([providerId, signedAt])
+  @@index([patientId, signedAt])
+  @@index([actorId, signedAt])
+}

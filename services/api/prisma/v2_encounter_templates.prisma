@@ -1,0 +1,29 @@
+model EncounterTemplate {
+  id        String                     @id @default(uuid())
+  code      String                     @unique
+  active    Boolean                    @default(true)
+  createdAt DateTime                   @default(now())
+  updatedAt DateTime                   @updatedAt
+  versions  EncounterTemplateVersion[]
+
+  @@index([active, code])
+}
+
+model EncounterTemplateVersion {
+  id               String            @id @default(uuid())
+  templateId       String
+  version          Int
+  status           String            @default("DRAFT")
+  labels           Json
+  serviceIds       Json
+  specialtyCodes   Json
+  layout           Json
+  createdByActorId String?
+  publishedAt      DateTime?
+  retiredAt        DateTime?
+  createdAt        DateTime          @default(now())
+  template         EncounterTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@unique([templateId, version])
+  @@index([status, publishedAt])
+}

@@ -75,3 +75,5 @@ assert.match(moduleSource, /Header\("Cache-Control", "no-store"\)/);
 assert.match(appModule, /SymptomReportModule/);
 
 console.log("PAT-117 symptom journal backend acceptance passed");
+
+await import("./v2-patient-symptom-journal-ui-smoke.mjs");
