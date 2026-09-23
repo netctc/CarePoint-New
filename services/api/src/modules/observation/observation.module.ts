@@ -64,7 +64,10 @@ class AdminClinicalMetricController {
 
 @Controller("patient/observations")
 class PatientObservationController {
-  constructor(private readonly observations: ObservationService) {}
+  constructor(
+    private readonly observations: ObservationService,
+    private readonly trends: ObservationTrendService,
+  ) {}
 
   @RequirePermissions("PATIENT_MANAGE_OBSERVATIONS")
   @Get("catalog")
@@ -78,6 +81,18 @@ class PatientObservationController {
   @Header("Cache-Control", "no-store")
   record(@CurrentPrincipal() principal: AuthPrincipal, @Body() body: CreateObservationInput) {
     return this.observations.recordMine(principal, body);
+  }
+
+  @RequirePermissions("PATIENT_MANAGE_OBSERVATIONS")
+  @Get("stats")
+  @Header("Cache-Control", "no-store")
+  stats(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Query("code") code: string,
+    @Query("from") from?: string,
+    @Query("to") to?: string,
+  ) {
+    return this.trends.patientStats(principal, code, from, to);
   }
 
   @RequirePermissions("PATIENT_MANAGE_OBSERVATIONS")

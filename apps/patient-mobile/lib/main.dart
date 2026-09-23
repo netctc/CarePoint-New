@@ -21,6 +21,7 @@ import 'package:carepoint_mobile_core/patient_emergency_contacts.dart';
 import 'package:carepoint_mobile_core/patient_follow_up_list.dart';
 import 'package:carepoint_mobile_core/patient_messages.dart';
 import 'package:carepoint_mobile_core/patient_notifications.dart';
+import 'package:carepoint_mobile_core/patient_observation_stats.dart';
 import 'package:carepoint_mobile_core/patient_profile.dart';
 import 'package:carepoint_mobile_core/questionnaire_requests.dart';
 import 'package:carepoint_mobile_core/patient_symptom_journal.dart';
@@ -75,9 +76,13 @@ class _PatientShellState extends State<PatientShell> {
   Future<void> openFollowUps() async { await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => Directionality(textDirection: widget.locale.textDirection, child: PatientFollowUpListPage(session: widget.session, locale: widget.locale)))); }
   Future<void> openRequestedQuestionnaires() async { await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => Directionality(textDirection: widget.locale.textDirection, child: PatientQuestionnaireRequestsPage(session: widget.session, locale: widget.locale)))); }
   Future<void> openSymptoms() async { await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => Directionality(textDirection: widget.locale.textDirection, child: PatientSymptomJournalPage(session: widget.session, locale: widget.locale)))); }
+  Future<void> openObservationStats() async { await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => Directionality(textDirection: widget.locale.textDirection, child: PatientObservationStatsPage(session: widget.session, locale: widget.locale)))); }
   Widget healthTab() => Column(children: [
     Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 0), child: SizedBox(width: double.infinity, child: FilledButton.tonalIcon(
       key: const ValueKey('patient-access-needs-entry'), onPressed: openAccessNeeds, icon: const Icon(Icons.accessible_forward_outlined), label: Text(patientAccessNeedsText(widget.locale, 'open')),
+    ))),
+    Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
+      key: const ValueKey('patient-observation-stats-entry'), onPressed: openObservationStats, icon: const Icon(Icons.analytics_outlined), label: Text(patientObservationStatsText(widget.locale, 'title')),
     ))),
     Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
       key: const ValueKey('patient-symptom-journal-entry'), onPressed: openSymptoms, icon: const Icon(Icons.sick_outlined), label: Text(patientSymptomText(widget.locale, 'title')),
