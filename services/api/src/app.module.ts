@@ -32,6 +32,7 @@ import { EmergencyAccessModule } from "./modules/emergency-access/emergency-acce
 import { EmergencyContactsModule } from "./modules/emergency-contacts/emergency-contacts.module";
 import { EncounterTemplatesModule } from "./modules/encounter-templates/encounter-templates.module";
 import { CredentialExpiryModule } from "./modules/credential-expiry/credential-expiry.module";
+import { MedicationReminderModule } from "./modules/medication-reminders/medication-reminders.module";
 import { RefillModule } from "./modules/refill/refill.module";
 import { ReferralsModule } from "./modules/referrals/referrals.module";
 import { RetentionModule } from "./modules/retention/retention.module";
@@ -120,6 +121,7 @@ const isolatedSyntheticPilot = isolatedSyntheticPrivatePilotActive(process.env);
     EmergencyContactsModule,
     EncounterTemplatesModule,
     CredentialExpiryModule,
+    MedicationReminderModule,
     ProvidersModule,
     ProviderCategoryFormsModule,
     ProviderWorkflowModule,

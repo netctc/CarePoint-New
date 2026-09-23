@@ -39,3 +39,5 @@ console.log("PAT-132 Patient refill request acceptance passed");
 function read(relative) {
   return readFileSync(new URL(relative, import.meta.url), "utf8");
 }
+
+await import("./v2-patient-medication-reminders-smoke.mjs");

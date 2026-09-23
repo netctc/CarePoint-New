@@ -1,0 +1,16 @@
+model MedicationReminder {
+  id         String   @id @default(uuid())
+  patientId  String
+  accountId  String
+  sourceKind String
+  sourceId   String
+  enabled    Boolean  @default(true)
+  localTimes Json
+  timeZone   String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([accountId, patientId, sourceKind, sourceId])
+  @@index([accountId, patientId, enabled])
+  @@index([enabled, updatedAt])
+}
