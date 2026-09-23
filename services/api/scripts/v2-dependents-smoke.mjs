@@ -29,3 +29,5 @@ test("dependent session context never outlives authority or twelve hours", () =>
 });
 
 console.log("V2 dependent authority acceptance passed");
+
+await import("./v2-patient-dependents-ui-smoke.mjs");
