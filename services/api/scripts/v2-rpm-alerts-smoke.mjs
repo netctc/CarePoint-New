@@ -45,3 +45,5 @@ test("alert lifecycle requires structured reasons for caller-enforced escalation
 console.log("V2 deterministic RPM alerts acceptance passed");
 
 await import("./v2-patient-clinical-alerts-ui-smoke.mjs");
+
+await import("./v2-admin-alert-policy-ui-smoke.mjs");
