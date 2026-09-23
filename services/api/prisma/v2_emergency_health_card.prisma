@@ -1,0 +1,12 @@
+model EmergencyHealthCardPreference {
+  patientId                 String   @id
+  version                   Int      @default(1)
+  includeSevereAllergies    Boolean  @default(false)
+  includeActiveMedications  Boolean  @default(false)
+  includeActiveConditions   Boolean  @default(false)
+  emergencyContactId        String?
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  @@index([updatedAt])
+}
