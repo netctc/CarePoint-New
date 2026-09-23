@@ -117,10 +117,9 @@ class _PatientSocialHistoryPageState extends State<PatientSocialHistoryPage> {
                     _localized(model['labels'], widget.locale, t('title')),
                     style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
                   ),
-                  final description = _localized(model['descriptionLabels'], widget.locale, '');
-                  if (description.isNotEmpty) ...[
+                  if (_localized(model['descriptionLabels'], widget.locale, '').isNotEmpty) ...[
                     const SizedBox(height: 6),
-                    Text(description),
+                    Text(_localized(model['descriptionLabels'], widget.locale, '')),
                   ],
                   const SizedBox(height: 8),
                   Text(
