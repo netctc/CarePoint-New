@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
   BadRequestException,
   Body,
@@ -12,6 +13,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   type OnModuleDestroy,
   type OnModuleInit,
 } from "@nestjs/common";
@@ -27,6 +29,7 @@ import { PatientContextService } from "../dependents/dependents.service";
 
 const SWEEP_MS = 60_000;
 const SOURCE_KINDS = new Set(["CLINICAL_PROFILE_ENTRY", "PRESCRIPTION_ORDER"]);
+const INTAKE_STATUSES = new Set(["TAKEN", "OMITTED", "POSTPONED"]);
 const TIME_RE = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 const FIXED_ZONE_RE = /^UTC([+-])(\d{2}):(\d{2})$/;
 
@@ -41,6 +44,15 @@ type ReminderUpdate = {
   enabled?: unknown;
   localTimes?: unknown;
   timeZone?: unknown;
+};
+type MedicationIntakeStatus = "TAKEN" | "OMITTED" | "POSTPONED";
+type MedicationIntakeInput = {
+  reminderId?: unknown;
+  status?: unknown;
+  scheduledFor?: unknown;
+  occurredAt?: unknown;
+  reasonCode?: unknown;
+  idempotencyKey?: unknown;
 };
 
 @Injectable()
@@ -191,6 +203,153 @@ class MedicationReminderService implements OnModuleInit, OnModuleDestroy {
     return this.present(updated);
   }
 
+
+  async listIntakes(principal: AuthPrincipal, reminderIdRaw?: string) {
+    this.patientRole(principal);
+    const context = await this.contexts.resolveEffectivePatient(principal, "CLINICAL_READ");
+    const reminderId = reminderIdRaw ? this.id(reminderIdRaw, "reminderId") : undefined;
+    const rows = await this.prisma.medicationIntake.findMany({
+      where: {
+        accountId: principal.accountId,
+        patientId: context.patientId,
+        ...(reminderId ? { reminderId } : {}),
+      },
+      orderBy: { occurredAt: "desc" },
+      take: 200,
+    });
+    await this.audit.writeClinical({
+      actorId: principal.accountId,
+      action: "MEDICATION_INTAKE_LIST_READ",
+      objectType: "PATIENT",
+      objectId: context.patientId,
+      purpose: context.mode === "DEPENDENT" ? "PROXY_PATIENT_ACCESS" : "PATIENT_ACCESS",
+      result: "SUCCESS",
+      metadata: {
+        domain: "MEDICATION_INTAKE",
+        patientId: context.patientId,
+        itemCount: rows.length,
+        decision: "ALLOW",
+      },
+    });
+    return {
+      patientId: context.patientId,
+      mode: context.mode,
+      items: rows.map((row) => this.presentIntake(row)),
+      prescriptionMutationAllowed: false,
+      sourceType: "PATIENT_REPORTED",
+    };
+  }
+
+  async createIntake(principal: AuthPrincipal, input: MedicationIntakeInput) {
+    this.patientRole(principal);
+    const context = await this.contexts.resolveEffectivePatient(principal, "CLINICAL_WRITE");
+    const reminderId = this.id(input?.reminderId, "reminderId");
+    const status = this.intakeStatus(input?.status);
+    const scheduledFor = this.date(input?.scheduledFor, "scheduledFor");
+    const occurredAt = input?.occurredAt == null || input.occurredAt === ""
+      ? null
+      : this.date(input.occurredAt, "occurredAt");
+    const reasonCode = this.reasonCode(input?.reasonCode);
+    const idempotencyKey = this.idempotency(input?.idempotencyKey);
+    const now = Date.now();
+    if (scheduledFor.getTime() < now - 30 * 24 * 60 * 60 * 1000 || scheduledFor.getTime() > now + 24 * 60 * 60 * 1000) {
+      throw new BadRequestException("scheduledFor must be within the last 30 days or next 24 hours.");
+    }
+    if (occurredAt && occurredAt.getTime() > now + 5 * 60 * 1000) {
+      throw new BadRequestException("occurredAt cannot be in the future.");
+    }
+
+    const reminder = await this.prisma.medicationReminder.findUnique({ where: { id: reminderId } });
+    if (!reminder || reminder.accountId !== principal.accountId || reminder.patientId !== context.patientId) {
+      throw new NotFoundException("Medication reminder not found.");
+    }
+    await this.assertActiveSource(
+      context.patientId,
+      reminder.sourceKind as SourceKind,
+      reminder.sourceId,
+    );
+
+    const requestDigest = createHash("sha256").update(JSON.stringify({
+      reminderId,
+      status,
+      scheduledFor: scheduledFor.toISOString(),
+      occurredAt: occurredAt?.toISOString() ?? null,
+      reasonCode,
+    })).digest("hex");
+
+    const replay = await this.prisma.medicationIntake.findUnique({
+      where: {
+        accountId_patientId_idempotencyKey: {
+          accountId: principal.accountId,
+          patientId: context.patientId,
+          idempotencyKey,
+        },
+      },
+    });
+    if (replay) {
+      if (replay.requestDigest !== requestDigest) {
+        throw new ConflictException("idempotencyKey is already bound to another medication intake.");
+      }
+      return this.presentIntake(replay);
+    }
+
+    try {
+      const created = await this.prisma.medicationIntake.create({
+        data: {
+          patientId: context.patientId,
+          accountId: principal.accountId,
+          reminderId: reminder.id,
+          sourceKind: reminder.sourceKind,
+          sourceId: reminder.sourceId,
+          status,
+          scheduledFor,
+          ...(occurredAt ? { occurredAt } : {}),
+          sourceType: "PATIENT_REPORTED",
+          ...(reasonCode ? { reasonCode } : {}),
+          idempotencyKey,
+          requestDigest,
+        },
+      });
+      await this.audit.writeClinical({
+        actorId: principal.accountId,
+        action: `MEDICATION_INTAKE_${status}_RECORDED`,
+        objectType: "MEDICATION_INTAKE",
+        objectId: created.id,
+        purpose: context.mode === "DEPENDENT" ? "PROXY_PATIENT_ACCESS" : "PATIENT_ACCESS",
+        result: "SUCCESS",
+        metadata: {
+          domain: "MEDICATION_INTAKE",
+          patientId: context.patientId,
+          resourceId: created.id,
+          sourceType: "PATIENT_REPORTED",
+          sourceId: reminder.sourceId,
+          ...(reasonCode ? { reasonCode } : {}),
+          decision: "ALLOW",
+        },
+      });
+      return this.presentIntake(created);
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        const raced = await this.prisma.medicationIntake.findUnique({
+          where: {
+            accountId_patientId_idempotencyKey: {
+              accountId: principal.accountId,
+              patientId: context.patientId,
+              idempotencyKey,
+            },
+          },
+        });
+        if (raced) {
+          if (raced.requestDigest !== requestDigest) {
+            throw new ConflictException("idempotencyKey is already bound to another medication intake.");
+          }
+          return this.presentIntake(raced);
+        }
+      }
+      throw error;
+    }
+  }
+
   async sweep() {
     if (this.running) return { status: "BUSY", evaluated: 0, emitted: 0, disabled: 0 };
     this.running = true;
@@ -252,6 +411,68 @@ class MedicationReminderService implements OnModuleInit, OnModuleDestroy {
     } finally {
       this.running = false;
     }
+  }
+
+
+  private intakeStatus(value: unknown): MedicationIntakeStatus {
+    const normalized = String(value ?? "").trim().toUpperCase();
+    if (!INTAKE_STATUSES.has(normalized)) throw new BadRequestException("status must be TAKEN, OMITTED, or POSTPONED.");
+    return normalized as MedicationIntakeStatus;
+  }
+
+  private date(value: unknown, field: string) {
+    if (typeof value !== "string") throw new BadRequestException(`${field} must be an ISO date-time.`);
+    const parsed = new Date(value);
+    if (!Number.isFinite(parsed.getTime())) throw new BadRequestException(`${field} must be an ISO date-time.`);
+    return parsed;
+  }
+
+  private reasonCode(value: unknown) {
+    if (value == null || value === "") return null;
+    if (typeof value !== "string") throw new BadRequestException("reasonCode is invalid.");
+    const normalized = value.trim().toUpperCase();
+    if (!/^[A-Z][A-Z0-9_:-]{1,63}$/.test(normalized)) throw new BadRequestException("reasonCode is invalid.");
+    return normalized;
+  }
+
+  private idempotency(value: unknown) {
+    if (typeof value !== "string") throw new BadRequestException("idempotencyKey is required.");
+    const normalized = value.trim();
+    if (normalized.length < 8 || normalized.length > 128 || /\p{Cc}/u.test(normalized)) {
+      throw new BadRequestException("idempotencyKey is invalid.");
+    }
+    return normalized;
+  }
+
+  private presentIntake(row: {
+    id: string;
+    patientId: string;
+    reminderId: string;
+    sourceKind: string;
+    sourceId: string;
+    status: string;
+    scheduledFor: Date;
+    occurredAt: Date;
+    sourceType: string;
+    reasonCode: string | null;
+    createdAt: Date;
+  }) {
+    return {
+      id: row.id,
+      patientId: row.patientId,
+      reminderId: row.reminderId,
+      sourceKind: row.sourceKind,
+      sourceId: row.sourceId,
+      status: row.status,
+      scheduledFor: row.scheduledFor,
+      occurredAt: row.occurredAt,
+      sourceType: row.sourceType,
+      reasonCode: row.reasonCode,
+      createdAt: row.createdAt,
+      patientReported: true,
+      prescriptionMutationAllowed: false,
+      clinicalSourceModified: false,
+    };
   }
 
   private async assertActiveSource(patientId: string, sourceKind: SourceKind, sourceId: string) {
@@ -391,6 +612,29 @@ class MedicationReminderService implements OnModuleInit, OnModuleDestroy {
   }
 }
 
+
+@Controller("patient/medication-intakes")
+class PatientMedicationIntakeController {
+  constructor(private readonly reminders: MedicationReminderService) {}
+
+  @RequirePermissions("PATIENT_MANAGE_CLINICAL_PROFILE")
+  @Get()
+  @Header("Cache-Control", "no-store")
+  list(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Query("reminderId") reminderId?: string,
+  ) {
+    return this.reminders.listIntakes(principal, reminderId);
+  }
+
+  @RequirePermissions("PATIENT_MANAGE_CLINICAL_PROFILE")
+  @Post()
+  @Header("Cache-Control", "no-store")
+  create(@CurrentPrincipal() principal: AuthPrincipal, @Body() body: MedicationIntakeInput) {
+    return this.reminders.createIntake(principal, body ?? {});
+  }
+}
+
 @Controller("patient/medication-reminders")
 class PatientMedicationReminderController {
   constructor(private readonly reminders: MedicationReminderService) {}
@@ -423,7 +667,7 @@ class PatientMedicationReminderController {
 
 @Module({
   imports: [DependentsModule, CommunicationsModule],
-  controllers: [PatientMedicationReminderController],
+  controllers: [PatientMedicationIntakeController, PatientMedicationReminderController],
   providers: [MedicationReminderService],
 })
 export class MedicationReminderModule {}

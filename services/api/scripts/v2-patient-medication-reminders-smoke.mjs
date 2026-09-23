@@ -57,4 +57,5 @@ function read(relative) {
   return readFileSync(new URL(relative, import.meta.url), "utf8");
 }
 
+await import("./v2-patient-medication-intake-smoke.mjs");
 await import("./v2-patient-adverse-events-smoke.mjs");

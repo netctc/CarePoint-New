@@ -413,6 +413,27 @@ class CarePointApi {
     if (timeZone != null) 'timeZone': timeZone,
   }));
 
+  // PAT-130 — append-only patient-reported medication intake events.
+  Future<Map<String, dynamic>> patientMedicationIntakes({String? reminderId}) async =>
+      _asMap(await _send('GET', '/patient/medication-intakes', query: {
+        if (reminderId?.trim().isNotEmpty == true) 'reminderId': reminderId!.trim(),
+      }));
+  Future<Map<String, dynamic>> recordPatientMedicationIntake({
+    required String reminderId,
+    required String status,
+    required DateTime scheduledFor,
+    required String idempotencyKey,
+    DateTime? occurredAt,
+    String? reasonCode,
+  }) async => _asMap(await _send('POST', '/patient/medication-intakes', body: {
+    'reminderId': reminderId,
+    'status': status,
+    'scheduledFor': scheduledFor.toUtc().toIso8601String(),
+    'idempotencyKey': idempotencyKey,
+    if (occurredAt != null) 'occurredAt': occurredAt.toUtc().toIso8601String(),
+    if (reasonCode?.trim().isNotEmpty == true) 'reasonCode': reasonCode!.trim().toUpperCase(),
+  }));
+
   // PAT-131 — patient-reported possible medication effects; causality is never inferred.
   Future<Map<String, dynamic>> patientAdverseEvents({String? sourceKind, String? sourceId}) async =>
       _asMap(await _send('GET', '/patient/adverse-events', query: {
