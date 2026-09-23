@@ -25,6 +25,8 @@ const clinicalMetricsLabels: Record<Locale, string> = { en:"Clinical Metrics & U
 const alertPolicyLabels: Record<Locale, string> = { en:"Clinical Alert Policies", ar:"سياسات التنبيهات السريرية", fr:"Politiques d’alertes cliniques", es:"Políticas de alertas clínicas" };
 const privacyLabels: Record<Locale, string> = { en:"Privacy & Governance", ar:"الخصوصية والحوكمة", fr:"Confidentialité & gouvernance", es:"Privacidad y governance" };
 const v2GovernanceLabels: Record<Locale, string> = { en:"V2 Governance", ar:"حوكمة V2", fr:"Gouvernance V2", es:"Gobernanza V2" };
+const consentMatrixLabels: Record<Locale, string> = { en:"Consent Access Matrix", ar:"مصفوفة وصول الموافقات", fr:"Matrice d’accès consentement", es:"Matriz de acceso por consentimiento" };
+const clinicalAccessLabels: Record<Locale, string> = { en:"Clinical Access Audit", ar:"تدقيق الوصول السريري", fr:"Audit des accès cliniques", es:"Auditoría de acceso clínico" };
 
 type Props = Readonly<{
   active: string;
@@ -51,6 +53,8 @@ export function AppShell({ active, titleKey, eyebrowKey, title, eyebrow, childre
         <Link className={`nav-item ${active === "14" ? "active" : ""}`} href="/clinical-config/alert-policies"><small>14</small><span>{alertPolicyLabels[locale]}</span><b>{direction === "rtl" ? "‹" : "›"}</b></Link>
         <Link className={`nav-item ${active === "11" ? "active" : ""}`} href="/privacy/exports"><small>11</small><span>{privacyLabels[locale]}</span><b>{direction === "rtl" ? "‹" : "›"}</b></Link>
         <Link className={`nav-item ${active === "12" ? "active" : ""}`} href="/governance"><small>12</small><span>{v2GovernanceLabels[locale]}</span><b>{direction === "rtl" ? "‹" : "›"}</b></Link>
+        <Link className={`nav-item ${active === "15" ? "active" : ""}`} href="/consent-policies"><small>15</small><span>{consentMatrixLabels[locale]}</span><b>{direction === "rtl" ? "‹" : "›"}</b></Link>
+        <Link className={`nav-item ${active === "16" ? "active" : ""}`} href="/clinical-access"><small>16</small><span>{clinicalAccessLabels[locale]}</span><b>{direction === "rtl" ? "‹" : "›"}</b></Link>
       </nav>
       <div className="security-pill"><div><small>{t("shell.e2eeStatus")}</small><strong>{t("shell.shieldPolicy")}</strong></div><i /></div>
     </aside>
