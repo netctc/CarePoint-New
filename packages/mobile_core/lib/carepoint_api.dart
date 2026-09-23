@@ -456,6 +456,22 @@ class CarePointApi {
 
   Future<Map<String, dynamic>> patientObservationCatalog() async =>
       _asMap(await _send('GET', '/patient/observations/catalog'));
+  Future<Map<String, dynamic>> providerObservationCatalog() async =>
+      _asMap(await _send('GET', '/provider/observations/catalog'));
+  Future<Map<String, dynamic>> recordProviderObservation(
+    String patientId, {
+    required String code,
+    required double value,
+    required String unitCode,
+    required DateTime observedAt,
+    String? encounterId,
+  }) async => _asMap(await _send('POST', '/provider/patients/$patientId/observations', body: {
+    'code': code,
+    'value': value,
+    'unitCode': unitCode,
+    'observedAt': observedAt.toUtc().toIso8601String(),
+    if (encounterId?.isNotEmpty == true) 'encounterId': encounterId,
+  }));
   Future<Map<String, dynamic>> patientObservationStats(
     String code, {
     String? from,
