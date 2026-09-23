@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Header, Module, Param, Post, Query } from "@nestjs/common";
+import { Body, Controller, Get, Header, Module, Param, Patch, Post, Query } from "@nestjs/common";
 import type { AuthPrincipal } from "@carepoint/identity";
 import { CurrentPrincipal, RequirePermissions } from "../../security/api-security.module";
 import { ClinicalModule } from "../clinical/clinical.module";
@@ -11,6 +11,7 @@ import {
   type CreateUnitInput,
 } from "./observation.service";
 import { ObservationTrendService } from "./observation-trend.service";
+import { ObservationContextService, type UpdateObservationContextInput } from "./observation-context.service";
 import { ProviderObservationService } from "./provider-observation.service";
 
 @Controller("admin/clinical-metrics")
@@ -67,6 +68,7 @@ class PatientObservationController {
   constructor(
     private readonly observations: ObservationService,
     private readonly trends: ObservationTrendService,
+    private readonly contexts: ObservationContextService,
   ) {}
 
   @RequirePermissions("PATIENT_MANAGE_OBSERVATIONS")
@@ -93,6 +95,27 @@ class PatientObservationController {
     @Query("to") to?: string,
   ) {
     return this.trends.patientStats(principal, code, from, to);
+  }
+
+  @RequirePermissions("PATIENT_MANAGE_OBSERVATIONS")
+  @Get(":observationId/context")
+  @Header("Cache-Control", "no-store")
+  context(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Param("observationId") observationId: string,
+  ) {
+    return this.contexts.readMine(principal, observationId);
+  }
+
+  @RequirePermissions("PATIENT_MANAGE_OBSERVATIONS")
+  @Patch(":observationId/context")
+  @Header("Cache-Control", "no-store")
+  reviseContext(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Param("observationId") observationId: string,
+    @Body() body: UpdateObservationContextInput,
+  ) {
+    return this.contexts.updateMine(principal, observationId, body);
   }
 
   @RequirePermissions("PATIENT_MANAGE_OBSERVATIONS")
@@ -182,7 +205,7 @@ class ProviderObservationController {
     DoctorObservationController,
     ProviderObservationController,
   ],
-  providers: [ObservationService, ProviderObservationService, ObservationTrendService],
-  exports: [ObservationService, ProviderObservationService, ObservationTrendService],
+  providers: [ObservationService, ProviderObservationService, ObservationTrendService, ObservationContextService],
+  exports: [ObservationService, ProviderObservationService, ObservationTrendService, ObservationContextService],
 })
 export class ObservationModule {}

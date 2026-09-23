@@ -403,6 +403,29 @@ class CarePointApi {
     if (from != null) 'from': from,
     if (to != null) 'to': to,
   }));
+  Future<Map<String, dynamic>> patientObservationHistory(
+    String code, {
+    String? from,
+    String? to,
+    int limit = 100,
+  }) async => _asMap(await _send('GET', '/patient/observations/history', query: {
+    'code': code,
+    if (from != null) 'from': from,
+    if (to != null) 'to': to,
+    'limit': limit.toString(),
+  }));
+  Future<Map<String, dynamic>> patientObservationContext(String observationId) async =>
+      _asMap(await _send('GET', '/patient/observations/$observationId/context'));
+  Future<Map<String, dynamic>> updatePatientObservationContext(
+    String observationId, {
+    required int expectedSequence,
+    String? context,
+    String? note,
+  }) async => _asMap(await _send('PATCH', '/patient/observations/$observationId/context', body: {
+    'expectedSequence': expectedSequence,
+    'context': context,
+    'note': note,
+  }));
 
   Future<Map<String, dynamic>> patientClinicalOrders() async => _asMap(await _send('GET', '/clinical-orders/me'));
   Future<Map<String, dynamic>> providerClinicalOrders(String patientId) async => _asMap(await _send('GET', '/clinical-orders/patients/$patientId'));
