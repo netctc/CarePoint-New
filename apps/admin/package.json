@@ -6,13 +6,14 @@
     "dev": "next dev -p 3000",
     "build": "next build",
     "start": "next start -p 3000",
-    "test": "npm run c16:admin-backend-egress && npm run v2:b6-governance && npm run v2:b6-operations && npm run v2:break-glass-review && npm run v2:provider-taxonomy",
+    "test": "npm run c16:admin-backend-egress && npm run v2:b6-governance && npm run v2:b6-operations && npm run v2:break-glass-review && npm run v2:provider-taxonomy && npm run v2:clinical-governance-ui",
     "c16:admin-backend-egress": "node scripts/c16-admin-backend-egress-smoke.mjs",
     "typecheck": "tsc --noEmit",
     "v2:b6-governance": "node scripts/v2-b6-governance-smoke.mjs",
     "v2:b6-operations": "node scripts/v2-b6-operations-smoke.mjs",
     "v2:break-glass-review": "node scripts/v2-break-glass-review-smoke.mjs",
-    "v2:provider-taxonomy": "node scripts/v2-provider-taxonomy-ui-smoke.mjs"
+    "v2:provider-taxonomy": "node scripts/v2-provider-taxonomy-ui-smoke.mjs",
+    "v2:clinical-governance-ui": "node scripts/v2-clinical-governance-ui-smoke.mjs"
   },
   "dependencies": {
     "next": ">=16 <17",
