@@ -54,6 +54,22 @@ class AdminClinicalAccessController {
     return this.governance.accessMatrix();
   }
 
+  @RequirePermissions("DATA_GOVERNANCE_MANAGE")
+  @Get("provenance")
+  @Header("Cache-Control", "no-store")
+  provenance(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Query("patientId") patientId: string,
+    @Query("domain") domain?: string,
+    @Query("limit") limit?: string,
+  ) {
+    return this.governance.provenanceExplorer(principal, {
+      patientId,
+      ...(domain ? { domain } : {}),
+      ...(limit !== undefined ? { limit: Number(limit) } : {}),
+    });
+  }
+
   @RequirePermissions("IAM_READ_AUDIT")
   @Get("audit")
   @Header("Cache-Control", "no-store")
