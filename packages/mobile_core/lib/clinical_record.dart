@@ -9,6 +9,7 @@ import 'other_provider_insights.dart';
 import 'follow_up_recommendation.dart';
 import 'doctor_immunizations.dart';
 import 'doctor_lab_series.dart';
+import 'doctor_changes_since_last_visit.dart';
 import 'doctor_procedures.dart';
 import 'doctor_care_plan_rpm.dart';
 import 'doctor_orders_coordination.dart';
@@ -111,6 +112,13 @@ class _ClinicalRecordPageState extends State<ClinicalRecordPage> {
       if (!finalized) OutlinedButton.icon(onPressed: saving ? null : finalize, icon: const Icon(Icons.task_alt), label: Text(clinicalText(locale, widget.session.role == 'DOCTOR' ? 'signFinalize' : 'finalize'))), const SizedBox(height: 10),
       OutlinedButton.icon(onPressed: showPatientHistory, icon: const Icon(Icons.history), label: Text(clinicalText(locale, 'patientHistory'))), const SizedBox(height: 10),
       if (widget.session.role == 'DOCTOR') ...[
+        OutlinedButton.icon(
+          key: const ValueKey('doctor-changes-since-last-visit-entry'),
+          onPressed: _openChangesSinceLastVisit,
+          icon: const Icon(Icons.update_outlined),
+          label: Text(doctorChangesSinceLastVisitText(locale, 'title')),
+        ),
+        const SizedBox(height: 10),
         OutlinedButton.icon(
           key: const ValueKey('doctor-questionnaire-request-entry'),
           onPressed: _openQuestionnaireRequests,
@@ -436,6 +444,20 @@ class _ClinicalRecordPageState extends State<ClinicalRecordPage> {
     } finally {
       if (mounted) setState(() => saving = false);
     }
+  }
+
+  Future<void> _openChangesSinceLastVisit() async {
+    final patientId = _map(widget.appointment['patient'])['id']?.toString();
+    if (patientId == null || patientId.isEmpty) return;
+    final openFullHistory = await Navigator.push<bool>(context, MaterialPageRoute(builder: (_) => Directionality(
+      textDirection: locale.textDirection,
+      child: DoctorChangesSinceLastVisitPage(
+        session: widget.session,
+        locale: locale,
+        patientId: patientId,
+      ),
+    )));
+    if (openFullHistory == true && mounted) await showPatientHistory();
   }
 
   Future<void> _openQuestionnaireRequests() async {

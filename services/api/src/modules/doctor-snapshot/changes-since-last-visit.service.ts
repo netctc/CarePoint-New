@@ -3,6 +3,8 @@ import type { AuthPrincipal } from "@carepoint/identity";
 import { PrismaService } from "../../infrastructure/prisma/prisma.module";
 import { DatabaseAuditService } from "../../infrastructure/audit/audit.service";
 import { buildChangesSinceLastVisit } from "./changes-since-last-visit.engine";
+import { OrdersService } from "../orders/orders.service";
+import { RpmAlertService } from "../rpm/rpm-alert.service";
 import { DoctorSnapshotService } from "./doctor-snapshot.service";
 
 @Injectable()
@@ -11,6 +13,8 @@ export class ChangesSinceLastVisitService {
     private readonly prisma: PrismaService,
     private readonly audit: DatabaseAuditService,
     private readonly snapshot: DoctorSnapshotService,
+    private readonly orders: OrdersService,
+    private readonly rpm: RpmAlertService,
   ) {}
 
   async get(principal: AuthPrincipal, patientId: string) {
@@ -26,6 +30,8 @@ export class ChangesSinceLastVisitService {
         clinicalProfile: [],
         questionnaires: [],
         observations: [],
+        labResults: [],
+        alerts: [],
         restrictedSections,
       });
       await this.writeAudit(principal, snapshot.viewer.providerId, projection);
@@ -45,7 +51,7 @@ export class ChangesSinceLastVisitService {
       .filter((item) => item.section.state === "AVAILABLE")
       .map((item) => item.code);
 
-    const [healthProfile, clinicalProfile, questionnaires, observations] = await Promise.all([
+    const [healthProfile, clinicalProfile, questionnaires, observations, orderView, alertView] = await Promise.all([
       healthProfileId
         ? this.prisma.profileRevision.findMany({
             where: { profileId: healthProfileId, createdAt: { gt: since } },
@@ -120,7 +126,40 @@ export class ChangesSinceLastVisitService {
             take: 2000,
           })
         : Promise.resolve([]),
+      this.orders.providerPatientOrders(principal, patientId),
+      this.rpm.providerInbox(principal),
     ]);
+
+    const labResults = orderView.items.flatMap((order) => {
+      if (order.type !== "LABORATORY") return [];
+      const lab = this.object(order.labResult);
+      const status = lab.status === "VALIDATED" || lab.status === "RELEASED" ? lab.status : null;
+      const laboratoryResultId = this.text(lab.id);
+      const occurredAt = this.date(lab.releasedAt) ?? this.date(lab.validatedAt);
+      if (!status || !laboratoryResultId || !occurredAt || occurredAt <= since) return [];
+      return [{
+        orderId: order.id,
+        laboratoryResultId,
+        status,
+        occurredAt,
+        orderingProviderId: order.providerId,
+      }];
+    });
+
+    const alerts = alertView.items.flatMap((alert) => {
+      if (alert.patientId !== patientId) return [];
+      const occurredAt = this.date(alert.createdAt);
+      if (!occurredAt || occurredAt <= since) return [];
+      return [{
+        id: alert.id,
+        status: alert.status,
+        severity: alert.severity,
+        metricCode: alert.metricCode,
+        carePlanId: alert.carePlanId,
+        sourceObservationId: alert.sourceObservationId,
+        occurredAt,
+      }];
+    });
 
     const projection = buildChangesSinceLastVisit({
       patientId,
@@ -129,6 +168,8 @@ export class ChangesSinceLastVisitService {
       clinicalProfile,
       questionnaires,
       observations,
+      labResults,
+      alerts,
       restrictedSections,
     });
     await this.writeAudit(principal, snapshot.viewer.providerId, projection);
@@ -186,5 +227,12 @@ export class ChangesSinceLastVisitService {
 
   private text(value: unknown): string | null {
     return typeof value === "string" && value.length > 0 ? value : null;
+  }
+
+  private date(value: unknown): Date | null {
+    if (value instanceof Date && Number.isFinite(value.getTime())) return value;
+    if (typeof value !== "string") return null;
+    const parsed = new Date(value);
+    return Number.isFinite(parsed.getTime()) ? parsed : null;
   }
 }
