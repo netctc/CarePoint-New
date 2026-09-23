@@ -119,3 +119,11 @@ export function medicationSection<T>(items: T[], openRefillCount: number) {
     refillDetailTarget: "/patient/refill-requests",
   };
 }
+
+export function deviceSection<T>(items: T[]) {
+  return {
+    state: items.length > 0 ? "READY" as const : "EMPTY" as const,
+    detailTarget: "/patient/clinical-profile/entries?kind=IMPLANT_DEVICE",
+    items,
+  };
+}

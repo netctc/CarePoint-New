@@ -18,6 +18,7 @@ import 'package:carepoint_mobile_core/availability_centre.dart';
 import 'package:carepoint_mobile_core/availability_alert_entry.dart';
 import 'package:carepoint_mobile_core/patient_emergency.dart';
 import 'package:carepoint_mobile_core/patient_emergency_contacts.dart';
+import 'package:carepoint_mobile_core/patient_extended_clinical_profile.dart';
 import 'package:carepoint_mobile_core/patient_follow_up_list.dart';
 import 'package:carepoint_mobile_core/patient_messages.dart';
 import 'package:carepoint_mobile_core/patient_notifications.dart';
@@ -69,6 +70,7 @@ class _PatientShellState extends State<PatientShell> {
   Future<void> openAccessNeeds() async { await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => PatientAccessNeedsPage(session: widget.session, locale: widget.locale))); }
   Future<void> openClinicalExport() async { await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => PatientClinicalExportPage(session: widget.session, locale: widget.locale))); }
   Future<void> openHospitalizations() async { await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => PatientHospitalizationsPage(session: widget.session, locale: widget.locale))); }
+  Future<void> openExtendedClinicalProfile() async { await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => Directionality(textDirection: widget.locale.textDirection, child: PatientExtendedClinicalProfilePage(session: widget.session, locale: widget.locale)))); }
   Future<void> openImmunizations() async { await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => PatientImmunizationsPage(session: widget.session, locale: widget.locale))); }
   Future<void> openHomeExercises() async { await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => Directionality(textDirection: widget.locale.textDirection, child: PatientHomeExercisePage(session: widget.session, locale: widget.locale)))); }
   Future<void> openNutritionPlan() async { await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => Directionality(textDirection: widget.locale.textDirection, child: PatientNutritionPlanPage(session: widget.session, locale: widget.locale)))); }
@@ -84,6 +86,9 @@ class _PatientShellState extends State<PatientShell> {
     ))),
     Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
       key: const ValueKey('patient-questionnaire-requests-entry'), onPressed: openRequestedQuestionnaires, icon: const Icon(Icons.fact_check_outlined), label: Text(questionnaireRequestText(widget.locale, 'patientTitle')),
+    ))),
+    Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
+      key: const ValueKey('patient-extended-clinical-profile-entry'), onPressed: openExtendedClinicalProfile, icon: const Icon(Icons.health_and_safety_outlined), label: Text(patientExtendedClinicalProfileText(widget.locale, 'title')),
     ))),
     Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
       key: const ValueKey('patient-hospitalizations-entry'), onPressed: openHospitalizations, icon: const Icon(Icons.local_hospital_outlined), label: Text(patientClinicalHistoryText(widget.locale, 'hospitalizations')),

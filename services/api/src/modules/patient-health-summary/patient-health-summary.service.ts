@@ -12,6 +12,7 @@ import {
   glucoseSection,
   latestObservationPerCode,
   medicationSection,
+  deviceSection,
   observationSection,
   questionnaireSection,
   type SummaryAlert,
@@ -79,7 +80,7 @@ export class PatientHealthSummaryService {
     if (!patient) throw new NotFoundException("Patient profile not found.");
 
     const now = new Date();
-    const [observationRows, medicationRows, openRefillCount, questionnaireVersions, questionnaireResponses, planRows, alertRows] = await Promise.all([
+    const [observationRows, medicationRows, deviceRows, openRefillCount, questionnaireVersions, questionnaireResponses, planRows, alertRows] = await Promise.all([
       this.prisma.observation.findMany({
         where: { patientId: patient.id },
         include: { observationType: { select: { code: true, labels: true, category: true } } },
@@ -90,6 +91,11 @@ export class PatientHealthSummaryService {
         where: { patientId: patient.id, kind: "MEDICATION", status: "ACTIVE" },
         orderBy: { updatedAt: "desc" },
         take: 10,
+      }),
+      this.prisma.clinicalProfileEntry.findMany({
+        where: { patientId: patient.id, kind: "IMPLANT_DEVICE", status: "ACTIVE" },
+        orderBy: { updatedAt: "desc" },
+        take: 20,
       }),
       this.prisma.refillRequest.count({ where: { patientId: patient.id, status: "REQUESTED" } }),
       this.prisma.questionnaireVersion.findMany({
@@ -157,6 +163,24 @@ export class PatientHealthSummaryService {
       });
     }
 
+    const devices = [];
+    for (const row of deviceRows) {
+      const stored = await this.decrypt<StoredClinicalProfileEntry>(row);
+      const payload = stored.payload ?? {};
+      if (payload.deviceStatus === "RETIRED") continue;
+      devices.push({
+        id: row.id,
+        display: typeof payload.display === "string" ? payload.display : null,
+        deviceType: typeof payload.deviceType === "string" ? payload.deviceType : null,
+        implantedOn: typeof payload.implantedOn === "string" ? payload.implantedOn : null,
+        facility: typeof payload.facility === "string" ? payload.facility : null,
+        deviceStatus: typeof payload.deviceStatus === "string" ? payload.deviceStatus : "ACTIVE",
+        verificationStatus: row.verificationStatus,
+        sourceType: row.sourceType,
+        recordedAt: row.updatedAt,
+      });
+    }
+
     const questionnaire = this.selectQuestionnaire(questionnaireVersions, questionnaireResponses, now);
     const carePlan = await this.selectCarePlan(planRows);
     const alerts = await this.presentAlerts(principal, alertRows);
@@ -165,6 +189,7 @@ export class PatientHealthSummaryService {
       observations: observationSection(latestObservations),
       glucose: glucoseSection(latestObservations),
       medications: medicationSection(medications, openRefillCount),
+      devices: deviceSection(devices),
       questionnaire: questionnaireSection(questionnaire),
       carePlan: carePlanSection(carePlan),
       alerts: alertSection(alerts),
@@ -183,6 +208,7 @@ export class PatientHealthSummaryService {
         contextMode: context.mode,
         observationCount: latestObservations.length,
         medicationCount: medications.length,
+        activeDeviceCount: devices.length,
         questionnairePresent: Boolean(questionnaire),
         carePlanPresent: Boolean(carePlan),
         alertCount: alerts.length,
