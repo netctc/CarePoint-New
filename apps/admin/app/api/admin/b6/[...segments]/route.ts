@@ -84,6 +84,7 @@ function resolveGet(segments: string[], query: URLSearchParams): string | null {
     const limit = cleanLimit(query.get("limit"), 1, 200);
     return limit ? "/admin/clinical-operations?limit=" + limit : "/admin/clinical-operations";
   }
+  if (path === "credential-expirations") return "/admin/governance/credential-expirations";
   if (path === "audit-exports") {
     const limit = cleanLimit(query.get("limit"), 1, 100);
     return limit ? "/admin/audit-exports?limit=" + limit : "/admin/audit-exports";
@@ -154,6 +155,8 @@ function resolvePost(segments: string[]): string | null {
   ) {
     return `/admin/localization/keys/${encodeURIComponent(segments[2])}/versions`;
   }
+  if (path === "credential-expirations/policy") return "/admin/governance/credential-expirations/policy";
+  if (path === "credential-expirations/run-reminders") return "/admin/governance/credential-expirations/run-reminders";
   if (path === "audit-exports") return "/admin/audit-exports";
   if (
     segments.length === 3 &&
