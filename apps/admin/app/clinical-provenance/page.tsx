@@ -34,7 +34,7 @@ type Response = {
   items: Item[];
 };
 
-const copy: Record<Locale, Record<string, string>> = {
+const copy = {
   en: {
     title:"Clinical provenance explorer",eyebrow:"ADM-086 · Data governance",intro:"Inspect origin, version and verification evidence without opening clinical values or editing records.",privacy:"This view contains structural PHI identifiers only. Clinical notes, answers, measurements and encrypted payloads are intentionally excluded. Every patient query is audited.",patient:"Patient ID",domain:"Domain",search:"Search provenance",all:"All",profile:"Clinical profile",observation:"Observations",questionnaire:"Questionnaires",resource:"Resource",version:"Version",source:"Source",actor:"Source actor",verification:"Verification",verifiedBy:"Verified by",recorded:"Recorded",effective:"Effective",revisions:"Revisions",status:"Status",empty:"No provenance rows match this patient/domain.",failed:"Request failed.",required:"Enter a valid patient ID.",readOnly:"Read-only",notVerified:"Not separately verified"
   },
@@ -47,7 +47,7 @@ const copy: Record<Locale, Record<string, string>> = {
   es: {
     title:"Explorador de procedencia clínica",eyebrow:"ADM-086 · Gobernanza de datos",intro:"Consulta origen, versión y evidencia de verificación sin abrir valores clínicos ni editar registros.",privacy:"Esta vista contiene sólo identificadores PHI estructurales. Notas, respuestas, mediciones y payloads cifrados se excluyen intencionadamente. Cada consulta de paciente queda auditada.",patient:"ID de paciente",domain:"Dominio",search:"Buscar procedencia",all:"Todos",profile:"Perfil clínico",observation:"Observaciones",questionnaire:"Cuestionarios",resource:"Recurso",version:"Versión",source:"Origen",actor:"Actor de origen",verification:"Verificación",verifiedBy:"Verificado por",recorded:"Registrado",effective:"Efectivo",revisions:"Revisiones",status:"Estado",empty:"No hay registros de procedencia para este paciente/dominio.",failed:"La solicitud falló.",required:"Introduce un ID de paciente válido.",readOnly:"Sólo lectura",notVerified:"Sin verificación separada"
   },
-};
+} as const satisfies Record<Locale, Record<string, string>>;
 
 const SAFE_ID=/^[A-Za-z0-9_.:-]{1,180}$/;
 
