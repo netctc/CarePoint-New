@@ -9,7 +9,9 @@ const service = readFileSync(new URL("../src/modules/clinical-profile/clinical-p
 const engine = readFileSync(new URL("../src/modules/clinical-profile/clinical-profile.engine.ts", import.meta.url), "utf8");
 
 // DOC-067 reuses the governed clinical-profile PROCEDURE domain.
-assert.match(engine, /ClinicalProfileEntryKind = "ALLERGY" \| "CONDITION" \| "PROCEDURE" \| "MEDICATION"/);
+for (const kind of ["ALLERGY", "CONDITION", "PROCEDURE", "MEDICATION"]) {
+  assert.match(engine, new RegExp(`\\| "${kind}"`), `ClinicalProfileEntryKind must retain ${kind}`);
+}
 assert.match(engine, /kind: "PROCEDURE"; display: string; performedDate\?: string; facility\?: string/);
 assert.match(engine, /rejectUnknown\(raw, \["display", "performedDate", "facility"\]\)/);
 assert.match(service, /ClinicalEnvelopeService/);

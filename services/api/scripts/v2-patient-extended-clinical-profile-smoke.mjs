@@ -1,0 +1,26 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+const engine=read("../src/modules/clinical-profile/clinical-profile.engine.ts");
+const service=read("../src/modules/clinical-profile/clinical-profile.service.ts");
+const summary=read("../src/modules/patient-health-summary/patient-health-summary.service.ts");
+const summaryEngine=read("../src/modules/patient-health-summary/patient-health-summary.engine.ts");
+const api=read("../../../packages/mobile_core/lib/carepoint_api.dart");
+const ui=read("../../../packages/mobile_core/lib/patient_extended_clinical_profile.dart");
+const main=read("../../../apps/patient-mobile/lib/main.dart");
+for(const kind of ["IMPLANT_DEVICE","FAMILY_HISTORY","REPRODUCTIVE_HEALTH"]) assert.match(engine,new RegExp(kind));
+assert.match(engine,/deviceStatus/); assert.match(engine,/RETIRED/); assert.match(engine,/retiredOn cannot be before implantedOn/);
+assert.match(engine,/relationship/); assert.match(engine,/conditionDisplay/); assert.doesNotMatch(engine,/familyMemberName|relativeName|nationalId/);
+assert.match(engine,/pregnancyStatus/); assert.match(engine,/lactating/); assert.match(engine,/gravida/); assert.match(engine,/para/);
+assert.match(engine,/Reproductive health entry requires at least one explicitly supplied field/);
+assert.match(service,/encryptRecord/); assert.match(service,/clinicalProfileEntryRevision\.create/); assert.match(service,/PATIENT_DECLARED/);
+assert.match(summary,/kind: "IMPLANT_DEVICE", status: "ACTIVE"/); assert.match(summary,/payload\.deviceStatus === "RETIRED"/); assert.match(summary,/activeDeviceCount/);
+assert.match(summaryEngine,/function deviceSection/); assert.match(summaryEngine,/kind=IMPLANT_DEVICE/);
+assert.match(api,/patientClinicalProfileEntries/); assert.match(api,/createPatientClinicalProfileEntry/); assert.match(api,/updatePatientClinicalProfileEntry/);
+assert.match(ui,/PatientExtendedClinicalProfilePage/); assert.match(ui,/patient-extended-profile-edit-/);
+assert.match(ui,/deviceStatus == 'RETIRED' \? 'INACTIVE' : 'ACTIVE'/);
+assert.match(ui,/Do not enter the family member/);
+assert.match(ui,/never inferred|no infiere|n’est jamais déduite|لا يتم استنتاجه/);
+assert.match(main,/patient-extended-clinical-profile-entry/);
+for(const locale of ["CarePointLocale.en","CarePointLocale.ar","CarePointLocale.fr","CarePointLocale.es"]) assert.ok(ui.includes(locale),`Missing extended-profile locale ${locale}`);
+console.log("PAT-090/PAT-094/PAT-096 extended Clinical Profile acceptance passed");
+function read(relative){return readFileSync(new URL(relative,import.meta.url),"utf8");}
