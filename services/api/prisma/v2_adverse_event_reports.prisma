@@ -1,0 +1,24 @@
+model AdverseEventReport {
+  id               String   @id @default(uuid())
+  patientId        String
+  accountId        String
+  sourceKind       String
+  sourceId         String
+  routedProviderId String
+  idempotencyKey   String
+  requestDigest    String
+  status           String   @default("RECEIVED")
+  algorithm        String
+  keyId            String
+  wrappedKey       String
+  iv               String
+  ciphertext       String
+  occurredAt       DateTime?
+  receivedAt       DateTime @default(now())
+  createdAt        DateTime @default(now())
+
+  @@unique([accountId, patientId, idempotencyKey])
+  @@index([accountId, patientId, receivedAt])
+  @@index([routedProviderId, receivedAt])
+  @@index([sourceKind, sourceId, receivedAt])
+}

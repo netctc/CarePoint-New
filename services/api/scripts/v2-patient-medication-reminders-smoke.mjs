@@ -56,3 +56,5 @@ console.log("PAT-129 Patient medication reminders acceptance passed");
 function read(relative) {
   return readFileSync(new URL(relative, import.meta.url), "utf8");
 }
+
+await import("./v2-patient-adverse-events-smoke.mjs");
