@@ -1,4 +1,10 @@
-export type ChangeDomain = "HEALTH_PROFILE" | "CLINICAL_PROFILE" | "QUESTIONNAIRE" | "OBSERVATION";
+export type ChangeDomain =
+  | "HEALTH_PROFILE"
+  | "CLINICAL_PROFILE"
+  | "QUESTIONNAIRE"
+  | "OBSERVATION"
+  | "LAB_RESULT"
+  | "CLINICAL_ALERT";
 
 export type SourceLinkedChange = {
   domain: ChangeDomain;
@@ -56,6 +62,22 @@ export type ChangesProjectionInput = {
     sourceId: string | null;
     createdByActorId: string | null;
     observationType: { code: string };
+  }>;
+  labResults?: Array<{
+    orderId: string;
+    laboratoryResultId: string;
+    status: "VALIDATED" | "RELEASED";
+    occurredAt: Date;
+    orderingProviderId: string | null;
+  }>;
+  alerts?: Array<{
+    id: string;
+    status: string;
+    severity: string;
+    metricCode: string;
+    carePlanId: string;
+    sourceObservationId: string;
+    occurredAt: Date;
   }>;
   restrictedSections: string[];
 };
@@ -153,6 +175,48 @@ export function buildChangesSinceLastVisit(input: ChangesProjectionInput) {
     });
   }
 
+  for (const row of input.labResults ?? []) {
+    changes.push({
+      domain: "LAB_RESULT",
+      resourceType: "LABORATORY_RESULT",
+      resourceId: row.laboratoryResultId,
+      resourceVersion: null,
+      occurredAt: row.occurredAt,
+      changeType: row.status,
+      sourceType: "CLINICAL_ORDER",
+      sourceActorId: row.orderingProviderId,
+      sourceId: row.orderId,
+      changedFields: [],
+      detailTarget: `/clinical-orders/${encodeURIComponent(row.orderId)}`,
+      metadata: {
+        orderId: row.orderId,
+        status: row.status,
+      },
+    });
+  }
+
+  for (const row of input.alerts ?? []) {
+    changes.push({
+      domain: "CLINICAL_ALERT",
+      resourceType: "CLINICAL_ALERT",
+      resourceId: row.id,
+      resourceVersion: null,
+      occurredAt: row.occurredAt,
+      changeType: row.status,
+      sourceType: "RPM_RULE",
+      sourceActorId: null,
+      sourceId: row.sourceObservationId,
+      changedFields: [],
+      detailTarget: `/provider/monitoring-queue?alertId=${encodeURIComponent(row.id)}`,
+      metadata: {
+        carePlanId: row.carePlanId,
+        metricCode: row.metricCode,
+        severity: row.severity,
+        status: row.status,
+      },
+    });
+  }
+
   changes.sort((left, right) => {
     const time = right.occurredAt.getTime() - left.occurredAt.getTime();
     if (time !== 0) return time;
@@ -180,6 +244,8 @@ function emptySummary(): Record<ChangeDomain, number> {
     CLINICAL_PROFILE: 0,
     QUESTIONNAIRE: 0,
     OBSERVATION: 0,
+    LAB_RESULT: 0,
+    CLINICAL_ALERT: 0,
   };
 }
 

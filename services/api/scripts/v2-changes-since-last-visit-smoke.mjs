@@ -120,3 +120,43 @@ test("change projection exposes structural metadata without clinical values", ()
 });
 
 console.log("V2 changes since last visit acceptance passed");
+
+
+test("changes include source-linked lab results and open RPM alerts without clinical values", () => {
+  const result = engine.buildChangesSinceLastVisit({
+    patientId: "patient-1",
+    since,
+    healthProfile: [],
+    clinicalProfile: [],
+    questionnaires: [],
+    observations: [],
+    labResults: [{
+      orderId: "order-9",
+      laboratoryResultId: "lab-9",
+      status: "RELEASED",
+      occurredAt: new Date("2026-09-19T11:00:00.000Z"),
+      orderingProviderId: "provider-1",
+    }],
+    alerts: [{
+      id: "alert-7",
+      status: "OPEN",
+      severity: "HIGH",
+      metricCode: "HEART_RATE",
+      carePlanId: "care-plan-1",
+      sourceObservationId: "obs-7",
+      occurredAt: new Date("2026-09-19T12:00:00.000Z"),
+    }],
+    restrictedSections: [],
+  });
+
+  assert.deepEqual(result.changes.map((item) => item.domain), ["CLINICAL_ALERT", "LAB_RESULT"]);
+  assert.equal(result.summary.LAB_RESULT, 1);
+  assert.equal(result.summary.CLINICAL_ALERT, 1);
+  assert.equal(result.changes[0].detailTarget.includes("alert-7"), true);
+  assert.equal(result.changes[1].detailTarget, "/clinical-orders/order-9");
+  assert.equal(Object.prototype.hasOwnProperty.call(result.changes[1].metadata, "value"), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(result.changes[1].metadata, "unit"), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(result.changes[0].metadata, "observationValue"), false);
+});
+
+await import("./v2-doctor-changes-since-last-visit-ui-smoke.mjs");
