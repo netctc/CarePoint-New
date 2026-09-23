@@ -424,6 +424,10 @@ class CarePointApi {
       _asMap(await _send('POST', '/patient/questionnaire-requests/$requestId/responses', body: body));
   Future<Map<String, dynamic>> patientQuestionnaireStatus() async =>
       _asMap(await _send('GET', '/patient/questionnaires/status'));
+  Future<Map<String, dynamic>> patientSocialHistory() async =>
+      _asMap(await _send('GET', '/patient/social-history'));
+  Future<Map<String, dynamic>> updatePatientSocialHistory(Map<String, dynamic> body) async =>
+      _asMap(await _send('PATCH', '/patient/social-history', body: body));
   Future<Map<String, dynamic>> patientDueQuestionnaires() async =>
       _asMap(await _send('GET', '/patient/questionnaires/due'));
   Future<Map<String, dynamic>> submitPatientQuestionnaire(String code, Map<String, dynamic> body) async =>
