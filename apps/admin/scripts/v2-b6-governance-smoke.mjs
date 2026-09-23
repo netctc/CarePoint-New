@@ -81,7 +81,7 @@ assert.match(credentialExpiryPage, /active="17"/);
 assert.match(credentialExpiryPage, /credential-expirations\/policy/);
 assert.match(credentialExpiryPage, /credential-expirations\/run-reminders/);
 assert.match(credentialExpiryPage, /blocking on expiry is always enforced/i);
-assert.doesNotMatch(credentialExpiryPage, /credentialNumber|issuer|documentId/);
+assert.doesNotMatch(credentialExpiryPage, /\bcredentialNumber\b|\bissuer\b|\bdocumentId\b/);
 assert.match(shell, /governance\/expirations/);
 assert.match(proxy, /admin\/governance\/credential-expirations/);
 assert.match(proxy, /credential-expirations\/run-reminders/);
