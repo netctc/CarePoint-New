@@ -313,6 +313,24 @@ class CarePointApi {
     if (manufacturer?.isNotEmpty == true) 'manufacturer': manufacturer,
   }));
 
+  // PAT-125..127 — Patient Care Plan workspace.
+  Future<Map<String, dynamic>> patientCarePlans() async =>
+      _asMap(await _send('GET', '/patient/care-plans'));
+  Future<Map<String, dynamic>> patientCarePlanGoals(String carePlanId) async =>
+      _asMap(await _send('GET', '/patient/care-plans/$carePlanId/goals'));
+  Future<Map<String, dynamic>> patientCarePlanTasks(String carePlanId) async =>
+      _asMap(await _send('GET', '/patient/care-plans/$carePlanId/tasks'));
+  Future<Map<String, dynamic>> completePatientCareTask(
+    String taskId, {
+    required String occurrenceKey,
+    required String outcome,
+    String? reasonCode,
+  }) async => _asMap(await _send('POST', '/patient/care-tasks/$taskId/completions', body: {
+    'occurrenceKey': occurrenceKey,
+    'outcome': outcome,
+    if (reasonCode?.trim().isNotEmpty == true) 'reasonCode': reasonCode!.trim().toUpperCase(),
+  }));
+
   // DOC-069..075 — Doctor Care Plan and deterministic RPM workspace.
   Future<Map<String, dynamic>> doctorPatientCarePlans(String patientId) async =>
       _asMap(await _send('GET', '/provider/patients/$patientId/care-plans'));
