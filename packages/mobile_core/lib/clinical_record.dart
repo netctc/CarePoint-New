@@ -61,6 +61,9 @@ class _ClinicalRecordPageState extends State<ClinicalRecordPage> {
   final chiefComplaint = TextEditingController(); final subjective = TextEditingController(); final objective = TextEditingController(); final assessment = TextEditingController(); final plan = TextEditingController();
   final heartRate = TextEditingController(); final systolic = TextEditingController(); final diastolic = TextEditingController(); final oxygen = TextEditingController();
   bool busy = true; bool saving = false; String? error; Map<String, dynamic>? encounter;
+  List<Map<String, dynamic>> encounterTemplates = const [];
+  String? selectedEncounterTemplateId;
+  String? encounterTemplateError;
   CarePointApi get api => widget.session.api; CarePointLocale get locale => widget.locale; String get appointmentId => widget.appointment['id'].toString(); bool get finalized => encounter?['finalized'] == true;
 
   @override void initState() { super.initState(); load(); }
@@ -72,16 +75,37 @@ class _ClinicalRecordPageState extends State<ClinicalRecordPage> {
       final next = await api.clinicalEncounter(appointmentId); final data = _map(_map(next['latestRecord'])['data']); final vitals = _map(data['vitals']);
       chiefComplaint.text = data['chiefComplaint']?.toString() ?? ''; subjective.text = data['subjective']?.toString() ?? ''; objective.text = data['objective']?.toString() ?? ''; assessment.text = data['assessment']?.toString() ?? ''; plan.text = data['plan']?.toString() ?? '';
       heartRate.text = vitals['heartRateBpm']?.toString() ?? ''; systolic.text = vitals['systolicMmHg']?.toString() ?? ''; diastolic.text = vitals['diastolicMmHg']?.toString() ?? ''; oxygen.text = vitals['oxygenSaturationPct']?.toString() ?? '';
-      if (mounted) setState(() => encounter = next);
+      var templates = const <Map<String, dynamic>>[];
+      String? templateError;
+      if (widget.session.role == 'DOCTOR') {
+        try {
+          templates = _list((await api.doctorEncounterTemplates(appointmentId))['items']);
+        } catch (value) {
+          templateError = value.toString();
+        }
+      }
+      if (mounted) setState(() {
+        encounter = next;
+        encounterTemplates = templates;
+        encounterTemplateError = templateError;
+        if (selectedEncounterTemplateId != null && !templates.any((item) => item['templateVersionId']?.toString() == selectedEncounterTemplateId)) {
+          selectedEncounterTemplateId = null;
+        }
+      });
     } catch (value) { if (mounted) setState(() => error = value.toString()); } finally { if (mounted) setState(() => busy = false); }
   }
 
   @override Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: Text(clinicalText(locale, 'clinicalChart'))),
     body: busy ? const Center(child: CircularProgressIndicator()) : error != null ? Center(child: Padding(padding: const EdgeInsets.all(24), child: Text(error!, textAlign: TextAlign.center))) : ListView(padding: const EdgeInsets.all(16), children: [
-      _summary(), const SizedBox(height: 12), _textField(chiefComplaint, 'chiefComplaint', 2), _textField(subjective, 'subjective', 4), _textField(objective, 'objective', 4), _textField(assessment, 'assessment', 4), _textField(plan, 'plan', 4), const SizedBox(height: 6),
-      Text(clinicalText(locale, 'vitals'), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)), const SizedBox(height: 8),
-      Wrap(spacing: 10, runSpacing: 10, children: [_numberField(heartRate, 'heartRate'), _numberField(systolic, 'systolic'), _numberField(diastolic, 'diastolic'), _numberField(oxygen, 'oxygen')]), const SizedBox(height: 18),
+      _summary(),
+      if (widget.session.role == 'DOCTOR' && !finalized) ...[
+        const SizedBox(height: 12),
+        _encounterTemplateSelector(),
+      ],
+      const SizedBox(height: 12),
+      ..._structuredClinicalFields(),
+      const SizedBox(height: 18),
       if (!finalized) FilledButton.icon(onPressed: saving ? null : save, icon: const Icon(Icons.lock_outline), label: Text(clinicalText(locale, 'saveRevision'))), if (!finalized) const SizedBox(height: 10),
       if (!finalized) OutlinedButton.icon(onPressed: saving ? null : finalize, icon: const Icon(Icons.task_alt), label: Text(clinicalText(locale, widget.session.role == 'DOCTOR' ? 'signFinalize' : 'finalize'))), const SizedBox(height: 10),
       OutlinedButton.icon(onPressed: showPatientHistory, icon: const Icon(Icons.history), label: Text(clinicalText(locale, 'patientHistory'))), const SizedBox(height: 10),
@@ -151,9 +175,172 @@ class _ClinicalRecordPageState extends State<ClinicalRecordPage> {
     ]),
   );
 
-  Widget _textField(TextEditingController controller, String key, int maxLines) => Padding(padding: const EdgeInsets.only(bottom: 12), child: TextField(enabled: !finalized, controller: controller, decoration: InputDecoration(labelText: clinicalText(locale, key), border: const OutlineInputBorder()), maxLines: maxLines));
+  Widget _textField(TextEditingController controller, String key, int maxLines, {String? helperText, bool required = false}) => Padding(
+    padding: const EdgeInsets.only(bottom: 12),
+    child: TextField(
+      enabled: !finalized,
+      controller: controller,
+      decoration: InputDecoration(
+        labelText: clinicalText(locale, key) + (required ? ' *' : ''),
+        helperText: helperText,
+        border: const OutlineInputBorder(),
+      ),
+      maxLines: maxLines,
+    ),
+  );
   Widget _numberField(TextEditingController controller, String key) => SizedBox(width: 170, child: TextField(enabled: !finalized, controller: controller, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: clinicalText(locale, key), border: const OutlineInputBorder())));
   Widget _summary() { final latest = _map(encounter?['latestRecord']); return Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(children: [const Icon(Icons.shield_outlined), const SizedBox(width: 8), Expanded(child: Text(clinicalText(locale, 'encrypted'), style: const TextStyle(fontWeight: FontWeight.w800))), if (finalized) Chip(label: Text(clinicalText(locale, 'finalized')))]), if (latest['revision'] != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text('${clinicalText(locale, 'revision')}: ${latest['revision']}')), if (encounter?['accessBasis'] != null) Text('${clinicalText(locale, 'accessBasis')}: ${encounter!['accessBasis']}')]))); }
+
+
+  Widget _encounterTemplateSelector() {
+    if (encounterTemplateError != null) {
+      return Card(child: ListTile(
+        leading: const Icon(Icons.error_outline),
+        title: Text(encounterTemplateText(locale, 'unavailable')),
+        subtitle: Text(encounterTemplateError!),
+      ));
+    }
+    if (encounterTemplates.isEmpty) {
+      return Card(child: ListTile(
+        leading: const Icon(Icons.view_quilt_outlined),
+        title: Text(encounterTemplateText(locale, 'title')),
+        subtitle: Text(encounterTemplateText(locale, 'none')),
+      ));
+    }
+    return Card(child: Padding(
+      padding: const EdgeInsets.all(14),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Text(encounterTemplateText(locale, 'title'), style: const TextStyle(fontWeight: FontWeight.w900)),
+        const SizedBox(height: 4),
+        Text(encounterTemplateText(locale, 'structureOnly'), style: const TextStyle(color: Color(0xFF64748B))),
+        const SizedBox(height: 10),
+        DropdownButtonFormField<String>(
+          key: const ValueKey('doctor-encounter-template-selector'),
+          initialValue: selectedEncounterTemplateId,
+          decoration: InputDecoration(labelText: encounterTemplateText(locale, 'select'), border: const OutlineInputBorder()),
+          items: encounterTemplates.map((item) => DropdownMenuItem(
+            value: item['templateVersionId']?.toString(),
+            child: Text('${_localizedTemplate(item['labels'], locale, item['code']?.toString() ?? '')} · v${item['version'] ?? ''}'),
+          )).toList(growable: false),
+          onChanged: (value) => setState(() => selectedEncounterTemplateId = value),
+        ),
+        if (selectedEncounterTemplateId != null)
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: TextButton.icon(
+              key: const ValueKey('doctor-encounter-template-clear'),
+              onPressed: () => setState(() => selectedEncounterTemplateId = null),
+              icon: const Icon(Icons.restart_alt),
+              label: Text(encounterTemplateText(locale, 'standard')),
+            ),
+          ),
+      ]),
+    ));
+  }
+
+  Map<String, dynamic>? _selectedEncounterTemplate() {
+    if (selectedEncounterTemplateId == null) return null;
+    for (final item in encounterTemplates) {
+      if (item['templateVersionId']?.toString() == selectedEncounterTemplateId) return item;
+    }
+    return null;
+  }
+
+  List<Map<String, dynamic>> _templateSections() {
+    final selected = _selectedEncounterTemplate();
+    if (selected == null) return const [];
+    return _list(_map(selected['layout'])['sections']);
+  }
+
+  List<Widget> _structuredClinicalFields() {
+    const defaultOrder = ['CHIEF_COMPLAINT', 'SUBJECTIVE', 'OBJECTIVE', 'ASSESSMENT', 'PLAN', 'VITALS'];
+    final configured = _templateSections();
+    final byKey = <String, Map<String, dynamic>>{};
+    final order = <String>[];
+    for (final section in configured) {
+      final key = section['key']?.toString().toUpperCase();
+      if (key == null || !defaultOrder.contains(key) || byKey.containsKey(key)) continue;
+      byKey[key] = section;
+      order.add(key);
+    }
+    for (final key in defaultOrder) {
+      if (!order.contains(key)) order.add(key);
+    }
+    return order.map((key) {
+      final section = byKey[key] ?? const <String, dynamic>{};
+      if (key == 'VITALS') return _vitalsTemplateBlock(section);
+      final controller = _templateController(key);
+      final textKey = _templateClinicalKey(key);
+      if (controller == null || textKey == null) return const SizedBox.shrink();
+      return _textField(
+        controller,
+        textKey,
+        key == 'CHIEF_COMPLAINT' ? 2 : 4,
+        helperText: _localizedTemplate(section['guidanceLabels'], locale, ''),
+        required: section['required'] == true,
+      );
+    }).toList(growable: false);
+  }
+
+  Widget _vitalsTemplateBlock(Map<String, dynamic> section) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Text(
+        clinicalText(locale, 'vitals') + (section['required'] == true ? ' *' : ''),
+        style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+      ),
+      if (_localizedTemplate(section['guidanceLabels'], locale, '').isNotEmpty)
+        Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Text(_localizedTemplate(section['guidanceLabels'], locale, ''), style: const TextStyle(color: Color(0xFF64748B))),
+        ),
+      const SizedBox(height: 8),
+      Wrap(
+        spacing: 10,
+        runSpacing: 10,
+        children: [
+          _numberField(heartRate, 'heartRate'),
+          _numberField(systolic, 'systolic'),
+          _numberField(diastolic, 'diastolic'),
+          _numberField(oxygen, 'oxygen'),
+        ],
+      ),
+      const SizedBox(height: 6),
+    ],
+  );
+
+  TextEditingController? _templateController(String key) => switch (key) {
+    'CHIEF_COMPLAINT' => chiefComplaint,
+    'SUBJECTIVE' => subjective,
+    'OBJECTIVE' => objective,
+    'ASSESSMENT' => assessment,
+    'PLAN' => plan,
+    _ => null,
+  };
+
+  String? _templateClinicalKey(String key) => switch (key) {
+    'CHIEF_COMPLAINT' => 'chiefComplaint',
+    'SUBJECTIVE' => 'subjective',
+    'OBJECTIVE' => 'objective',
+    'ASSESSMENT' => 'assessment',
+    'PLAN' => 'plan',
+    _ => null,
+  };
+
+  String? _missingRequiredTemplateField() {
+    for (final section in _templateSections()) {
+      if (section['required'] != true) continue;
+      final key = section['key']?.toString().toUpperCase() ?? '';
+      if (key == 'VITALS') {
+        if ([heartRate, systolic, diastolic, oxygen].every((controller) => controller.text.trim().isEmpty)) return clinicalText(locale, 'vitals');
+        continue;
+      }
+      final controller = _templateController(key);
+      final textKey = _templateClinicalKey(key);
+      if (controller != null && textKey != null && controller.text.trim().isEmpty) return clinicalText(locale, textKey);
+    }
+    return null;
+  }
 
   Widget _addendaSection() {
     final addenda = _list(encounter?['addenda']);
@@ -205,6 +392,11 @@ class _ClinicalRecordPageState extends State<ClinicalRecordPage> {
   }
 
   Future<void> save() async {
+    final missingRequired = _missingRequiredTemplateField();
+    if (missingRequired != null) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${encounterTemplateText(locale, 'required')}: $missingRequired')));
+      return;
+    }
     final body = <String, dynamic>{}; void add(String key, TextEditingController controller) { if (controller.text.trim().isNotEmpty) body[key] = controller.text.trim(); }
     add('chiefComplaint', chiefComplaint); add('subjective', subjective); add('objective', objective); add('assessment', assessment); add('plan', plan);
     final vitals = <String, dynamic>{}; void vital(String key, TextEditingController controller) { final value = num.tryParse(controller.text.trim()); if (value != null) vitals[key] = value; }
@@ -322,3 +514,35 @@ class _ClinicalRecordPageState extends State<ClinicalRecordPage> {
 Map<String, dynamic> _map(dynamic value) { if (value is Map<String, dynamic>) return value; if (value is Map) return value.map((key, item) => MapEntry(key.toString(), item)); return <String, dynamic>{}; }
 List<Map<String, dynamic>> _list(dynamic value) { if (value is! List) return const []; return value.map(_map).toList(growable: false); }
 String _dateTime(DateTime? value) => value == null ? '—' : '${value.year.toString().padLeft(4, '0')}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')} ${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
+
+String encounterTemplateText(CarePointLocale locale, String key) {
+  const values = <CarePointLocale, Map<String, String>>{
+    CarePointLocale.en: {
+      'title':'Encounter template','select':'Template','structureOnly':'Templates change structure and guidance only. No clinical content is inserted automatically.','standard':'Use standard SOAP','none':'No published template matches this service/specialty. Standard SOAP remains available.','unavailable':'Encounter templates unavailable','required':'Complete required template field'
+    },
+    CarePointLocale.ar: {
+      'title':'قالب الزيارة','select':'القالب','structureOnly':'تغيّر القوالب البنية والإرشادات فقط. لا تتم إضافة أي محتوى سريري تلقائياً.','standard':'استخدام SOAP القياسي','none':'لا يوجد قالب منشور مطابق للخدمة/التخصص. يبقى SOAP القياسي متاحاً.','unavailable':'قوالب الزيارة غير متاحة','required':'أكمل الحقل المطلوب في القالب'
+    },
+    CarePointLocale.fr: {
+      'title':'Modèle de consultation','select':'Modèle','structureOnly':'Les modèles changent uniquement la structure et les conseils. Aucun contenu clinique n’est inséré automatiquement.','standard':'Utiliser SOAP standard','none':'Aucun modèle publié ne correspond au service/spécialité. SOAP standard reste disponible.','unavailable':'Modèles de consultation indisponibles','required':'Complétez le champ obligatoire du modèle'
+    },
+    CarePointLocale.es: {
+      'title':'Plantilla de encuentro','select':'Plantilla','structureOnly':'Las plantillas cambian solo la estructura y las guías. No insertan contenido clínico automáticamente.','standard':'Usar SOAP estándar','none':'No hay plantilla publicada para este servicio/especialidad. SOAP estándar sigue disponible.','unavailable':'Plantillas de encuentro no disponibles','required':'Completa el campo obligatorio de la plantilla'
+    },
+  };
+  return values[locale]?[key] ?? values[CarePointLocale.en]![key] ?? key;
+}
+
+String _localizedTemplate(dynamic value, CarePointLocale locale, String fallback) {
+  final map = _map(value);
+  final code = switch (locale) {
+    CarePointLocale.ar => 'ar',
+    CarePointLocale.fr => 'fr',
+    CarePointLocale.es => 'es',
+    _ => 'en',
+  };
+  final localized = map[code]?.toString().trim() ?? '';
+  if (localized.isNotEmpty) return localized;
+  final english = map['en']?.toString().trim() ?? '';
+  return english.isNotEmpty ? english : fallback;
+}
