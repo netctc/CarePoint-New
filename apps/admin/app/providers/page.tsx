@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
 import { ProviderGovernanceQueue } from "@/components/ProviderGovernanceQueue";
 import { useI18n } from "@/lib/i18n";
@@ -14,6 +15,7 @@ export default function ProvidersPage() {
         <p>{t("providers.ruleText")}</p>
       </div>
     </section>
+    <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}><Link className="secondary-button" href="/providers/taxonomy">Provider taxonomy · ADM-106/107</Link></div>
     <ProviderGovernanceQueue kind="OTHER_PROVIDER" />
   </AppShell>;
 }
