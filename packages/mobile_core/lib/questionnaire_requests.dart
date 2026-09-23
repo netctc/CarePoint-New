@@ -181,6 +181,168 @@ class _DoctorQuestionnaireRequestsPageState extends State<DoctorQuestionnaireReq
   }
 }
 
+
+class PatientQuestionnaireStatusCard extends StatefulWidget {
+  const PatientQuestionnaireStatusCard({super.key, required this.session, required this.locale});
+  final CarePointSession session;
+  final CarePointLocale locale;
+
+  @override
+  State<PatientQuestionnaireStatusCard> createState() => _PatientQuestionnaireStatusCardState();
+}
+
+class _PatientQuestionnaireStatusCardState extends State<PatientQuestionnaireStatusCard> {
+  bool loading = true;
+  bool acting = false;
+  String? error;
+  List<Map<String, dynamic>> due = const [];
+
+  String t(String key) => questionnaireStatusText(widget.locale, key);
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() { loading = true; error = null; });
+    try {
+      final value = await widget.session.api.patientQuestionnaireStatus();
+      final items = _maps(value['items']).where((item) => item['due'] == true).toList(growable: false);
+      if (mounted) setState(() => due = items);
+    } catch (value) {
+      if (mounted) setState(() => error = value.toString());
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
+
+  Future<void> _update(Map<String, dynamic> item) async {
+    final current = await widget.session.api.patientDueQuestionnaires();
+    final candidates = _maps(current['items']);
+    Map<String, dynamic>? exact;
+    for (final candidate in candidates) {
+      if (candidate['code']?.toString() == item['code']?.toString() && candidate['due'] == true) {
+        exact = candidate;
+        break;
+      }
+    }
+    if (exact == null || !mounted) {
+      await _load();
+      return;
+    }
+    final completed = await Navigator.push<bool>(context, MaterialPageRoute(
+      builder: (_) => Directionality(
+        textDirection: widget.locale.textDirection,
+        child: RequestedQuestionnaireFormPage(
+          session: widget.session,
+          locale: widget.locale,
+          request: exact!,
+        ),
+      ),
+    ));
+    if (completed == true) await _load();
+  }
+
+  Future<void> _confirmNoChanges(Map<String, dynamic> item) async {
+    final code = item['code']?.toString() ?? '';
+    final versionId = item['questionnaireVersionId']?.toString() ?? '';
+    if (code.isEmpty || versionId.isEmpty) return;
+    final accepted = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(t('confirmTitle')),
+        content: Text(t('confirmPrompt')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: Text(t('cancel'))),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: Text(t('confirm'))),
+        ],
+      ),
+    );
+    if (accepted != true) return;
+    setState(() => acting = true);
+    try {
+      await widget.session.api.confirmPatientQuestionnaireNoChanges(
+        code,
+        expectedLatestSequence: _int(item['latestSequence'], 0),
+        expectedQuestionnaireVersionId: versionId,
+      );
+      await _load();
+    } catch (value) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value.toString())));
+    } finally {
+      if (mounted) setState(() => acting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (loading) {
+      return const Padding(
+        padding: EdgeInsets.fromLTRB(16, 8, 16, 0),
+        child: LinearProgressIndicator(),
+      );
+    }
+    if (error != null) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+        child: Card(child: ListTile(
+          leading: const Icon(Icons.error_outline),
+          title: Text(t('unavailable')),
+          trailing: IconButton(onPressed: _load, icon: const Icon(Icons.refresh_outlined)),
+        )),
+      );
+    }
+    if (due.isEmpty) return const SizedBox.shrink();
+    final item = due.first;
+    final title = _localized(item['labels'], widget.locale, item['code']?.toString() ?? t('questionnaire'));
+    return Padding(
+      key: const ValueKey('patient-questionnaire-stale-reminder'),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: Card(child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Row(children: [
+            const Icon(Icons.update_outlined),
+            const SizedBox(width: 8),
+            Expanded(child: Text(t('title'), style: const TextStyle(fontWeight: FontWeight.w900))),
+            if (due.length > 1) Badge(label: Text(due.length.toString())),
+          ]),
+          const SizedBox(height: 8),
+          Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 4),
+          Text(_statusDetail(item), style: const TextStyle(color: Color(0xFF64748B))),
+          const SizedBox(height: 10),
+          Wrap(spacing: 8, runSpacing: 8, children: [
+            FilledButton.icon(
+              key: const ValueKey('patient-questionnaire-update'),
+              onPressed: acting ? null : () => _update(item),
+              icon: const Icon(Icons.edit_note_outlined),
+              label: Text(t('update')),
+            ),
+            if (item['canConfirmNoChanges'] == true)
+              OutlinedButton.icon(
+                key: const ValueKey('patient-questionnaire-no-changes'),
+                onPressed: acting ? null : () => _confirmNoChanges(item),
+                icon: const Icon(Icons.check_circle_outline),
+                label: Text(t('noChanges')),
+              ),
+          ]),
+        ]),
+      )),
+    );
+  }
+
+  String _statusDetail(Map<String, dynamic> item) {
+    final last = _dateTimeValue(item['lastCompletedAt']);
+    final dueAt = _dateTimeValue(item['dueAt']);
+    final reason = item['reason']?.toString() ?? '';
+    if (last == '—') return '${t('neverCompleted')} · ${t('reason')}: $reason';
+    return '${t('lastCompleted')}: $last · ${t('due')}: $dueAt';
+  }
+}
+
 class PatientQuestionnaireRequestsPage extends StatefulWidget {
   const PatientQuestionnaireRequestsPage({super.key, required this.session, required this.locale});
   final CarePointSession session;
@@ -411,10 +573,19 @@ class _RequestedQuestionnaireFormPageState extends State<RequestedQuestionnaireF
     }
     setState(() { saving = true; validation = null; });
     try {
-      await widget.session.api.submitPatientQuestionnaireRequest(widget.request['id'].toString(), {
-        'expectedLatestSequence': _int(widget.request['latestSequence'], 0),
-        'answers': answers,
-      });
+      final requestId = widget.request['id']?.toString() ?? '';
+      if (requestId.isNotEmpty) {
+        await widget.session.api.submitPatientQuestionnaireRequest(requestId, {
+          'expectedLatestSequence': _int(widget.request['latestSequence'], 0),
+          'answers': answers,
+        });
+      } else {
+        await widget.session.api.submitPatientQuestionnaire(widget.request['code'].toString(), {
+          'expectedLatestSequence': _int(widget.request['latestSequence'], 0),
+          'expectedQuestionnaireVersionId': widget.request['questionnaireVersionId'].toString(),
+          'answers': answers,
+        });
+      }
       if (mounted) Navigator.pop(context, true);
     } on CarePointApiException catch (value) {
       if (mounted) setState(() => validation = value.toString());
@@ -496,3 +667,34 @@ int _int(dynamic value, int fallback) => value is num ? value.toInt() : int.tryP
 
 String _dateTime(DateTime? value) => value == null ? '—' : value.toLocal().toString().substring(0, 16);
 String _dateTimeValue(dynamic value) => _dateTime(DateTime.tryParse(value?.toString() ?? ''));
+
+
+String questionnaireStatusText(CarePointLocale locale, String key) {
+  const values = <CarePointLocale, Map<String, String>>{
+    CarePointLocale.en: {
+      'title':'Health questionnaire update due','update':'Update questionnaire','noChanges':'Confirm no changes',
+      'confirmTitle':'Confirm no health changes','confirmPrompt':'Confirm that your answers have not changed since the last response. This creates a new dated response and does not overwrite the previous one.',
+      'confirm':'Confirm','cancel':'Cancel','unavailable':'Questionnaire status is temporarily unavailable.',
+      'questionnaire':'Questionnaire','lastCompleted':'Last completed','neverCompleted':'No previous response','due':'Due','reason':'Reason'
+    },
+    CarePointLocale.ar: {
+      'title':'تحديث الاستبيان الصحي مستحق','update':'تحديث الاستبيان','noChanges':'تأكيد عدم وجود تغييرات',
+      'confirmTitle':'تأكيد عدم وجود تغييرات صحية','confirmPrompt':'أكد أن إجاباتك لم تتغير منذ آخر استجابة. سيتم إنشاء استجابة جديدة بتاريخ جديد دون استبدال السابقة.',
+      'confirm':'تأكيد','cancel':'إلغاء','unavailable':'حالة الاستبيان غير متاحة مؤقتاً.',
+      'questionnaire':'استبيان','lastCompleted':'آخر إكمال','neverCompleted':'لا توجد استجابة سابقة','due':'مستحق','reason':'السبب'
+    },
+    CarePointLocale.fr: {
+      'title':'Mise à jour du questionnaire de santé requise','update':'Mettre à jour','noChanges':'Confirmer aucun changement',
+      'confirmTitle':'Confirmer aucun changement de santé','confirmPrompt':'Confirmez que vos réponses n’ont pas changé depuis la dernière réponse. Une nouvelle réponse datée sera créée sans écraser la précédente.',
+      'confirm':'Confirmer','cancel':'Annuler','unavailable':'Le statut du questionnaire est temporairement indisponible.',
+      'questionnaire':'Questionnaire','lastCompleted':'Dernière réponse','neverCompleted':'Aucune réponse antérieure','due':'Échéance','reason':'Motif'
+    },
+    CarePointLocale.es: {
+      'title':'Actualización del cuestionario de salud pendiente','update':'Actualizar cuestionario','noChanges':'Confirmar sin cambios',
+      'confirmTitle':'Confirmar que no hay cambios de salud','confirmPrompt':'Confirma que tus respuestas no han cambiado desde la última respuesta. Se creará una nueva respuesta fechada sin sobrescribir la anterior.',
+      'confirm':'Confirmar','cancel':'Cancelar','unavailable':'El estado del cuestionario no está disponible temporalmente.',
+      'questionnaire':'Cuestionario','lastCompleted':'Última respuesta','neverCompleted':'Sin respuesta previa','due':'Vencimiento','reason':'Motivo'
+    },
+  };
+  return values[locale]?[key] ?? values[CarePointLocale.en]![key] ?? key;
+}

@@ -391,6 +391,20 @@ class CarePointApi {
       _asMap(await _send('GET', '/patient/questionnaire-requests'));
   Future<Map<String, dynamic>> submitPatientQuestionnaireRequest(String requestId, Map<String, dynamic> body) async =>
       _asMap(await _send('POST', '/patient/questionnaire-requests/$requestId/responses', body: body));
+  Future<Map<String, dynamic>> patientQuestionnaireStatus() async =>
+      _asMap(await _send('GET', '/patient/questionnaires/status'));
+  Future<Map<String, dynamic>> patientDueQuestionnaires() async =>
+      _asMap(await _send('GET', '/patient/questionnaires/due'));
+  Future<Map<String, dynamic>> submitPatientQuestionnaire(String code, Map<String, dynamic> body) async =>
+      _asMap(await _send('POST', '/patient/questionnaires/$code/responses', body: body));
+  Future<Map<String, dynamic>> confirmPatientQuestionnaireNoChanges(
+    String code, {
+    required int expectedLatestSequence,
+    required String expectedQuestionnaireVersionId,
+  }) async => _asMap(await _send('POST', '/patient/questionnaires/$code/confirm-no-changes', body: {
+    'expectedLatestSequence': expectedLatestSequence,
+    'expectedQuestionnaireVersionId': expectedQuestionnaireVersionId,
+  }));
 
   Future<Map<String, dynamic>> patientObservationCatalog() async =>
       _asMap(await _send('GET', '/patient/observations/catalog'));
@@ -402,6 +416,43 @@ class CarePointApi {
     'code': code,
     if (from != null) 'from': from,
     if (to != null) 'to': to,
+  }));
+  Future<Map<String, dynamic>> patientObservationHistory(
+    String code, {
+    String? from,
+    String? to,
+    int limit = 100,
+  }) async => _asMap(await _send('GET', '/patient/observations/history', query: {
+    'code': code,
+    if (from != null) 'from': from,
+    if (to != null) 'to': to,
+    'limit': limit.toString(),
+  }));
+  Future<Map<String, dynamic>> patientObservationContext(String observationId) async =>
+      _asMap(await _send('GET', '/patient/observations/$observationId/context'));
+  Future<Map<String, dynamic>> updatePatientObservationContext(
+    String observationId, {
+    required int expectedSequence,
+    String? context,
+    String? note,
+  }) async => _asMap(await _send('PATCH', '/patient/observations/$observationId/context', body: {
+    'expectedSequence': expectedSequence,
+    'context': context,
+    'note': note,
+  }));
+  Future<Map<String, dynamic>> patientObservationCorrections(String observationId) async =>
+      _asMap(await _send('GET', '/patient/observations/$observationId/corrections'));
+  Future<Map<String, dynamic>> correctPatientObservation(
+    String observationId, {
+    required int expectedSequence,
+    required num value,
+    required String unitCode,
+    required String reason,
+  }) async => _asMap(await _send('POST', '/patient/observations/$observationId/corrections', body: {
+    'expectedSequence': expectedSequence,
+    'value': value,
+    'unitCode': unitCode,
+    'reason': reason,
   }));
 
   Future<Map<String, dynamic>> patientClinicalProfileEntries({String? kind}) async =>
