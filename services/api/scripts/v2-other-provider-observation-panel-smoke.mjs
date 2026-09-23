@@ -41,8 +41,11 @@ assert.match(api, /POST', '\/provider\/patients\/\$patientId\/observations/);
 for (const locale of ["CarePointLocale.en", "CarePointLocale.ar", "CarePointLocale.fr", "CarePointLocale.es"]) {
   assert.ok(nursing.includes(locale), `Missing PRV-061 locale ${locale}`);
 }
-assert.match(nursing, /no automated diagnosis/i);
-assert.doesNotMatch(nursing, /diagnos(e|is)|risk score|normal range/i);
+const panelSource = nursing.match(/class ProviderObservationPanelPage[\s\S]*?class MedicationAdministrationPage/)?.[0] ?? "";
+assert.ok(panelSource, "PRV-061 observation panel source was not found.");
+assert.match(panelSource, /no automated diagnosis/i);
+assert.doesNotMatch(panelSource, /\b(normal|abnormal|critical|high risk|low risk)\b/i);
+assert.doesNotMatch(panelSource, /(?:>|<|>=|<=)\s*\d+(?:\.\d+)?/);
 
 console.log("PRV-061 capability-bound Other Provider observation panel acceptance passed");
 
