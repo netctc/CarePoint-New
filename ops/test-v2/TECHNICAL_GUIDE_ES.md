@@ -8,8 +8,8 @@
 
 La rama `entorno-v2` contiene el baseline funcional actualmente integrado en `v2/development` más la capa específica de infraestructura y operación para un entorno de pruebas reproducible en VPS Ubuntu.
 
-Baseline funcional sincronizado: `0e473de12f3d0b71885d5f3843f984f08bec6329`.  
-Merge de sincronización: `122975790c23c3df514ad94653fc954b00962244`.
+Baseline funcional sincronizado: `8d305e307e390544fd9358ba08eaa32872b7c2bc`.  
+Merge de sincronización: `94bd5dd0d0426996ad9495e0ea9d28d47ded4d25`.
 
 La rama añade, entre otros:
 
@@ -30,15 +30,17 @@ Servicios Docker:
 
 | Servicio | Host | Uso |
 |---|---:|---|
-| API | 127.0.0.1:4000 | Backend CarePoint |
-| Admin Web | 127.0.0.1:3000 | Portal de administración |
-| Patient Web | 127.0.0.1:8080 | Flutter Web paciente |
-| Doctor Web | 127.0.0.1:8081 | Flutter Web doctor |
-| Provider Web | 127.0.0.1:8082 | Flutter Web otros proveedores |
+| API | 127.0.0.1:4200 | Backend CarePoint |
+| Admin Web | 127.0.0.1:3200 | Portal de administración |
+| Patient Web | 127.0.0.1:8280 | Flutter Web paciente |
+| Doctor Web | 127.0.0.1:8281 | Flutter Web doctor |
+| Provider Web | 127.0.0.1:8282 | Flutter Web otros proveedores |
 | PostgreSQL 16 | solo red Docker | Base de datos |
 | Redis 7 | solo red Docker | Cache/estado auxiliar |
 
 Nginx se ejecuta en el host y publica cinco FQDN por HTTPS. PostgreSQL y Redis no deben exponerse a Internet.
+
+En `entorno-v2`, Compose sobrescribe los puertos de ejecución de API y Admin a `4200` y `3200` respectivamente. El Dockerfile genérico del repositorio conserva sus defaults para no alterar otros carriles. Patient/Doctor/Provider siguen escuchando dentro de sus contenedores Nginx en el puerto 80, pero se publican sólo en loopback como `8280/8281/8282`.
 
 ## 3. Requisitos del VPS
 
@@ -56,7 +58,7 @@ Puertos públicos:
 - SSH: sólo desde la IP de administración y por el puerto realmente utilizado.
 - TCP 80: HTTP/ACME.
 - TCP 443: HTTPS.
-- No abrir 3000, 4000, 8080, 8081, 8082, 5432 ni 6379.
+- No abrir 3200, 4200, 8280, 8281, 8282, 5432 ni 6379.
 
 ## 4. DNS requerido
 
@@ -229,11 +231,11 @@ El script:
 
 Rutas:
 
-- API -> `http://127.0.0.1:4000`
-- Admin -> `http://127.0.0.1:3000`
-- Patient -> `http://127.0.0.1:8080`
-- Doctor -> `http://127.0.0.1:8081`
-- Provider -> `http://127.0.0.1:8082`
+- API -> `http://127.0.0.1:4200`
+- Admin -> `http://127.0.0.1:3200`
+- Patient -> `http://127.0.0.1:8280`
+- Doctor -> `http://127.0.0.1:8281`
+- Provider -> `http://127.0.0.1:8282`
 
 ## 9. Despliegue de la plataforma
 
@@ -283,11 +285,11 @@ ops/test-v2/scripts/smoke.sh
 
 Debe devolver PASS para:
 
-- API: `http://127.0.0.1:4000/api/v1/services/search`
-- Admin: `http://127.0.0.1:3000/login`
-- Patient: `http://127.0.0.1:8080/healthz`
-- Doctor: `http://127.0.0.1:8081/healthz`
-- Provider: `http://127.0.0.1:8082/healthz`
+- API: `http://127.0.0.1:4200/api/v1/services/search`
+- Admin: `http://127.0.0.1:3200/login`
+- Patient: `http://127.0.0.1:8280/healthz`
+- Doctor: `http://127.0.0.1:8281/healthz`
+- Provider: `http://127.0.0.1:8282/healthz`
 
 No continuar con TLS/publicación si falla este paso.
 
