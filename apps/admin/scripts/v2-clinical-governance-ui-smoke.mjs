@@ -43,8 +43,9 @@ assert.match(governanceModule, /IAM_READ_AUDIT/);
 assert.match(governanceService, /sanitizeClinicalAuditMetadata/);
 assert.match(auditSanitizer, /ALLOWED_KEYS|patientId|providerId/);
 
-// BFF is bounded to three explicit read routes; no mutation or arbitrary backend path.
-assert.match(route, /ALLOWED_READS = new Set\(\["policies", "matrix", "audit"\]\)/);
+// BFF is bounded to explicit read routes; ADM-086 adds provenance without enabling arbitrary backend paths.
+assert.match(route, /ALLOWED_READS = new Set\(\["policies", "matrix", "audit", "provenance"\]\)/);
+assert.match(route, /PROVENANCE_FILTERS/);
 assert.match(route, /AUDIT_FILTERS/);
 assert.match(route, /MAX_QUERY_VALUE = 180/);
 assert.match(route, /forwardAdminJson/);
