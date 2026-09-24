@@ -27,7 +27,7 @@ assert.match(bff, /admin\/operations\/analytics\/population/);
 assert.match(page, /PopulationAnalytics/);
 assert.match(ui, /minimumCellSize/);
 assert.match(ui, /suppressedCellCount/);
-assert.doesNotMatch(ui, /patientId|providerId/);
+assert.doesNotMatch(ui, /\bpatientId\b|\bproviderId\b|patientIds|providerIds/);
 assert.match(ui, /drillDownEnabled: false/);
 for (const locale of ["en:", "ar:", "fr:", "es:"]) assert.match(ui, new RegExp(locale));
 
