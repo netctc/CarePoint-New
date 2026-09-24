@@ -38,7 +38,7 @@ assert.match(rpmBackend,/patientIdentityIncluded:\s*false/);
 assert.match(rpmBackend,/status:\s*\{\s*not:\s*"RESOLVED"\s*\}/);
 assert.match(component,/aggregateOnly=/);
 assert.match(component,/patientIdentityIncluded===true/);
-assert.doesNotMatch(component,/patientId|patientName|displayName/);
+assert.doesNotMatch(component,/\bpatientId\b|\bpatientName\b|\bdisplayName\b/);
 
 assert.match(templateBackend,/status:\s*"DRAFT"/);
 assert.match(templateBackend,/status:\s*"ACTIVE"/);
