@@ -17,6 +17,7 @@ const _transportCopy = <CarePointLocale, Map<String, String>>{
     'crewUnit': 'Crew & unit', 'resourcesTitle': 'Assigned crew and unit', 'unit': 'Transport unit', 'crew': 'Crew', 'saveResources': 'Save assignment',
     'noCompatibleUnit': 'No active compatible transport unit is configured for this job.', 'noCompatibleCrew': 'No active compatible crew member is available.',
     'resourcesLocked': 'Crew and unit can no longer be changed after patient transport starts.', 'assignmentRevision': 'Assignment revision',
+    'changeDestination': 'Change destination', 'destinationChangeNotice': 'A destination change creates an immutable route revision and clears the current ETA until it is refreshed.', 'changeReason': 'Reason', 'invalidDestination': 'Enter valid latitude and longitude.', 'confirmDestination': 'Confirm destination',
   },
   CarePointLocale.ar: {
     'title': 'النقل الطبي', 'scheduled': 'نقل طبي مجدول', 'schedule': 'جدولة النقل', 'history': 'طلبات النقل الخاصة بي',
@@ -34,6 +35,7 @@ const _transportCopy = <CarePointLocale, Map<String, String>>{
     'crewUnit': 'الطاقم والمركبة', 'resourcesTitle': 'الطاقم والمركبة المعيّنان', 'unit': 'مركبة النقل', 'crew': 'الطاقم', 'saveResources': 'حفظ التعيين',
     'noCompatibleUnit': 'لا توجد مركبة نقل نشطة ومتوافقة مهيأة لهذه المهمة.', 'noCompatibleCrew': 'لا يوجد عضو طاقم نشط ومتوافق متاح.',
     'resourcesLocked': 'لا يمكن تغيير الطاقم أو المركبة بعد بدء نقل المريض.', 'assignmentRevision': 'إصدار التعيين',
+    'changeDestination': 'تغيير الوجهة', 'destinationChangeNotice': 'يُنشئ تغيير الوجهة مراجعة مسار غير قابلة للتعديل ويلغي وقت الوصول الحالي حتى يتم تحديثه.', 'changeReason': 'السبب', 'invalidDestination': 'أدخل خط عرض وخط طول صالحين.', 'confirmDestination': 'تأكيد الوجهة',
   },
   CarePointLocale.fr: {
     'title': 'Transport médical', 'scheduled': 'Transport programmé', 'schedule': 'Programmer un transport', 'history': 'Mes demandes de transport',
@@ -51,6 +53,7 @@ const _transportCopy = <CarePointLocale, Map<String, String>>{
     'crewUnit': 'Équipe et véhicule', 'resourcesTitle': 'Équipe et véhicule attribués', 'unit': 'Véhicule de transport', 'crew': 'Équipe', 'saveResources': 'Enregistrer l’attribution',
     'noCompatibleUnit': 'Aucun véhicule de transport actif et compatible n’est configuré pour cette mission.', 'noCompatibleCrew': 'Aucun membre d’équipe actif et compatible n’est disponible.',
     'resourcesLocked': 'L’équipe et le véhicule ne peuvent plus être modifiés après le début du transport du patient.', 'assignmentRevision': 'Révision de l’attribution',
+    'changeDestination': 'Changer la destination', 'destinationChangeNotice': 'Le changement crée une révision de trajet immuable et efface l’ETA actuelle jusqu’à son actualisation.', 'changeReason': 'Motif', 'invalidDestination': 'Saisissez une latitude et une longitude valides.', 'confirmDestination': 'Confirmer la destination',
   },
   CarePointLocale.es: {
     'title': 'Transporte médico', 'scheduled': 'Transporte programado', 'schedule': 'Programar transporte', 'history': 'Mis solicitudes de transporte',
@@ -68,6 +71,7 @@ const _transportCopy = <CarePointLocale, Map<String, String>>{
     'crewUnit': 'Tripulación y unidad', 'resourcesTitle': 'Tripulación y unidad asignadas', 'unit': 'Unidad de transporte', 'crew': 'Tripulación', 'saveResources': 'Guardar asignación',
     'noCompatibleUnit': 'No hay una unidad de transporte activa y compatible configurada para este servicio.', 'noCompatibleCrew': 'No hay miembros de tripulación activos y compatibles disponibles.',
     'resourcesLocked': 'La tripulación y la unidad ya no pueden cambiarse una vez iniciado el transporte del paciente.', 'assignmentRevision': 'Revisión de asignación',
+    'changeDestination': 'Cambiar destino', 'destinationChangeNotice': 'El cambio crea una revisión de ruta inmutable y elimina el ETA actual hasta que se vuelva a calcular.', 'changeReason': 'Motivo', 'invalidDestination': 'Introduce latitud y longitud válidas.', 'confirmDestination': 'Confirmar destino',
   },
 };
 
