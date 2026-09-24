@@ -118,6 +118,24 @@ class CarePointApi {
     return _asMap(await _send('POST', '/provider/services', body: {'labels': labels, 'currency': currency, 'modalities': [{'modality': modality, 'durationMinutes': durationMinutes, 'priceMinor': priceMinor}]}));
   }
   Future<List<Map<String, dynamic>>> providerAppointments({DateTime? from, DateTime? to}) async => _asList(await _send('GET', '/provider/appointments', query: {if (from != null) 'from': from.toUtc().toIso8601String(), if (to != null) 'to': to.toUtc().toIso8601String()}));
+  Future<Map<String, dynamic>> providerCategoryForms() async =>
+      _asMap(await _send('GET', '/provider/category-forms'));
+  Future<Map<String, dynamic>> submitProviderCategoryForm(
+    String code, {
+    required String contextType,
+    required String contextId,
+    required int expectedLatestSequence,
+    required Map<String, dynamic> answers,
+  }) async => _asMap(await _send(
+    'POST',
+    '/provider/category-forms/${Uri.encodeComponent(code)}/responses',
+    body: {
+      'contextType': contextType,
+      'contextId': contextId,
+      'expectedLatestSequence': expectedLatestSequence,
+      'answers': answers,
+    },
+  ));
   Future<Map<String, dynamic>> providerFieldJobs() async =>
       _asMap(await _send('GET', '/provider/jobs'));
   Future<Map<String, dynamic>> providerJobFinancialSummary(String jobId) async =>
