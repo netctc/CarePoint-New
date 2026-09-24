@@ -120,6 +120,8 @@ class CarePointApi {
   Future<List<Map<String, dynamic>>> providerAppointments({DateTime? from, DateTime? to}) async => _asList(await _send('GET', '/provider/appointments', query: {if (from != null) 'from': from.toUtc().toIso8601String(), if (to != null) 'to': to.toUtc().toIso8601String()}));
   Future<Map<String, dynamic>> providerFieldJobs() async =>
       _asMap(await _send('GET', '/provider/jobs'));
+  Future<Map<String, dynamic>> providerJobFinancialSummary(String jobId) async =>
+      _asMap(await _send('GET', '/provider/jobs/${Uri.encodeComponent(jobId)}/financial-summary'));
   Future<Map<String, dynamic>> providerSupplyCatalog() async =>
       _asMap(await _send('GET', '/provider/supplies/catalog'));
   Future<Map<String, dynamic>> providerJobSupplies(String jobId) async =>

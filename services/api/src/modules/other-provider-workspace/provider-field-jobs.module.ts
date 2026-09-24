@@ -202,6 +202,163 @@ class ProviderFieldJobsService {
     };
   }
 
+
+  async financialSummary(principal: AuthPrincipal, jobIdRaw: string) {
+    const provider = await this.requireProvider(principal);
+    const source = await this.resolveJob(provider.id, jobIdRaw);
+
+    if (source.sourceType === "MEDICAL_TRANSPORT") {
+      const response = {
+        job: this.presentSource(source),
+        state: "NOT_BILLED" as const,
+        billingLinkState: "NO_CANONICAL_BILLING_LINK" as const,
+        invoice: null,
+        ledgerEntries: [],
+        payouts: [],
+        ledgerNetMinorByCurrency: {},
+      };
+      await this.audit.write({
+        actorId: principal.accountId,
+        action: "PROVIDER_FIELD_JOB_FINANCE_READ",
+        objectType: "PROVIDER_FIELD_JOB",
+        objectId: this.jobId(source),
+        purpose: "PROVIDER_FINANCE",
+        result: "SUCCESS",
+        metadata: {
+          sourceType: source.sourceType,
+          financeState: response.state,
+          billingLinkState: response.billingLinkState,
+          invoicePresent: false,
+          ledgerEntryCount: 0,
+          payoutCount: 0,
+        },
+      });
+      return response;
+    }
+
+    const invoice = await this.prisma.invoice.findUnique({
+      where: { appointmentId: source.sourceId },
+    });
+    if (!invoice || invoice.providerId !== provider.id) {
+      const response = {
+        job: this.presentSource(source),
+        state: "NOT_BILLED" as const,
+        billingLinkState: "NO_INVOICE" as const,
+        invoice: null,
+        ledgerEntries: [],
+        payouts: [],
+        ledgerNetMinorByCurrency: {},
+      };
+      await this.audit.write({
+        actorId: principal.accountId,
+        action: "PROVIDER_FIELD_JOB_FINANCE_READ",
+        objectType: "PROVIDER_FIELD_JOB",
+        objectId: this.jobId(source),
+        purpose: "PROVIDER_FINANCE",
+        result: "SUCCESS",
+        metadata: {
+          sourceType: source.sourceType,
+          financeState: response.state,
+          billingLinkState: response.billingLinkState,
+          invoicePresent: false,
+          ledgerEntryCount: 0,
+          payoutCount: 0,
+        },
+      });
+      return response;
+    }
+
+    const ledgerEntries = await this.prisma.providerLedgerEntry.findMany({
+      where: {
+        providerId: provider.id,
+        invoiceId: invoice.id,
+      },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      take: 500,
+    });
+    const payoutIds = [...new Set(
+      ledgerEntries
+        .map((entry) => entry.payoutId)
+        .filter((value): value is string => Boolean(value)),
+    )];
+    const payouts = payoutIds.length === 0
+      ? []
+      : await this.prisma.providerPayout.findMany({
+          where: {
+            providerId: provider.id,
+            id: { in: payoutIds },
+          },
+          orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+          take: 100,
+        });
+
+    const ledgerNetMinorByCurrency: Record<string, number> = {};
+    for (const entry of ledgerEntries) {
+      ledgerNetMinorByCurrency[entry.currency] =
+        (ledgerNetMinorByCurrency[entry.currency] ?? 0) + entry.amountMinor;
+    }
+
+    const response = {
+      job: this.presentSource(source),
+      state: "READY" as const,
+      billingLinkState: "INVOICE_LINKED" as const,
+      invoice: {
+        id: invoice.id,
+        number: invoice.number,
+        status: invoice.status,
+        currency: invoice.currency,
+        totalMinor: invoice.totalMinor,
+        patientResponsibilityMinor: invoice.patientResponsibilityMinor,
+        insurerResponsibilityMinor: invoice.insurerResponsibilityMinor,
+        amountPaidMinor: invoice.amountPaidMinor,
+        amountRefundedMinor: invoice.amountRefundedMinor,
+        balanceDueMinor: invoice.balanceDueMinor,
+        issuedAt: invoice.issuedAt,
+        updatedAt: invoice.updatedAt,
+      },
+      ledgerEntries: ledgerEntries.map((entry) => ({
+        id: entry.id,
+        type: entry.type,
+        amountMinor: entry.amountMinor,
+        currency: entry.currency,
+        payoutId: entry.payoutId,
+        createdAt: entry.createdAt,
+        availableAt: entry.availableAt,
+      })),
+      payouts: payouts.map((payout) => ({
+        id: payout.id,
+        status: payout.status,
+        amountMinor: payout.amountMinor,
+        currency: payout.currency,
+        periodStart: payout.periodStart,
+        periodEnd: payout.periodEnd,
+        createdAt: payout.createdAt,
+        paidAt: payout.paidAt,
+      })),
+      ledgerNetMinorByCurrency,
+    };
+
+    await this.audit.write({
+      actorId: principal.accountId,
+      action: "PROVIDER_FIELD_JOB_FINANCE_READ",
+      objectType: "PROVIDER_FIELD_JOB",
+      objectId: this.jobId(source),
+      purpose: "PROVIDER_FINANCE",
+      result: "SUCCESS",
+      metadata: {
+        sourceType: source.sourceType,
+        financeState: response.state,
+        billingLinkState: response.billingLinkState,
+        invoicePresent: true,
+        invoiceStatus: invoice.status,
+        ledgerEntryCount: ledgerEntries.length,
+        payoutCount: payouts.length,
+        currencies: Object.keys(ledgerNetMinorByCurrency).sort(),
+      },
+    });
+    return response;
+  }
+
   async recordSignal(principal: AuthPrincipal, jobIdRaw: string, input: EventBody) {
     const provider = await this.requireProvider(principal);
     const source = await this.resolveJob(provider.id, jobIdRaw);
@@ -655,6 +812,13 @@ class ProviderFieldJobsController {
   @Header("Cache-Control", "no-store")
   list(@CurrentPrincipal() principal: AuthPrincipal) {
     return this.jobs.list(principal);
+  }
+
+  @RequirePermissions("PROVIDER_READ_FINANCIALS")
+  @Get(":jobId/financial-summary")
+  @Header("Cache-Control", "no-store")
+  financialSummary(@CurrentPrincipal() principal: AuthPrincipal, @Param("jobId") jobId: string) {
+    return this.jobs.financialSummary(principal, jobId);
   }
 
   @RequirePermissions("OTHER_PROVIDER_WORKFLOW_EXECUTE")
