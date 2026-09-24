@@ -4,8 +4,8 @@ import { PersistentConsentService } from '../dist/modules/consent/persistent-con
 const now = Date.now();
 const patients = new Map([['patient-account', { id: 'patient-1', userId: 'patient-account' }], ['other-account', { id: 'patient-2', userId: 'other-account' }]]);
 const providers = new Map([
-  ['provider-active', { id: 'provider-active', displayName: 'Synthetic Active Provider', status: 'ACTIVE' }],
-  ['provider-inactive', { id: 'provider-inactive', displayName: 'Synthetic Inactive Provider', status: 'SUSPENDED' }],
+  ['provider-active', { id: 'provider-active', displayName: 'Synthetic Active Provider', status: 'ACTIVE', class: 'DOCTOR' }],
+  ['provider-inactive', { id: 'provider-inactive', displayName: 'Synthetic Inactive Provider', status: 'SUSPENDED', class: 'DOCTOR' }],
 ]);
 const consents = new Map([
   ['revoked-valid', { id: 'revoked-valid', patientId: 'patient-1', providerId: 'provider-active', scope: 'synthetic.scope', version: 'v1', state: 'REVOKED', grantedAt: new Date(now - 20000), revokedAt: new Date(now - 10000), expiresAt: new Date(now + 86400000) }],
@@ -33,7 +33,35 @@ const tx = {
 const prisma = { ...tx, $transaction: async (work) => work(tx) };
 const audits = [];
 const audit = { write: async (row) => audits.push(row), writeInTransaction: async (_tx, row) => audits.push(row) };
-const service = new PersistentConsentService(prisma, audit);
+
+const fixturePolicy = {
+  id: 'policy-fixture-v1',
+  jurisdiction: 'GLOBAL',
+  regrantAllowed: true,
+  temporaryShareAllowed: false,
+  expiryRequired: false,
+  maxExpiryDays: null,
+  title: { en: 'Synthetic consent', ar: 'موافقة تجريبية', fr: 'Consentement synthétique', es: 'Consentimiento sintético' },
+  body: { en: 'Synthetic lifecycle fixture only.', ar: 'بيانات اختبار دورة الموافقة فقط.', fr: 'Fixture synthétique de cycle de consentement.', es: 'Fixture sintético del ciclo de consentimiento.' },
+};
+const policies = {
+  validateGrant: async ({ scope, version, purpose, providerRole, expiresAt }) => {
+    assert.equal(typeof scope, 'string');
+    assert.equal(typeof version, 'string');
+    if (providerRole != null) assert.ok(['DOCTOR', 'OTHER_PROVIDER'].includes(providerRole));
+    if (expiresAt != null) assert.ok(expiresAt instanceof Date && Number.isFinite(expiresAt.getTime()));
+    return {
+      scope,
+      version,
+      purpose: purpose ?? null,
+      policyVersionId: fixturePolicy.id,
+      policyJurisdiction: fixturePolicy.jurisdiction,
+      policy: fixturePolicy,
+    };
+  },
+  presentationsByIds: async (ids) => new Map(ids.map((id) => [id, fixturePolicy])),
+};
+const service = new PersistentConsentService(prisma, audit, policies);
 const patient = { accountId: 'patient-account', role: 'PATIENT' };
 const other = { accountId: 'other-account', role: 'PATIENT' };
 
