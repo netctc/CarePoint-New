@@ -37,6 +37,7 @@ import { PatientEducationModule } from "./modules/patient-education/patient-educ
 import { AdverseEventReportModule } from "./modules/adverse-events/adverse-events.module";
 import { RefillModule } from "./modules/refill/refill.module";
 import { ReferralsModule } from "./modules/referrals/referrals.module";
+import { SecondOpinionsModule } from "./modules/second-opinions/second-opinions.module";
 import { RetentionModule } from "./modules/retention/retention.module";
 import { DocumentsModule } from "./modules/documents/documents.module";
 import { DocumentVersioningModule } from "./modules/documents/document-versioning.module";
@@ -116,6 +117,7 @@ const isolatedSyntheticPilot = isolatedSyntheticPrivatePilotActive(process.env);
     AppointmentContinuityModule,
     RefillModule,
     ReferralsModule,
+    SecondOpinionsModule,
     DataGovernanceModule,
     DataQualityModule,
     RetentionModule,
