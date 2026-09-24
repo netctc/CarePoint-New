@@ -44,6 +44,23 @@ assert.match(mobile, /patient-care-task-omit-/);
 assert.match(mobile, /reasonCode/);
 assert.match(mobile, /latestCompletion/);
 
+// PAT-128 — adherence summary uses an explicit reported-outcomes denominator.
+// Missing task occurrences are never inferred as non-adherence.
+assert.match(controller, /@Get\(":carePlanId\/adherence"\)/);
+assert.match(service, /async patientAdherence/);
+assert.match(service, /outcome: \{ in: \["DONE", "OMITTED"\] \}/);
+assert.match(service, /definition: "RECORDED_OUTCOMES_ONLY"/);
+assert.match(service, /unrecordedOccurrencesPenalized: false/);
+assert.match(service, /missedOccurrenceInference: false/);
+assert.match(service, /automatedClinicalInference: false/);
+assert.match(service, /CARE_PLAN_ADHERENCE_READ/);
+assert.match(service, /Adherence period cannot exceed 365 days/);
+assert.match(api, /patientCarePlanAdherence/);
+assert.match(mobile, /patient-care-plan-adherence/);
+assert.match(mobile, /reportedCompletionPct/);
+assert.match(mobile, /adherenceDays/);
+assert.match(mobile, /Missing\/unrecorded occurrences are not counted as non-adherence|Missing\/unrecorded/);
+
 // UX is multilingual and explicitly non-diagnostic.
 for (const locale of ["CarePointLocale.en","CarePointLocale.ar","CarePointLocale.fr","CarePointLocale.es"]) {
   assert.ok(mobile.includes(locale), `Missing Patient Care Plan locale ${locale}`);
