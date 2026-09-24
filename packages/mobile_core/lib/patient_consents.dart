@@ -78,8 +78,13 @@ class _PatientConsentLifecyclePageState extends State<PatientConsentLifecyclePag
     final regrantable = row['regrantable'] == true;
     final id = row['id']?.toString() ?? '';
     final busy = busyId == id;
+    final policy = _policyMap(row['policy']);
+    final policyTitle = _policyLabel(policy['titleLabels'], widget.locale);
+    final policyBody = _policyLabel(policy['bodyLabels'], widget.locale);
     return Card(key: ValueKey('consent-$id'), child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      Row(children: [Expanded(child: Text(row['scope']?.toString() ?? '', style: Theme.of(context).textTheme.titleMedium)), Chip(label: Text(state(row)))]),
+      Row(children: [Expanded(child: Text(policyTitle.isNotEmpty ? policyTitle : (row['scope']?.toString() ?? ''), style: Theme.of(context).textTheme.titleMedium)), Chip(label: Text(state(row)))]),
+      if (policyBody.isNotEmpty) Padding(padding: const EdgeInsets.only(bottom: 8), child: Text(policyBody)),
+      Text('${t('scope')}: ${row['scope'] ?? '-'}'),
       Text('${t('version')}: ${row['version'] ?? '-'}'),
       Text('${t('provider')}: ${row['providerName'] ?? t('allCare')}'),
       Text('${t('grantedAt')}: ${date(row['grantedAt'])}'),
@@ -92,4 +97,18 @@ class _PatientConsentLifecyclePageState extends State<PatientConsentLifecyclePag
       if (effective == 'REVOKED' && regrantable) FilledButton(onPressed: busy ? null : () => act(row, regrant: true), child: Text(t('regrant'))),
     ])));
   }
+}
+
+
+Map<String, dynamic> _policyMap(dynamic value) {
+  if (value is Map<String, dynamic>) return value;
+  if (value is Map) return value.map((key, item) => MapEntry(key.toString(), item));
+  return const {};
+}
+
+String _policyLabel(dynamic value, CarePointLocale locale) {
+  final labels = _policyMap(value);
+  final localized = labels[locale.name]?.toString().trim() ?? '';
+  if (localized.isNotEmpty) return localized;
+  return labels['en']?.toString().trim() ?? '';
 }

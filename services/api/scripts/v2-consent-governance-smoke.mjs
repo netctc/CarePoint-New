@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
+import { readFileSync } from "node:fs";
 
 const require = createRequire(import.meta.url);
 const {
@@ -108,3 +109,47 @@ test("direct V2 consent grants enforce registered version, purpose and provider 
     },
   );
 });
+
+{
+  const schema = readFileSync(new URL("../prisma/v2_consent_policy_governance.prisma", import.meta.url), "utf8");
+  const coreSchema = readFileSync(new URL("../prisma/schema.prisma", import.meta.url), "utf8");
+  const migration = readFileSync(new URL("../prisma/migrations/20260924203000_v2_consent_policy_governance/migration.sql", import.meta.url), "utf8");
+  const moduleSource = readFileSync(new URL("../src/modules/clinical-governance/clinical-governance.module.ts", import.meta.url), "utf8");
+  const managed = readFileSync(new URL("../src/modules/clinical-governance/consent-policy-governance.service.ts", import.meta.url), "utf8");
+  const governance = readFileSync(new URL("../src/modules/clinical-governance/clinical-governance.service.ts", import.meta.url), "utf8");
+  const consent = readFileSync(new URL("../src/modules/consent/persistent-consent.service.ts", import.meta.url), "utf8");
+
+  assert.match(schema, /model ConsentPolicyDefinition/);
+  assert.match(schema, /model ConsentPolicyVersion/);
+  assert.match(schema, /@@unique\(\[scopePattern, jurisdiction\]\)/);
+  assert.match(schema, /@@unique\(\[policyId, version\]\)/);
+  assert.match(coreSchema, /policyVersionId\s+String\?/);
+  assert.match(coreSchema, /policyJurisdiction\s+String\?/);
+  assert.match(migration, /ConsentPolicyVersion_status_ck/);
+  assert.doesNotMatch(migration, /DROP TABLE|DROP COLUMN/);
+
+  assert.match(moduleSource, /@Controller\("admin\/consent-policies"\)/);
+  assert.match(moduleSource, /DATA_GOVERNANCE_MANAGE/);
+  assert.match(moduleSource, /@Post\(":policyId\/versions"\)/);
+  assert.match(moduleSource, /@Post\(":policyId\/versions\/:version\/activate"\)/);
+  assert.doesNotMatch(moduleSource, /@Delete\(/);
+  assert.doesNotMatch(moduleSource, /@Patch\(/);
+
+  assert.match(managed, /validateClinicalConsentGrantContract/);
+  assert.match(managed, /resolveClinicalConsentPolicy/);
+  assert.match(managed, /cannot expand beyond the core safety policy/);
+  assert.match(managed, /cannot enable temporary sharing beyond the core safety policy/);
+  assert.match(managed, /Only a DRAFT consent policy version can be activated/);
+  assert.match(managed, /status: "RETIRED"/);
+  assert.match(managed, /RUNTIME_CONSENT_JURISDICTION = "GLOBAL"/);
+
+  assert.match(consent, /this\.policies\.validateGrant/);
+  assert.match(consent, /policyVersionId: contract\.policyVersionId/);
+  assert.match(consent, /policyJurisdiction: contract\.policyJurisdiction/);
+  assert.match(consent, /sourcePolicyVersionId/);
+  assert.match(consent, /regrant: true/);
+  assert.match(consent, /presentationsByIds/);
+  assert.match(governance, /temporaryShare: true/);
+  assert.match(governance, /policyVersionId: item\.policyVersionId/);
+}
+console.log("ADM-091 managed consent policy governance acceptance passed");
