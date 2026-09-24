@@ -30,6 +30,12 @@ export interface CreateTemporaryClinicalShareInput {
   expiresAt: string;
 }
 
+export interface ClinicalProvenanceQuery {
+  patientId: string;
+  domain?: string;
+  limit?: number;
+}
+
 export interface ClinicalAuditQuery {
   actorId?: string;
   objectType?: string;
@@ -255,6 +261,165 @@ export class ClinicalGovernanceService {
     };
   }
 
+
+  async provenanceExplorer(principal: AuthPrincipal, input: ClinicalProvenanceQuery) {
+    const patientId = this.requiredId(input?.patientId, "patientId");
+    const domain = this.provenanceDomain(input?.domain);
+    const limit = this.limit(input?.limit);
+    const patient = await this.prisma.patientProfile.findUnique({
+      where: { id: patientId },
+      select: { id: true },
+    });
+    if (!patient) throw new NotFoundException("Patient not found.");
+
+    const [profileRows, observationRows, questionnaireRows] = await Promise.all([
+      domain === "ALL" || domain === "CLINICAL_PROFILE"
+        ? this.prisma.clinicalProfileEntry.findMany({
+            where: { patientId },
+            select: {
+              id: true,
+              kind: true,
+              status: true,
+              version: true,
+              verificationStatus: true,
+              sourceType: true,
+              sourceActorId: true,
+              verifiedByActorId: true,
+              verifiedAt: true,
+              createdAt: true,
+              updatedAt: true,
+            },
+            orderBy: { updatedAt: "desc" },
+            take: limit,
+          })
+        : Promise.resolve([]),
+      domain === "ALL" || domain === "OBSERVATION"
+        ? this.prisma.observation.findMany({
+            where: { patientId },
+            select: {
+              id: true,
+              observedAt: true,
+              sourceType: true,
+              sourceId: true,
+              createdByActorId: true,
+              createdAt: true,
+              observationType: { select: { code: true } },
+              observationTypeVersion: { select: { version: true } },
+              _count: { select: { contextRevisions: true, correctionRevisions: true } },
+            },
+            orderBy: { createdAt: "desc" },
+            take: limit,
+          })
+        : Promise.resolve([]),
+      domain === "ALL" || domain === "QUESTIONNAIRE"
+        ? this.prisma.questionnaireResponse.findMany({
+            where: { patientId },
+            select: {
+              id: true,
+              sequence: true,
+              completedAt: true,
+              sourceType: true,
+              sourceActorId: true,
+              createdAt: true,
+              questionnaire: { select: { code: true } },
+              questionnaireVersion: { select: { version: true } },
+            },
+            orderBy: { createdAt: "desc" },
+            take: limit,
+          })
+        : Promise.resolve([]),
+    ]);
+
+    const items = [
+      ...profileRows.map((row) => ({
+        id: row.id,
+        patientId,
+        domain: "CLINICAL_PROFILE" as const,
+        resourceType: "CLINICAL_PROFILE_ENTRY",
+        resourceCode: row.kind,
+        resourceStatus: row.status,
+        resourceVersion: row.version,
+        schemaVersion: null,
+        sourceType: row.sourceType,
+        sourceId: null,
+        sourceActorId: row.sourceActorId,
+        verificationStatus: row.verificationStatus,
+        verifiedByActorId: row.verifiedByActorId,
+        verifiedAt: row.verifiedAt,
+        revisionCount: row.version,
+        effectiveAt: null,
+        recordedAt: row.createdAt,
+        updatedAt: row.updatedAt,
+      })),
+      ...observationRows.map((row) => ({
+        id: row.id,
+        patientId,
+        domain: "OBSERVATION" as const,
+        resourceType: "OBSERVATION",
+        resourceCode: row.observationType.code,
+        resourceStatus: null,
+        resourceVersion: 1 + row._count.correctionRevisions,
+        schemaVersion: row.observationTypeVersion.version,
+        sourceType: row.sourceType,
+        sourceId: row.sourceId,
+        sourceActorId: row.createdByActorId,
+        verificationStatus: null,
+        verifiedByActorId: null,
+        verifiedAt: null,
+        revisionCount: 1 + row._count.contextRevisions + row._count.correctionRevisions,
+        effectiveAt: row.observedAt,
+        recordedAt: row.createdAt,
+        updatedAt: row.createdAt,
+      })),
+      ...questionnaireRows.map((row) => ({
+        id: row.id,
+        patientId,
+        domain: "QUESTIONNAIRE" as const,
+        resourceType: "QUESTIONNAIRE_RESPONSE",
+        resourceCode: row.questionnaire.code,
+        resourceStatus: null,
+        resourceVersion: row.sequence,
+        schemaVersion: row.questionnaireVersion.version,
+        sourceType: row.sourceType,
+        sourceId: null,
+        sourceActorId: row.sourceActorId,
+        verificationStatus: null,
+        verifiedByActorId: null,
+        verifiedAt: null,
+        revisionCount: row.sequence,
+        effectiveAt: row.completedAt,
+        recordedAt: row.createdAt,
+        updatedAt: row.createdAt,
+      })),
+    ]
+      .sort((left, right) => right.recordedAt.getTime() - left.recordedAt.getTime())
+      .slice(0, limit);
+
+    await this.audit.writeClinical({
+      actorId: principal.accountId,
+      action: "ADMIN_CLINICAL_PROVENANCE_READ",
+      objectType: "PATIENT",
+      objectId: patientId,
+      purpose: "ACCESS_GOVERNANCE",
+      result: "SUCCESS",
+      metadata: {
+        domain: "CLINICAL_PROVENANCE",
+        patientId,
+        itemCount: items.length,
+        decision: "ALLOW",
+      },
+    });
+
+    return {
+      patientId,
+      domain,
+      limit,
+      contentIncluded: false,
+      immutableReadOnly: true,
+      items,
+    };
+  }
+
   async auditExplorer(input: ClinicalAuditQuery) {
     const limit = this.limit(input.limit);
     const occurredAt = this.dateFilter(input.from, input.to);
@@ -322,6 +487,16 @@ export class ClinicalGovernanceService {
       throw new BadRequestException(`${field} is invalid.`);
     }
     return normalized;
+  }
+
+  private provenanceDomain(value: unknown): "ALL" | "CLINICAL_PROFILE" | "OBSERVATION" | "QUESTIONNAIRE" {
+    if (value == null || value === "") return "ALL";
+    if (typeof value !== "string") throw new BadRequestException("domain is invalid.");
+    const normalized = value.trim().toUpperCase();
+    if (!["ALL", "CLINICAL_PROFILE", "OBSERVATION", "QUESTIONNAIRE"].includes(normalized)) {
+      throw new BadRequestException("domain is invalid.");
+    }
+    return normalized as "ALL" | "CLINICAL_PROFILE" | "OBSERVATION" | "QUESTIONNAIRE";
   }
 
   private limit(value: unknown): number {
