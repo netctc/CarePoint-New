@@ -77,3 +77,4 @@ console.log("V2 B6 Admin operations backend acceptance passed: ADM-089/102/111/1
 function read(relative) {
   return readFileSync(new URL("../" + relative, import.meta.url), "utf8");
 }
+await import("./v2-admin-population-analytics-smoke.mjs");
