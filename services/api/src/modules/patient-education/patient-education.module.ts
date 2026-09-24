@@ -119,7 +119,7 @@ class PatientEducationService {
     return {
       appointmentId: appointment.id, patientId: appointment.patientId,
       items: rows.flatMap((row) => row.versions[0] ? [{
-        contentId: row.id, code: row.code, ...this.presentVersion(row.versions[0]),
+        code: row.code, ...this.presentVersion(row.versions[0]),
       }] : []),
       automatedClinicalInference: false,
     };
