@@ -14,3 +14,25 @@ model MedicationReminder {
   @@index([accountId, patientId, enabled])
   @@index([enabled, updatedAt])
 }
+
+model MedicationIntake {
+  id             String   @id @default(uuid())
+  patientId      String
+  accountId      String
+  reminderId     String
+  sourceKind     String
+  sourceId       String
+  status         String
+  scheduledFor   DateTime
+  occurredAt     DateTime @default(now())
+  sourceType     String   @default("PATIENT_REPORTED")
+  reasonCode     String?
+  idempotencyKey String
+  requestDigest  String
+  createdAt      DateTime @default(now())
+
+  @@unique([accountId, patientId, idempotencyKey])
+  @@index([accountId, patientId, occurredAt])
+  @@index([reminderId, scheduledFor])
+  @@index([sourceKind, sourceId, occurredAt])
+}
