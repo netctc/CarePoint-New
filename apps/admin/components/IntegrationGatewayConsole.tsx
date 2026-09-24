@@ -106,7 +106,7 @@ export function IntegrationGatewayConsole({kind}:{kind:Kind}) {
           {kind==="fhir"?<>
             <Field name="resourceType" label={c.resource} placeholder="Patient" required/>
             <label>{c.direction}<select name="direction" defaultValue="OUTBOUND"><option>OUTBOUND</option><option>INBOUND</option><option>BIDIRECTIONAL</option></select></label>
-            <label>{c.mappingJson}<textarea name="mapping" defaultValue={'{"fields":[{"sourcePath":"id","targetPath":"id","transform":"DIRECT"}]}' required/></label>
+            <label>{c.mappingJson}<textarea name="mapping" defaultValue={JSON.stringify({fields:[{sourcePath:"id",targetPath:"id",transform:"DIRECT"}]})} required/></label>
           </>:<>
             <Field name="externalCode" label={c.externalCode} required/>
             <Field name="internalCodeSystem" label={c.codeSystem} required/>
