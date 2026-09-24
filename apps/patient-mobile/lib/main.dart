@@ -11,6 +11,7 @@ import 'package:carepoint_mobile_core/patient_access_needs.dart';
 import 'package:carepoint_mobile_core/patient_care_journeys.dart';
 import 'package:carepoint_mobile_core/patient_care_plans.dart';
 import 'package:carepoint_mobile_core/patient_clinical_export.dart';
+import 'package:carepoint_mobile_core/patient_clinical_share.dart';
 import 'package:carepoint_mobile_core/patient_clinical_history.dart';
 import 'package:carepoint_mobile_core/care_visits.dart';
 import 'package:carepoint_mobile_core/care_journeys_localization.dart';
@@ -106,6 +107,7 @@ class _PatientShellState extends State<PatientShell> {
   Future<void> openEmergencyCard() async { await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => Directionality(textDirection: widget.locale.textDirection, child: PatientEmergencyCardPage(session: widget.session, locale: widget.locale)))); }
   Future<void> openAccessNeeds() async { await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => PatientAccessNeedsPage(session: widget.session, locale: widget.locale))); }
   Future<void> openClinicalExport() async { await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => PatientClinicalExportPage(session: widget.session, locale: widget.locale))); }
+  Future<void> openTemporaryClinicalShare() async { await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => PatientTemporaryClinicalSharePage(session: widget.session, locale: widget.locale))); }
   Future<void> openCarePlans() async { await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => Directionality(textDirection: widget.locale.textDirection, child: PatientCarePlansPage(session: widget.session, locale: widget.locale)))); }
   Future<void> openRefills() async { await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => Directionality(textDirection: widget.locale.textDirection, child: PatientRefillRequestsPage(session: widget.session, locale: widget.locale)))); }
   Future<void> openMedicationReminders() async { await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => Directionality(textDirection: widget.locale.textDirection, child: PatientMedicationRemindersPage(session: widget.session, locale: widget.locale)))); }
@@ -172,6 +174,9 @@ class _PatientShellState extends State<PatientShell> {
     ))),
     Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
       key: const ValueKey('patient-clinical-export-entry'), onPressed: openClinicalExport, icon: const Icon(Icons.ios_share_outlined), label: Text(patientClinicalExportText(widget.locale, 'title')),
+    ))),
+    Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
+      key: const ValueKey('patient-temporary-clinical-share-entry'), onPressed: openTemporaryClinicalShare, icon: const Icon(Icons.qr_code_2_outlined), label: Text(patientClinicalShareText(widget.locale, 'title')),
     ))),
     Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
       key: const ValueKey('patient-home-exercise-entry'), onPressed: openHomeExercises, icon: const Icon(Icons.fitness_center_outlined), label: Text(homeExerciseText(widget.locale, 'title')),
