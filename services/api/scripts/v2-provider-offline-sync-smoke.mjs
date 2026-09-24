@@ -92,3 +92,4 @@ const appModule = readFileSync(new URL("../src/app.module.ts", import.meta.url),
 assert.match(appModule, /ProviderOfflineSyncModule/);
 
 console.log("PRV-075 encrypted offline field drafts, conflict preservation, and explicit reconciliation acceptance passed");
+await import("./v2-doctor-offline-clinical-draft-smoke.mjs");

@@ -28,6 +28,29 @@ extension ProviderOfflineSyncCarePointApi on CarePointApi {
         body: {'resolution': resolution},
       );
 
+  Future<Map<String, dynamic>> syncDoctorOfflineClinicalDraft(Map<String, dynamic> body) =>
+      _offlineRequest('POST', '/doctor/offline-sync', body: body, allowConflict: true);
+
+  Future<List<Map<String, dynamic>>> doctorOfflineClinicalConflicts() async {
+    final payload = await _offlineRequest('GET', '/doctor/offline-sync/conflicts');
+    final value = payload['items'];
+    if (value is! List) return const [];
+    return value.map(_offlineMap).toList(growable: false);
+  }
+
+  Future<Map<String, dynamic>> doctorOfflineClinicalConflict(String conflictId) =>
+      _offlineRequest('GET', '/doctor/offline-sync/conflicts/${Uri.encodeComponent(conflictId)}');
+
+  Future<Map<String, dynamic>> resolveDoctorOfflineClinicalConflict(
+    String conflictId, {
+    required String resolution,
+  }) =>
+      _offlineRequest(
+        'POST',
+        '/doctor/offline-sync/conflicts/${Uri.encodeComponent(conflictId)}/resolve',
+        body: {'resolution': resolution},
+      );
+
   Future<Map<String, dynamic>> _offlineRequest(
     String method,
     String path, {
