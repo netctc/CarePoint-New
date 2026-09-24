@@ -50,6 +50,7 @@ import { EmergencyModule } from "./modules/emergency/emergency.module";
 import { FeatureFlagsModule } from "./modules/feature-flags/feature-flags.module";
 import { FoodDiaryModule } from "./modules/food-diary/food-diary.module";
 import { FhirModule } from "./modules/fhir/fhir.module";
+import { IntegrationGatewaysModule } from "./modules/integration-gateways/integration-gateways.module";
 import { HealthModule } from "./modules/health/health.module";
 import { HealthProfileModule } from "./modules/health-profile/health-profile.module";
 import { IamModule } from "./modules/iam/iam.module";
@@ -107,6 +108,7 @@ const isolatedSyntheticPilot = isolatedSyntheticPrivatePilotActive(process.env);
     ApiSecurityModule,
     FeatureFlagsModule,
     FoodDiaryModule,
+    IntegrationGatewaysModule,
     HealthModule,
     AccessNeedsModule,
     AdminAnalyticsModule,

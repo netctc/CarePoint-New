@@ -83,6 +83,8 @@ function resolveGet(segments: string[], query: URLSearchParams): string | null {
     return limit ? "/admin/patient-duplicates?limit=" + limit : "/admin/patient-duplicates";
   }
   if (path === "integrations") return "/admin/integrations";
+  if (path === "integrations/fhir") return "/admin/integrations/fhir";
+  if (path === "integrations/labs") return "/admin/integrations/labs";
   if (path === "clinical-operations") {
     const limit = cleanLimit(query.get("limit"), 1, 200);
     return limit ? "/admin/clinical-operations?limit=" + limit : "/admin/clinical-operations";
@@ -176,6 +178,58 @@ function resolvePost(segments: string[]): string | null {
     segments[3] === "versions"
   ) {
     return `/admin/localization/keys/${encodeURIComponent(segments[2])}/versions`;
+  }
+  if (path === "integrations/fhir/configs") return "/admin/integrations/fhir/configs";
+  if (
+    segments.length === 5 &&
+    segments[0] === "integrations" &&
+    segments[1] === "fhir" &&
+    segments[2] === "configs" &&
+    safeId(segments[3]) &&
+    ["mappings", "test", "activate"].includes(segments[4])
+  ) {
+    return "/admin/integrations/fhir/configs/" + encodeURIComponent(segments[3]) + "/" + segments[4];
+  }
+  if (
+    segments.length === 5 &&
+    segments[0] === "integrations" &&
+    segments[1] === "fhir" &&
+    segments[2] === "mappings" &&
+    safeId(segments[3]) &&
+    segments[4] === "publish"
+  ) {
+    return "/admin/integrations/fhir/mappings/" + encodeURIComponent(segments[3]) + "/publish";
+  }
+  if (path === "integrations/labs/configs") return "/admin/integrations/labs/configs";
+  if (
+    segments.length === 5 &&
+    segments[0] === "integrations" &&
+    segments[1] === "labs" &&
+    segments[2] === "configs" &&
+    safeId(segments[3]) &&
+    ["mappings", "test", "activate"].includes(segments[4])
+  ) {
+    return "/admin/integrations/labs/configs/" + encodeURIComponent(segments[3]) + "/" + segments[4];
+  }
+  if (
+    segments.length === 5 &&
+    segments[0] === "integrations" &&
+    segments[1] === "labs" &&
+    segments[2] === "mappings" &&
+    safeId(segments[3]) &&
+    segments[4] === "publish"
+  ) {
+    return "/admin/integrations/labs/mappings/" + encodeURIComponent(segments[3]) + "/publish";
+  }
+  if (
+    segments.length === 5 &&
+    segments[0] === "integrations" &&
+    segments[1] === "labs" &&
+    segments[2] === "events" &&
+    safeId(segments[3]) &&
+    segments[4] === "retry"
+  ) {
+    return "/admin/integrations/labs/events/" + encodeURIComponent(segments[3]) + "/retry";
   }
   if (path === "credential-expirations/policy") return "/admin/governance/credential-expirations/policy";
   if (path === "credential-expirations/run-reminders") return "/admin/governance/credential-expirations/run-reminders";

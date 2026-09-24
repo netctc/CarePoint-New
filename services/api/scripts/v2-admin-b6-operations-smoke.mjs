@@ -78,3 +78,4 @@ function read(relative) {
   return readFileSync(new URL("../" + relative, import.meta.url), "utf8");
 }
 await import("./v2-admin-population-analytics-smoke.mjs");
+await import("./v2-integration-gateways-smoke.mjs");
