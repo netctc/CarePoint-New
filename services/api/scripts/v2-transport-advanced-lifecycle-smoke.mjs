@@ -68,11 +68,16 @@ assert.match(source, /pickupCoordinatesReturned: false/);
 assert.match(source, /destinationCoordinatesReturned: false/);
 assert.match(source, /addressesReturned: false/);
 assert.match(source, /callbackPhoneReturned: false/);
+const routeProjection = source.match(
+  /routeRevisions:\s*revisions\.map\(\(revision\) => \(\{[\s\S]*?\}\)\),\s*privacyBoundary:/,
+)?.[0] ?? "";
+assert.ok(routeProjection, "advanced lifecycle route projection must remain explicit");
 assert.doesNotMatch(source, /pickupAddress\s*:/);
-assert.doesNotMatch(source, /destinationAddress\s*:/);
 assert.doesNotMatch(source, /pickupLatitude\s*:/);
-assert.doesNotMatch(source, /destinationLatitude\s*:/);
 assert.doesNotMatch(source, /callbackPhone\s*:/);
+assert.doesNotMatch(routeProjection, /destinationAddress\s*:/);
+assert.doesNotMatch(routeProjection, /destinationLatitude\s*:/);
+assert.doesNotMatch(routeProjection, /destinationLongitude\s*:/);
 
 // PRV-086 controlled destination change extends the immutable route revision rather than overwriting history.
 assert.match(source, /@Post\(":id\/destination-change"\)/);
