@@ -14,6 +14,15 @@ export interface NormalizedMeasurement {
   canonicalUnitCode: string;
 }
 
+export type GlucoseContext = "FASTING" | "PREPRANDIAL" | "POSTPRANDIAL" | "RANDOM";
+
+const GLUCOSE_CONTEXTS = new Set<GlucoseContext>([
+  "FASTING",
+  "PREPRANDIAL",
+  "POSTPRANDIAL",
+  "RANDOM",
+]);
+
 export function normalizeUnitCode(value: unknown): string {
   if (typeof value !== "string") throw new BadRequestException("unitCode is required.");
   const normalized = value.trim().toUpperCase();
@@ -28,6 +37,31 @@ export function normalizeMetricCode(value: unknown): string {
   const normalized = value.trim().toUpperCase();
   if (!/^[A-Z][A-Z0-9_]{2,79}$/.test(normalized)) {
     throw new BadRequestException("metric code is invalid.");
+  }
+  return normalized;
+}
+
+export function isGlucoseMetricCode(value: unknown): boolean {
+  const code = normalizeMetricCode(value);
+  return code === "GLUCOSE"
+    || code.startsWith("GLUCOSE_")
+    || code.endsWith("_GLUCOSE")
+    || code.includes("_GLUCOSE_");
+}
+
+export function normalizeGlucoseContext(metricCode: unknown, value: unknown): GlucoseContext | null {
+  const glucose = isGlucoseMetricCode(metricCode);
+  if (value === undefined || value === null || value === "") {
+    if (glucose) throw new BadRequestException("glucoseContext is required for glucose observations.");
+    return null;
+  }
+  if (!glucose) throw new BadRequestException("glucoseContext is only valid for glucose observations.");
+  if (typeof value !== "string") throw new BadRequestException("glucoseContext is invalid.");
+  const normalized = value.trim().toUpperCase() as GlucoseContext;
+  if (!GLUCOSE_CONTEXTS.has(normalized)) {
+    throw new BadRequestException(
+      "glucoseContext must be FASTING, PREPRANDIAL, POSTPRANDIAL, or RANDOM.",
+    );
   }
   return normalized;
 }
