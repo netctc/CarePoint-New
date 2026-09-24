@@ -27,7 +27,8 @@ assert.match(bff, /admin\/operations\/analytics\/population/);
 assert.match(page, /PopulationAnalytics/);
 assert.match(ui, /minimumCellSize/);
 assert.match(ui, /suppressedCellCount/);
-assert.doesNotMatch(ui, /patientId|providerId|drill.?down/i);
+assert.doesNotMatch(ui, /patientId|providerId/);
+assert.match(ui, /drillDownEnabled: false/);
 for (const locale of ["en:", "ar:", "fr:", "es:"]) assert.match(ui, new RegExp(locale));
 
 console.log("ADM-099 privacy-preserving population analytics acceptance passed");

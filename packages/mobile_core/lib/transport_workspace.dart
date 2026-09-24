@@ -149,6 +149,13 @@ class _ProviderTransportWorkspaceState extends State<ProviderTransportWorkspace>
             if (incidentEnabled) ...[
               const SizedBox(height: 10),
               OutlinedButton.icon(
+                key: ValueKey('transport-destination-change-$requestId'),
+                onPressed: requestId.isEmpty ? null : () => _changeDestination(request),
+                icon: const Icon(Icons.edit_location_alt_outlined),
+                label: Text(transportText(widget.locale, 'changeDestination')),
+              ),
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
                 onPressed: requestId.isEmpty ? null : () => _incidents(requestId),
                 icon: const Icon(Icons.report_problem_outlined),
                 label: Text(transportIncidentText(widget.locale, 'action')),
@@ -242,6 +249,85 @@ class _ProviderTransportWorkspaceState extends State<ProviderTransportWorkspace>
     } catch (value) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value.toString())));
     }
+  }
+
+
+  Future<void> _changeDestination(Map<String, dynamic> request) async {
+    final requestId = request['id']?.toString() ?? '';
+    if (requestId.isEmpty) return;
+    final latitude = TextEditingController(text: request['destinationLatitude']?.toString() ?? '');
+    final longitude = TextEditingController(text: request['destinationLongitude']?.toString() ?? '');
+    final address = TextEditingController(text: request['destinationAddress']?.toString() ?? '');
+    String reasonCode = 'DISPATCH_REDIRECT';
+    String? validation;
+
+    final accepted = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setLocal) => AlertDialog(
+          title: Text(transportText(widget.locale, 'changeDestination')),
+          content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Text(transportText(widget.locale, 'destinationChangeNotice'), style: const TextStyle(color: Color(0xFF64748B))),
+            const SizedBox(height: 12),
+            TextField(
+              controller: latitude,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+              decoration: InputDecoration(labelText: transportText(widget.locale, 'latitude'), border: const OutlineInputBorder()),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: longitude,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+              decoration: InputDecoration(labelText: transportText(widget.locale, 'longitude'), border: const OutlineInputBorder()),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: address,
+              decoration: InputDecoration(labelText: transportText(widget.locale, 'address'), border: const OutlineInputBorder()),
+            ),
+            const SizedBox(height: 10),
+            DropdownButtonFormField<String>(
+              initialValue: reasonCode,
+              decoration: InputDecoration(labelText: transportText(widget.locale, 'changeReason'), border: const OutlineInputBorder()),
+              items: const ['FACILITY_UNAVAILABLE','DISPATCH_REDIRECT','PATIENT_REQUEST','OPERATIONAL_CHANGE']
+                  .map((value) => DropdownMenuItem(value: value, child: Text(value))).toList(growable: false),
+              onChanged: (value) => setLocal(() => reasonCode = value ?? reasonCode),
+            ),
+            if (validation != null) Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: Text(validation!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+            ),
+          ])),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: Text(transportText(widget.locale, 'cancel'))),
+            FilledButton(onPressed: () {
+              final lat = double.tryParse(latitude.text.trim());
+              final lon = double.tryParse(longitude.text.trim());
+              if (lat == null || lat < -90 || lat > 90 || lon == null || lon < -180 || lon > 180) {
+                setLocal(() => validation = transportText(widget.locale, 'invalidDestination'));
+                return;
+              }
+              Navigator.pop(dialogContext, true);
+            }, child: Text(transportText(widget.locale, 'confirmDestination'))),
+          ],
+        ),
+      ),
+    );
+
+    final lat = double.tryParse(latitude.text.trim());
+    final lon = double.tryParse(longitude.text.trim());
+    final addressValue = address.text.trim();
+    latitude.dispose(); longitude.dispose(); address.dispose();
+    if (accepted != true || lat == null || lon == null) return;
+
+    await _run(() => api.changeProviderTransportDestination(
+      requestId,
+      destinationLatitude: lat,
+      destinationLongitude: lon,
+      destinationAddress: addressValue,
+      reasonCode: reasonCode,
+      idempotencyKey: 'transport-destination-$requestId-${DateTime.now().microsecondsSinceEpoch}',
+    ));
   }
 
   Future<void> _incidents(String requestId) async {
