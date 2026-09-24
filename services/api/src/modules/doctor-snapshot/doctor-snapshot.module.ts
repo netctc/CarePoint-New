@@ -4,7 +4,9 @@ import { CurrentPrincipal, RequirePermissions } from "../../security/api-securit
 import { ClinicalProfileModule } from "../clinical-profile/clinical-profile.module";
 import { HealthProfileModule } from "../health-profile/health-profile.module";
 import { ObservationModule } from "../observation/observation.module";
+import { OrdersModule } from "../orders/orders.module";
 import { QuestionnaireModule } from "../questionnaire/questionnaire.module";
+import { RpmAlertModule } from "../rpm/rpm-alert.module";
 import { ChangesSinceLastVisitService } from "./changes-since-last-visit.service";
 import { DoctorSnapshotService } from "./doctor-snapshot.service";
 
@@ -44,6 +46,8 @@ class ProviderChangesSinceLastVisitController {
     ClinicalProfileModule,
     QuestionnaireModule,
     ObservationModule,
+    OrdersModule,
+    RpmAlertModule,
   ],
   controllers: [DoctorSnapshotController, ProviderChangesSinceLastVisitController],
   providers: [DoctorSnapshotService, ChangesSinceLastVisitService],

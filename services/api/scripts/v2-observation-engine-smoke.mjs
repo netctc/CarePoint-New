@@ -46,3 +46,5 @@ assert.throws(
 console.log("V2 observation conversion and validation acceptance passed");
 
 await import("./v2-terminology-smoke.mjs");
+
+await import("./v2-admin-clinical-metrics-ui-smoke.mjs");

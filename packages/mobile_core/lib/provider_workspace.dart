@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'carepoint_api.dart';
 import 'carepoint_localization.dart';
 import 'clinical_record.dart';
+import 'doctor_offline_clinical_draft.dart';
 import 'doctor_work_queue.dart';
+import 'secure_contact_action.dart';
 import 'telehealth_room.dart';
 
 class ProviderWorkspace extends StatefulWidget {
@@ -158,6 +160,34 @@ class _ProviderWorkspaceState extends State<ProviderWorkspace> {
           locale: locale,
           appointment: item,
           clinicalOrderCapabilities: widget.clinicalOrderCapabilities,
+        ),
+      ),
+      if (clinical && widget.session.role == 'OTHER_PROVIDER') Padding(
+        padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
+        child: SecureContextContactButton(
+          session: widget.session,
+          locale: locale,
+          accent: widget.accent,
+          appointment: item,
+        ),
+      ),
+      if (clinical && widget.session.role == 'DOCTOR' && item['modality'] == 'HOME_VISIT') Padding(
+        padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
+        child: OutlinedButton.icon(
+          key: ValueKey('doctor-offline-clinical-${item['id']}'),
+          onPressed: () => Navigator.push<void>(context, MaterialPageRoute(
+            builder: (_) => Directionality(
+              textDirection: locale.textDirection,
+              child: DoctorOfflineClinicalDraftPage(
+                session: widget.session,
+                locale: locale,
+                accent: widget.accent,
+                appointment: item,
+              ),
+            ),
+          )),
+          icon: const Icon(Icons.cloud_off_outlined),
+          label: Text(doctorOfflineClinicalDraftText(locale, 'title')),
         ),
       ),
     ])));

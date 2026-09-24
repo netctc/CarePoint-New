@@ -1,7 +1,8 @@
-import { Body, Controller, Get, Header, Module, Param, Post } from "@nestjs/common";
+import { Body, Controller, Get, Header, Module, Param, Patch, Post } from "@nestjs/common";
 import type { AuthPrincipal } from "@carepoint/identity";
 import { CurrentPrincipal, RequirePermissions } from "../../security/api-security.module";
 import { ClinicalModule } from "../clinical/clinical.module";
+import { QuestionnaireReviewService } from "./questionnaire-review.service";
 import {
   QuestionnaireService,
   type ConfirmQuestionnaireNoChangesInput,
@@ -105,9 +106,35 @@ class PatientQuestionnaireController {
   }
 }
 
+
+@Controller("patient/social-history")
+class PatientSocialHistoryController {
+  constructor(private readonly questionnaires: QuestionnaireService) {}
+
+  @RequirePermissions("PATIENT_MANAGE_QUESTIONNAIRE")
+  @Get()
+  @Header("Cache-Control", "no-store")
+  get(@CurrentPrincipal() principal: AuthPrincipal) {
+    return this.questionnaires.socialHistoryMine(principal);
+  }
+
+  @RequirePermissions("PATIENT_MANAGE_QUESTIONNAIRE")
+  @Patch()
+  @Header("Cache-Control", "no-store")
+  update(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Body() body: SubmitQuestionnaireInput,
+  ) {
+    return this.questionnaires.updateSocialHistoryMine(principal, body);
+  }
+}
+
 @Controller("doctor/patients")
 class DoctorQuestionnaireController {
-  constructor(private readonly questionnaires: QuestionnaireService) {}
+  constructor(
+    private readonly questionnaires: QuestionnaireService,
+    private readonly reviews: QuestionnaireReviewService,
+  ) {}
 
   @RequirePermissions("CLINICAL_QUESTIONNAIRE_READ")
   @Get(":patientId/questionnaires/:code/latest")
@@ -130,6 +157,30 @@ class DoctorQuestionnaireController {
   ) {
     return this.questionnaires.diffForDoctor(principal, patientId, code);
   }
+
+  @RequirePermissions("CLINICAL_QUESTIONNAIRE_READ")
+  @Get(":patientId/questionnaires/:code/responses/:responseId/review")
+  @Header("Cache-Control", "no-store")
+  reviewStatus(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Param("patientId") patientId: string,
+    @Param("code") code: string,
+    @Param("responseId") responseId: string,
+  ) {
+    return this.reviews.statusForDoctor(principal, patientId, code, responseId);
+  }
+
+  @RequirePermissions("CLINICAL_QUESTIONNAIRE_READ")
+  @Post(":patientId/questionnaires/:code/responses/:responseId/review")
+  @Header("Cache-Control", "no-store")
+  markReviewed(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Param("patientId") patientId: string,
+    @Param("code") code: string,
+    @Param("responseId") responseId: string,
+  ) {
+    return this.reviews.markReviewedForDoctor(principal, patientId, code, responseId);
+  }
 }
 
 @Module({
@@ -137,9 +188,10 @@ class DoctorQuestionnaireController {
   controllers: [
     AdminQuestionnaireController,
     PatientQuestionnaireController,
+    PatientSocialHistoryController,
     DoctorQuestionnaireController,
   ],
-  providers: [QuestionnaireService],
-  exports: [QuestionnaireService],
+  providers: [QuestionnaireService, QuestionnaireReviewService],
+  exports: [QuestionnaireService, QuestionnaireReviewService],
 })
 export class QuestionnaireModule {}

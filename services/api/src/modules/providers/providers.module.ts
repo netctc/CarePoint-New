@@ -2,7 +2,9 @@ import { BadRequestException, Body, Controller, Get, Injectable, Module, Param, 
 import { AppointmentModalities, OtherProviderFamilies, type AppointmentModality, type LocalizedText, type OtherProviderFamily } from "@carepoint/contracts";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../../infrastructure/prisma/prisma.module";
-import { Public, RequirePermissions } from "../../security/api-security.module";
+import { DatabaseAuditService } from "../../infrastructure/audit/audit.service";
+import type { AuthPrincipal } from "@carepoint/identity";
+import { CurrentPrincipal, Public, RequirePermissions } from "../../security/api-security.module";
 import { ProviderCategoryCapabilityService } from "./provider-category-capability.service";
 import { ClinicalSummarySections, OtherProviderWorkflowCapabilities, parseProviderCategoryCapabilities, providerCategoryCapabilitiesPayload } from "./provider-category-capabilities";
 
@@ -16,6 +18,7 @@ interface CreateOtherProviderCategoryInput {
   clinicalOrderCapabilities?: string[];
   clinicalSummarySections?: string[];
   observationCodes?: string[];
+  questionnaireCodes?: string[];
   workflowCapabilities?: string[];
 }
 
@@ -24,6 +27,7 @@ interface UpdateOtherProviderCapabilitiesInput {
   clinicalOrderCapabilities?: string[];
   clinicalSummarySections?: string[];
   observationCodes?: string[];
+  questionnaireCodes?: string[];
   workflowCapabilities?: string[];
 }
 
@@ -40,7 +44,10 @@ const ClinicalOrderCapabilities = [
 
 @Injectable()
 class ProviderCatalogService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: DatabaseAuditService,
+  ) {}
 
   async listSpecialties() {
     return this.prisma.medicalSpecialty.findMany({ where: { active: true }, orderBy: { code: "asc" } });
@@ -92,7 +99,7 @@ class ProviderCatalogService {
     if (!labels?.en?.trim() || !labels?.ar?.trim() || !labels?.fr?.trim() || !labels?.es?.trim()) throw new BadRequestException("EN/AR/FR/ES labels are required.");
   }
 
-  async updateOtherCapabilities(categoryId: string, input: UpdateOtherProviderCapabilitiesInput) {
+  async updateOtherCapabilities(principal: AuthPrincipal, categoryId: string, input: UpdateOtherProviderCapabilitiesInput) {
     const current = await this.prisma.providerCategory.findUnique({ where: { id: categoryId } });
     if (!current) throw new BadRequestException("Other Provider category not found.");
     const existing = parseProviderCategoryCapabilities(current.capabilities);
@@ -101,13 +108,35 @@ class ProviderCatalogService {
       clinicalOrderCapabilities: input.clinicalOrderCapabilities ?? existing.clinicalOrderCapabilities,
       clinicalSummarySections: input.clinicalSummarySections ?? existing.clinicalSummarySections,
       observationCodes: input.observationCodes ?? existing.observationCodes,
+      questionnaireCodes: input.questionnaireCodes ?? existing.questionnaireCodes,
       workflowCapabilities: input.workflowCapabilities ?? existing.workflowCapabilities,
     });
     const updated = await this.prisma.providerCategory.update({
       where: { id: categoryId },
       data: { capabilities: capabilities as unknown as Prisma.InputJsonValue },
     });
-    return { ...updated, ...parseProviderCategoryCapabilities(updated.capabilities) };
+    const parsed = parseProviderCategoryCapabilities(updated.capabilities);
+    await this.audit.writeClinical({
+      actorId: principal.accountId,
+      action: "PROVIDER_CATEGORY_CAPABILITIES_UPDATED",
+      objectType: "PROVIDER_CATEGORY",
+      objectId: updated.id,
+      purpose: "CLINICAL_CONFIGURATION",
+      result: "SUCCESS",
+      metadata: {
+        domain: "PROVIDER_CATEGORY_CAPABILITIES",
+        categoryId: updated.id,
+        categorySlug: updated.slug,
+        enabledModalities: parsed.enabledModalities,
+        clinicalOrderCapabilities: parsed.clinicalOrderCapabilities,
+        clinicalSummarySections: parsed.clinicalSummarySections,
+        observationCodes: parsed.observationCodes,
+        questionnaireCodes: parsed.questionnaireCodes,
+        workflowCapabilities: parsed.workflowCapabilities,
+        decision: "ALLOW",
+      },
+    });
+    return { ...updated, ...parsed };
   }
 
   private capabilities(input: UpdateOtherProviderCapabilitiesInput) {
@@ -135,6 +164,12 @@ class ProviderCatalogService {
         throw new BadRequestException(`Invalid observation code: ${String(code)}`);
       }
     }
+    const questionnaireCodes = input.questionnaireCodes ?? [];
+    for (const code of questionnaireCodes) {
+      if (typeof code !== "string" || !/^[A-Za-z][A-Za-z0-9_]{2,79}$/.test(code.trim())) {
+        throw new BadRequestException("Invalid questionnaire code: " + String(code));
+      }
+    }
     const workflowCapabilities = input.workflowCapabilities ?? [];
     for (const capability of workflowCapabilities) {
       if (!(OtherProviderWorkflowCapabilities as readonly string[]).includes(capability)) {
@@ -146,6 +181,7 @@ class ProviderCatalogService {
       clinicalOrderCapabilities,
       clinicalSummarySections,
       observationCodes,
+      questionnaireCodes,
       workflowCapabilities,
     });
   }
@@ -187,10 +223,11 @@ class OtherProviderCategoriesController {
   @RequirePermissions("CATALOG_MANAGE")
   @Patch(":categoryId/capabilities")
   updateCapabilities(
+    @CurrentPrincipal() principal: AuthPrincipal,
     @Param("categoryId") categoryId: string,
     @Body() input: UpdateOtherProviderCapabilitiesInput,
   ) {
-    return this.catalog.updateOtherCapabilities(categoryId, input);
+    return this.catalog.updateOtherCapabilities(principal, categoryId, input);
   }
 }
 

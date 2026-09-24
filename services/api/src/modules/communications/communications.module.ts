@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Header, Module, Param, Patch, Post } from "@nestjs/common";
+import { Body, Controller, ForbiddenException, Get, Header, Module, Param, Patch, Post } from "@nestjs/common";
 import type {
   AddCareParticipantInput,
   CreateCareConversationInput,
@@ -22,6 +22,13 @@ import {
 } from "./notification-template.service";
 import { NotificationsService } from "./notifications.service";
 
+type SecureContactInput = {
+  appointmentId: string;
+  subject: string;
+  initialMessage?: string;
+  clientContactId: string;
+};
+
 @Controller("communications")
 class CommunicationsController {
   constructor(
@@ -40,6 +47,23 @@ class CommunicationsController {
   @Post("conversations")
   create(@CurrentPrincipal() principal: AuthPrincipal, @Body() body: CreateCareConversationInput) {
     return this.communications.createConversation(principal, body);
+  }
+
+  @RequirePermissions("PROVIDER_SECURE_MESSAGE")
+  @Post("secure-contact")
+  secureContact(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Body() body: SecureContactInput,
+  ) {
+    if (principal.role !== "OTHER_PROVIDER") {
+      throw new ForbiddenException("Contextual secure contact is limited to Other Provider workflows.");
+    }
+    return this.communications.createConversation(principal, {
+      appointmentId: body.appointmentId,
+      subject: body.subject,
+      initialMessage: body.initialMessage ?? "",
+      clientConversationId: body.clientContactId,
+    });
   }
 
   @RequirePermissions("PATIENT_SECURE_MESSAGE", "PROVIDER_SECURE_MESSAGE")

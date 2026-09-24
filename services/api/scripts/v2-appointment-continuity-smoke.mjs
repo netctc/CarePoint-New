@@ -34,3 +34,5 @@ test("preparation task vocabulary is deterministic", () => {
 });
 
 console.log("V2 appointment continuity acceptance passed");
+
+await import("./v2-patient-appointment-continuity-ui-smoke.mjs");

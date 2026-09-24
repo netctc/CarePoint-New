@@ -46,3 +46,15 @@ assert.match(ciSource, /name: R9 provider current-credential enforcement accepta
 assert.match(ciSource, /node services\/api\/scripts\/r9-provider-credential-validity-live-smoke\.mjs/);
 
 console.log("R9 provider current-credential policy-neutral acceptance passed");
+const expirySource = await readFile(path.join(repoRoot, "services/api/src/modules/credential-expiry/credential-expiry.module.ts"), "utf8");
+const expirySchema = await readFile(path.join(repoRoot, "services/api/prisma/v2_credential_expiry.prisma"), "utf8");
+assert.match(expirySchema, /model CredentialExpiryPolicy/);
+assert.match(expirySource, /@Controller\("admin\/governance\/credential-expirations"\)/);
+assert.match(expirySource, /operationalAccessBlockedOnExpiry: true/);
+assert.match(expirySource, /runtimeEnforcementConfigurable: false/);
+assert.match(expirySource, /credentialIsCurrent/);
+assert.match(expirySource, /CARE_COORDINATION/);
+assert.match(expirySource, /setInterval/);
+assert.doesNotMatch(expirySource, /credential\.number|credential\.issuer|credential\.documentId/);
+assert.match(operationalSource, /REQUIRED_CREDENTIAL_NOT_CURRENT/);
+console.log("ADM-108 credential expiry governance acceptance passed");

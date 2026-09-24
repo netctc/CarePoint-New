@@ -1,0 +1,38 @@
+model MedicationReminder {
+  id         String   @id @default(uuid())
+  patientId  String
+  accountId  String
+  sourceKind String
+  sourceId   String
+  enabled    Boolean  @default(true)
+  localTimes Json
+  timeZone   String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([accountId, patientId, sourceKind, sourceId])
+  @@index([accountId, patientId, enabled])
+  @@index([enabled, updatedAt])
+}
+
+model MedicationIntake {
+  id             String   @id @default(uuid())
+  patientId      String
+  accountId      String
+  reminderId     String
+  sourceKind     String
+  sourceId       String
+  status         String
+  scheduledFor   DateTime
+  occurredAt     DateTime @default(now())
+  sourceType     String   @default("PATIENT_REPORTED")
+  reasonCode     String?
+  idempotencyKey String
+  requestDigest  String
+  createdAt      DateTime @default(now())
+
+  @@unique([accountId, patientId, idempotencyKey])
+  @@index([accountId, patientId, occurredAt])
+  @@index([reminderId, scheduledFor])
+  @@index([sourceKind, sourceId, occurredAt])
+}

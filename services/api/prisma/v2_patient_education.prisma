@@ -1,0 +1,51 @@
+model EducationContent {
+  id        String                    @id @default(uuid())
+  code      String                    @unique
+  active    Boolean                   @default(true)
+  createdAt DateTime                  @default(now())
+  updatedAt DateTime                  @updatedAt
+  versions  EducationContentVersion[]
+
+  @@index([active, code])
+}
+
+model EducationContentVersion {
+  id               String                       @id @default(uuid())
+  contentId        String
+  version          Int
+  status           String                       @default("DRAFT")
+  labels           Json
+  bodyLabels       Json
+  sourceName       String
+  sourceUrl        String?
+  createdByActorId String?
+  publishedAt      DateTime?
+  retiredAt        DateTime?
+  createdAt        DateTime                     @default(now())
+  content          EducationContent             @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  assignments      PatientEducationAssignment[]
+
+  @@unique([contentId, version])
+  @@index([status, publishedAt])
+}
+
+model PatientEducationAssignment {
+  id                String                  @id @default(uuid())
+  idempotencyKey    String                  @unique
+  patientId         String
+  providerId        String
+  appointmentId     String
+  contentVersionId  String
+  contextKind       String?
+  contextId         String?
+  status            String                  @default("ASSIGNED")
+  assignedByActorId String
+  assignedAt        DateTime                @default(now())
+  revokedAt         DateTime?
+  revokedByActorId  String?
+  contentVersion    EducationContentVersion @relation(fields: [contentVersionId], references: [id], onDelete: Restrict)
+
+  @@index([patientId, status, assignedAt])
+  @@index([providerId, patientId, status])
+  @@index([appointmentId, assignedAt])
+}

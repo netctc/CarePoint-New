@@ -9,6 +9,7 @@ const _communications = <CarePointLocale, Map<String, String>>{
     'privacy': 'Message content stays inside the secure CarePoint channel. External notifications contain no clinical message text.',
     'noNotifications': 'No notifications yet.', 'markRead': 'Mark read', 'inApp': 'In-app', 'push': 'Push', 'email': 'Email', 'sms': 'SMS', 'save': 'Save preferences',
     'endpoint': 'Push endpoint reference', 'registerPush': 'Register push endpoint', 'endpointStored': 'Endpoint stored as an opaque provider reference.', 'refresh': 'Refresh',
+    'secureContact': 'Secure contact', 'secureContactOpening': 'Opening secure CarePoint message…', 'secureContactSubject': 'Appointment coordination', 'secureContactError': 'Secure contact could not be opened.',
     'selectAppointmentHint': 'Use a confirmed or completed CarePoint appointment.', 'careTeamHint': 'Adding a provider requires a treatment relationship or patient-specific consent.',
   },
   CarePointLocale.ar: {
@@ -19,6 +20,7 @@ const _communications = <CarePointLocale, Map<String, String>>{
     'privacy': 'يبقى محتوى الرسائل داخل قناة CarePoint الآمنة. لا تحتوي الإشعارات الخارجية على نصوص سريرية.',
     'noNotifications': 'لا توجد إشعارات بعد.', 'markRead': 'تحديد كمقروء', 'inApp': 'داخل التطبيق', 'push': 'إشعار فوري', 'email': 'البريد الإلكتروني', 'sms': 'رسالة SMS', 'save': 'حفظ التفضيلات',
     'endpoint': 'مرجع نقطة الإشعار', 'registerPush': 'تسجيل نقطة إشعار فوري', 'endpointStored': 'يتم حفظ نقطة الإشعار كمرجع خارجي مبهم.', 'refresh': 'تحديث',
+    'secureContact': 'تواصل آمن', 'secureContactOpening': 'جارٍ فتح رسالة CarePoint الآمنة…', 'secureContactSubject': 'تنسيق الموعد', 'secureContactError': 'تعذر فتح التواصل الآمن.',
     'selectAppointmentHint': 'استخدم موعد CarePoint مؤكداً أو مكتملاً.', 'careTeamHint': 'تتطلب إضافة مقدم رعاية علاقة علاجية أو موافقة خاصة من المريض.',
   },
   CarePointLocale.fr: {
@@ -29,6 +31,7 @@ const _communications = <CarePointLocale, Map<String, String>>{
     'privacy': 'Le contenu reste dans le canal CarePoint sécurisé. Les notifications externes ne contiennent aucun texte clinique.',
     'noNotifications': 'Aucune notification.', 'markRead': 'Marquer comme lue', 'inApp': 'Dans l’application', 'push': 'Push', 'email': 'E-mail', 'sms': 'SMS', 'save': 'Enregistrer',
     'endpoint': 'Référence du terminal push', 'registerPush': 'Enregistrer le terminal push', 'endpointStored': 'Le terminal est stocké comme référence opaque du fournisseur.', 'refresh': 'Actualiser',
+    'secureContact': 'Contact sécurisé', 'secureContactOpening': 'Ouverture du message CarePoint sécurisé…', 'secureContactSubject': 'Coordination du rendez-vous', 'secureContactError': 'Impossible d’ouvrir le contact sécurisé.',
     'selectAppointmentHint': 'Utilisez un rendez-vous CarePoint confirmé ou terminé.', 'careTeamHint': 'Ajouter un prestataire exige une relation de soins ou un consentement spécifique du patient.',
   },
   CarePointLocale.es: {
@@ -39,6 +42,7 @@ const _communications = <CarePointLocale, Map<String, String>>{
     'privacy': 'El contenido permanece dentro del canal seguro de CarePoint. Las notificaciones externas no contienen texto clínico.',
     'noNotifications': 'Todavía no hay notificaciones.', 'markRead': 'Marcar como leída', 'inApp': 'En la app', 'push': 'Push', 'email': 'Correo', 'sms': 'SMS', 'save': 'Guardar preferencias',
     'endpoint': 'Referencia del endpoint push', 'registerPush': 'Registrar endpoint push', 'endpointStored': 'El endpoint se guarda como referencia opaca del proveedor.', 'refresh': 'Actualizar',
+    'secureContact': 'Contacto seguro', 'secureContactOpening': 'Abriendo mensaje seguro de CarePoint…', 'secureContactSubject': 'Coordinación de la cita', 'secureContactError': 'No se pudo abrir el contacto seguro.',
     'selectAppointmentHint': 'Usa una cita CarePoint confirmada o completada.', 'careTeamHint': 'Añadir un proveedor requiere relación terapéutica o consentimiento específico del paciente.',
   },
 };

@@ -299,3 +299,4 @@ test("PRV-070 nutrition anthropometry normalizes units and preserves source evid
 });
 
 console.log("V2 provider workflow + PRV-065/066 specimen custody + PRV-067/068/069 physiotherapy + PRV-070 nutrition acceptance passed");
+await import("./v2-provider-secure-contact-smoke.mjs");
