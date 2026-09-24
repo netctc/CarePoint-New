@@ -186,7 +186,7 @@ function resolvePost(segments: string[]): string | null {
     segments[1] === "fhir" &&
     segments[2] === "configs" &&
     safeId(segments[3]) &&
-    ["mappings", "test", "activate"].includes(segments[4])
+    ["mappings", "test", "activate"].includes(segments[4]!)
   ) {
     return "/admin/integrations/fhir/configs/" + encodeURIComponent(segments[3]!) + "/" + segments[4];
   }
@@ -207,7 +207,7 @@ function resolvePost(segments: string[]): string | null {
     segments[1] === "labs" &&
     segments[2] === "configs" &&
     safeId(segments[3]) &&
-    ["mappings", "test", "activate"].includes(segments[4])
+    ["mappings", "test", "activate"].includes(segments[4]!)
   ) {
     return "/admin/integrations/labs/configs/" + encodeURIComponent(segments[3]!) + "/" + segments[4];
   }
