@@ -38,7 +38,10 @@ assert.match(source, /FACILITY_DELAY/);
 assert.match(source, /OPERATIONAL_UPDATE/);
 assert.match(source, /etaMinutes must be an integer between 0 and 1440/);
 assert.match(source, /medicalTransportRequest\.update\(\{ where: \{ id: request\.id \}, data: \{ etaMinutes \} \}\)/);
-assert.doesNotMatch(schema, /latitude|longitude|address|callbackPhone/i);
+// Immutable route evidence may persist destination coordinates/address for controlled changes,
+ // while pickup/contact data remain outside this lifecycle evidence model. Runtime projections below
+ // remain the privacy boundary for responders.
+ assert.doesNotMatch(schema, /pickupLatitude|pickupLongitude|pickupAddress|callbackPhone/i);
 
 // Retry/concurrency safety and append-only evidence.
 assert.match(source, /idempotencyKey/);

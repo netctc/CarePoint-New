@@ -117,6 +117,8 @@ class _PatientCarePlanDetailPageState extends State<PatientCarePlanDetailPage> {
   String? error;
   List<Map<String, dynamic>> goals = const [];
   List<Map<String, dynamic>> tasks = const [];
+  Map<String, dynamic> adherence = const {};
+  int adherenceDays = 30;
 
   CarePointApi get api => widget.session.api;
   String t(String key) => patientCarePlanText(widget.locale, key);
@@ -131,14 +133,21 @@ class _PatientCarePlanDetailPageState extends State<PatientCarePlanDetailPage> {
   Future<void> _load() async {
     setState(() { loading = true; error = null; });
     try {
+      final now = DateTime.now().toUtc();
       final values = await Future.wait([
         api.patientCarePlanGoals(planId),
         api.patientCarePlanTasks(planId),
+        api.patientCarePlanAdherence(
+          planId,
+          from: now.subtract(Duration(days: adherenceDays)),
+          to: now,
+        ),
       ]);
       if (!mounted) return;
       setState(() {
         goals = _maps(values[0]['items']);
         tasks = _maps(values[1]['items']);
+        adherence = _map(values[2]);
       });
     } catch (value) {
       if (mounted) setState(() => error = value.toString());
@@ -164,6 +173,8 @@ class _PatientCarePlanDetailPageState extends State<PatientCarePlanDetailPage> {
                 physics: const AlwaysScrollableScrollPhysics(),
                 children: [
                   _planSummary(planData),
+                  const SizedBox(height: 12),
+                  _adherenceCard(),
                   if (error != null) Card(child: Padding(
                     padding: const EdgeInsets.all(14),
                     child: Text(error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
@@ -195,6 +206,58 @@ class _PatientCarePlanDetailPageState extends State<PatientCarePlanDetailPage> {
       Text(t('noInference'), style: const TextStyle(color: Color(0xFF64748B))),
     ]),
   ));
+
+
+  Widget _adherenceCard() {
+    final summary = _map(adherence['summary']);
+    final denominator = _map(adherence['denominator']);
+    final pct = summary['reportedCompletionPct'];
+    return Card(
+      key: const ValueKey('patient-care-plan-adherence'),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Row(children: [
+            const Icon(Icons.insights_outlined),
+            const SizedBox(width: 8),
+            Expanded(child: Text(t('adherence'), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17))),
+          ]),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            children: [7, 30, 90].map((days) => ChoiceChip(
+              selected: adherenceDays == days,
+              label: Text('${days}d'),
+              onSelected: loading ? null : (_) {
+                if (adherenceDays == days) return;
+                setState(() => adherenceDays = days);
+                _load();
+              },
+            )).toList(growable: false),
+          ),
+          const SizedBox(height: 12),
+          if (denominator['value'] == null || denominator['value'] == 0)
+            Text(t('noRecordedOutcomes'))
+          else ...[
+            Text(
+              pct == null ? '—' : '${pct.toString()}%',
+              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900),
+            ),
+            Text(t('reportedCompletion')),
+            const SizedBox(height: 8),
+            Text('${t('doneCount')}: ${summary['done'] ?? 0}'),
+            Text('${t('omittedCount')}: ${summary['omitted'] ?? 0}'),
+            Text('${t('denominator')}: ${denominator['value'] ?? 0} · ${t('recordedOutcomes')}'),
+          ],
+          const SizedBox(height: 8),
+          Text(
+            t('adherenceNotice'),
+            style: const TextStyle(color: Color(0xFF64748B)),
+          ),
+        ]),
+      ),
+    );
+  }
 
   Widget _header(String value, IconData icon) => Row(children: [
     Icon(icon),
@@ -319,16 +382,16 @@ class _PatientCarePlanDetailPageState extends State<PatientCarePlanDetailPage> {
 String patientCarePlanText(CarePointLocale locale, String key) {
   const values = <CarePointLocale, Map<String, String>>{
     CarePointLocale.en: {
-      'title':'Care Plans','carePlan':'Care Plan','intro':'Your active Care Plans are clinician-authored. Progress shown here comes only from recorded goals, tasks and your actions; it is not an automatic diagnosis.','refresh':'Refresh','empty':'No active Care Plans.','status':'Status','review':'Next review','responsible':'Responsible provider','period':'Period','goals':'Goals','goal':'Goal','noGoals':'No active goals.','metric':'Metric','tasks':'Tasks','task':'Task','noTasks':'No patient tasks.','type':'Type','due':'Due','recurrence':'Recurrence','latest':'Latest action','done':'Done','omit':'Omit','omitReason':'Why are you omitting this occurrence?','reasonCode':'Reason code','markDone':'Mark task done','markDonePrompt':'Confirm that you completed this task occurrence.','confirm':'Confirm','cancel':'Cancel','noInference':'Care Plan content and goals come from your care team; this page does not generate clinical conclusions.'
+      'title':'Care Plans','carePlan':'Care Plan','intro':'Your active Care Plans are clinician-authored. Progress shown here comes only from recorded goals, tasks and your actions; it is not an automatic diagnosis.','adherence':'Task adherence','reportedCompletion':'Reported completion among recorded outcomes','doneCount':'Done','omittedCount':'Omitted','denominator':'Denominator','recordedOutcomes':'recorded outcomes','noRecordedOutcomes':'No DONE/OMITTED outcomes were recorded in this period.','adherenceNotice':'Only outcomes you recorded are included. Missing/unrecorded occurrences are not counted as non-adherence and this summary makes no clinical conclusion.','refresh':'Refresh','empty':'No active Care Plans.','status':'Status','review':'Next review','responsible':'Responsible provider','period':'Period','goals':'Goals','goal':'Goal','noGoals':'No active goals.','metric':'Metric','tasks':'Tasks','task':'Task','noTasks':'No patient tasks.','type':'Type','due':'Due','recurrence':'Recurrence','latest':'Latest action','done':'Done','omit':'Omit','omitReason':'Why are you omitting this occurrence?','reasonCode':'Reason code','markDone':'Mark task done','markDonePrompt':'Confirm that you completed this task occurrence.','confirm':'Confirm','cancel':'Cancel','noInference':'Care Plan content and goals come from your care team; this page does not generate clinical conclusions.'
     },
     CarePointLocale.ar: {
-      'title':'خطط الرعاية','carePlan':'خطة رعاية','intro':'خطط الرعاية النشطة يضعها الفريق السريري. يعتمد التقدم هنا فقط على الأهداف والمهام والإجراءات المسجلة ولا يمثل تشخيصاً آلياً.','refresh':'تحديث','empty':'لا توجد خطط رعاية نشطة.','status':'الحالة','review':'المراجعة القادمة','responsible':'المسؤول','period':'الفترة','goals':'الأهداف','goal':'هدف','noGoals':'لا توجد أهداف نشطة.','metric':'المقياس','tasks':'المهام','task':'مهمة','noTasks':'لا توجد مهام للمريض.','type':'النوع','due':'الاستحقاق','recurrence':'التكرار','latest':'آخر إجراء','done':'تم','omit':'تخطّي','omitReason':'لماذا تتخطى هذه المهمة؟','reasonCode':'رمز السبب','markDone':'تحديد المهمة كمكتملة','markDonePrompt':'أكد أنك أكملت هذه المهمة.','confirm':'تأكيد','cancel':'إلغاء','noInference':'محتوى الخطة والأهداف مصدره فريق الرعاية ولا تنشئ هذه الصفحة استنتاجات سريرية.'
+      'title':'خطط الرعاية','carePlan':'خطة رعاية','intro':'خطط الرعاية النشطة يضعها الفريق السريري. يعتمد التقدم هنا فقط على الأهداف والمهام والإجراءات المسجلة ولا يمثل تشخيصاً آلياً.','adherence':'الالتزام بالمهام','reportedCompletion':'الإكمال المبلّغ عنه ضمن النتائج المسجلة','doneCount':'مكتملة','omittedCount':'متخطاة','denominator':'المقام','recordedOutcomes':'نتائج مسجلة','noRecordedOutcomes':'لم يتم تسجيل نتائج مكتملة/متخطاة خلال هذه الفترة.','adherenceNotice':'يتم احتساب النتائج التي سجلتها فقط. لا تُعتبر الحالات غير المسجلة عدم التزام ولا يستنتج هذا الملخص أي حكم سريري.','refresh':'تحديث','empty':'لا توجد خطط رعاية نشطة.','status':'الحالة','review':'المراجعة القادمة','responsible':'المسؤول','period':'الفترة','goals':'الأهداف','goal':'هدف','noGoals':'لا توجد أهداف نشطة.','metric':'المقياس','tasks':'المهام','task':'مهمة','noTasks':'لا توجد مهام للمريض.','type':'النوع','due':'الاستحقاق','recurrence':'التكرار','latest':'آخر إجراء','done':'تم','omit':'تخطّي','omitReason':'لماذا تتخطى هذه المهمة؟','reasonCode':'رمز السبب','markDone':'تحديد المهمة كمكتملة','markDonePrompt':'أكد أنك أكملت هذه المهمة.','confirm':'تأكيد','cancel':'إلغاء','noInference':'محتوى الخطة والأهداف مصدره فريق الرعاية ولا تنشئ هذه الصفحة استنتاجات سريرية.'
     },
     CarePointLocale.fr: {
-      'title':'Plans de soins','carePlan':'Plan de soins','intro':'Vos plans actifs sont rédigés par l’équipe clinique. La progression repose uniquement sur les objectifs, tâches et actions enregistrés; elle ne constitue pas un diagnostic automatique.','refresh':'Actualiser','empty':'Aucun plan de soins actif.','status':'Statut','review':'Prochaine révision','responsible':'Professionnel responsable','period':'Période','goals':'Objectifs','goal':'Objectif','noGoals':'Aucun objectif actif.','metric':'Métrique','tasks':'Tâches','task':'Tâche','noTasks':'Aucune tâche patient.','type':'Type','due':'Échéance','recurrence':'Récurrence','latest':'Dernière action','done':'Fait','omit':'Omettre','omitReason':'Pourquoi omettez-vous cette occurrence ?','reasonCode':'Code motif','markDone':'Marquer comme faite','markDonePrompt':'Confirmez que vous avez effectué cette occurrence.','confirm':'Confirmer','cancel':'Annuler','noInference':'Le contenu et les objectifs viennent de votre équipe de soins; cette page ne génère aucune conclusion clinique.'
+      'title':'Plans de soins','carePlan':'Plan de soins','intro':'Vos plans actifs sont rédigés par l’équipe clinique. La progression repose uniquement sur les objectifs, tâches et actions enregistrés; elle ne constitue pas un diagnostic automatique.','adherence':'Adhésion aux tâches','reportedCompletion':'Achèvement déclaré parmi les résultats enregistrés','doneCount':'Fait','omittedCount':'Omis','denominator':'Dénominateur','recordedOutcomes':'résultats enregistrés','noRecordedOutcomes':'Aucun résultat FAIT/OMIS n’a été enregistré sur cette période.','adherenceNotice':'Seuls les résultats que vous avez enregistrés sont inclus. Les occurrences non enregistrées ne sont pas comptées comme non-adhésion et ce résumé ne produit aucune conclusion clinique.','refresh':'Actualiser','empty':'Aucun plan de soins actif.','status':'Statut','review':'Prochaine révision','responsible':'Professionnel responsable','period':'Période','goals':'Objectifs','goal':'Objectif','noGoals':'Aucun objectif actif.','metric':'Métrique','tasks':'Tâches','task':'Tâche','noTasks':'Aucune tâche patient.','type':'Type','due':'Échéance','recurrence':'Récurrence','latest':'Dernière action','done':'Fait','omit':'Omettre','omitReason':'Pourquoi omettez-vous cette occurrence ?','reasonCode':'Code motif','markDone':'Marquer comme faite','markDonePrompt':'Confirmez que vous avez effectué cette occurrence.','confirm':'Confirmer','cancel':'Annuler','noInference':'Le contenu et les objectifs viennent de votre équipe de soins; cette page ne génère aucune conclusion clinique.'
     },
     CarePointLocale.es: {
-      'title':'Planes de cuidado','carePlan':'Plan de cuidado','intro':'Tus planes activos son definidos por el equipo clínico. El progreso se basa solo en objetivos, tareas y acciones registradas; no es un diagnóstico automático.','refresh':'Actualizar','empty':'No hay planes de cuidado activos.','status':'Estado','review':'Próxima revisión','responsible':'Profesional responsable','period':'Periodo','goals':'Objetivos','goal':'Objetivo','noGoals':'No hay objetivos activos.','metric':'Métrica','tasks':'Tareas','task':'Tarea','noTasks':'No hay tareas para el paciente.','type':'Tipo','due':'Vencimiento','recurrence':'Recurrencia','latest':'Última acción','done':'Hecha','omit':'Omitir','omitReason':'¿Por qué omites esta tarea?','reasonCode':'Código de motivo','markDone':'Marcar como hecha','markDonePrompt':'Confirma que completaste esta tarea.','confirm':'Confirmar','cancel':'Cancelar','noInference':'El contenido y los objetivos proceden de tu equipo asistencial; esta página no genera conclusiones clínicas.'
+      'title':'Planes de cuidado','carePlan':'Plan de cuidado','intro':'Tus planes activos son definidos por el equipo clínico. El progreso se basa solo en objetivos, tareas y acciones registradas; no es un diagnóstico automático.','adherence':'Adherencia a tareas','reportedCompletion':'Cumplimiento declarado entre resultados registrados','doneCount':'Hechas','omittedCount':'Omitidas','denominator':'Denominador','recordedOutcomes':'resultados registrados','noRecordedOutcomes':'No se registraron resultados HECHA/OMITIDA en este periodo.','adherenceNotice':'Solo se incluyen los resultados que registraste. Las ocurrencias no registradas no se cuentan como incumplimiento y este resumen no genera conclusiones clínicas.','refresh':'Actualizar','empty':'No hay planes de cuidado activos.','status':'Estado','review':'Próxima revisión','responsible':'Profesional responsable','period':'Periodo','goals':'Objetivos','goal':'Objetivo','noGoals':'No hay objetivos activos.','metric':'Métrica','tasks':'Tareas','task':'Tarea','noTasks':'No hay tareas para el paciente.','type':'Tipo','due':'Vencimiento','recurrence':'Recurrencia','latest':'Última acción','done':'Hecha','omit':'Omitir','omitReason':'¿Por qué omites esta tarea?','reasonCode':'Código de motivo','markDone':'Marcar como hecha','markDonePrompt':'Confirma que completaste esta tarea.','confirm':'Confirmar','cancel':'Cancelar','noInference':'El contenido y los objetivos proceden de tu equipo asistencial; esta página no genera conclusiones clínicas.'
     },
   };
   return values[locale]?[key] ?? values[CarePointLocale.en]![key] ?? key;

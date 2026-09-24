@@ -33,6 +33,18 @@ export class PatientCarePlanController {
   tasks(@CurrentPrincipal() principal: AuthPrincipal, @Param("carePlanId") carePlanId: string) {
     return this.carePlans.patientTasks(principal, carePlanId);
   }
+
+  @RequirePermissions("PATIENT_READ_CLINICAL_RECORD")
+  @Get(":carePlanId/adherence")
+  @Header("Cache-Control", "no-store")
+  adherence(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Param("carePlanId") carePlanId: string,
+    @Query("from") from?: string,
+    @Query("to") to?: string,
+  ) {
+    return this.carePlans.patientAdherence(principal, carePlanId, from, to);
+  }
 }
 
 @Controller("patient/care-tasks")

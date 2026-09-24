@@ -261,6 +261,118 @@ export class CarePlanService {
     return { patientId: patient.id, carePlanId: plan.id, items };
   }
 
+
+  async patientAdherence(principal: AuthPrincipal, carePlanId: string, fromRaw?: string, toRaw?: string) {
+    const { patient, plan } = await this.patientPlan(principal, carePlanId);
+    const now = new Date();
+    const requestedTo = toRaw ? normalizeIsoDate(toRaw, "to")! : now;
+    const effectiveEnd = plan.effectiveUntil && plan.effectiveUntil < requestedTo ? plan.effectiveUntil : requestedTo;
+    const to = effectiveEnd > now ? now : effectiveEnd;
+    const defaultFrom = new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const requestedFrom = fromRaw ? normalizeIsoDate(fromRaw, "from")! : defaultFrom;
+    const from = requestedFrom < plan.effectiveFrom ? plan.effectiveFrom : requestedFrom;
+    if (to < from) throw new BadRequestException("to must be on or after from.");
+    if (to.getTime() - from.getTime() > 365 * 24 * 60 * 60 * 1000) {
+      throw new BadRequestException("Adherence period cannot exceed 365 days.");
+    }
+
+    const tasks = await this.prisma.careTask.findMany({
+      where: { carePlanId: plan.id, assigneeType: "PATIENT" },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      take: MAX_ITEMS,
+    });
+    const taskIds = tasks.map((task) => task.id);
+    const completions = taskIds.length === 0
+      ? []
+      : await this.prisma.careTaskCompletion.findMany({
+          where: {
+            taskId: { in: taskIds },
+            occurredAt: { gte: from, lte: to },
+            outcome: { in: ["DONE", "OMITTED"] },
+          },
+          orderBy: [{ occurredAt: "asc" }, { id: "asc" }],
+          take: MAX_ITEMS * 20,
+        });
+
+    const byTask = new Map<string, { done: number; omitted: number; recorded: number }>();
+    let done = 0;
+    let omitted = 0;
+    for (const completion of completions) {
+      const current = byTask.get(completion.taskId) ?? { done: 0, omitted: 0, recorded: 0 };
+      current.recorded += 1;
+      if (completion.outcome === "DONE") {
+        current.done += 1;
+        done += 1;
+      } else if (completion.outcome === "OMITTED") {
+        current.omitted += 1;
+        omitted += 1;
+      }
+      byTask.set(completion.taskId, current);
+    }
+
+    const taskSummaries = [];
+    for (const task of tasks) {
+      const counts = byTask.get(task.id) ?? { done: 0, omitted: 0, recorded: 0 };
+      const payload = await this.decrypt(task);
+      taskSummaries.push({
+        taskId: task.id,
+        status: task.status,
+        kind: (payload as { kind?: string }).kind ?? null,
+        label: (payload as { label?: string }).label ?? null,
+        recordedOccurrences: counts.recorded,
+        done: counts.done,
+        omitted: counts.omitted,
+        reportedCompletionPct: counts.recorded === 0
+          ? null
+          : Math.round((counts.done / counts.recorded) * 1000) / 10,
+      });
+    }
+
+    const denominator = done + omitted;
+    await this.audit.writeClinical({
+      actorId: principal.accountId,
+      action: "CARE_PLAN_ADHERENCE_READ",
+      objectType: "CARE_PLAN",
+      objectId: plan.id,
+      purpose: "PATIENT_ACCESS",
+      result: "SUCCESS",
+      metadata: {
+        domain: "CARE_PLAN",
+        patientId: patient.id,
+        resourceId: plan.id,
+        periodFrom: from.toISOString(),
+        periodTo: to.toISOString(),
+        taskDefinitionCount: tasks.length,
+        recordedOutcomeCount: denominator,
+        decision: "ALLOW",
+      },
+    });
+
+    return {
+      carePlanId: plan.id,
+      patientId: patient.id,
+      period: { from, to },
+      denominator: {
+        value: denominator,
+        definition: "RECORDED_OUTCOMES_ONLY",
+      },
+      summary: {
+        taskDefinitions: tasks.length,
+        recordedOccurrences: denominator,
+        done,
+        omitted,
+        reportedCompletionPct: denominator === 0
+          ? null
+          : Math.round((done / denominator) * 1000) / 10,
+      },
+      tasks: taskSummaries,
+      unrecordedOccurrencesPenalized: false,
+      missedOccurrenceInference: false,
+      automatedClinicalInference: false,
+      explanatoryTextKey: "care_plan.adherence.recorded_outcomes_only",
+    };
+  }
+
   async completePatientTask(principal: AuthPrincipal, taskId: string, input: TaskCompletionInput) {
     const patient = await this.requirePatient(principal);
     const task = await this.prisma.careTask.findUnique({ where: { id: taskId } });

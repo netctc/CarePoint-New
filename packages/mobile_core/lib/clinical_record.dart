@@ -14,6 +14,7 @@ import 'doctor_procedures.dart';
 import 'doctor_care_plan_rpm.dart';
 import 'doctor_orders_coordination.dart';
 import 'questionnaire_requests.dart';
+import 'patient_education.dart';
 
 class ClinicalActionButton extends StatelessWidget {
   const ClinicalActionButton({
@@ -117,6 +118,13 @@ class _ClinicalRecordPageState extends State<ClinicalRecordPage> {
           onPressed: _openChangesSinceLastVisit,
           icon: const Icon(Icons.update_outlined),
           label: Text(doctorChangesSinceLastVisitText(locale, 'title')),
+        ),
+        const SizedBox(height: 10),
+        OutlinedButton.icon(
+          key: const ValueKey('doctor-patient-education-entry'),
+          onPressed: _openPatientEducation,
+          icon: const Icon(Icons.school_outlined),
+          label: Text(patientEducationText(locale, 'doctorTitle')),
         ),
         const SizedBox(height: 10),
         OutlinedButton.icon(
@@ -458,6 +466,15 @@ class _ClinicalRecordPageState extends State<ClinicalRecordPage> {
       ),
     )));
     if (openFullHistory == true && mounted) await showPatientHistory();
+  }
+
+  Future<void> _openPatientEducation() async {
+    final patientId = _map(widget.appointment['patient'])['id']?.toString();
+    if (patientId == null || patientId.isEmpty) return;
+    await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => Directionality(
+      textDirection: locale.textDirection,
+      child: DoctorPatientEducationPage(session: widget.session, locale: locale, patientId: patientId, appointmentId: appointmentId),
+    )));
   }
 
   Future<void> _openQuestionnaireRequests() async {
