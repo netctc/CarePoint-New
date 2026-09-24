@@ -60,6 +60,7 @@ import { PatientHealthSummaryModule } from "./modules/patient-health-summary/pat
 import { PatientEmergencyCardModule } from "./modules/patient-emergency-card/patient-emergency-card.module";
 import { PatientMergeModule } from "./modules/patient-merge/patient-merge.module";
 import { PatientProfileModule } from "./modules/patient-profile/patient-profile.module";
+import { PreventiveCareModule } from "./modules/preventive-care/preventive-care.module";
 import { PhysiotherapyModule } from "./modules/physiotherapy/physiotherapy.module";
 import { ProviderFieldMediaModule } from "./modules/provider-field-media/provider-field-media.module";
 import { QuestionnaireModule } from "./modules/questionnaire/questionnaire.module";
@@ -153,6 +154,7 @@ const isolatedSyntheticPilot = isolatedSyntheticPrivatePilotActive(process.env);
     IamModule,
     LocalizationModule,
     PatientProfileModule,
+    PreventiveCareModule,
     PatientMergeModule,
     HealthProfileModule,
     PatientHealthSummaryModule,
