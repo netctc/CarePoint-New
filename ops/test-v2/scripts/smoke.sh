@@ -13,11 +13,11 @@ check_url() {
 }
 
 failed=0
-check_url "API search" "http://127.0.0.1:4000/api/v1/services/search" || failed=1
-check_url "Admin login" "http://127.0.0.1:3000/login" || failed=1
-check_url "Patient web" "http://127.0.0.1:8080/healthz" || failed=1
-check_url "Doctor web" "http://127.0.0.1:8081/healthz" || failed=1
-check_url "Provider web" "http://127.0.0.1:8082/healthz" || failed=1
+check_url "API search" "http://127.0.0.1:4200/api/v1/services/search" || failed=1
+check_url "Admin login" "http://127.0.0.1:3200/login" || failed=1
+check_url "Patient web" "http://127.0.0.1:8280/healthz" || failed=1
+check_url "Doctor web" "http://127.0.0.1:8281/healthz" || failed=1
+check_url "Provider web" "http://127.0.0.1:8282/healthz" || failed=1
 
 if [[ "$failed" -ne 0 ]]; then
   echo "One or more local test services failed." >&2
