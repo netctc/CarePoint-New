@@ -69,7 +69,7 @@ export function PopulationAnalytics() {
       if (!response.ok) throw new Error(typeof payload.message === "string" ? payload.message : `HTTP ${response.status}`);
       setData(payload as PopulationPayload);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : c.failed);
+      setError(cause instanceof Error ? cause.message : (c.failed ?? "Population analytics could not be loaded."));
     } finally {
       setLoading(false);
     }
