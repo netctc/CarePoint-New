@@ -20,10 +20,22 @@ export type PreventiveEvaluation =
   | { due: true; reason: "IMMUNIZATION_INTERVAL_DUE"; ageYears: number | null; lastImmunizationOn: string; dueSince: string };
 
 export function ageYears(dateOfBirth: string | null | undefined, now: Date): number | null {
-  if (!dateOfBirth || !/^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth)) return null;
-  const [year, month, day] = dateOfBirth.split("-").map(Number);
+  if (!dateOfBirth) return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateOfBirth);
+  if (!match) return null;
+  const yearRaw = match[1];
+  const monthRaw = match[2];
+  const dayRaw = match[3];
+  if (!yearRaw || !monthRaw || !dayRaw) return null;
+  const year = Number(yearRaw);
+  const month = Number(monthRaw);
+  const day = Number(dayRaw);
   const birth = new Date(Date.UTC(year, month - 1, day));
-  if (!Number.isFinite(birth.getTime()) || birth.getTime() > now.getTime()) return null;
+  if (
+    !Number.isFinite(birth.getTime()) ||
+    birth.toISOString().slice(0, 10) !== dateOfBirth ||
+    birth.getTime() > now.getTime()
+  ) return null;
   let age = now.getUTCFullYear() - year;
   const beforeBirthday =
     now.getUTCMonth() + 1 < month ||
@@ -62,11 +74,12 @@ export function evaluatePreventiveRule(
       (item.vaccineCode?.trim().toLowerCase() ?? "") === code,
     )
     .sort((a, b) => b.occurredOn.localeCompare(a.occurredOn));
-  if (matching.length === 0) {
+  const latest = matching[0];
+  if (!latest) {
     return { due: true, reason: "IMMUNIZATION_NOT_RECORDED", ageYears: age };
   }
 
-  const last = matching[0].occurredOn;
+  const last = latest.occurredOn;
   const lastDate = new Date(`${last}T00:00:00.000Z`);
   const intervalDays = rule.intervalDays ?? 0;
   const dueAt = new Date(lastDate.getTime() + intervalDays * 86_400_000);
