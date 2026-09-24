@@ -88,3 +88,36 @@ assert.match(app, /MedicalDeviceModule/);
 console.log("C1 medical-device backend acceptance passed: BE-024/BE-025/ADM-087/ADM-105/PRV-090");
 
 function read(relative){return readFileSync(new URL(relative, import.meta.url),"utf8");}
+
+const adminRegistry = read("../../../apps/admin/app/devices/page.tsx");
+const adminIntegrations = read("../../../apps/admin/app/integrations/devices/page.tsx");
+const adminConsole = read("../../../apps/admin/components/DeviceGovernanceConsole.tsx");
+const adminBff = read("../../../apps/admin/app/api/admin/device-governance/[...segments]/route.ts");
+const providerMobile = read("../../../apps/provider-mobile/lib/nursing_entry.dart");
+const mobileApi = read("../../../packages/mobile_core/lib/carepoint_api.dart");
+
+// ADM-087 / ADM-105 surfaces expose governance without returning stored private secrets.
+assert.match(adminRegistry, /ADM-087/);
+assert.match(adminIntegrations, /ADM-105/);
+assert.match(adminConsole, /privateKeyReturnedOnce|privateKeyPem/);
+assert.match(adminConsole, /CarePoint does not store it|CarePoint no la almacena/);
+assert.match(adminConsole, /webhookPublicKeyPem/);
+assert.match(adminConsole, /publicKeyFingerprint/);
+assert.match(adminConsole, /healthState/);
+assert.match(adminBff, /requireSameOrigin: true/);
+assert.match(adminBff, /MAX_BODY_BYTES = 131072/);
+assert.match(adminBff, /\/admin\/devices/);
+assert.match(adminBff, /\/admin\/integrations\/devices/);
+
+// PRV-090 is visibly distinct from manual observation entry and server provenance is fixed to DEVICE.
+assert.match(mobileApi, /providerAssignedDevices/);
+assert.match(mobileApi, /recordProviderDeviceObservation/);
+assert.match(providerMobile, /recordManual/);
+assert.match(providerMobile, /recordDevice/);
+assert.match(providerMobile, /providerAssignedDevices/);
+assert.match(providerMobile, /recordProviderDeviceObservation/);
+assert.match(providerMobile, /result\['sourceType'\].*'DEVICE'/);
+assert.match(providerMobile, /externalEventId: 'provider-mobile-/);
+for (const locale of ["CarePointLocale.en","CarePointLocale.ar","CarePointLocale.fr","CarePointLocale.es"]) {
+  assert.ok(providerMobile.includes(locale), `Missing PRV-090 locale ${locale}`);
+}

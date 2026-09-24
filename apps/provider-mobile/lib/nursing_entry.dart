@@ -273,8 +273,11 @@ class _ProviderObservationPanelPageState extends State<ProviderObservationPanelP
   bool loading = true;
   String? error;
   List<Map<String, dynamic>> catalog = const [];
+  List<Map<String, dynamic>> devices = const [];
+  String? deviceError;
   final Map<String, TextEditingController> values = {};
   final Map<String, String> units = {};
+  final Map<String, String> selectedDevices = {};
   final Set<String> saving = {};
 
   String get patientId => _patientId(widget.appointment);
@@ -298,6 +301,15 @@ class _ProviderObservationPanelPageState extends State<ProviderObservationPanelP
     if (mounted) setState(() { loading = true; error = null; });
     try {
       final result = await widget.session.api.providerObservationCatalog();
+      Map<String, dynamic> deviceResult = const {};
+      String? nextDeviceError;
+      try {
+        if (patientId.isNotEmpty && encounterId.isNotEmpty) {
+          deviceResult = await widget.session.api.providerAssignedDevices(patientId, encounterId);
+        }
+      } catch (value) {
+        nextDeviceError = value.toString();
+      }
       final next = _mapList(result['items'])
           .where((item) => widget.allowedCodes.contains(item['code']?.toString()))
           .toList(growable: false);
@@ -310,8 +322,24 @@ class _ProviderObservationPanelPageState extends State<ProviderObservationPanelP
             : const <String>[];
         units[code] = units[code] ?? (allowed.isNotEmpty ? allowed.first : item['canonicalUnitCode']?.toString() ?? '');
       }
+      final nextDevices = _mapList(deviceResult['items']);
+      for (final item in next) {
+        final code = item['code']?.toString() ?? '';
+        if (code.isEmpty) continue;
+        final compatible = nextDevices.where((device) {
+          final codes = device['observationCodes'];
+          return codes is List && codes.whereType<String>().contains(code);
+        }).toList(growable: false);
+        if (compatible.isNotEmpty && !compatible.any((device) => device['id']?.toString() == selectedDevices[code])) {
+          selectedDevices[code] = compatible.first['id'].toString();
+        }
+      }
       if (!mounted) return;
-      setState(() => catalog = next);
+      setState(() {
+        catalog = next;
+        devices = nextDevices;
+        deviceError = nextDeviceError;
+      });
     } catch (value) {
       if (mounted) setState(() => error = value.toString());
     } finally {
@@ -347,6 +375,41 @@ class _ProviderObservationPanelPageState extends State<ProviderObservationPanelP
     }
   }
 
+
+  Future<void> _saveDevice(Map<String, dynamic> metric) async {
+    final code = metric['code']?.toString() ?? '';
+    final controller = values[code];
+    final value = double.tryParse(controller?.text.trim() ?? '');
+    final unit = units[code] ?? '';
+    final deviceId = selectedDevices[code] ?? '';
+    if (code.isEmpty || value == null || unit.isEmpty || deviceId.isEmpty || patientId.isEmpty || encounterId.isEmpty) {
+      _message(observationPanelText(widget.locale, 'invalidDevice'));
+      return;
+    }
+    setState(() => saving.add(code));
+    try {
+      final result = await widget.session.api.recordProviderDeviceObservation(
+        patientId,
+        deviceId: deviceId,
+        externalEventId: 'provider-mobile-${DateTime.now().microsecondsSinceEpoch}',
+        code: code,
+        value: value,
+        unitCode: unit,
+        observedAt: DateTime.now(),
+        encounterId: encounterId,
+      );
+      if (result['sourceType']?.toString() != 'DEVICE' || result['sourceId']?.toString() != deviceId) {
+        throw StateError('Device provenance was not preserved by the server.');
+      }
+      controller?.clear();
+      _message(observationPanelText(widget.locale, 'deviceSaved'));
+    } catch (value) {
+      _message(value.toString());
+    } finally {
+      if (mounted) setState(() => saving.remove(code));
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
@@ -366,6 +429,11 @@ class _ProviderObservationPanelPageState extends State<ProviderObservationPanelP
                   title: Text(observationPanelText(widget.locale, 'capabilityBound'), style: const TextStyle(fontWeight: FontWeight.w700)),
                   subtitle: Text(observationPanelText(widget.locale, 'noInference')),
                 )),
+                if (deviceError != null) Card(child: ListTile(
+                  leading: const Icon(Icons.usb_off_outlined),
+                  title: Text(observationPanelText(widget.locale, 'deviceUnavailable')),
+                  subtitle: Text(deviceError!),
+                )),
                 if (catalog.isEmpty && error == null)
                   Padding(
                     padding: const EdgeInsets.all(24),
@@ -384,6 +452,10 @@ class _ProviderObservationPanelPageState extends State<ProviderObservationPanelP
         ? (metric['allowedUnitCodes'] as List).whereType<String>().toList(growable: false)
         : const <String>[];
     final label = _label(_map(metric['labels']), widget.locale);
+    final compatibleDevices = devices.where((device) {
+      final codes = device['observationCodes'];
+      return codes is List && codes.whereType<String>().contains(code);
+    }).toList(growable: false);
     return Card(child: Padding(
       padding: const EdgeInsets.all(14),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -423,9 +495,42 @@ class _ProviderObservationPanelPageState extends State<ProviderObservationPanelP
         const SizedBox(height: 10),
         FilledButton.icon(
           onPressed: saving.contains(code) ? null : () => _save(metric),
-          icon: const Icon(Icons.save_outlined),
-          label: Text(observationPanelText(widget.locale, 'record')),
+          icon: const Icon(Icons.edit_note_outlined),
+          label: Text(observationPanelText(widget.locale, 'recordManual')),
         ),
+        if (compatibleDevices.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Divider(height: 1),
+          const SizedBox(height: 12),
+          Text(observationPanelText(widget.locale, 'deviceSection'), style: const TextStyle(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 4),
+          Text(observationPanelText(widget.locale, 'deviceProvenance'), style: const TextStyle(color: Color(0xFF64748B))),
+          const SizedBox(height: 10),
+          DropdownButtonFormField<String>(
+            key: ValueKey('device-capture-$code'),
+            initialValue: selectedDevices[code],
+            decoration: InputDecoration(
+              labelText: observationPanelText(widget.locale, 'device'),
+              border: const OutlineInputBorder(),
+            ),
+            items: compatibleDevices.map((device) {
+              final model = _map(device['model']);
+              return DropdownMenuItem(
+                value: device['id']?.toString(),
+                child: Text('${model['manufacturer'] ?? ''} ${model['modelName'] ?? ''} · ${device['serialNumber'] ?? ''}'),
+              );
+            }).toList(growable: false),
+            onChanged: saving.contains(code) ? null : (value) => setState(() {
+              if (value != null) selectedDevices[code] = value;
+            }),
+          ),
+          const SizedBox(height: 10),
+          FilledButton.tonalIcon(
+            onPressed: saving.contains(code) ? null : () => _saveDevice(metric),
+            icon: const Icon(Icons.sensors_outlined),
+            label: Text(observationPanelText(widget.locale, 'recordDevice')),
+          ),
+        ],
       ]),
     ));
   }
@@ -438,16 +543,16 @@ class _ProviderObservationPanelPageState extends State<ProviderObservationPanelP
 String observationPanelText(CarePointLocale locale, String key) {
   const values = <CarePointLocale, Map<String, String>>{
     CarePointLocale.en: {
-      'title':'Vitals & observations','capabilityBound':'Capability-bound panel','noInference':'Only metrics authorized for this provider category are shown. Units/ranges are enforced by the server; no automated diagnosis is produced.','empty':'No observation metric is enabled for this category.','value':'Value','unit':'Unit','record':'Record observation','saved':'Observation recorded.','invalid':'Enter a valid value and unit for this visit.'
+      'title':'Vitals & observations','capabilityBound':'Capability-bound panel','noInference':'Only metrics authorized for this provider category are shown. Units/ranges are enforced by the server; no automated diagnosis is produced.','empty':'No observation metric is enabled for this category.','value':'Value','unit':'Unit','record':'Record observation','recordManual':'Record manual observation','recordDevice':'Import authorized device reading','deviceSection':'Authorized device capture','device':'Device','deviceProvenance':'Device imports are stored with DEVICE provenance and can never impersonate a manual/provider entry.','deviceSaved':'Device observation imported.','deviceUnavailable':'Authorized devices unavailable','saved':'Observation recorded.','invalid':'Enter a valid value and unit for this visit.','invalidDevice':'Choose an authorized device and enter a valid captured value/unit.'
     },
     CarePointLocale.ar: {
-      'title':'العلامات الحيوية والملاحظات','capabilityBound':'لوحة مقيدة بالصلاحيات','noInference':'تظهر فقط المقاييس المسموح بها لفئة مقدم الخدمة. يفرض الخادم الوحدات والنطاقات ولا ينتج أي تشخيص آلي.','empty':'لا يوجد مقياس ملاحظات مفعّل لهذه الفئة.','value':'القيمة','unit':'الوحدة','record':'تسجيل الملاحظة','saved':'تم تسجيل الملاحظة.','invalid':'أدخل قيمة ووحدة صالحتين لهذه الزيارة.'
+      'title':'العلامات الحيوية والملاحظات','capabilityBound':'لوحة مقيدة بالصلاحيات','noInference':'تظهر فقط المقاييس المسموح بها لفئة مقدم الخدمة. يفرض الخادم الوحدات والنطاقات ولا ينتج أي تشخيص آلي.','empty':'لا يوجد مقياس ملاحظات مفعّل لهذه الفئة.','value':'القيمة','unit':'الوحدة','record':'تسجيل الملاحظة','recordManual':'تسجيل ملاحظة يدوية','recordDevice':'استيراد قراءة جهاز مصرح','deviceSection':'التقاط من جهاز مصرح','device':'الجهاز','deviceProvenance':'تُحفظ قراءات الجهاز بمصدر DEVICE ولا يمكن أن تنتحل إدخالاً يدوياً/مهنياً.','deviceSaved':'تم استيراد قراءة الجهاز.','deviceUnavailable':'الأجهزة المصرح بها غير متاحة','saved':'تم تسجيل الملاحظة.','invalid':'أدخل قيمة ووحدة صالحتين لهذه الزيارة.','invalidDevice':'اختر جهازاً مصرحاً وأدخل قيمة ووحدة صالحتين.'
     },
     CarePointLocale.fr: {
-      'title':'Constantes et observations','capabilityBound':'Panneau limité par capacité','noInference':'Seules les métriques autorisées pour cette catégorie sont affichées. Le serveur impose unités/plages et ne produit aucun diagnostic automatisé.','empty':'Aucune métrique d’observation n’est activée pour cette catégorie.','value':'Valeur','unit':'Unité','record':'Enregistrer','saved':'Observation enregistrée.','invalid':'Saisissez une valeur et une unité valides pour cette visite.'
+      'title':'Constantes et observations','capabilityBound':'Panneau limité par capacité','noInference':'Seules les métriques autorisées pour cette catégorie sont affichées. Le serveur impose unités/plages et ne produit aucun diagnostic automatisé.','empty':'Aucune métrique d’observation n’est activée pour cette catégorie.','value':'Valeur','unit':'Unité','record':'Enregistrer','recordManual':'Saisie manuelle','recordDevice':'Importer la mesure du dispositif','deviceSection':'Capture par dispositif autorisé','device':'Dispositif','deviceProvenance':'Les mesures importées gardent la provenance DEVICE et ne peuvent pas se faire passer pour une saisie manuelle/professionnelle.','deviceSaved':'Mesure du dispositif importée.','deviceUnavailable':'Dispositifs autorisés indisponibles','saved':'Observation enregistrée.','invalid':'Saisissez une valeur et une unité valides pour cette visite.','invalidDevice':'Choisissez un dispositif autorisé et une valeur/unité valide.'
     },
     CarePointLocale.es: {
-      'title':'Constantes y observaciones','capabilityBound':'Panel limitado por capability','noInference':'Solo se muestran métricas autorizadas para esta categoría. El servidor aplica unidades/rangos y no genera diagnóstico automático.','empty':'No hay ninguna métrica de observación habilitada para esta categoría.','value':'Valor','unit':'Unidad','record':'Registrar observación','saved':'Observación registrada.','invalid':'Introduce un valor y una unidad válidos para esta visita.'
+      'title':'Constantes y observaciones','capabilityBound':'Panel limitado por capability','noInference':'Solo se muestran métricas autorizadas para esta categoría. El servidor aplica unidades/rangos y no genera diagnóstico automático.','empty':'No hay ninguna métrica de observación habilitada para esta categoría.','value':'Valor','unit':'Unidad','record':'Registrar observación','recordManual':'Registrar observación manual','recordDevice':'Importar lectura de dispositivo','deviceSection':'Captura desde dispositivo autorizado','device':'Dispositivo','deviceProvenance':'Las lecturas importadas se guardan con provenance DEVICE y nunca pueden hacerse pasar por una entrada manual/profesional.','deviceSaved':'Lectura del dispositivo importada.','deviceUnavailable':'Dispositivos autorizados no disponibles','saved':'Observación registrada.','invalid':'Introduce un valor y una unidad válidos para esta visita.','invalidDevice':'Elige un dispositivo autorizado e introduce un valor/unidad válido.'
     },
   };
   return values[locale]?[key] ?? values[CarePointLocale.en]![key] ?? key;
