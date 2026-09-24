@@ -350,7 +350,7 @@ export class IntegrationGatewaysService {
         internalCodeSystem,
         internalCode,
         internalDisplay,
-        canonicalUnit,
+        canonicalUnit: canonicalUnit ?? null,
         createdByActorId: principal.accountId,
       },
     });
@@ -711,12 +711,15 @@ export class IntegrationGatewaysService {
       const row = entry as Record<string, unknown>;
       const externalCode = this.text(row.externalCode, 120, `observations[${index}].externalCode`);
       if (typeof row.value !== "string" && typeof row.value !== "number") throw new BadRequestException(`observations[${index}].value is invalid.`);
+      const unit = this.optionalText(row.unit, 80, `observations[${index}].unit`);
+      const referenceRange = this.optionalText(row.referenceRange, 160, `observations[${index}].referenceRange`);
+      const flag = this.optionalText(row.flag, 40, `observations[${index}].flag`);
       return {
         externalCode,
         value: row.value,
-        unit: this.optionalText(row.unit, 80, `observations[${index}].unit`),
-        referenceRange: this.optionalText(row.referenceRange, 160, `observations[${index}].referenceRange`),
-        flag: this.optionalText(row.flag, 40, `observations[${index}].flag`),
+        ...(unit ? { unit } : {}),
+        ...(referenceRange ? { referenceRange } : {}),
+        ...(flag ? { flag } : {}),
       };
     });
     const observedAt = this.optionalIso(value.observedAt, "observedAt");
