@@ -207,7 +207,7 @@ export class PatientClinicalShareService {
     }
     let payload: unknown;
     try {
-      payload = JSON.parse(bytes.toString("utf8"));
+      payload = JSON.parse(Buffer.from(bytes).toString("utf8"));
     } catch {
       throw new ConflictException("Temporary clinical share payload is invalid.");
     }

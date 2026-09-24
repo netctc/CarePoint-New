@@ -49,7 +49,7 @@ class PatientClinicalExportApi {
   }
 
   Future<Map<String, dynamic>> temporaryShares() {
-    return _jsonRequest('GET', '/patient/clinical-shares');
+    return _jsonRequest('GET', '/patient/clinical-summary-shares');
   }
 
   Future<Map<String, dynamic>> createTemporaryShare({
@@ -58,7 +58,7 @@ class PatientClinicalExportApi {
   }) async {
     final value = await _jsonRequest(
       'POST',
-      '/patient/clinical-shares/temporary-link',
+      '/patient/clinical-summary-shares/temporary-link',
       body: {
         'scope': scope.trim().toUpperCase(),
         'ttlMinutes': ttlMinutes,
@@ -77,7 +77,7 @@ class PatientClinicalExportApi {
   Future<Map<String, dynamic>> revokeTemporaryShare(String shareId) {
     return _jsonRequest(
       'POST',
-      '/patient/clinical-shares/${Uri.encodeComponent(shareId)}/revoke',
+      '/patient/clinical-summary-shares/${Uri.encodeComponent(shareId)}/revoke',
       body: const {},
     );
   }

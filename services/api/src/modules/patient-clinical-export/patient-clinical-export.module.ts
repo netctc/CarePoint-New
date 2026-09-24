@@ -59,7 +59,7 @@ class PatientClinicalExportController {
 }
 
 
-@Controller("patient/clinical-shares")
+@Controller("patient/clinical-summary-shares")
 class PatientClinicalShareController {
   constructor(private readonly shares: PatientClinicalShareService) {}
 
