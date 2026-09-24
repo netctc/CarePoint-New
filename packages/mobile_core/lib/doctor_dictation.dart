@@ -81,7 +81,7 @@ class _DoctorDictationDialogState extends State<DoctorDictationDialog> {
       return;
     }
     await speech.listen(
-      localeId: _speechLocale(widget.locale),
+      listenOptions: stt.SpeechListenOptions(localeId: _speechLocale(widget.locale)),
       onResult: (result) {
         if (!mounted || securedJobId != null) return;
         transcript.value = transcript.value.copyWith(
