@@ -66,3 +66,4 @@ for(const locale of ["CarePointLocale.en","CarePointLocale.ar","CarePointLocale.
 }
 console.log("DOC-085 governed patient education acceptance passed");
 function read(relative){return readFileSync(new URL(relative,import.meta.url),"utf8");}
+await import("./v2-admin-patient-education-catalog-smoke.mjs");
