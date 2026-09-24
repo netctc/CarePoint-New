@@ -167,4 +167,20 @@ extension CarePointTransportApi on CarePointApi {
         'status': status,
         if (etaMinutes != null) 'etaMinutes': etaMinutes,
       }));
+  Future<Map<String, dynamic>> changeProviderTransportDestination(
+    String requestId, {
+    required double destinationLatitude,
+    required double destinationLongitude,
+    String? destinationAddress,
+    required String reasonCode,
+    required String idempotencyKey,
+  }) async => _asMap(await _send('POST', '/provider/transport/jobs/$requestId/destination-change', body: {
+    'destinationLatitude': destinationLatitude,
+    'destinationLongitude': destinationLongitude,
+    if (destinationAddress?.trim().isNotEmpty == true) 'destinationAddress': destinationAddress!.trim(),
+    'reasonCode': reasonCode,
+    'idempotencyKey': idempotencyKey,
+  }));
+
+
 }
