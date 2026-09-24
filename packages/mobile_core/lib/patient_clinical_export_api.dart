@@ -48,6 +48,40 @@ class PatientClinicalExportApi {
     );
   }
 
+  Future<Map<String, dynamic>> temporaryShares() {
+    return _jsonRequest('GET', '/patient/clinical-shares');
+  }
+
+  Future<Map<String, dynamic>> createTemporaryShare({
+    required String scope,
+    required int ttlMinutes,
+  }) async {
+    final value = await _jsonRequest(
+      'POST',
+      '/patient/clinical-shares/temporary-link',
+      body: {
+        'scope': scope.trim().toUpperCase(),
+        'ttlMinutes': ttlMinutes,
+      },
+    );
+    final relativePath = value['relativePath']?.toString();
+    if (relativePath == null || !relativePath.startsWith('/s/')) {
+      throw const CarePointApiException('Temporary clinical share did not return a secure relative path.');
+    }
+    return {
+      ...value,
+      'shareUrl': '${api.baseUrl}$relativePath',
+    };
+  }
+
+  Future<Map<String, dynamic>> revokeTemporaryShare(String shareId) {
+    return _jsonRequest(
+      'POST',
+      '/patient/clinical-shares/${Uri.encodeComponent(shareId)}/revoke',
+      body: const {},
+    );
+  }
+
   Future<CarePointDownloadedClinicalExport> download(String jobId) async {
     final grant = await issueDownloadGrant(jobId);
     final signedUrl = grant['signedUrl']?.toString();

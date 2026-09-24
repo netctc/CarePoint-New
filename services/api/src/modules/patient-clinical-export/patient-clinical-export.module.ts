@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Header, Module, Param, Post, Query, StreamableFile } from "@nestjs/common";
 import type { AuthPrincipal } from "@carepoint/identity";
-import { CurrentPrincipal, RequirePermissions } from "../../security/api-security.module";
+import { CurrentPrincipal, Public, RequirePermissions } from "../../security/api-security.module";
 import { DependentsModule } from "../dependents/dependents.module";
 import { DocumentStorageService } from "../documents/document-storage.service";
 import { DocumentsEnvelopeService } from "../documents/documents-envelope.service";
@@ -10,6 +10,10 @@ import {
   PatientClinicalExportService,
   type CreatePatientClinicalExportInput,
 } from "./patient-clinical-export.service";
+import {
+  PatientClinicalShareService,
+  type CreatePatientClinicalShareInput,
+} from "./patient-clinical-share.service";
 
 @Controller("patient/exports")
 class PatientClinicalExportController {
@@ -54,6 +58,48 @@ class PatientClinicalExportController {
   }
 }
 
+
+@Controller("patient/clinical-shares")
+class PatientClinicalShareController {
+  constructor(private readonly shares: PatientClinicalShareService) {}
+
+  @RequirePermissions("PATIENT_READ_CLINICAL_RECORD")
+  @Get()
+  @Header("Cache-Control", "no-store")
+  list(@CurrentPrincipal() principal: AuthPrincipal) {
+    return this.shares.list(principal);
+  }
+
+  @RequirePermissions("PATIENT_READ_CLINICAL_RECORD")
+  @Post("temporary-link")
+  @Header("Cache-Control", "no-store")
+  create(@CurrentPrincipal() principal: AuthPrincipal, @Body() body: CreatePatientClinicalShareInput) {
+    return this.shares.create(principal, body ?? {});
+  }
+
+  @RequirePermissions("PATIENT_READ_CLINICAL_RECORD")
+  @Post(":shareId/revoke")
+  @Header("Cache-Control", "no-store")
+  revoke(@CurrentPrincipal() principal: AuthPrincipal, @Param("shareId") shareId: string) {
+    return this.shares.revoke(principal, shareId);
+  }
+}
+
+@Public()
+@Controller("s")
+class PublicPatientClinicalShareController {
+  constructor(private readonly shares: PatientClinicalShareService) {}
+
+  @Get(":token")
+  @Header("Cache-Control", "no-store, max-age=0")
+  @Header("Pragma", "no-cache")
+  @Header("Referrer-Policy", "no-referrer")
+  @Header("X-Content-Type-Options", "nosniff")
+  get(@Param("token") token: string) {
+    return this.shares.readPublic(token);
+  }
+}
+
 @Controller("admin/patient-exports")
 @RequirePermissions("DATA_GOVERNANCE_MANAGE")
 class PatientClinicalExportAdminController {
@@ -72,10 +118,16 @@ class PatientClinicalExportAdminController {
 
 @Module({
   imports: [DependentsModule, PatientHealthSummaryModule],
-  controllers: [PatientClinicalExportController, PatientClinicalExportAdminController],
+  controllers: [
+    PatientClinicalExportController,
+    PatientClinicalShareController,
+    PublicPatientClinicalShareController,
+    PatientClinicalExportAdminController,
+  ],
   providers: [
     PatientClinicalExportService,
     PatientClinicalExportAdminService,
+    PatientClinicalShareService,
     DocumentStorageService,
     DocumentsEnvelopeService,
   ],
