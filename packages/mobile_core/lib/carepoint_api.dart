@@ -118,6 +118,24 @@ class CarePointApi {
     return _asMap(await _send('POST', '/provider/services', body: {'labels': labels, 'currency': currency, 'modalities': [{'modality': modality, 'durationMinutes': durationMinutes, 'priceMinor': priceMinor}]}));
   }
   Future<List<Map<String, dynamic>>> providerAppointments({DateTime? from, DateTime? to}) async => _asList(await _send('GET', '/provider/appointments', query: {if (from != null) 'from': from.toUtc().toIso8601String(), if (to != null) 'to': to.toUtc().toIso8601String()}));
+  Future<Map<String, dynamic>> providerFieldJobs() async =>
+      _asMap(await _send('GET', '/provider/jobs'));
+  Future<Map<String, dynamic>> providerSupplyCatalog() async =>
+      _asMap(await _send('GET', '/provider/supplies/catalog'));
+  Future<Map<String, dynamic>> providerJobSupplies(String jobId) async =>
+      _asMap(await _send('GET', '/provider/jobs/${Uri.encodeComponent(jobId)}/supplies'));
+  Future<Map<String, dynamic>> recordProviderJobSupply(
+    String jobId, {
+    required String supplyItemId,
+    required num quantity,
+    required String unitCode,
+    required String idempotencyKey,
+  }) async => _asMap(await _send('POST', '/provider/jobs/${Uri.encodeComponent(jobId)}/supplies', body: {
+    'supplyItemId': supplyItemId,
+    'quantity': quantity,
+    'unitCode': unitCode,
+    'idempotencyKey': idempotencyKey,
+  }));
   Future<Map<String, dynamic>> secureProviderContact({
     required String appointmentId,
     required String subject,
