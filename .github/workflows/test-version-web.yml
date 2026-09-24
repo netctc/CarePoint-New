@@ -86,8 +86,6 @@ jobs:
 
       - name: Capture reproducible test-build manifest
         working-directory: apps/${{ matrix.app }}
-        env:
-          CAREPOINT_TEST_ARTIFACT_LABEL: ${{ github.event_name == 'workflow_dispatch' && inputs.artifact_label || 'pull-request-validation' }}
         run: |
           mkdir -p build/test-evidence
           find build/web -type f -print | LC_ALL=C sort | while IFS= read -r file; do sha256sum "$file"; done > build/test-evidence/web-files.sha256
