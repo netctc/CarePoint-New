@@ -1,0 +1,53 @@
+model QuestionnaireTriggerRule {
+  id        String                            @id @default(uuid())
+  code      String                            @unique
+  labels    Json
+  active    Boolean                           @default(true)
+  createdAt DateTime                          @default(now())
+  updatedAt DateTime                          @updatedAt
+  versions  QuestionnaireTriggerRuleVersion[]
+  @@index([active, code])
+}
+
+model QuestionnaireTriggerRuleVersion {
+  id                     String                         @id @default(uuid())
+  ruleId                 String
+  version                Int
+  status                 String                         @default("DRAFT")
+  questionnaireVersionId String
+  triggerType            String
+  config                 Json
+  createdByActorId       String?
+  lastSimulatedAt        DateTime?
+  simulationDigest       String?
+  activatedAt            DateTime?
+  retiredAt              DateTime?
+  createdAt              DateTime                       @default(now())
+  rule                    QuestionnaireTriggerRule       @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  dispatches              QuestionnaireTriggerDispatch[]
+  @@unique([ruleId, version])
+  @@index([status, triggerType, activatedAt])
+  @@index([questionnaireVersionId, status])
+}
+
+model QuestionnaireTriggerDispatch {
+  id                     String                          @id @default(uuid())
+  ruleVersionId          String
+  patientId              String
+  eventId                String
+  eventType              String
+  questionnaireVersionId String
+  appointmentId          String?
+  sourceRef              String?
+  status                 String                          @default("PENDING")
+  reason                 String
+  dueAt                  DateTime
+  completedResponseId    String?
+  completedAt            DateTime?
+  createdAt              DateTime                        @default(now())
+  ruleVersion            QuestionnaireTriggerRuleVersion @relation(fields: [ruleVersionId], references: [id], onDelete: Cascade)
+  @@unique([ruleVersionId, patientId, eventId])
+  @@index([patientId, status, dueAt])
+  @@index([questionnaireVersionId, patientId, status])
+  @@index([appointmentId, status])
+}

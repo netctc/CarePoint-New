@@ -2,6 +2,7 @@ import { Body, Controller, Get, Header, Module, Param, Patch, Post } from "@nest
 import type { AuthPrincipal } from "@carepoint/identity";
 import { CurrentPrincipal, RequirePermissions } from "../../security/api-security.module";
 import { ClinicalModule } from "../clinical/clinical.module";
+import { QuestionnaireTriggersModule } from "../questionnaire-triggers/questionnaire-triggers.module";
 import { QuestionnaireReviewService } from "./questionnaire-review.service";
 import {
   QuestionnaireService,
@@ -184,7 +185,7 @@ class DoctorQuestionnaireController {
 }
 
 @Module({
-  imports: [ClinicalModule],
+  imports: [ClinicalModule, QuestionnaireTriggersModule],
   controllers: [
     AdminQuestionnaireController,
     PatientQuestionnaireController,
