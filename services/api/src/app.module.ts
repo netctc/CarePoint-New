@@ -69,6 +69,7 @@ import { OtherProviderWorkspaceModule } from "./modules/other-provider-workspace
 import { ProviderFieldJobsModule } from "./modules/other-provider-workspace/provider-field-jobs.module";
 import { ProviderFieldRouteModule } from "./modules/other-provider-workspace/provider-field-route.module";
 import { ProviderWorkQueueModule } from "./modules/other-provider-workspace/provider-work-queue.module";
+import { ProviderSuppliesModule } from "./modules/provider-supplies/provider-supplies.module";
 import { ProviderFollowUpModule } from "./modules/provider-follow-up/provider-follow-up.module";
 import { ProviderOfflineSyncModule } from "./modules/provider-offline-sync/provider-offline-sync.module";
 import { ProvidersModule } from "./modules/providers/providers.module";
@@ -136,6 +137,7 @@ const isolatedSyntheticPilot = isolatedSyntheticPrivatePilotActive(process.env);
     ProviderFieldJobsModule,
     ProviderFieldRouteModule,
     ProviderWorkQueueModule,
+    ProviderSuppliesModule,
     ProviderNursingWorkflowsModule,
     PhysiotherapyModule,
     NutritionModule,
