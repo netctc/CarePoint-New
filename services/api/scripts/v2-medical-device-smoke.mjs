@@ -11,6 +11,7 @@ const migration = read("../prisma/migrations/20260924213000_v2_medical_devices/m
 const moduleSource = read("../src/modules/medical-devices/medical-device.module.ts");
 const service = read("../src/modules/medical-devices/medical-device.service.ts");
 const app = read("../src/app.module.ts");
+const providerCapabilities = read("../src/modules/providers/provider-category-capabilities.ts");
 
 test("signed device envelope is stable, Ed25519-verifiable and replay-window bounded", () => {
   const pair = generateKeyPairSync("ed25519");
@@ -79,6 +80,8 @@ assert.match(service, /SIGNATURE_INVALID/);
 assert.match(moduleSource, /@Controller\("provider\/device-observations"\)/);
 assert.match(moduleSource, /CLINICAL_RECORD_WRITE/);
 assert.match(service, /principal\.role !== "OTHER_PROVIDER"/);
+assert.match(providerCapabilities, /"DEVICE_CAPTURE"/);
+assert.match(service, /context\.workflowCapabilities\.has\("DEVICE_CAPTURE"\)/);
 assert.match(service, /context\.observationCodes\.has\(measurement\.code\)/);
 assert.match(service, /Device is not assigned to this provider\/patient context/);
 assert.match(service, /Assigned confirmed\/completed appointment is required/);

@@ -313,6 +313,9 @@ export class MedicalDeviceService {
   async assignedDevices(principal: AuthPrincipal, patientIdRaw: string, appointmentIdRaw: string) {
     if (principal.role !== "OTHER_PROVIDER") throw new ForbiddenException("Device capture requires OTHER_PROVIDER role.");
     const context = await this.capabilities.workspaceContext(principal);
+    if (!context.workflowCapabilities.has("DEVICE_CAPTURE")) {
+      throw new ForbiddenException("Other Provider category is not authorized for workflow capability DEVICE_CAPTURE.");
+    }
     const patientId = this.id(patientIdRaw, "patientId");
     const appointmentId = this.id(appointmentIdRaw, "appointmentId");
     await this.requireEncounter(context.providerId, patientId, appointmentId);
@@ -355,6 +358,9 @@ export class MedicalDeviceService {
   async captureFromProvider(principal: AuthPrincipal, patientIdRaw: string, raw: Record<string, unknown>) {
     if (principal.role !== "OTHER_PROVIDER") throw new ForbiddenException("Device capture requires OTHER_PROVIDER role.");
     const context = await this.capabilities.workspaceContext(principal);
+    if (!context.workflowCapabilities.has("DEVICE_CAPTURE")) {
+      throw new ForbiddenException("Other Provider category is not authorized for workflow capability DEVICE_CAPTURE.");
+    }
     const patientId = this.id(patientIdRaw, "patientId");
     const deviceId = this.id(raw.deviceId, "deviceId");
     const encounterId = this.id(raw.encounterId, "encounterId");
