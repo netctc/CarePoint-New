@@ -333,6 +333,14 @@ class CarePointApi {
       _asMap(await _send('GET', '/patient/care-plans/$carePlanId/goals'));
   Future<Map<String, dynamic>> patientCarePlanTasks(String carePlanId) async =>
       _asMap(await _send('GET', '/patient/care-plans/$carePlanId/tasks'));
+  Future<Map<String, dynamic>> patientCarePlanAdherence(
+    String carePlanId, {
+    DateTime? from,
+    DateTime? to,
+  }) async => _asMap(await _send('GET', '/patient/care-plans/$carePlanId/adherence', query: {
+    if (from != null) 'from': from.toUtc().toIso8601String(),
+    if (to != null) 'to': to.toUtc().toIso8601String(),
+  }));
   Future<Map<String, dynamic>> completePatientCareTask(
     String taskId, {
     required String occurrenceKey,
