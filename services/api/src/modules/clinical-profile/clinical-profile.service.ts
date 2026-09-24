@@ -11,6 +11,7 @@ import type { EncryptedEnvelope } from "@carepoint/security";
 import { PrismaService } from "../../infrastructure/prisma/prisma.module";
 import { DatabaseAuditService } from "../../infrastructure/audit/audit.service";
 import { ClinicalEnvelopeService } from "../clinical/clinical-envelope.service";
+import { QuestionnaireTriggerService } from "../questionnaire-triggers/questionnaire-trigger.service";
 import {
   changedClinicalProfileFields,
   normalizeClinicalProfileKind,
@@ -58,6 +59,7 @@ export class ClinicalProfileService {
     private readonly prisma: PrismaService,
     private readonly audit: DatabaseAuditService,
     private readonly envelope: ClinicalEnvelopeService,
+    private readonly questionnaireTriggers: QuestionnaireTriggerService,
   ) {}
 
   async listMine(principal: AuthPrincipal, kind?: string) {
@@ -316,6 +318,9 @@ export class ClinicalProfileService {
       return row;
     });
 
+    if (kind === "PROCEDURE") {
+      await this.questionnaireTriggers.safeDispatchProcedureRecorded(result.id);
+    }
     return this.present(result, payload, accessBasis);
   }
 
