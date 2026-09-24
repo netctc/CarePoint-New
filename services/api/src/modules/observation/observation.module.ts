@@ -2,6 +2,8 @@ import { Body, Controller, Get, Header, Module, Param, Patch, Post, Query } from
 import type { AuthPrincipal } from "@carepoint/identity";
 import { CurrentPrincipal, RequirePermissions } from "../../security/api-security.module";
 import { ClinicalModule } from "../clinical/clinical.module";
+import { ClinicalProfileModule } from "../clinical-profile/clinical-profile.module";
+import { OrdersModule } from "../orders/orders.module";
 import { ProvidersModule } from "../providers/providers.module";
 import {
   ObservationService,
@@ -15,6 +17,8 @@ import { ObservationTrendService } from "./observation-trend.service";
 import { ObservationContextService, type UpdateObservationContextInput } from "./observation-context.service";
 import { ObservationCorrectionService, type CorrectObservationInput } from "./observation-correction.service";
 import { ProviderObservationService } from "./provider-observation.service";
+import { ProviderGlucoseTrendController } from "./glucose-trend.controller";
+import { GlucoseTrendService } from "./glucose-trend.service";
 
 @Controller("admin/clinical-metrics")
 class AdminClinicalMetricController {
@@ -234,15 +238,16 @@ class ProviderObservationController {
 }
 
 @Module({
-  imports: [ClinicalModule, ProvidersModule],
+  imports: [ClinicalModule, ClinicalProfileModule, OrdersModule, ProvidersModule],
   controllers: [
     AdminClinicalMetricController,
     PatientObservationController,
     DoctorObservationController,
     ProviderObservationCatalogController,
     ProviderObservationController,
+    ProviderGlucoseTrendController,
   ],
-  providers: [ObservationService, ProviderObservationService, ObservationTrendService, ObservationContextService, ObservationCorrectionService],
-  exports: [ObservationService, ProviderObservationService, ObservationTrendService, ObservationContextService, ObservationCorrectionService],
+  providers: [ObservationService, ProviderObservationService, ObservationTrendService, ObservationContextService, ObservationCorrectionService, GlucoseTrendService],
+  exports: [ObservationService, ProviderObservationService, ObservationTrendService, ObservationContextService, ObservationCorrectionService, GlucoseTrendService],
 })
 export class ObservationModule {}

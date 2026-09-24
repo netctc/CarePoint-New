@@ -11,6 +11,8 @@ const {
 
 await import("./v2-lab-series-smoke.mjs");
 await import("./v2-contextual-glucose-smoke.mjs");
+await import("./v2-glucose-trends-smoke.mjs");
+await import("./v2-doctor-glucose-trends-ui-smoke.mjs");
 
 const conversions = [
   { fromUnitCode: "LB", toUnitCode: "KG", multiplier: 0.45359237, offset: 0 },
