@@ -568,6 +568,7 @@ class CarePointApi {
     'idempotencyKey': idempotencyKey,
   }));
 
+
   // DOC-076..078 — Doctor refill, imaging and referral coordination.
   Future<Map<String, dynamic>> doctorRefillRequests() async =>
       _asMap(await _send('GET', '/provider/refill-requests'));
@@ -664,6 +665,32 @@ class CarePointApi {
       _asMap(await _send('GET', '/patient/observations/catalog'));
   Future<Map<String, dynamic>> providerObservationCatalog() async =>
       _asMap(await _send('GET', '/provider/observations/catalog'));
+  Future<Map<String, dynamic>> providerAssignedDevices(String patientId, String appointmentId) async =>
+      _asMap(await _send('GET', '/provider/device-observations/devices', query: {
+        'patientId': patientId,
+        'appointmentId': appointmentId,
+      }));
+  Future<Map<String, dynamic>> recordProviderDeviceObservation(
+    String patientId, {
+    required String deviceId,
+    required String externalEventId,
+    required String code,
+    required double value,
+    required String unitCode,
+    required DateTime observedAt,
+    required String encounterId,
+    String? glucoseContext,
+  }) async => _asMap(await _send('POST', '/provider/device-observations', body: {
+    'patientId': patientId,
+    'deviceId': deviceId,
+    'externalEventId': externalEventId,
+    'code': code,
+    'value': value,
+    'unitCode': unitCode,
+    'observedAt': observedAt.toUtc().toIso8601String(),
+    'encounterId': encounterId,
+    if (glucoseContext?.trim().isNotEmpty == true) 'glucoseContext': glucoseContext!.trim().toUpperCase(),
+  }));
   Future<Map<String, dynamic>> recordProviderObservation(
     String patientId, {
     required String code,

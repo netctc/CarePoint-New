@@ -6,7 +6,7 @@
     "dev": "next dev -p 3000",
     "build": "next build",
     "start": "next start -p 3000",
-    "test": "npm run c16:admin-backend-egress && npm run v2:b6-governance && npm run v2:b6-operations && npm run v2:break-glass-review && npm run v2:provider-taxonomy && npm run v2:clinical-governance-ui && npm run v2:admin-rpm-care-plan && npm run v2:questionnaire-builder && npm run v2:questionnaire-triggers",
+    "test": "npm run c16:admin-backend-egress && npm run v2:b6-governance && npm run v2:b6-operations && npm run v2:break-glass-review && npm run v2:provider-taxonomy && npm run v2:clinical-governance-ui && npm run v2:admin-rpm-care-plan && npm run v2:questionnaire-builder && npm run v2:questionnaire-triggers && npm run v2:devices",
     "c16:admin-backend-egress": "node scripts/c16-admin-backend-egress-smoke.mjs",
     "typecheck": "tsc --noEmit",
     "v2:b6-governance": "node scripts/v2-b6-governance-smoke.mjs",
@@ -16,7 +16,8 @@
     "v2:clinical-governance-ui": "node scripts/v2-clinical-governance-ui-smoke.mjs",
     "v2:admin-rpm-care-plan": "node scripts/v2-admin-rpm-care-plan-smoke.mjs",
     "v2:questionnaire-builder": "node scripts/v2-questionnaire-builder-smoke.mjs",
-    "v2:questionnaire-triggers": "node scripts/v2-questionnaire-trigger-rules-smoke.mjs"
+    "v2:questionnaire-triggers": "node scripts/v2-questionnaire-trigger-rules-smoke.mjs",
+    "v2:devices": "node scripts/v2-device-governance-smoke.mjs"
   },
   "dependencies": {
     "next": ">=16 <17",
