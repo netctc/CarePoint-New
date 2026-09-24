@@ -30,7 +30,7 @@ assert.match(execute,/planDigest|body/);
 assert.match(ui,/type DeletionJob/);
 assert.match(ui,/dryRun\(policy/);
 assert.match(ui,/expectedVersion:policy\.currentVersion/);
-assert.match(ui,/job\.status === "PREVIEWED"/);
+assert.match(ui,/job\.status !== "PREVIEWED"/);
 assert.match(ui,/planDigest:job\.planDigest/);
 assert.match(ui,/window\.confirm/);
 assert.match(ui,/latest\.action==="PROTECT_ONLY"/);
