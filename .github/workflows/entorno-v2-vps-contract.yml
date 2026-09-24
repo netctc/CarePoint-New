@@ -26,9 +26,9 @@ jobs:
       - name: Enforce synthetic lane boundaries
         run: |
           test -z "$(find ops/test-v2 -type f -name '.env*' -print)"
-          grep -q '127.0.0.1:4000:4000' ops/test-v2/compose.yaml
-          grep -q '127.0.0.1:3000:3000' ops/test-v2/compose.yaml
-          grep -q 'PR #375' ops/test-v2/README.md
+          grep -q '127.0.0.1:4200:4200' ops/test-v2/compose.yaml
+          grep -q '127.0.0.1:3200:3200' ops/test-v2/compose.yaml
+          grep -q 'PR #420' ops/test-v2/README.md
           grep -qi 'synthetic' ops/test-v2/README.md
           ! grep -Eq '0\.0\.0\.0:(5432|6379)' ops/test-v2/compose.yaml
       - name: Validate Nginx template placeholders
