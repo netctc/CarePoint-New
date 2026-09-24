@@ -86,8 +86,8 @@ jobs:
             __API_DOMAIN__ __ADMIN_DOMAIN__ __PATIENT_DOMAIN__ __DOCTOR_DOMAIN__ __PROVIDER_DOMAIN__; do
             grep -q "${placeholder}" "${template}"
           done
-          grep -q '127.0.0.1:4000' "${template}"
-          grep -q '127.0.0.1:3000' "${template}"
-          grep -q '127.0.0.1:8080' "${template}"
-          grep -q '127.0.0.1:8081' "${template}"
-          grep -q '127.0.0.1:8082' "${template}"
+          grep -q '127.0.0.1:4200' "${template}"
+          grep -q '127.0.0.1:3200' "${template}"
+          grep -q '127.0.0.1:8280' "${template}"
+          grep -q '127.0.0.1:8281' "${template}"
+          grep -q '127.0.0.1:8282' "${template}"
