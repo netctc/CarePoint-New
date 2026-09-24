@@ -41,8 +41,10 @@ assert.match(page, /clinicalAccessEnabled/);
 assert.match(page, /Approval remains blocked/);
 assert.match(page, /status === "VERIFIED"/);
 assert.match(page, /status === "REJECTED"/);
-assert.match(page, /decision: "APPROVE"/);
-assert.match(page, /decision: "REJECT"/);
+assert.match(page, /reviewRelation\(relation: Relation, decision: "APPROVE" \| "REJECT"\)/);
+assert.match(page, /reviewRelation\(relation, "APPROVE"\)/);
+assert.match(page, /reviewRelation\(relation, "REJECT"\)/);
+assert.match(page, /\{ decision, \.\.\.\(reasonCode \? \{ reasonCode \} : \{\}\) \}/);
 assert.doesNotMatch(page, /clinicalAccessEnabled\s*:/);
 assert.doesNotMatch(page, /PATCH|DELETE/);
 
