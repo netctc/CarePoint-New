@@ -35,7 +35,7 @@ assert.match(service, /MAX_TTL_MINUTES = 60/);
 assert.match(service, /resolveEffectivePatient\(principal, "CLINICAL_READ"\)/);
 assert.match(service, /effectiveRelation\(row\.accountId, row\.patientId, "CLINICAL_READ"\)/);
 assert.match(service, /relation\.id === row\.relationId/);
-assert.match(service, /patientId: row\.patientId, userId: row\.accountId/);
+assert.match(service, /where:\s*\{\s*id:\s*row\.patientId,\s*userId:\s*row\.accountId\s*\}/);
 assert.match(service, /PATIENT_CLINICAL_SHARE_CREATED/);
 assert.match(service, /PATIENT_CLINICAL_SHARE_REVOKED/);
 assert.match(service, /PATIENT_CLINICAL_SHARE_ACCESSED/);
