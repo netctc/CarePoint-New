@@ -138,11 +138,12 @@ export default function QuestionnairesPage() {
   }
 
   function labels(prefix:""|"desc") {
-    const keys = prefix === "" ? ["en","ar","fr","es"] as const : ["descEn","descAr","descFr","descEs"] as const;
+    const values: Record<"en"|"ar"|"fr"|"es", string> = prefix === ""
+      ? { en:definition.en, ar:definition.ar, fr:definition.fr, es:definition.es }
+      : { en:definition.descEn, ar:definition.descAr, fr:definition.descFr, es:definition.descEs };
     const output:Labels={};
-    keys.forEach((key,index) => {
-      const lang=(["en","ar","fr","es"] as const)[index];
-      const value=definition[key].trim();
+    (["en","ar","fr","es"] as const).forEach((lang) => {
+      const value=values[lang].trim();
       if(value) output[lang]=value;
     });
     return output;
@@ -253,7 +254,10 @@ export default function QuestionnairesPage() {
             {(["en","ar","fr","es"] as const).map((lang)=><label key={lang}>{t.labels} {lang.toUpperCase()}<input value={definition[lang]} onChange={(e)=>setDefinition({...definition,[lang]:e.target.value})}/></label>)}
           </div>
           <div style={{...grid,gridTemplateColumns:"repeat(4,1fr)"}}>
-            {(["En","Ar","Fr","Es"] as const).map((suffix)=><label key={suffix}>{t.description} {suffix.toUpperCase()}<input value={definition[("desc"+suffix) as "descEn"]} onChange={(e)=>setDefinition({...definition,["desc"+suffix]:e.target.value})}/></label>)}
+            {(["en","ar","fr","es"] as const).map((lang)=>{
+              const key = ({ en:"descEn", ar:"descAr", fr:"descFr", es:"descEs" } as const)[lang];
+              return <label key={lang}>{t.description} {lang.toUpperCase()}<input value={definition[key]} onChange={(e)=>setDefinition({...definition,[key]:e.target.value})}/></label>;
+            })}
           </div>
           <button className="primary-button" onClick={()=>void createDefinition()}>{t.create}</button>
         </section>
@@ -284,7 +288,7 @@ export default function QuestionnairesPage() {
 
             <div style={{marginTop:16,...box,background:"#f8fafc"}}>
               <h3>{t.preview} · {t.schemaVersion}</h3>
-              {questions.map((q)=><div key={q.id || Math.random()} style={{padding:"8px 0",borderTop:"1px solid #e2e8f0"}}>
+              {questions.map((q,index)=><div key={q.id || `preview-${index}`} style={{padding:"8px 0",borderTop:"1px solid #e2e8f0"}}>
                 <strong>{q.en || q.id || "Untitled"}</strong> <small>· {q.type} {q.required?"· "+t.required:""}</small>
                 {(q.type==="SINGLE_CHOICE" || q.type==="MULTI_CHOICE") && <p><small>{q.options.split("\n").filter(Boolean).map((line)=>line.split("|")[1] || line.split("|")[0]).join(" · ")}</small></p>}
               </div>)}
