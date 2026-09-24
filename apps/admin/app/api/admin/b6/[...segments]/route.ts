@@ -74,6 +74,9 @@ function resolveGet(segments: string[], query: URLSearchParams): string | null {
   }
   if (path === "notification-templates") return "/admin/notification-templates";
   if (path === "feature-flags") return "/admin/feature-flags";
+  if (path === "care-plan-templates") return "/admin/care-plan-templates";
+  if (path === "rpm/workspace") return "/admin/rpm/workspace";
+  if (path === "rpm/alerts") return "/admin/rpm/alerts";
   if (path === "localization") return "/admin/localization";
   if (path === "patient-duplicates") {
     const limit = cleanLimit(query.get("limit"), 1, 250);
@@ -137,6 +140,25 @@ function resolvePost(segments: string[]): string | null {
     return `/admin/notification-templates/${encodeURIComponent(segments[1])}/versions`;
   }
   if (path === "feature-flags") return "/admin/feature-flags";
+  if (path === "care-plan-templates") return "/admin/care-plan-templates";
+  if (
+    segments.length === 3 &&
+    segments[0] === "care-plan-templates" &&
+    safeId(segments[1]) &&
+    segments[2] === "versions"
+  ) {
+    return "/admin/care-plan-templates/" + encodeURIComponent(segments[1]) + "/versions";
+  }
+  if (
+    segments.length === 5 &&
+    segments[0] === "care-plan-templates" &&
+    safeId(segments[1]) &&
+    segments[2] === "versions" &&
+    /^[1-9]\d{0,8}$/.test(segments[3] ?? "") &&
+    segments[4] === "activate"
+  ) {
+    return "/admin/care-plan-templates/" + encodeURIComponent(segments[1]) + "/versions/" + segments[3] + "/activate";
+  }
   if (
     segments.length === 3 &&
     segments[0] === "feature-flags" &&
