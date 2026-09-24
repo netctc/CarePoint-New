@@ -2,6 +2,7 @@ import { Body, Controller, Get, Header, Module, Param, Patch, Post, Query } from
 import type { AuthPrincipal } from "@carepoint/identity";
 import { CurrentPrincipal, RequirePermissions } from "../../security/api-security.module";
 import { ClinicalModule } from "../clinical/clinical.module";
+import { QuestionnaireTriggersModule } from "../questionnaire-triggers/questionnaire-triggers.module";
 import {
   ClinicalProfileService,
   type CreateClinicalProfileEntryInput,
@@ -152,7 +153,7 @@ class ProviderDataCorrectionController {
 }
 
 @Module({
-  imports: [ClinicalModule],
+  imports: [ClinicalModule, QuestionnaireTriggersModule],
   controllers: [
     PatientClinicalProfileController,
     PatientDataCorrectionController,

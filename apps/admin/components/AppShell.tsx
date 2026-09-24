@@ -33,6 +33,7 @@ const provenanceLabels: Record<Locale, string> = { en:"Clinical Provenance", ar:
 const patientEducationLabels: Record<Locale, string> = { en:"Patient Education", ar:"تثقيف المريض", fr:"Éducation du patient", es:"Educación del paciente" };
 const medicationCatalogLabels: Record<Locale, string> = { en:"Medication Catalog", ar:"كتالوج الأدوية", fr:"Catalogue des médicaments", es:"Catálogo de medicamentos" };
 const questionnaireBuilderLabels: Record<Locale, string> = { en:"Questionnaire Builder", ar:"منشئ الاستبيانات", fr:"Créateur de questionnaires", es:"Constructor de cuestionarios" };
+const questionnaireTriggerLabels: Record<Locale, string> = { en:"Questionnaire Triggers", ar:"قواعد تفعيل الاستبيانات", fr:"Déclencheurs de questionnaires", es:"Triggers de cuestionarios" };
 
 type Props = Readonly<{
   active: string;
@@ -67,6 +68,7 @@ export function AppShell({ active, titleKey, eyebrowKey, title, eyebrow, childre
         <Link className={`nav-item ${active === "20" ? "active" : ""}`} href="/patient-education"><small>20</small><span>{patientEducationLabels[locale]}</span><b>{direction === "rtl" ? "‹" : "›"}</b></Link>
         <Link className={`nav-item ${active === "21" ? "active" : ""}`} href="/medication-catalog"><small>21</small><span>{medicationCatalogLabels[locale]}</span><b>{direction === "rtl" ? "‹" : "›"}</b></Link>
         <Link className={`nav-item ${active === "22" ? "active" : ""}`} href="/questionnaires"><small>22</small><span>{questionnaireBuilderLabels[locale]}</span><b>{direction === "rtl" ? "‹" : "›"}</b></Link>
+        <Link className={`nav-item ${active === "23" ? "active" : ""}`} href="/questionnaires/triggers"><small>23</small><span>{questionnaireTriggerLabels[locale]}</span><b>{direction === "rtl" ? "‹" : "›"}</b></Link>
       </nav>
       <div className="security-pill"><div><small>{t("shell.e2eeStatus")}</small><strong>{t("shell.shieldPolicy")}</strong></div><i /></div>
     </aside>

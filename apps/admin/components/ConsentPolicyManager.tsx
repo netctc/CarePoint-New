@@ -35,7 +35,7 @@ export function ConsentPolicyManager(){
       if(!response.ok)throw new Error(payload.message||t.error);
       setCatalog(payload); setScope(v=>v||payload.safetyCeiling[0]?.scopePattern||"");
       setPolicyId(v=>v&&payload.policies.some(p=>p.id===v)?v:(payload.policies[0]?.id||""));
-    }catch(value){setError(value instanceof Error?value.message:t.error)}
+    }catch(value){setError(value instanceof Error?value.message:(t.error ?? "Request failed."))}
   },[t.error]);
   useEffect(()=>{void load()},[load]);
 
@@ -50,7 +50,7 @@ export function ConsentPolicyManager(){
       const payload=await response.json() as {message?:string};
       if(!response.ok)throw new Error(payload.message||t.error);
       await load();return true;
-    }catch(value){setError(value instanceof Error?value.message:t.error);return false}
+    }catch(value){setError(value instanceof Error?value.message:(t.error ?? "Request failed."));return false}
     finally{setBusy(false)}
   }
   async function createPolicy(){if(scope)await mutate("/api/admin/consent-policies",{scopePattern:scope,jurisdiction:jurisdiction.trim().toUpperCase()||"GLOBAL"})}

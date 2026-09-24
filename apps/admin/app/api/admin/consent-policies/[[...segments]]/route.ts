@@ -24,13 +24,13 @@ export async function POST(request: NextRequest, context: RouteContext) {
 function resolvePost(segments: string[]) {
   if (segments.length === 0) return "/admin/consent-policies";
   if (segments.length === 2 && SAFE_ID.test(segments[0] ?? "") && segments[1] === "versions") {
-    return "/admin/consent-policies/" + encodeURIComponent(segments[0]) + "/versions";
+    return "/admin/consent-policies/" + encodeURIComponent(segments[0]!) + "/versions";
   }
   if (
     segments.length === 4 && SAFE_ID.test(segments[0] ?? "") && segments[1] === "versions" &&
     /^\d{1,6}$/.test(segments[2] ?? "") && segments[3] === "activate"
   ) {
-    return "/admin/consent-policies/" + encodeURIComponent(segments[0]) + "/versions/" + segments[2] + "/activate";
+    return "/admin/consent-policies/" + encodeURIComponent(segments[0]!) + "/versions/" + segments[2]! + "/activate";
   }
   return null;
 }
