@@ -3,6 +3,7 @@ import { Prisma, type AppointmentModality } from "@prisma/client";
 import type { AuthPrincipal } from "@carepoint/identity";
 import { PrismaService } from "../../infrastructure/prisma/prisma.module";
 import { DatabaseAuditService } from "../../infrastructure/audit/audit.service";
+import { QuestionnaireTriggerService } from "../questionnaire-triggers/questionnaire-trigger.service";
 import { SchedulingService } from "./scheduling.service";
 import { assertAvailabilityReplay, prepareAvailabilityBooking, availabilityRetryable } from "./availability-requests.policy";
 import { SCHEDULING_SERIALIZABLE_RETRY_ATTEMPTS, schedulingSerializableRetryBackoff } from "./patient-journeys.policy";
@@ -17,7 +18,12 @@ type VisitContextCreate = {
 
 @Injectable()
 export class Release1ContextualBookingService {
-  constructor(private readonly prisma: PrismaService, private readonly audit: DatabaseAuditService, private readonly scheduling: SchedulingService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: DatabaseAuditService,
+    private readonly scheduling: SchedulingService,
+    private readonly questionnaireTriggers: QuestionnaireTriggerService,
+  ) {}
 
   async book(principal: AuthPrincipal, input: Release1BookingInput) {
     if (principal.role !== "PATIENT") throw new ForbiddenException("Only patients can create appointments.");
@@ -62,7 +68,10 @@ export class Release1ContextualBookingService {
           if (input.availabilityRequestId != null) await this.audit.writeInTransaction(tx, { actorId: principal.accountId, action: "AVAILABILITY_REQUEST_BOOKED", objectType: "APPOINTMENT", objectId: appointment.id, purpose: "PATIENT_SCHEDULING", result: "SUCCESS", metadata: { source: "F3_IN_APP" } });
           return { appointmentId: appointment.id, created: true };
         }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
-        if (result.created) await this.audit.write({ actorId: principal.accountId, action: "APPOINTMENT_BOOKED", objectType: "APPOINTMENT", objectId: result.appointmentId, result: "SUCCESS", metadata: { slotId, structuredVisitContext: true } });
+        if (result.created) {
+          await this.audit.write({ actorId: principal.accountId, action: "APPOINTMENT_BOOKED", objectType: "APPOINTMENT", objectId: result.appointmentId, result: "SUCCESS", metadata: { slotId, structuredVisitContext: true } });
+          await this.questionnaireTriggers.safeDispatchAppointmentConfirmed(result.appointmentId);
+        }
         return this.presentAppointment(result.appointmentId);
       } catch (error) {
         if (this.prismaError(error, "P2002")) {
