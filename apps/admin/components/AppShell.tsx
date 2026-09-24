@@ -31,6 +31,7 @@ const credentialExpiryLabels: Record<Locale, string> = { en:"Credential Expirati
 const dependentReviewLabels: Record<Locale, string> = { en:"Dependent Reviews", ar:"مراجعة التابعين", fr:"Revue des personnes à charge", es:"Revisión de dependientes" };
 const provenanceLabels: Record<Locale, string> = { en:"Clinical Provenance", ar:"مصدر البيانات السريرية", fr:"Provenance clinique", es:"Procedencia clínica" };
 const patientEducationLabels: Record<Locale, string> = { en:"Patient Education", ar:"تثقيف المريض", fr:"Éducation du patient", es:"Educación del paciente" };
+const medicationCatalogLabels: Record<Locale, string> = { en:"Medication Catalog", ar:"كتالوج الأدوية", fr:"Catalogue des médicaments", es:"Catálogo de medicamentos" };
 
 type Props = Readonly<{
   active: string;
@@ -63,6 +64,7 @@ export function AppShell({ active, titleKey, eyebrowKey, title, eyebrow, childre
         <Link className={`nav-item ${active === "18" ? "active" : ""}`} href="/patients/dependents"><small>18</small><span>{dependentReviewLabels[locale]}</span><b>{direction === "rtl" ? "‹" : "›"}</b></Link>
         <Link className={`nav-item ${active === "19" ? "active" : ""}`} href="/clinical-provenance"><small>19</small><span>{provenanceLabels[locale]}</span><b>{direction === "rtl" ? "‹" : "›"}</b></Link>
         <Link className={`nav-item ${active === "20" ? "active" : ""}`} href="/patient-education"><small>20</small><span>{patientEducationLabels[locale]}</span><b>{direction === "rtl" ? "‹" : "›"}</b></Link>
+        <Link className={`nav-item ${active === "21" ? "active" : ""}`} href="/medication-catalog"><small>21</small><span>{medicationCatalogLabels[locale]}</span><b>{direction === "rtl" ? "‹" : "›"}</b></Link>
       </nav>
       <div className="security-pill"><div><small>{t("shell.e2eeStatus")}</small><strong>{t("shell.shieldPolicy")}</strong></div><i /></div>
     </aside>
