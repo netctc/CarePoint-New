@@ -118,6 +118,17 @@ class CarePointApi {
     return _asMap(await _send('POST', '/provider/services', body: {'labels': labels, 'currency': currency, 'modalities': [{'modality': modality, 'durationMinutes': durationMinutes, 'priceMinor': priceMinor}]}));
   }
   Future<List<Map<String, dynamic>>> providerAppointments({DateTime? from, DateTime? to}) async => _asList(await _send('GET', '/provider/appointments', query: {if (from != null) 'from': from.toUtc().toIso8601String(), if (to != null) 'to': to.toUtc().toIso8601String()}));
+  Future<Map<String, dynamic>> secureProviderContact({
+    required String appointmentId,
+    required String subject,
+    required String clientContactId,
+    String initialMessage = '',
+  }) async => _asMap(await _send('POST', '/communications/secure-contact', body: {
+    'appointmentId': appointmentId,
+    'subject': subject,
+    'initialMessage': initialMessage,
+    'clientContactId': clientContactId,
+  }));
   Future<Map<String, dynamic>> doctorWorkQueue() async => _asMap(await _send('GET', '/provider/work-queue'));
   Future<List<Map<String, dynamic>>> availabilityRules() async => _asList(await _send('GET', '/provider/availability/rules'));
   Future<Map<String, dynamic>> createAvailabilityRule({required String serviceId, required String modality, required String timezone, required int weekday, required int startMinute, required int endMinute, required int intervalMinutes, int slotCapacity = 1, required String effectiveFrom, String? effectiveUntil}) async => _asMap(await _send('POST', '/provider/availability/rules', body: {'serviceId': serviceId, 'modality': modality, 'timezone': timezone, 'weekday': weekday, 'startMinute': startMinute, 'endMinute': endMinute, 'intervalMinutes': intervalMinutes, 'slotCapacity': slotCapacity, 'effectiveFrom': effectiveFrom, if (effectiveUntil != null) 'effectiveUntil': effectiveUntil}));
