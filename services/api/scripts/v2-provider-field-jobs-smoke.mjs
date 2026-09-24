@@ -91,3 +91,4 @@ assert.match(appModule, /ProviderFieldJobsModule/);
 assert.match(appModule, /modules\/other-provider-workspace\/provider-field-jobs\.module/);
 
 console.log("V2 BE-031 unified field jobs acceptance passed");
+await import("./v2-provider-supplies-smoke.mjs");
