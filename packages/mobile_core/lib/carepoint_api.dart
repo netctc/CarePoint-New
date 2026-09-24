@@ -329,6 +329,18 @@ class CarePointApi {
   // PAT-125..127 — Patient Care Plan workspace.
   Future<Map<String, dynamic>> patientCarePlans() async =>
       _asMap(await _send('GET', '/patient/care-plans'));
+
+  // DOC-085 — governed, version-bound patient education.
+  Future<Map<String, dynamic>> doctorEducationCatalog(String appointmentId) async =>
+      _asMap(await _send('GET', '/provider/education-content', query: {'appointmentId': appointmentId}));
+  Future<Map<String, dynamic>> doctorPatientEducation(String patientId) async =>
+      _asMap(await _send('GET', '/provider/patients/$patientId/education'));
+  Future<Map<String, dynamic>> assignDoctorPatientEducation(String patientId, Map<String, dynamic> body) async =>
+      _asMap(await _send('POST', '/provider/patients/$patientId/education', body: body));
+  Future<Map<String, dynamic>> revokeDoctorPatientEducation(String assignmentId) async =>
+      _asMap(await _send('POST', '/provider/education-assignments/$assignmentId/revoke', body: const {}));
+  Future<Map<String, dynamic>> patientEducation() async =>
+      _asMap(await _send('GET', '/patient/education'));
   Future<Map<String, dynamic>> patientCarePlanGoals(String carePlanId) async =>
       _asMap(await _send('GET', '/patient/care-plans/$carePlanId/goals'));
   Future<Map<String, dynamic>> patientCarePlanTasks(String carePlanId) async =>
