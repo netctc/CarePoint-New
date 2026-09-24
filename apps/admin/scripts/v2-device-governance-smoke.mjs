@@ -21,7 +21,7 @@ assert.match(consoleSource, /revokeDevice/);
 assert.match(consoleSource, /createIntegration/);
 assert.match(consoleSource, /revokeIntegration/);
 assert.match(consoleSource, /privateKeyPem/);
-assert.match(consoleSource, /privateKeyFingerprint/);
+assert.match(consoleSource, /publicKeyFingerprint/);
 assert.match(consoleSource, /webhookPublicKeyPem/);
 assert.match(consoleSource, /healthState/);
 assert.match(bff, /requireSameOrigin: true/);
