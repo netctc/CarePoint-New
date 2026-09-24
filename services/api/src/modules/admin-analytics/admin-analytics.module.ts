@@ -8,10 +8,13 @@ import {
   Query,
 } from "@nestjs/common";
 import type { AuthPrincipal } from "@carepoint/identity";
+import { Prisma } from "@prisma/client";
 import { PrismaService } from "../../infrastructure/prisma/prisma.module";
-import { CurrentPrincipal } from "../../security/api-security.module";
+import { CurrentPrincipal, RequirePermissions } from "../../security/api-security.module";
 
 const PERIOD_DAYS = [7, 30, 90] as const;
+const POPULATION_PERIOD_DAYS = [90, 180, 365] as const;
+const MIN_POPULATION_CELL_SIZE = 5;
 const TELEHEALTH_STATUSES = ["WAITING", "READY", "ACTIVE", "ENDED", "CANCELLED"] as const;
 const SECURITY_ACTIONS = [
   "LOGIN_FAILED",
@@ -32,6 +35,8 @@ const REPLAY_ACTIONS = ["MFA_CHALLENGE_REPLAY_DENIED", "REFRESH_TOKEN_REPLAY_DEN
 const REVIEW_ONBOARDING_STATES = ["PENDING_REVIEW", "REQUEST_CHANGES"] as const;
 
 type PeriodDays = (typeof PERIOD_DAYS)[number];
+type PopulationPeriodDays = (typeof POPULATION_PERIOD_DAYS)[number];
+type PopulationRow = { month: Date; patientCount: number | bigint; eventCount: number | bigint };
 type Period = { from: Date; to: Date };
 type FavorableDirection = "HIGHER" | "LOWER" | "NEUTRAL";
 
@@ -84,6 +89,76 @@ class AdminAnalyticsService {
           "HIGHER",
         ),
         emergencyDemand: this.trend(currentSnapshot.mobility.emergencyRequests, previousSnapshot.mobility.emergencyRequests, "NEUTRAL"),
+      },
+    };
+  }
+
+
+  async population(principal: AuthPrincipal, rawDays?: string) {
+    this.requireAdmin(principal);
+    const days = this.populationPeriodDays(rawDays);
+    const generatedAt = new Date();
+    const from = new Date(generatedAt.getTime() - days * 24 * 60 * 60 * 1000);
+
+    const [observations, carePlans, questionnaires, laboratoryResults] = await Promise.all([
+      this.prisma.$queryRaw<PopulationRow[]>(Prisma.sql`
+        SELECT date_trunc('month', "observedAt") AS month,
+               COUNT(DISTINCT "patientId")::int AS "patientCount",
+               COUNT(*)::int AS "eventCount"
+        FROM "Observation"
+        WHERE "observedAt" >= ${from} AND "observedAt" < ${generatedAt}
+        GROUP BY 1
+        ORDER BY 1 ASC
+      `),
+      this.prisma.$queryRaw<PopulationRow[]>(Prisma.sql`
+        SELECT date_trunc('month', "createdAt") AS month,
+               COUNT(DISTINCT "patientId")::int AS "patientCount",
+               COUNT(*)::int AS "eventCount"
+        FROM "CarePlan"
+        WHERE "createdAt" >= ${from} AND "createdAt" < ${generatedAt}
+        GROUP BY 1
+        ORDER BY 1 ASC
+      `),
+      this.prisma.$queryRaw<PopulationRow[]>(Prisma.sql`
+        SELECT date_trunc('month', "completedAt") AS month,
+               COUNT(DISTINCT "patientId")::int AS "patientCount",
+               COUNT(*)::int AS "eventCount"
+        FROM "QuestionnaireResponse"
+        WHERE "completedAt" >= ${from} AND "completedAt" < ${generatedAt}
+        GROUP BY 1
+        ORDER BY 1 ASC
+      `),
+      this.prisma.$queryRaw<PopulationRow[]>(Prisma.sql`
+        SELECT date_trunc('month', lr."releasedAt") AS month,
+               COUNT(DISTINCT co."patientId")::int AS "patientCount",
+               COUNT(*)::int AS "eventCount"
+        FROM "LaboratoryResult" lr
+        INNER JOIN "ClinicalOrder" co ON co.id = lr."orderId"
+        WHERE lr."status" = 'RELEASED'
+          AND lr."releasedAt" IS NOT NULL
+          AND lr."releasedAt" >= ${from}
+          AND lr."releasedAt" < ${generatedAt}
+        GROUP BY 1
+        ORDER BY 1 ASC
+      `),
+    ]);
+
+    return {
+      generatedAt: generatedAt.toISOString(),
+      window: { days, from: from.toISOString(), to: generatedAt.toISOString() },
+      privacy: {
+        aggregateOnly: true,
+        minimumCellSize: MIN_POPULATION_CELL_SIZE,
+        suppressedCellsOmitted: true,
+        patientIdentifiersReturned: false,
+        providerIdentifiersReturned: false,
+        drillDownEnabled: false,
+      },
+      series: {
+        observations: this.populationSeries(observations),
+        carePlans: this.populationSeries(carePlans),
+        questionnaires: this.populationSeries(questionnaires),
+        laboratoryResults: this.populationSeries(laboratoryResults),
       },
     };
   }
@@ -304,6 +379,28 @@ class AdminAnalyticsService {
     return { from: period.from.toISOString(), to: period.to.toISOString() };
   }
 
+
+  private populationSeries(rows: PopulationRow[]) {
+    const visible = rows.filter((row) => Number(row.patientCount) >= MIN_POPULATION_CELL_SIZE);
+    return {
+      points: visible.map((row) => ({
+        month: row.month.toISOString().slice(0, 7),
+        patientCount: Number(row.patientCount),
+        eventCount: Number(row.eventCount),
+      })),
+      suppressedCellCount: rows.length - visible.length,
+    };
+  }
+
+  private populationPeriodDays(raw?: string): PopulationPeriodDays {
+    if (!raw?.trim()) return 180;
+    const parsed = Number(raw);
+    if (!Number.isInteger(parsed) || !(POPULATION_PERIOD_DAYS as readonly number[]).includes(parsed)) {
+      throw new BadRequestException(`days must be one of: ${POPULATION_PERIOD_DAYS.join(", ")}.`);
+    }
+    return parsed as PopulationPeriodDays;
+  }
+
   private periodDays(raw?: string): PeriodDays {
     if (!raw?.trim()) return 30;
     const parsed = Number(raw);
@@ -325,6 +422,12 @@ class AdminAnalyticsController {
   @Get("workspace")
   workspace(@CurrentPrincipal() principal: AuthPrincipal, @Query("days") days?: string) {
     return this.analytics.workspace(principal, days);
+  }
+
+  @RequirePermissions("DATA_GOVERNANCE_MANAGE")
+  @Get("population")
+  population(@CurrentPrincipal() principal: AuthPrincipal, @Query("days") days?: string) {
+    return this.analytics.population(principal, days);
   }
 }
 

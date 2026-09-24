@@ -4,7 +4,10 @@ import { AppShell } from "@/components/AppShell";
 
 export default function AnalyticsPage() {
   return <AppShell active="07" titleKey="nav.analytics" eyebrow="OPERATIONAL INTELLIGENCE">
-    <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 14 }}>
+    <div style={{ display: "flex", justifyContent: "flex-end", gap: 18, marginBottom: 14 }}>
+      <Link href="/analytics/population" style={{ fontWeight: 700 }}>
+        Population analytics →
+      </Link>
       <Link href="/analytics/questionnaires" style={{ fontWeight: 700 }}>
         Questionnaire compliance →
       </Link>
