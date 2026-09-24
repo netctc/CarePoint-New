@@ -80,3 +80,4 @@ for (const route of [
 
 assert.match(app, /RetentionModule/);
 console.log("V2 BE-046 retention and legal-hold acceptance passed");
+await import("./v2-admin-deletion-jobs-ui-smoke.mjs");

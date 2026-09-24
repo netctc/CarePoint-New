@@ -8,16 +8,22 @@ import styles from "./PrivacyOperations.module.css";
 type PolicyVersion = { version:number; retentionDays:number; action:string; createdAt?:string };
 type Policy = { id:string; code:string; domain:string; jurisdiction:string; currentVersion:number; active:boolean; versions?:PolicyVersion[] };
 type LegalHold = { id:string; domain:string; jurisdiction:string; subjectType:string; subjectId?:string|null; reasonCode:string; startsAt:string; expiresAt?:string|null; releasedAt?:string|null };
+type DeletionJobItem = { id:string; entityType:string; entityId:string; patientId?:string|null; action:string; status:string; blockReason?:string|null; appliedAt?:string|null };
+type DeletionJob = {
+  id:string; policyId:string; policyVersion:number; jurisdiction:string; domain:string; action:string;
+  cutoffAt:string; status:string; planDigest:string; candidateCount:number; blockedCount:number;
+  appliedCount:number; createdAt:string; executedAt?:string|null; items?:DeletionJobItem[];
+};
 
 const domains = ["CLINICAL_DOCUMENT","CLINICAL_MEDIA","CLINICAL_DOCUMENT_ACCESS_GRANT","CLINICAL_MEDIA_ACCESS_GRANT","AUDIT_EVENT"] as const;
 const holdDomains = ["CLINICAL_DOCUMENT","CLINICAL_MEDIA","AUDIT_EVENT"] as const;
 const actions = ["SOFT_REMOVE","PURGE_EXPIRED_GRANTS","PROTECT_ONLY"] as const;
 
 const copy = {
-  en:{ exports:"Patient exports", retention:"Retention & legal hold", intro:"Versioned retention policies and legal holds. Destructive execution is not performed from this screen; governance configuration remains explicit and auditable.", policies:"Policies", holds:"Legal holds", createPolicy:"Create policy", code:"Code", domain:"Domain", jurisdiction:"Jurisdiction", days:"Retention days", action:"Action", create:"Create", publish:"Publish next version", current:"Current version", active:"Active", createHold:"Create legal hold", scope:"Scope", subjectId:"Subject ID", reason:"Reason code", status:"Status", release:"Release", refresh:"Refresh", error:"Privacy governance request failed.", empty:"No records." },
-  ar:{ exports:"تصدير بيانات المريض", retention:"الاحتفاظ والتعليق القانوني", intro:"سياسات احتفاظ بإصدارات وتعليقات قانونية. لا يتم تنفيذ الحذف من هذه الشاشة؛ تظل الحوكمة صريحة وقابلة للتدقيق.", policies:"السياسات", holds:"التعليقات القانونية", createPolicy:"إنشاء سياسة", code:"الرمز", domain:"المجال", jurisdiction:"الاختصاص", days:"أيام الاحتفاظ", action:"الإجراء", create:"إنشاء", publish:"نشر إصدار جديد", current:"الإصدار الحالي", active:"نشط", createHold:"إنشاء تعليق قانوني", scope:"النطاق", subjectId:"معرف الموضوع", reason:"رمز السبب", status:"الحالة", release:"إنهاء", refresh:"تحديث", error:"فشل طلب حوكمة الخصوصية.", empty:"لا توجد سجلات." },
-  fr:{ exports:"Exports patient", retention:"Rétention et legal hold", intro:"Politiques de rétention versionnées et legal holds. Aucune suppression n’est exécutée depuis cet écran; la gouvernance reste explicite et auditée.", policies:"Politiques", holds:"Legal holds", createPolicy:"Créer une politique", code:"Code", domain:"Domaine", jurisdiction:"Juridiction", days:"Jours de rétention", action:"Action", create:"Créer", publish:"Publier la version suivante", current:"Version actuelle", active:"Active", createHold:"Créer un legal hold", scope:"Portée", subjectId:"ID sujet", reason:"Code motif", status:"Statut", release:"Libérer", refresh:"Actualiser", error:"Échec de la requête de gouvernance.", empty:"Aucun enregistrement." },
-  es:{ exports:"Exportaciones del paciente", retention:"Retención y legal hold", intro:"Políticas de retención versionadas y legal holds. Esta pantalla no ejecuta borrado destructivo; la configuración de governance permanece explícita y auditada.", policies:"Políticas", holds:"Legal holds", createPolicy:"Crear política", code:"Código", domain:"Dominio", jurisdiction:"Jurisdicción", days:"Días de retención", action:"Acción", create:"Crear", publish:"Publicar nueva versión", current:"Versión actual", active:"Activa", createHold:"Crear legal hold", scope:"Ámbito", subjectId:"ID del sujeto", reason:"Código de motivo", status:"Estado", release:"Liberar", refresh:"Actualizar", error:"Falló la operación de governance de privacidad.", empty:"No hay registros." },
+  en:{ exports:"Patient exports", retention:"Retention & legal hold", intro:"Versioned retention policies, legal holds and staged deletion jobs. Every execution requires a fresh dry-run plan digest; active legal holds are rechecked by the API before any action.", policies:"Policies", holds:"Legal holds", jobs:"Deletion jobs", createPolicy:"Create policy", code:"Code", domain:"Domain", jurisdiction:"Jurisdiction", days:"Retention days", action:"Action", create:"Create", publish:"Publish next version", current:"Current version", active:"Active", createHold:"Create legal hold", scope:"Scope", subjectId:"Subject ID", reason:"Reason code", status:"Status", release:"Release", refresh:"Refresh", error:"Privacy governance request failed.", empty:"No records.", preview:"Create dry-run", execute:"Execute reviewed plan", candidates:"Candidates", blocked:"Blocked", applied:"Applied", digest:"Plan digest", executionConfirm:"Execute this reviewed retention plan? The API will re-check policy version, digest and legal holds before applying any action.", auditProtected:"Audit evidence is protected and cannot be executed by the deletion engine." },
+  ar:{ exports:"تصدير بيانات المريض", retention:"الاحتفاظ والتعليق القانوني", intro:"سياسات احتفاظ وتعليقات قانونية ووظائف حذف مرحلية. يتطلب كل تنفيذ خطة dry-run جديدة ويعيد الخادم التحقق من التعليقات القانونية قبل أي إجراء.", policies:"السياسات", holds:"التعليقات القانونية", jobs:"وظائف الحذف", createPolicy:"إنشاء سياسة", code:"الرمز", domain:"المجال", jurisdiction:"الاختصاص", days:"أيام الاحتفاظ", action:"الإجراء", create:"إنشاء", publish:"نشر إصدار جديد", current:"الإصدار الحالي", active:"نشط", createHold:"إنشاء تعليق قانوني", scope:"النطاق", subjectId:"معرف الموضوع", reason:"رمز السبب", status:"الحالة", release:"إنهاء", refresh:"تحديث", error:"فشل طلب حوكمة الخصوصية.", empty:"لا توجد سجلات.", preview:"إنشاء معاينة dry-run", execute:"تنفيذ الخطة المراجعة", candidates:"مرشحون", blocked:"محظور", applied:"مطبّق", digest:"بصمة الخطة", executionConfirm:"تنفيذ خطة الاحتفاظ المراجعة؟ سيعيد الخادم التحقق من الإصدار والبصمة والتعليقات القانونية قبل التنفيذ.", auditProtected:"أدلة التدقيق محمية ولا يمكن لمحرك الحذف تنفيذها." },
+  fr:{ exports:"Exports patient", retention:"Rétention et legal hold", intro:"Politiques versionnées, legal holds et jobs de suppression par étapes. Chaque exécution exige un nouveau dry-run; l’API revalide les holds avant toute action.", policies:"Politiques", holds:"Legal holds", jobs:"Jobs de suppression", createPolicy:"Créer une politique", code:"Code", domain:"Domaine", jurisdiction:"Juridiction", days:"Jours de rétention", action:"Action", create:"Créer", publish:"Publier la version suivante", current:"Version actuelle", active:"Active", createHold:"Créer un legal hold", scope:"Portée", subjectId:"ID sujet", reason:"Code motif", status:"Statut", release:"Libérer", refresh:"Actualiser", error:"Échec de la requête de gouvernance.", empty:"Aucun enregistrement.", preview:"Créer un dry-run", execute:"Exécuter le plan revu", candidates:"Candidats", blocked:"Bloqués", applied:"Appliqués", digest:"Empreinte du plan", executionConfirm:"Exécuter ce plan de rétention revu ? L’API revalidera version, empreinte et legal holds avant toute action.", auditProtected:"Les preuves d’audit sont protégées et ne peuvent pas être exécutées par le moteur de suppression." },
+  es:{ exports:"Exportaciones del paciente", retention:"Retención y legal hold", intro:"Políticas versionadas, legal holds y jobs de borrado por etapas. Cada ejecución requiere un dry-run nuevo; la API vuelve a comprobar los holds antes de aplicar acciones.", policies:"Políticas", holds:"Legal holds", jobs:"Jobs de borrado", createPolicy:"Crear política", code:"Código", domain:"Dominio", jurisdiction:"Jurisdicción", days:"Días de retención", action:"Acción", create:"Crear", publish:"Publicar nueva versión", current:"Versión actual", active:"Activa", createHold:"Crear legal hold", scope:"Ámbito", subjectId:"ID del sujeto", reason:"Código de motivo", status:"Estado", release:"Liberar", refresh:"Actualizar", error:"Falló la operación de governance de privacidad.", empty:"No hay registros.", preview:"Crear dry-run", execute:"Ejecutar plan revisado", candidates:"Candidatos", blocked:"Bloqueados", applied:"Aplicados", digest:"Digest del plan", executionConfirm:"¿Ejecutar este plan de retención revisado? La API volverá a validar versión, digest y legal holds antes de aplicar acciones.", auditProtected:"La evidencia de auditoría está protegida y no puede ejecutarse mediante el motor de borrado." },
 } as const;
 
 async function jsonRequest(path:string, init?:RequestInit) {
@@ -32,6 +38,7 @@ export function RetentionGovernance() {
   const t = copy[locale];
   const [policies,setPolicies] = useState<Policy[]>([]);
   const [holds,setHolds] = useState<LegalHold[]>([]);
+  const [jobs,setJobs] = useState<DeletionJob[]>([]);
   const [error,setError] = useState<string|null>(null);
   const [busy,setBusy] = useState(false);
   const [policyForm,setPolicyForm] = useState({ code:"", domain:"CLINICAL_DOCUMENT", jurisdiction:"SA", retentionDays:"3650", action:"SOFT_REMOVE" });
@@ -40,12 +47,14 @@ export function RetentionGovernance() {
   const load = useCallback(async()=>{
     setError(null);
     try {
-      const [policyBody,holdBody] = await Promise.all([
+      const [policyBody,holdBody,jobBody] = await Promise.all([
         jsonRequest("/api/admin/privacy/retention/policies"),
         jsonRequest("/api/admin/privacy/retention/legal-holds"),
+        jsonRequest("/api/admin/privacy/retention/jobs?limit=100"),
       ]);
       setPolicies(Array.isArray(policyBody) ? policyBody : []);
       setHolds(Array.isArray(holdBody) ? holdBody : []);
+      setJobs(Array.isArray(jobBody) ? jobBody : []);
     } catch (cause) { setError(cause instanceof Error ? cause.message : t.error); }
   },[t.error]);
 
@@ -71,6 +80,31 @@ export function RetentionGovernance() {
     } catch(cause){ setError(cause instanceof Error ? cause.message : t.error); } finally { setBusy(false); }
   }
 
+
+  async function dryRun(policy:Policy) {
+    setBusy(true); setError(null);
+    try {
+      await jsonRequest(`/api/admin/privacy/retention/policies/${encodeURIComponent(policy.id)}/dry-run`, {
+        method:"POST",
+        body:JSON.stringify({ expectedVersion:policy.currentVersion }),
+      });
+      await load();
+    } catch(cause){ setError(cause instanceof Error ? cause.message : t.error); } finally { setBusy(false); }
+  }
+
+  async function execute(job:DeletionJob) {
+    if (job.status !== "PREVIEWED" || !job.planDigest) return;
+    if (!window.confirm(t.executionConfirm)) return;
+    setBusy(true); setError(null);
+    try {
+      await jsonRequest(`/api/admin/privacy/retention/jobs/${encodeURIComponent(job.id)}/execute`, {
+        method:"POST",
+        body:JSON.stringify({ planDigest:job.planDigest }),
+      });
+      await load();
+    } catch(cause){ setError(cause instanceof Error ? cause.message : t.error); } finally { setBusy(false); }
+  }
+
   async function createHold(event:FormEvent) {
     event.preventDefault(); setBusy(true); setError(null);
     try {
@@ -92,7 +126,12 @@ export function RetentionGovernance() {
     <div className={styles.tabs}><Link className={styles.tab} href="/privacy/exports">{t.exports}</Link><Link className={`${styles.tab} ${styles.tabActive}`} href="/privacy/retention">{t.retention}</Link></div>
     <p className={styles.muted}>{t.intro}</p>
     {error ? <div className={styles.error}>{error}</div> : null}
-    <div className={styles.grid}><div className={styles.card}><span className={styles.muted}>{t.policies}</span><strong>{policies.length}</strong></div><div className={styles.card}><span className={styles.muted}>{t.holds}</span><strong>{activeHoldCount}</strong></div></div>
+    <div className={styles.grid}>
+      <div className={styles.card}><span className={styles.muted}>{t.policies}</span><strong>{policies.length}</strong></div>
+      <div className={styles.card}><span className={styles.muted}>{t.holds}</span><strong>{activeHoldCount}</strong></div>
+      <div className={styles.card}><span className={styles.muted}>{t.jobs}</span><strong>{jobs.length}</strong></div>
+    </div>
+    <div className={styles.notice}>{t.auditProtected}</div>
     <section className={styles.card}><strong>{t.createPolicy}</strong><form className={styles.form} onSubmit={createPolicy}>
       <div className={styles.field}><label>{t.code}</label><input className={styles.input} required value={policyForm.code} onChange={(e)=>setPolicyForm({...policyForm,code:e.target.value.toUpperCase()})}/></div>
       <div className={styles.field}><label>{t.domain}</label><select className={styles.select} value={policyForm.domain} onChange={(e)=>setPolicyForm({...policyForm,domain:e.target.value})}>{domains.map((value)=><option key={value}>{value}</option>)}</select></div>
@@ -101,7 +140,10 @@ export function RetentionGovernance() {
       <div className={styles.field}><label>{t.action}</label><select className={styles.select} value={policyForm.action} onChange={(e)=>setPolicyForm({...policyForm,action:e.target.value})}>{actions.map((value)=><option key={value}>{value}</option>)}</select></div>
       <button className={styles.button} disabled={busy}>{t.create}</button>
     </form></section>
-    <div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>{t.code}</th><th>{t.domain}</th><th>{t.jurisdiction}</th><th>{t.current}</th><th>{t.days}</th><th>{t.action}</th><th /></tr></thead><tbody>{policies.length===0?<tr><td className={styles.empty} colSpan={7}>{t.empty}</td></tr>:policies.map((policy)=>{const latest=policy.versions?.[0];return <tr key={policy.id}><td>{policy.code}</td><td>{policy.domain}</td><td>{policy.jurisdiction}</td><td>{policy.currentVersion}</td><td>{latest?.retentionDays ?? "—"}</td><td>{latest?.action ?? "—"}</td><td><button className={styles.buttonSecondary} disabled={busy||!latest} onClick={()=>void publish(policy)}>{t.publish}</button></td></tr>})}</tbody></table></div>
+    <div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>{t.code}</th><th>{t.domain}</th><th>{t.jurisdiction}</th><th>{t.current}</th><th>{t.days}</th><th>{t.action}</th><th /></tr></thead><tbody>{policies.length===0?<tr><td className={styles.empty} colSpan={7}>{t.empty}</td></tr>:policies.map((policy)=>{const latest=policy.versions?.[0];return <tr key={policy.id}><td>{policy.code}</td><td>{policy.domain}</td><td>{policy.jurisdiction}</td><td>{policy.currentVersion}</td><td>{latest?.retentionDays ?? "—"}</td><td>{latest?.action ?? "—"}</td><td><div className={styles.toolbar}>
+  <button className={styles.buttonSecondary} disabled={busy||!latest} onClick={()=>void publish(policy)}>{t.publish}</button>
+  <button className={styles.buttonSecondary} disabled={busy||!latest||latest.action==="PROTECT_ONLY"} onClick={()=>void dryRun(policy)}>{t.preview}</button>
+</div></td></tr>})}</tbody></table></div>
     <section className={styles.card}><strong>{t.createHold}</strong><form className={styles.form} onSubmit={createHold}>
       <div className={styles.field}><label>{t.domain}</label><select className={styles.select} value={holdForm.domain} onChange={(e)=>setHoldForm({...holdForm,domain:e.target.value})}>{holdDomains.map((value)=><option key={value}>{value}</option>)}</select></div>
       <div className={styles.field}><label>{t.jurisdiction}</label><input className={styles.input} required value={holdForm.jurisdiction} onChange={(e)=>setHoldForm({...holdForm,jurisdiction:e.target.value.toUpperCase()})}/></div>
@@ -111,6 +153,19 @@ export function RetentionGovernance() {
       <button className={styles.button} disabled={busy}>{t.create}</button>
     </form></section>
     <div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>{t.domain}</th><th>{t.jurisdiction}</th><th>{t.scope}</th><th>{t.subjectId}</th><th>{t.reason}</th><th>{t.status}</th><th /></tr></thead><tbody>{holds.length===0?<tr><td className={styles.empty} colSpan={7}>{t.empty}</td></tr>:holds.map((hold)=><tr key={hold.id}><td>{hold.domain}</td><td>{hold.jurisdiction}</td><td>{hold.subjectType}</td><td>{hold.subjectId ?? "—"}</td><td>{hold.reasonCode}</td><td><span className={styles.status}>{hold.releasedAt?"RELEASED":"ACTIVE"}</span></td><td>{!hold.releasedAt?<button className={styles.buttonSecondary} disabled={busy} onClick={()=>void release(hold)}>{t.release}</button>:null}</td></tr>)}</tbody></table></div>
+    <section className={styles.card}>
+      <strong>{t.jobs}</strong>
+      <div className={styles.tableWrap}><table className={styles.table}><thead><tr>
+        <th>{t.domain}</th><th>{t.action}</th><th>{t.status}</th><th>{t.candidates}</th><th>{t.blocked}</th><th>{t.applied}</th><th>{t.digest}</th><th />
+      </tr></thead><tbody>
+        {jobs.length===0?<tr><td className={styles.empty} colSpan={8}>{t.empty}</td></tr>:jobs.map(job=><tr key={job.id}>
+          <td>{job.domain}</td><td>{job.action}</td><td><span className={styles.status}>{job.status}</span></td>
+          <td>{job.candidateCount}</td><td>{job.blockedCount}</td><td>{job.appliedCount}</td>
+          <td><code title={job.planDigest}>{job.planDigest.slice(0,12)}…</code></td>
+          <td>{job.status==="PREVIEWED"?<button className={styles.button} disabled={busy} onClick={()=>void execute(job)}>{t.execute}</button>:null}</td>
+        </tr>)}
+      </tbody></table></div>
+    </section>
     <button className={styles.buttonSecondary} type="button" onClick={()=>void load()} disabled={busy}>{t.refresh}</button>
   </div>;
 }
