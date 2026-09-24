@@ -15,7 +15,13 @@ type QuestionnaireVersion = { id:string; version:number; status:string };
 type Questionnaire = { id:string; code:string; labels:Labels; versions:QuestionnaireVersion[] };
 
 const TYPES:TriggerType[]=["ONBOARDING","PERIODIC","POST_INTERVENTION","PRE_VISIT","MANUAL"];
-const copy:Record<Locale,Record<string,string>>={
+type Copy = Record<
+  "title"|"eyebrow"|"subtitle"|"rules"|"newRule"|"code"|"labels"|"create"|"version"|"questionnaire"|"type"|
+  "config"|"draft"|"simulate"|"activate"|"simulation"|"empty"|"select"|"reload"|"saved"|"error"|"immutable"|
+  "dedupe"|"manual"|"patientId"|"eventId"|"dispatch"|"due",
+  string
+>;
+const copy:Record<Locale,Copy>={
   en:{title:"Questionnaire activation rules",eyebrow:"P0 · ADM-076",subtitle:"Simulate deterministic onboarding, periodic, intervention, pre-visit and manual triggers before activation.",rules:"Rules",newRule:"New rule",code:"Code",labels:"Labels",create:"Create rule",version:"Rule version",questionnaire:"Questionnaire version",type:"Trigger type",config:"Configuration",draft:"Create DRAFT version",simulate:"Simulate",activate:"Activate",simulation:"Simulation result",empty:"No trigger rules yet.",select:"Select a trigger rule.",reload:"Reload",saved:"Saved.",error:"Request failed.",immutable:"ACTIVE versions are immutable. A new activation retires the previous ACTIVE rule version.",dedupe:"Dispatches are deduplicated by rule version + patient + event.",manual:"Manual dispatch",patientId:"Patient ID",eventId:"Event ID",dispatch:"Dispatch",due:"Due"},
   ar:{title:"قواعد تفعيل الاستبيانات",eyebrow:"P0 · ADM-076",subtitle:"محاكاة قواعد بدء الاستخدام والدورية وما بعد التدخل وما قبل الزيارة والطلب اليدوي قبل التفعيل.",rules:"القواعد",newRule:"قاعدة جديدة",code:"الرمز",labels:"التسميات",create:"إنشاء القاعدة",version:"إصدار القاعدة",questionnaire:"إصدار الاستبيان",type:"نوع المشغل",config:"الإعدادات",draft:"إنشاء إصدار مسودة",simulate:"محاكاة",activate:"تفعيل",simulation:"نتيجة المحاكاة",empty:"لا توجد قواعد تفعيل.",select:"اختر قاعدة تفعيل.",reload:"تحديث",saved:"تم الحفظ.",error:"فشل الطلب.",immutable:"الإصدارات النشطة غير قابلة للتعديل، وتفعيل إصدار جديد يسحب السابق.",dedupe:"يتم منع التكرار حسب إصدار القاعدة والمريض والحدث.",manual:"تشغيل يدوي",patientId:"معرّف المريض",eventId:"معرّف الحدث",dispatch:"تشغيل",due:"الاستحقاق"},
   fr:{title:"Règles d’activation des questionnaires",eyebrow:"P0 · ADM-076",subtitle:"Simuler les déclencheurs onboarding, périodiques, post-intervention, pré-consultation et manuels avant activation.",rules:"Règles",newRule:"Nouvelle règle",code:"Code",labels:"Libellés",create:"Créer la règle",version:"Version de règle",questionnaire:"Version du questionnaire",type:"Type de déclencheur",config:"Configuration",draft:"Créer une version DRAFT",simulate:"Simuler",activate:"Activer",simulation:"Résultat de simulation",empty:"Aucune règle.",select:"Sélectionnez une règle.",reload:"Actualiser",saved:"Enregistré.",error:"Échec de la requête.",immutable:"Les versions ACTIVE sont immuables. Une nouvelle activation retire la précédente.",dedupe:"Les affectations sont dédupliquées par version de règle + patient + événement.",manual:"Déclenchement manuel",patientId:"ID patient",eventId:"ID événement",dispatch:"Déclencher",due:"Échéance"},
@@ -38,7 +44,10 @@ export default function QuestionnaireTriggersPage(){
   const activeQuestionnaireVersions=useMemo(()=>questionnaires.flatMap((q)=>q.versions.filter((v)=>v.status==="ACTIVE").map((v)=>({id:v.id,label:`${q.code} · v${v.version}`}))),[questionnaires]);
 
   useEffect(()=>{void load();},[]);
-  useEffect(()=>{if(!questionnaireVersionId&&activeQuestionnaireVersions[0])setQuestionnaireVersionId(activeQuestionnaireVersions[0].id);},[activeQuestionnaireVersions,questionnaireVersionId]);
+  useEffect(()=>{
+    const first=activeQuestionnaireVersions[0];
+    if(!questionnaireVersionId&&first)setQuestionnaireVersionId(first.id);
+  },[activeQuestionnaireVersions,questionnaireVersionId]);
 
   async function request(url:string,init?:RequestInit){
     const response=await fetch(url,{cache:"no-store",...init,headers:{"content-type":"application/json",...(init?.headers??{})}});
