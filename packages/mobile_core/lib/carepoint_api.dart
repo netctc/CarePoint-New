@@ -529,6 +529,45 @@ class CarePointApi {
   Future<Map<String, dynamic>> doctorAdverseEventInbox() async =>
       _asMap(await _send('GET', '/provider/adverse-events'));
 
+  // PRV-071 — patient-owned food diary with explicit sharing + append-only provider comments.
+  Future<Map<String, dynamic>> patientFoodDiary() async =>
+      _asMap(await _send('GET', '/patient/food-diary'));
+  Future<Map<String, dynamic>> createPatientFoodDiaryEntry({
+    required DateTime mealAt,
+    required String mealType,
+    required String description,
+    required String idempotencyKey,
+    String? notes,
+    bool shared = false,
+  }) async => _asMap(await _send('POST', '/patient/food-diary', body: {
+    'mealAt': mealAt.toUtc().toIso8601String(),
+    'mealType': mealType,
+    'description': description,
+    'idempotencyKey': idempotencyKey,
+    'shared': shared,
+    if (notes?.trim().isNotEmpty == true) 'notes': notes!.trim(),
+  }));
+  Future<Map<String, dynamic>> setPatientFoodDiarySharing(
+    String entryId, {
+    required int expectedVersion,
+    required bool shared,
+  }) async => _asMap(await _send('POST', '/patient/food-diary/$entryId/share', body: {
+    'expectedVersion': expectedVersion,
+    'shared': shared,
+  }));
+  Future<Map<String, dynamic>> providerFoodDiary(String patientId, String appointmentId) async =>
+      _asMap(await _send('GET', '/provider/patients/$patientId/food-diary', query: {'appointmentId': appointmentId}));
+  Future<Map<String, dynamic>> addProviderFoodDiaryComment(
+    String entryId, {
+    required String appointmentId,
+    required String comment,
+    required String idempotencyKey,
+  }) async => _asMap(await _send('POST', '/provider/food-diary/$entryId/comments', body: {
+    'appointmentId': appointmentId,
+    'comment': comment,
+    'idempotencyKey': idempotencyKey,
+  }));
+
   // DOC-076..078 — Doctor refill, imaging and referral coordination.
   Future<Map<String, dynamic>> doctorRefillRequests() async =>
       _asMap(await _send('GET', '/provider/refill-requests'));

@@ -47,6 +47,7 @@ import { DoctorWorkQueueModule } from "./modules/doctor-work-queue/doctor-work-q
 import { emergencyAmbulanceModuleEnabled } from "./modules/emergency/emergency-launch-policy";
 import { EmergencyModule } from "./modules/emergency/emergency.module";
 import { FeatureFlagsModule } from "./modules/feature-flags/feature-flags.module";
+import { FoodDiaryModule } from "./modules/food-diary/food-diary.module";
 import { FhirModule } from "./modules/fhir/fhir.module";
 import { HealthModule } from "./modules/health/health.module";
 import { HealthProfileModule } from "./modules/health-profile/health-profile.module";
@@ -104,6 +105,7 @@ const isolatedSyntheticPilot = isolatedSyntheticPrivatePilotActive(process.env);
     SiemExportModule,
     ApiSecurityModule,
     FeatureFlagsModule,
+    FoodDiaryModule,
     HealthModule,
     AccessNeedsModule,
     AdminAnalyticsModule,
