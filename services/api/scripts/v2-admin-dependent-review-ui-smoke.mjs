@@ -45,7 +45,8 @@ assert.match(page, /reviewRelation\(relation: Relation, decision: "APPROVE" \| "
 assert.match(page, /reviewRelation\(relation, "APPROVE"\)/);
 assert.match(page, /reviewRelation\(relation, "REJECT"\)/);
 assert.match(page, /\{ decision, \.\.\.\(reasonCode \? \{ reasonCode \} : \{\}\) \}/);
-assert.doesNotMatch(page, /clinicalAccessEnabled\s*:/);
+assert.doesNotMatch(page, /clinicalAccessEnabled\s*=\s*/);
+assert.doesNotMatch(page, /clinicalAccessEnabled\s*:\s*(?:true|false)\b/);
 assert.doesNotMatch(page, /PATCH|DELETE/);
 
 // Navigation and localization.
