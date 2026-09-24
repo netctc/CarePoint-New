@@ -86,3 +86,5 @@ console.log(JSON.stringify({
   mobileOneTimeGrantNotPersisted: true,
   mobileLocales: ["en", "ar", "fr", "es"],
 }));
+
+await import("./v2-patient-clinical-share-smoke.mjs");
