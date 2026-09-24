@@ -23,6 +23,7 @@ class _PatientMedicationRemindersPageState extends State<PatientMedicationRemind
   String? error;
   List<Map<String, dynamic>> reminders = const [];
   List<Map<String, dynamic>> sources = const [];
+  List<Map<String, dynamic>> intakes = const [];
 
   CarePointApi get api => widget.session.api;
   String t(String key) => patientMedicationReminderText(widget.locale, key);
@@ -40,6 +41,7 @@ class _PatientMedicationRemindersPageState extends State<PatientMedicationRemind
         api.patientMedicationReminders(),
         api.patientClinicalProfileEntries(kind: 'MEDICATION'),
         api.patientClinicalOrders(),
+        api.patientMedicationIntakes(),
       ]);
       final profileItems = _maps(values[1]['items'])
           .where((item) => item['status']?.toString() == 'ACTIVE')
@@ -55,6 +57,7 @@ class _PatientMedicationRemindersPageState extends State<PatientMedicationRemind
       setState(() {
         reminders = _maps(values[0]['items']);
         sources = nextSources;
+        intakes = _maps(values[3]['items']);
       });
     } catch (value) {
       if (mounted) setState(() => error = value.toString());
@@ -189,6 +192,38 @@ class _PatientMedicationRemindersPageState extends State<PatientMedicationRemind
             label: Text(patientAdverseEventText(widget.locale, 'report')),
           ),
           const SizedBox(height: 8),
+          if (reminder != null) ...[
+            Text(t('recordDose'), style: const TextStyle(fontWeight: FontWeight.w800)),
+            const SizedBox(height: 6),
+            Wrap(spacing: 8, runSpacing: 8, children: [
+              FilledButton.tonalIcon(
+                key: ValueKey('patient-medication-intake-taken-${reminder['id']}'),
+                onPressed: () => _recordIntake(reminder, 'TAKEN'),
+                icon: const Icon(Icons.check_circle_outline),
+                label: Text(t('taken')),
+              ),
+              OutlinedButton.icon(
+                key: ValueKey('patient-medication-intake-omitted-${reminder['id']}'),
+                onPressed: () => _recordIntake(reminder, 'OMITTED'),
+                icon: const Icon(Icons.remove_circle_outline),
+                label: Text(t('omitted')),
+              ),
+              OutlinedButton.icon(
+                key: ValueKey('patient-medication-intake-postponed-${reminder['id']}'),
+                onPressed: () => _recordIntake(reminder, 'POSTPONED'),
+                icon: const Icon(Icons.schedule_send_outlined),
+                label: Text(t('postponed')),
+              ),
+            ]),
+            ..._intakesFor(reminder).take(3).map((item) => Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                '${_intakeLabel(item['status']?.toString() ?? '')} · ${_dateTime(item['occurredAt'])}',
+                style: const TextStyle(color: Color(0xFF64748B)),
+              ),
+            )),
+            const SizedBox(height: 10),
+          ],
           if (reminder == null)
             FilledButton.tonalIcon(
               key: ValueKey('patient-medication-reminder-create-${source['sourceId']}'),
@@ -217,6 +252,51 @@ class _PatientMedicationRemindersPageState extends State<PatientMedicationRemind
         ]),
       ),
     );
+  }
+
+
+  Iterable<Map<String, dynamic>> _intakesFor(Map<String, dynamic> reminder) =>
+      intakes.where((item) => item['reminderId']?.toString() == reminder['id']?.toString());
+
+  String _intakeLabel(String status) => switch (status) {
+    'TAKEN' => t('taken'),
+    'OMITTED' => t('omitted'),
+    'POSTPONED' => t('postponed'),
+    _ => status,
+  };
+
+  String _dateTime(dynamic value) {
+    final parsed = DateTime.tryParse(value?.toString() ?? '')?.toLocal();
+    if (parsed == null) return '—';
+    return parsed.toString().substring(0, 16);
+  }
+
+  Future<void> _recordIntake(Map<String, dynamic> reminder, String status) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(_intakeLabel(status)),
+        content: Text(t('intakeConfirm')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: Text(t('cancel'))),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: Text(t('confirm'))),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    final now = DateTime.now().toUtc();
+    try {
+      await api.recordPatientMedicationIntake(
+        reminderId: reminder['id'].toString(),
+        status: status,
+        scheduledFor: now,
+        occurredAt: now,
+        idempotencyKey: 'mobile-intake-${reminder['id']}-${now.microsecondsSinceEpoch}',
+      );
+      await _load();
+    } catch (value) {
+      _message(value.toString());
+    }
   }
 
   Future<void> _toggle(Map<String, dynamic> reminder, bool enabled) async {
@@ -365,16 +445,16 @@ class _PatientMedicationRemindersPageState extends State<PatientMedicationRemind
 String patientMedicationReminderText(CarePointLocale locale, String key) {
   const values = <CarePointLocale, Map<String, String>>{
     CarePointLocale.en: {
-      'title':'Medication reminders','intro':'Create voluntary reminders for active medication statements or signed prescriptions. Reminder settings never modify the medication statement or prescription.','refresh':'Refresh','empty':'No active medication source is available.','medication':'Medication','medicationStatement':'Medication statement','patientStatement':'Patient medication statement','prescription':'Prescription','signedPrescription':'Signed prescription','prescriptionSource':'Source: signed prescription','statementSource':'Source: active medication statement','schedule':'Schedule','create':'Create reminder','edit':'Edit schedule','enabled':'Reminder enabled','disabled':'Reminder disabled','times':'Local reminder times','timeZone':'Time zone','privacy':'Notifications use a generic medication-reminder message. Medication names and doses are not copied into external notification payloads.','invalidTimes':'Use 1–12 unique times in HH:mm format separated by commas.','invalidZone':'Enter an IANA time zone or UTC±HH:MM.','save':'Save','cancel':'Cancel'
+      'title':'Medication reminders','intro':'Create voluntary reminders for active medication statements or signed prescriptions. Reminder settings never modify the medication statement or prescription.','refresh':'Refresh','empty':'No active medication source is available.','medication':'Medication','medicationStatement':'Medication statement','patientStatement':'Patient medication statement','prescription':'Prescription','signedPrescription':'Signed prescription','prescriptionSource':'Source: signed prescription','statementSource':'Source: active medication statement','schedule':'Schedule','create':'Create reminder','edit':'Edit schedule','enabled':'Reminder enabled','disabled':'Reminder disabled','times':'Local reminder times','timeZone':'Time zone','privacy':'Notifications use a generic medication-reminder message. Medication names and doses are not copied into external notification payloads.','invalidTimes':'Use 1–12 unique times in HH:mm format separated by commas.','invalidZone':'Enter an IANA time zone or UTC±HH:MM.','recordDose':'Record dose','taken':'Taken','omitted':'Omitted','postponed':'Postponed','intakeConfirm':'Record this status as patient-reported? This does not change the prescription.','confirm':'Confirm','save':'Save','cancel':'Cancel'
     },
     CarePointLocale.ar: {
-      'title':'تذكيرات الدواء','intro':'أنشئ تذكيرات اختيارية للأدوية النشطة أو الوصفات الموقعة. إعدادات التذكير لا تعدّل الدواء أو الوصفة.','refresh':'تحديث','empty':'لا يوجد مصدر دواء نشط.','medication':'دواء','medicationStatement':'بيان دواء','patientStatement':'بيان دواء للمريض','prescription':'وصفة','signedPrescription':'وصفة موقعة','prescriptionSource':'المصدر: وصفة موقعة','statementSource':'المصدر: بيان دواء نشط','schedule':'الجدول','create':'إنشاء تذكير','edit':'تعديل الجدول','enabled':'التذكير مفعّل','disabled':'التذكير معطّل','times':'أوقات التذكير المحلية','timeZone':'المنطقة الزمنية','privacy':'تستخدم الإشعارات رسالة تذكير عامة ولا تنسخ اسم الدواء أو الجرعة إلى حمولة الإشعار الخارجية.','invalidTimes':'استخدم 1–12 وقتاً فريداً بصيغة HH:mm مفصولة بفواصل.','invalidZone':'أدخل منطقة IANA أو UTC±HH:MM.','save':'حفظ','cancel':'إلغاء'
+      'title':'تذكيرات الدواء','intro':'أنشئ تذكيرات اختيارية للأدوية النشطة أو الوصفات الموقعة. إعدادات التذكير لا تعدّل الدواء أو الوصفة.','refresh':'تحديث','empty':'لا يوجد مصدر دواء نشط.','medication':'دواء','medicationStatement':'بيان دواء','patientStatement':'بيان دواء للمريض','prescription':'وصفة','signedPrescription':'وصفة موقعة','prescriptionSource':'المصدر: وصفة موقعة','statementSource':'المصدر: بيان دواء نشط','schedule':'الجدول','create':'إنشاء تذكير','edit':'تعديل الجدول','enabled':'التذكير مفعّل','disabled':'التذكير معطّل','times':'أوقات التذكير المحلية','timeZone':'المنطقة الزمنية','privacy':'تستخدم الإشعارات رسالة تذكير عامة ولا تنسخ اسم الدواء أو الجرعة إلى حمولة الإشعار الخارجية.','invalidTimes':'استخدم 1–12 وقتاً فريداً بصيغة HH:mm مفصولة بفواصل.','invalidZone':'أدخل منطقة IANA أو UTC±HH:MM.','recordDose':'تسجيل الجرعة','taken':'تم تناولها','omitted':'تم تجاوزها','postponed':'تم تأجيلها','intakeConfirm':'تسجيل هذه الحالة كبيان من المريض؟ هذا لا يغيّر الوصفة.','confirm':'تأكيد','save':'حفظ','cancel':'إلغاء'
     },
     CarePointLocale.fr: {
-      'title':'Rappels de médicaments','intro':'Créez des rappels volontaires pour les traitements actifs ou ordonnances signées. Les réglages ne modifient jamais le traitement ni l’ordonnance.','refresh':'Actualiser','empty':'Aucune source médicamenteuse active.','medication':'Médicament','medicationStatement':'Traitement déclaré','patientStatement':'Traitement déclaré par le patient','prescription':'Ordonnance','signedPrescription':'Ordonnance signée','prescriptionSource':'Source : ordonnance signée','statementSource':'Source : traitement actif','schedule':'Horaire','create':'Créer un rappel','edit':'Modifier l’horaire','enabled':'Rappel activé','disabled':'Rappel désactivé','times':'Heures locales de rappel','timeZone':'Fuseau horaire','privacy':'Les notifications utilisent un message générique; le nom et la dose du médicament ne sont pas copiés dans la charge externe.','invalidTimes':'Utilisez 1 à 12 heures uniques au format HH:mm séparées par des virgules.','invalidZone':'Entrez un fuseau IANA ou UTC±HH:MM.','save':'Enregistrer','cancel':'Annuler'
+      'title':'Rappels de médicaments','intro':'Créez des rappels volontaires pour les traitements actifs ou ordonnances signées. Les réglages ne modifient jamais le traitement ni l’ordonnance.','refresh':'Actualiser','empty':'Aucune source médicamenteuse active.','medication':'Médicament','medicationStatement':'Traitement déclaré','patientStatement':'Traitement déclaré par le patient','prescription':'Ordonnance','signedPrescription':'Ordonnance signée','prescriptionSource':'Source : ordonnance signée','statementSource':'Source : traitement actif','schedule':'Horaire','create':'Créer un rappel','edit':'Modifier l’horaire','enabled':'Rappel activé','disabled':'Rappel désactivé','times':'Heures locales de rappel','timeZone':'Fuseau horaire','privacy':'Les notifications utilisent un message générique; le nom et la dose du médicament ne sont pas copiés dans la charge externe.','invalidTimes':'Utilisez 1 à 12 heures uniques au format HH:mm séparées par des virgules.','invalidZone':'Entrez un fuseau IANA ou UTC±HH:MM.','recordDose':'Enregistrer la prise','taken':'Prise','omitted':'Omission','postponed':'Reportée','intakeConfirm':'Enregistrer ce statut comme déclaré par le patient ? Cela ne modifie pas l’ordonnance.','confirm':'Confirmer','save':'Enregistrer','cancel':'Annuler'
     },
     CarePointLocale.es: {
-      'title':'Recordatorios de medicación','intro':'Crea recordatorios voluntarios para medicación activa o recetas firmadas. La configuración del recordatorio nunca modifica la medicación ni la receta.','refresh':'Actualizar','empty':'No hay ninguna fuente de medicación activa.','medication':'Medicamento','medicationStatement':'Medicamento declarado','patientStatement':'Medicamento declarado por el paciente','prescription':'Receta','signedPrescription':'Receta firmada','prescriptionSource':'Origen: receta firmada','statementSource':'Origen: medicamento activo','schedule':'Horario','create':'Crear recordatorio','edit':'Editar horario','enabled':'Recordatorio activo','disabled':'Recordatorio desactivado','times':'Horas locales del recordatorio','timeZone':'Zona horaria','privacy':'Las notificaciones usan un mensaje genérico; el nombre y la dosis no se copian al payload externo.','invalidTimes':'Usa entre 1 y 12 horas únicas HH:mm separadas por comas.','invalidZone':'Introduce una zona IANA o UTC±HH:MM.','save':'Guardar','cancel':'Cancelar'
+      'title':'Recordatorios de medicación','intro':'Crea recordatorios voluntarios para medicación activa o recetas firmadas. La configuración del recordatorio nunca modifica la medicación ni la receta.','refresh':'Actualizar','empty':'No hay ninguna fuente de medicación activa.','medication':'Medicamento','medicationStatement':'Medicamento declarado','patientStatement':'Medicamento declarado por el paciente','prescription':'Receta','signedPrescription':'Receta firmada','prescriptionSource':'Origen: receta firmada','statementSource':'Origen: medicamento activo','schedule':'Horario','create':'Crear recordatorio','edit':'Editar horario','enabled':'Recordatorio activo','disabled':'Recordatorio desactivado','times':'Horas locales del recordatorio','timeZone':'Zona horaria','privacy':'Las notificaciones usan un mensaje genérico; el nombre y la dosis no se copian al payload externo.','invalidTimes':'Usa entre 1 y 12 horas únicas HH:mm separadas por comas.','invalidZone':'Introduce una zona IANA o UTC±HH:MM.','recordDose':'Registrar dosis','taken':'Tomada','omitted':'Omitida','postponed':'Pospuesta','intakeConfirm':'¿Registrar este estado como declarado por el paciente? Esto no modifica la receta.','confirm':'Confirmar','save':'Guardar','cancel':'Cancelar'
     },
   };
   return values[locale]?[key] ?? values[CarePointLocale.en]![key] ?? key;
