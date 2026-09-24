@@ -1,6 +1,7 @@
 import 'package:carepoint_mobile_core/carepoint_auth.dart';
 import 'package:carepoint_mobile_core/carepoint_localization.dart';
 import 'package:carepoint_mobile_core/care_provider_actions.dart';
+import 'package:carepoint_mobile_core/provider_supplies.dart';
 import 'package:flutter/material.dart';
 import 'field_media_entry.dart';
 import 'follow_up_entry.dart';
@@ -29,8 +30,13 @@ class _ProviderAppState extends State<ProviderApp> {
           activeBuilder: (_) => OtherProviderCapabilityScope(session: session, locale: locale, accent: const Color(0xFF10B981),
             builder: (_, serviceModalities, clinicalOrderCapabilities, observationCodes, workflowCapabilities) => CareProviderActions(session: session, locale: locale, onSignOut: signOut, accent: const Color(0xFF10B981), transport: true,
               allowedModalities: serviceModalities.toList(),
-              child: ProviderNursingLauncher(
+              child: ProviderSuppliesLauncher(
                 session: session,
+                locale: locale,
+                workflowCapabilities: workflowCapabilities,
+                accent: const Color(0xFF10B981),
+                child: ProviderNursingLauncher(
+                  session: session,
                 locale: locale,
                 workflowCapabilities: workflowCapabilities,
                 observationCodes: observationCodes,
@@ -65,6 +71,7 @@ class _ProviderAppState extends State<ProviderApp> {
                     ),
                   ),
                 ),
+              ),
               ),
             ),
           ),
