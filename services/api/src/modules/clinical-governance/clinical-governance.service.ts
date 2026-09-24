@@ -20,6 +20,10 @@ import {
   normalizeTemporaryShareExpiry,
   normalizeTemporaryShareScopes,
 } from "./clinical-consent-policy";
+import {
+  ConsentPolicyGovernanceService,
+  RUNTIME_CONSENT_JURISDICTION,
+} from "./consent-policy-governance.service";
 
 const ROLES: readonly IdentityRole[] = ["PATIENT", "DOCTOR", "OTHER_PROVIDER", "ADMIN", "SUPPORT"];
 const MAX_AUDIT_CANDIDATES = 500;
@@ -55,6 +59,7 @@ export class ClinicalGovernanceService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: DatabaseAuditService,
+    private readonly consentPolicies: ConsentPolicyGovernanceService,
   ) {}
 
   policies() {
@@ -112,10 +117,19 @@ export class ClinicalGovernanceService {
     }
     const scopes = normalizeTemporaryShareScopes(input?.scopes);
     const expiresAt = normalizeTemporaryShareExpiry(input?.expiresAt);
+    const governedScopes = await Promise.all(scopes.map((item) => this.consentPolicies.validateGrant({
+      scope: item.scope,
+      version: item.version,
+      purpose: "TREATMENT",
+      providerRole: provider.class,
+      expiresAt,
+      jurisdiction: RUNTIME_CONSENT_JURISDICTION,
+      temporaryShare: true,
+    })));
 
     const created = await this.prisma.$transaction(async (tx) => {
       const consentIds: string[] = [];
-      for (const item of scopes) {
+      for (const item of governedScopes) {
         const consent = await tx.consent.create({
           data: {
             patientId: patient.id,
@@ -125,6 +139,8 @@ export class ClinicalGovernanceService {
             purpose: "TREATMENT",
             state: "GRANTED",
             expiresAt,
+            policyVersionId: item.policyVersionId,
+            policyJurisdiction: item.policyJurisdiction,
           },
         });
         consentIds.push(consent.id);
@@ -133,7 +149,7 @@ export class ClinicalGovernanceService {
         data: {
           patientId: patient.id,
           providerId: provider.id,
-          scopes: scopes.map((item) => item.scope) as unknown as Prisma.InputJsonValue,
+          scopes: governedScopes.map((item) => item.scope) as unknown as Prisma.InputJsonValue,
           consentIds: consentIds as unknown as Prisma.InputJsonValue,
           purpose: "TREATMENT",
           expiresAt,
@@ -152,7 +168,8 @@ export class ClinicalGovernanceService {
           shareId: share.id,
           patientId: patient.id,
           providerId: provider.id,
-          itemCount: scopes.length,
+          itemCount: governedScopes.length,
+          policyVersionIds: governedScopes.map((item) => item.policyVersionId).filter(Boolean),
           decision: "ALLOW",
         },
       });

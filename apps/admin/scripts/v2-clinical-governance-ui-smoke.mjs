@@ -4,11 +4,32 @@ import { readFileSync } from "node:fs";
 const consentPage = read("../app/consent-policies/page.tsx");
 const auditPage = read("../app/clinical-access/page.tsx");
 const component = read("../components/ClinicalGovernanceConsole.tsx");
+const policyManager = read("../components/ConsentPolicyManager.tsx");
+const policyRoot = read("../app/api/admin/consent-policies/[[...segments]]/route.ts");
+const managedPolicy = read("../../../services/api/src/modules/clinical-governance/consent-policy-governance.service.ts");
+const consentPersistence = read("../../../services/api/src/modules/consent/persistent-consent.service.ts");
 const route = read("../app/api/admin/clinical-access/[...segments]/route.ts");
 const shell = read("../components/AppShell.tsx");
 const governanceModule = read("../../../services/api/src/modules/clinical-governance/clinical-governance.module.ts");
 const governanceService = read("../../../services/api/src/modules/clinical-governance/clinical-governance.service.ts");
 const auditSanitizer = read("../../../services/api/src/infrastructure/audit/clinical-audit-metadata.ts");
+
+// ADM-091 — managed policy revisions can only restrict the immutable core consent safety ceiling.
+assert.match(consentPage, /ADM-091/);
+assert.match(consentPage, /ConsentPolicyManager/);
+assert.match(policyManager, /\/api\/admin\/consent-policies/);
+assert.match(policyManager, /titleLabels/);
+assert.match(policyManager, /bodyLabels/);
+assert.match(policyManager, /eligibleRoles/);
+assert.match(policyManager, /requireExpiry/);
+assert.match(policyManager, /regrantAllowed/);
+assert.match(policyManager, /runtimeJurisdiction/);
+assert.match(policyRoot, /forwardAdminJson/);
+assert.match(policyRoot, /requireSameOrigin: true/);
+assert.match(policyRoot, /MAX_BODY_BYTES = 65536/);
+assert.match(managedPolicy, /cannot expand beyond the core safety policy/);
+assert.match(managedPolicy, /status: "RETIRED"/);
+assert.match(consentPersistence, /policyVersionId/);
 
 // ADM-092 — the UI renders the effective backend role/scope/category matrix, not a client-owned copy.
 assert.match(consentPage, /ADM-092/);
@@ -58,6 +79,6 @@ for (const locale of ["en:", "ar:", "fr:", "es:"]) {
   assert.ok(component.includes(locale), `Missing governance locale ${locale}`);
 }
 
-console.log("ADM-092/ADM-093 Admin consent matrix and clinical audit explorer acceptance passed");
+console.log("ADM-091/ADM-092/ADM-093 Admin consent governance and clinical audit acceptance passed");
 
 function read(relative){return readFileSync(new URL(relative, import.meta.url),"utf8");}
