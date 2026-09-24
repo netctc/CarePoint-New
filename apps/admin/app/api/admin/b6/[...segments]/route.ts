@@ -188,7 +188,7 @@ function resolvePost(segments: string[]): string | null {
     safeId(segments[3]) &&
     ["mappings", "test", "activate"].includes(segments[4])
   ) {
-    return "/admin/integrations/fhir/configs/" + encodeURIComponent(segments[3]) + "/" + segments[4];
+    return "/admin/integrations/fhir/configs/" + encodeURIComponent(segments[3]!) + "/" + segments[4];
   }
   if (
     segments.length === 5 &&
@@ -198,7 +198,7 @@ function resolvePost(segments: string[]): string | null {
     safeId(segments[3]) &&
     segments[4] === "publish"
   ) {
-    return "/admin/integrations/fhir/mappings/" + encodeURIComponent(segments[3]) + "/publish";
+    return "/admin/integrations/fhir/mappings/" + encodeURIComponent(segments[3]!) + "/publish";
   }
   if (path === "integrations/labs/configs") return "/admin/integrations/labs/configs";
   if (
@@ -209,7 +209,7 @@ function resolvePost(segments: string[]): string | null {
     safeId(segments[3]) &&
     ["mappings", "test", "activate"].includes(segments[4])
   ) {
-    return "/admin/integrations/labs/configs/" + encodeURIComponent(segments[3]) + "/" + segments[4];
+    return "/admin/integrations/labs/configs/" + encodeURIComponent(segments[3]!) + "/" + segments[4];
   }
   if (
     segments.length === 5 &&
@@ -219,7 +219,7 @@ function resolvePost(segments: string[]): string | null {
     safeId(segments[3]) &&
     segments[4] === "publish"
   ) {
-    return "/admin/integrations/labs/mappings/" + encodeURIComponent(segments[3]) + "/publish";
+    return "/admin/integrations/labs/mappings/" + encodeURIComponent(segments[3]!) + "/publish";
   }
   if (
     segments.length === 5 &&
@@ -229,7 +229,7 @@ function resolvePost(segments: string[]): string | null {
     safeId(segments[3]) &&
     segments[4] === "retry"
   ) {
-    return "/admin/integrations/labs/events/" + encodeURIComponent(segments[3]) + "/retry";
+    return "/admin/integrations/labs/events/" + encodeURIComponent(segments[3]!) + "/retry";
   }
   if (path === "credential-expirations/policy") return "/admin/governance/credential-expirations/policy";
   if (path === "credential-expirations/run-reminders") return "/admin/governance/credential-expirations/run-reminders";
