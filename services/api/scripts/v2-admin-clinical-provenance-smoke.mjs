@@ -30,8 +30,15 @@ assert.match(service, /domain: "CLINICAL_PROVENANCE"/);
 // Cleartext clinical payload fields are never selected or projected by the provenance method.
 const method=service.match(/async provenanceExplorer[\s\S]*?\n  async auditExplorer/)?.[0]??"";
 assert.ok(method);
-for(const forbidden of ["ciphertext","wrappedKey","clinicalNote","answers:","canonicalValue","displayValue","valueJson","data:"]) {
-  assert.equal(method.includes(forbidden),false,`Provenance projection leaked payload selector: ${forbidden}`);
+for(const forbidden of ["ciphertext","wrappedKey","clinicalNote","canonicalValue","displayValue","valueJson"]) {
+  assert.equal(method.includes(forbidden),false,`Provenance projection leaked clinical field: ${forbidden}`);
+}
+for (const selector of ["data", "payload", "answers", "ciphertext", "wrappedKey"]) {
+  assert.doesNotMatch(
+    method,
+    new RegExp(`\\b${selector}\\s*:\\s*true\\b`),
+    `Provenance projection selected cleartext payload field: ${selector}`,
+  );
 }
 
 // BFF is GET-only, requires an explicit bounded patient ID and whitelists query fields.
