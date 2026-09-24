@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { forwardAdminJson } from "@/lib/admin-api";
 import { noStore } from "@/lib/admin-auth";
 
-const ALLOWED_READS = new Set(["policies", "matrix", "audit"]);
+const ALLOWED_READS = new Set(["policies", "matrix", "audit", "provenance"]);
+const PROVENANCE_FILTERS = new Set(["patientId", "domain", "limit"]);
 const AUDIT_FILTERS = new Set([
   "actorId", "objectType", "objectId", "action", "purpose", "result",
   "patientId", "providerId", "from", "to", "limit",
@@ -17,12 +18,32 @@ export async function GET(request: NextRequest, context: RouteContext) {
     return invalid("Unsupported clinical governance read route.");
   }
   const segment = segments[0]!;
-  if (segment !== "audit" && request.nextUrl.searchParams.size > 0) {
+  if (segment !== "audit" && segment !== "provenance" && request.nextUrl.searchParams.size > 0) {
     return invalid("This clinical governance route does not accept query parameters.");
   }
 
   let target = "/admin/clinical-access/" + segment;
-  if (segment === "audit") {
+  if (segment === "provenance") {
+    const patientId = request.nextUrl.searchParams.get("patientId")?.trim() ?? "";
+    if (!/^[A-Za-z0-9_.:-]{1,180}$/.test(patientId)) {
+      return invalid("patientId is required and invalid.");
+    }
+    const query = new URLSearchParams({ patientId });
+    for (const [key, value] of request.nextUrl.searchParams) {
+      if (!PROVENANCE_FILTERS.has(key) || value.length > MAX_QUERY_VALUE) {
+        return invalid("Unsupported or oversized provenance filter.");
+      }
+      if (key === "patientId") continue;
+      if (key === "domain" && !["ALL", "CLINICAL_PROFILE", "OBSERVATION", "QUESTIONNAIRE"].includes(value.trim().toUpperCase())) {
+        return invalid("Invalid provenance domain.");
+      }
+      if (key === "limit" && !/^(?:[1-9]|[1-9][0-9]|1[0-9]{2}|200)$/.test(value.trim())) {
+        return invalid("Invalid provenance limit.");
+      }
+      query.set(key, key === "domain" ? value.trim().toUpperCase() : value.trim());
+    }
+    target += "?" + query.toString();
+  } else if (segment === "audit") {
     const query = new URLSearchParams();
     for (const [key, value] of request.nextUrl.searchParams) {
       if (!AUDIT_FILTERS.has(key) || value.length > MAX_QUERY_VALUE) {
