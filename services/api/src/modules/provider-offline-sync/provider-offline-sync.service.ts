@@ -21,8 +21,18 @@ const EVIDENCE_REF = /^[A-Za-z0-9._:/-]{1,240}$/;
 const MAX_CHECKLIST_ITEMS = 100;
 const MAX_NOTES = 10000;
 const MAX_EVIDENCE_REFS = 30;
+const MAX_CLINICAL_DRAFT_TEXT = 12000;
 
 type ChecklistValue = boolean | number | string | null;
+
+type DoctorClinicalDraft = {
+  chiefComplaint: string | null;
+  subjective: string | null;
+  objective: string | null;
+  assessment: string | null;
+  plan: string | null;
+  vitals: Record<string, number>;
+};
 
 type OfflineFieldSnapshot = {
   schemaVersion: 1;
@@ -30,6 +40,7 @@ type OfflineFieldSnapshot = {
   checklist: Record<string, ChecklistValue>;
   notes: string | null;
   evidenceRefs: string[];
+  clinicalDraft?: DoctorClinicalDraft | null;
   clientUpdatedAt: string | null;
 };
 
@@ -42,6 +53,7 @@ export interface SyncOfflineFieldDraftInput {
   checklist?: unknown;
   notes?: unknown;
   evidenceRefs?: unknown;
+  clinicalDraft?: unknown;
   clientUpdatedAt?: unknown;
 }
 
@@ -68,7 +80,7 @@ export class ProviderOfflineSyncService {
     const clientRevision = this.positiveInteger(input?.clientRevision, "clientRevision");
     const baseServerVersion = this.nonNegativeInteger(input?.baseServerVersion, "baseServerVersion");
     const idempotencyKey = this.idempotencyKey(input?.idempotencyKey);
-    const snapshot = this.snapshot(appointment.id, input);
+    const snapshot = this.snapshot(appointment.id, input, principal);
     const requestDigest = this.digest({
       providerId: context.providerId,
       patientId: appointment.patientId,
@@ -243,7 +255,7 @@ export class ProviderOfflineSyncService {
       purpose: "TREATMENT",
       result: "SUCCESS",
       metadata: {
-        domain: "OTHER_PROVIDER_OFFLINE_SYNC",
+        domain: principal.role === "DOCTOR" ? "DOCTOR_OFFLINE_CLINICAL" : "OTHER_PROVIDER_OFFLINE_SYNC",
         providerId: context.providerId,
         pendingConflictCount: rows.length,
         decision: "ALLOW",
@@ -285,7 +297,7 @@ export class ProviderOfflineSyncService {
       purpose: "TREATMENT",
       result: "SUCCESS",
       metadata: {
-        domain: "OTHER_PROVIDER_OFFLINE_SYNC",
+        domain: principal.role === "DOCTOR" ? "DOCTOR_OFFLINE_CLINICAL" : "OTHER_PROVIDER_OFFLINE_SYNC",
         providerId: context.providerId,
         patientId: conflict.patientId,
         appointmentId: conflict.appointmentId,
@@ -407,6 +419,16 @@ export class ProviderOfflineSyncService {
   }
 
   private async requireOfflineContext(principal: AuthPrincipal) {
+    if (principal.role === "DOCTOR") {
+      const provider = await this.prisma.provider.findUnique({
+        where: { userId: principal.accountId },
+        select: { id: true, class: true, status: true },
+      });
+      if (!provider || provider.class !== "DOCTOR" || provider.status !== "ACTIVE") {
+        throw new ForbiddenException("An active Doctor provider profile is required for offline clinical drafts.");
+      }
+      return { providerId: provider.id };
+    }
     const context = await this.capabilities.workspaceContext(principal);
     if (!context.enabledModalities.has("HOME_VISIT")) {
       throw new ForbiddenException("Other Provider category is not authorized for HOME_VISIT offline field work.");
@@ -436,15 +458,94 @@ export class ProviderOfflineSyncService {
     return revision;
   }
 
-  private snapshot(appointmentId: string, input: SyncOfflineFieldDraftInput): OfflineFieldSnapshot {
+  private snapshot(
+    appointmentId: string,
+    input: SyncOfflineFieldDraftInput,
+    principal: AuthPrincipal,
+  ): OfflineFieldSnapshot {
+    const checklist = this.checklist(input?.checklist);
+    const evidenceRefs = this.evidenceRefs(input?.evidenceRefs);
+    if (principal.role === "DOCTOR") {
+      if (Object.keys(checklist).length > 0 || evidenceRefs.length > 0) {
+        throw new BadRequestException("Doctor offline clinical drafts do not accept field-work checklist/evidence payloads.");
+      }
+      return {
+        schemaVersion: 1,
+        appointmentId,
+        checklist: {},
+        notes: null,
+        evidenceRefs: [],
+        clinicalDraft: this.doctorClinicalDraft(input?.clinicalDraft),
+        clientUpdatedAt: this.optionalDate(input?.clientUpdatedAt, "clientUpdatedAt"),
+      };
+    }
+    if (input?.clinicalDraft != null) {
+      throw new ForbiddenException("Clinical draft payload is reserved for Doctor HOME_VISIT workflows.");
+    }
     return {
       schemaVersion: 1,
       appointmentId,
-      checklist: this.checklist(input?.checklist),
+      checklist,
       notes: this.notes(input?.notes),
-      evidenceRefs: this.evidenceRefs(input?.evidenceRefs),
+      evidenceRefs,
+      clinicalDraft: null,
       clientUpdatedAt: this.optionalDate(input?.clientUpdatedAt, "clientUpdatedAt"),
     };
+  }
+
+  private doctorClinicalDraft(value: unknown): DoctorClinicalDraft {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      throw new BadRequestException("clinicalDraft must be an object.");
+    }
+    const raw = value as Record<string, unknown>;
+    const allowed = new Set(["chiefComplaint", "subjective", "objective", "assessment", "plan", "vitals"]);
+    for (const key of Object.keys(raw)) {
+      if (!allowed.has(key)) throw new BadRequestException(`Unsupported clinicalDraft field: ${key}.`);
+    }
+    return {
+      chiefComplaint: this.clinicalDraftText(raw.chiefComplaint, "chiefComplaint"),
+      subjective: this.clinicalDraftText(raw.subjective, "subjective"),
+      objective: this.clinicalDraftText(raw.objective, "objective"),
+      assessment: this.clinicalDraftText(raw.assessment, "assessment"),
+      plan: this.clinicalDraftText(raw.plan, "plan"),
+      vitals: this.clinicalDraftVitals(raw.vitals),
+    };
+  }
+
+  private clinicalDraftText(value: unknown, field: string): string | null {
+    if (value == null || value === "") return null;
+    if (typeof value !== "string") throw new BadRequestException(`clinicalDraft.${field} must be text.`);
+    const normalized = value.trim();
+    if (normalized.length > MAX_CLINICAL_DRAFT_TEXT || this.hasUnsafeControl(normalized)) {
+      throw new BadRequestException(`clinicalDraft.${field} is too long or contains unsafe control characters.`);
+    }
+    return normalized || null;
+  }
+
+  private clinicalDraftVitals(value: unknown): Record<string, number> {
+    if (value == null) return {};
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      throw new BadRequestException("clinicalDraft.vitals must be an object.");
+    }
+    const allowed = new Set([
+      "heartRateBpm",
+      "systolicMmHg",
+      "diastolicMmHg",
+      "oxygenSaturationPct",
+      "temperatureC",
+      "respiratoryRate",
+      "weightKg",
+      "painScore",
+    ]);
+    const result: Record<string, number> = {};
+    for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
+      if (!allowed.has(key)) throw new BadRequestException(`Unsupported clinicalDraft.vitals field: ${key}.`);
+      if (typeof raw !== "number" || !Number.isFinite(raw)) {
+        throw new BadRequestException(`clinicalDraft.vitals.${key} must be finite numeric data.`);
+      }
+      result[key] = raw;
+    }
+    return result;
   }
 
   private checklist(value: unknown): Record<string, ChecklistValue> {
@@ -544,7 +645,7 @@ export class ProviderOfflineSyncService {
       purpose: "TREATMENT",
       result: "SUCCESS",
       metadata: {
-        domain: "OTHER_PROVIDER_OFFLINE_SYNC",
+        domain: principal.role === "DOCTOR" ? "DOCTOR_OFFLINE_CLINICAL" : "OTHER_PROVIDER_OFFLINE_SYNC",
         providerId: draft.providerId,
         patientId: draft.patientId,
         appointmentId: draft.appointmentId,
