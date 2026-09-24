@@ -4,21 +4,23 @@ This directory defines the repeatable **non-production / synthetic-only** deploy
 
 ## Candidate boundary
 
-- Functional baseline: current `v2/development` head `0e473de12f3d0b71885d5f3843f984f08bec6329`, synchronized into `entorno-v2` by PR #399.
+- Functional baseline: current `v2/development` head `8d305e307e390544fd9358ba08eaa32872b7c2bc`, synchronized into `entorno-v2` by PR #420.
 - PR #375 (`DOC-082` clinical signature / MFA-assured Doctor signatures) is included because it was merged into `v2/development` on 2026-09-22 before this synchronization.
-- Synchronization merge commit: `122975790c23c3df514ad94653fc954b00962244`.
+- Synchronization merge commit: `94bd5dd0d0426996ad9495e0ea9d28d47ded4d25`.
 - This lane is for technical/integration/UAT testing with synthetic data. It is **not** production-equivalent KSA acceptance and must not be used with real PHI/PII unless a separately approved data-governance decision explicitly permits it.
 
 ## Applications exposed
 
-- API: `127.0.0.1:4000`
-- Admin Web: `127.0.0.1:3000`
-- Patient Flutter Web: `127.0.0.1:8080`
-- Doctor Flutter Web: `127.0.0.1:8081`
-- Other Provider Flutter Web: `127.0.0.1:8082`
+- API: `127.0.0.1:4200`
+- Admin Web: `127.0.0.1:3200`
+- Patient Flutter Web: `127.0.0.1:8280`
+- Doctor Flutter Web: `127.0.0.1:8281`
+- Other Provider Flutter Web: `127.0.0.1:8282`
 - PostgreSQL and Redis are internal to the Docker network and have no host ports.
 
 Host Nginx terminates TLS and routes the public test subdomains to those loopback ports.
+
+The generic repository Dockerfile keeps its default image metadata, but this test lane overrides the API runtime `PORT` to `4200` and the Admin runtime `PORT` to `3200` in Compose. The Flutter Web containers still listen internally on port 80 and are published only to loopback ports `8280`, `8281` and `8282`.
 
 ## Recommended Ubuntu host
 
