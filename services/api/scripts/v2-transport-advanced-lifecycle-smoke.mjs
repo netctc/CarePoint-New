@@ -5,6 +5,9 @@ const source = readFileSync(new URL("../src/modules/transport/transport-advanced
 const schema = readFileSync(new URL("../prisma/v2_transport_advanced_lifecycle.prisma", import.meta.url), "utf8");
 const migration = readFileSync(new URL("../prisma/migrations/20260922190000_v2_transport_advanced_lifecycle/migration.sql", import.meta.url), "utf8");
 const appModule = readFileSync(new URL("../src/app.module.ts", import.meta.url), "utf8");
+const transportApi = readFileSync(new URL("../../../packages/mobile_core/lib/transport_api.dart", import.meta.url), "utf8");
+const transportWorkspace = readFileSync(new URL("../../../packages/mobile_core/lib/transport_workspace.dart", import.meta.url), "utf8");
+const transportLocalization = readFileSync(new URL("../../../packages/mobile_core/lib/transport_localization.dart", import.meta.url), "utf8");
 
 // Exact assigned-provider scope and controlled routes.
 assert.match(source, /@Controller\("provider\/transport\/jobs"\)/);
@@ -67,6 +70,37 @@ assert.doesNotMatch(source, /pickupLatitude\s*:/);
 assert.doesNotMatch(source, /destinationLatitude\s*:/);
 assert.doesNotMatch(source, /callbackPhone\s*:/);
 
+// PRV-086 controlled destination change extends the immutable route revision rather than overwriting history.
+assert.match(source, /@Post\(":id\/destination-change"\)/);
+assert.match(source, /async destinationChange/);
+assert.match(source, /DESTINATION_REASONS/);
+assert.match(source, /FACILITY_UNAVAILABLE/);
+assert.match(source, /DISPATCH_REDIRECT/);
+assert.match(source, /PATIENT_REQUEST/);
+assert.match(source, /OPERATIONAL_CHANGE/);
+assert.match(source, /previousDestinationLatitude: locked\.destinationLatitude/);
+assert.match(source, /previousDestinationLongitude: locked\.destinationLongitude/);
+assert.match(source, /previousDestinationAddress: locked\.destinationAddress/);
+assert.match(source, /destinationLatitude,/);
+assert.match(source, /destinationLongitude,/);
+assert.match(source, /etaMinutes: null/);
+assert.match(source, /MEDICAL_TRANSPORT_DESTINATION_CHANGED/);
+assert.match(source, /destinationAddressPresent: destinationAddress !== null/);
+assert.match(source, /New destination must differ from the current destination/);
+assert.match(schema, /previousDestinationLatitude/);
+assert.match(schema, /previousDestinationLongitude/);
+assert.match(schema, /destinationLatitude/);
+assert.match(schema, /destinationLongitude/);
+assert.match(migration, /previous_destination_pair_check/);
+assert.match(migration, /destination_pair_check/);
+assert.match(transportApi, /changeProviderTransportDestination/);
+assert.match(transportWorkspace, /transport-destination-change-/);
+assert.match(transportWorkspace, /changeProviderTransportDestination/);
+assert.match(transportLocalization, /changeDestination/);
+for (const token of ["CarePointLocale.en","CarePointLocale.ar","CarePointLocale.fr","CarePointLocale.es"]) {
+  assert.ok(transportLocalization.includes(token));
+}
+
 assert.match(appModule, /TransportAdvancedLifecycleModule/);
 
-console.log("BE-032 advanced transport equipment checks and route revisions acceptance passed");
+console.log("BE-032 / PRV-086 advanced transport lifecycle and controlled destination change acceptance passed");

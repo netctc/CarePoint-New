@@ -26,6 +26,7 @@ const CHECK_STATUSES = new Set(["ASSIGNED", "EN_ROUTE", "ARRIVED"]);
 const EQUIPMENT = new Set(["OXYGEN", "MONITORING", "VENTILATION", "WHEELCHAIR", "STRETCHER"]);
 const ROUTE_REASONS = new Set(["TRAFFIC", "DIVERSION", "ROAD_CLOSURE", "WEATHER", "FACILITY_DELAY", "OPERATIONAL_UPDATE"]);
 const ROUTE_SOURCES = new Set(["PROVIDER_MANUAL", "DISPATCH_UPDATE"]);
+const DESTINATION_REASONS = new Set(["FACILITY_UNAVAILABLE", "DISPATCH_REDIRECT", "PATIENT_REQUEST", "OPERATIONAL_CHANGE"]);
 
 type EquipmentCheckBody = {
   confirmedEquipment?: string[];
@@ -36,6 +37,14 @@ type RouteRevisionBody = {
   etaMinutes?: number | null;
   reasonCode?: string;
   source?: string;
+  idempotencyKey?: string;
+};
+
+type DestinationChangeBody = {
+  destinationLatitude?: number;
+  destinationLongitude?: number;
+  destinationAddress?: string | null;
+  reasonCode?: string;
   idempotencyKey?: string;
 };
 
@@ -94,6 +103,7 @@ class TransportAdvancedLifecycleService {
         etaMinutes: revision.etaMinutes,
         reasonCode: revision.reasonCode,
         source: revision.source,
+        destinationChanged: revision.destinationLatitude !== null && revision.destinationLongitude !== null,
         createdAt: revision.createdAt,
       })),
       privacyBoundary: {
@@ -301,6 +311,132 @@ class TransportAdvancedLifecycleService {
     return this.get(principal, request.id);
   }
 
+
+  async destinationChange(principal: AuthPrincipal, requestIdRaw: string, input: DestinationChangeBody) {
+    const responder = await this.requireResponder(principal);
+    const request = await this.requireAssignedRequest(responder, requestIdRaw);
+    if (!ACTIVE_STATUSES.has(request.status)) {
+      throw new ConflictException("Destination changes are available only for an active assigned transport job.");
+    }
+    const idempotencyKey = this.idempotencyKey(input.idempotencyKey);
+    const destinationLatitude = this.coordinate(input.destinationLatitude, -90, 90, "destinationLatitude");
+    const destinationLongitude = this.coordinate(input.destinationLongitude, -180, 180, "destinationLongitude");
+    const destinationAddress = this.optionalAddress(input.destinationAddress);
+    const reasonCode = this.vocabulary(input.reasonCode, DESTINATION_REASONS, "reasonCode");
+    const requestDigest = this.digest({
+      requestId: request.id,
+      providerId: responder.id,
+      destinationLatitude,
+      destinationLongitude,
+      destinationAddress,
+      reasonCode,
+    });
+
+    const existing = await this.prisma.transportRouteRevision.findUnique({ where: { idempotencyKey } });
+    if (existing) {
+      if (
+        existing.transportRequestId !== request.id ||
+        existing.providerId !== responder.id ||
+        existing.requestDigest !== requestDigest
+      ) {
+        throw new ConflictException("idempotencyKey was already used with different destination-change content.");
+      }
+      return this.currentDestination(principal, request.id);
+    }
+
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        await this.audit.reserveIntegrityChainForSerializableTransaction(tx);
+        await tx.$queryRaw(Prisma.sql`SELECT id FROM "MedicalTransportRequest" WHERE id = ${request.id} FOR UPDATE`);
+        const locked = await tx.medicalTransportRequest.findUnique({ where: { id: request.id } });
+        if (!locked || locked.assignedProviderId !== responder.id || locked.mode !== responder.mode) {
+          throw new NotFoundException("Assigned medical transport job not found.");
+        }
+        if (!ACTIVE_STATUSES.has(locked.status)) {
+          throw new ConflictException("Destination changes are available only for an active assigned transport job.");
+        }
+
+        const sameCoordinates =
+          Number(locked.destinationLatitude) === destinationLatitude &&
+          Number(locked.destinationLongitude) === destinationLongitude;
+        const sameAddress = (locked.destinationAddress ?? null) === destinationAddress;
+        if (sameCoordinates && sameAddress) {
+          throw new ConflictException("New destination must differ from the current destination.");
+        }
+
+        const prior = await tx.transportRouteRevision.findFirst({
+          where: { transportRequestId: request.id },
+          orderBy: { revision: "desc" },
+          select: { revision: true },
+        });
+        const created = await tx.transportRouteRevision.create({
+          data: {
+            transportRequestId: request.id,
+            providerId: responder.id,
+            revision: (prior?.revision ?? 0) + 1,
+            idempotencyKey,
+            requestDigest,
+            lifecycleStatus: locked.status,
+            etaMinutes: null,
+            reasonCode,
+            source: "PROVIDER_DESTINATION_CHANGE",
+            previousDestinationLatitude: locked.destinationLatitude,
+            previousDestinationLongitude: locked.destinationLongitude,
+            previousDestinationAddress: locked.destinationAddress,
+            destinationLatitude,
+            destinationLongitude,
+            destinationAddress,
+            createdByAccountId: principal.accountId,
+          },
+        });
+        await tx.medicalTransportRequest.update({
+          where: { id: request.id },
+          data: {
+            destinationLatitude,
+            destinationLongitude,
+            destinationAddress,
+            etaMinutes: null,
+          },
+        });
+        await this.audit.writeInTransaction(tx, {
+          actorId: principal.accountId,
+          action: "MEDICAL_TRANSPORT_DESTINATION_CHANGED",
+          objectType: "MEDICAL_TRANSPORT_REQUEST",
+          objectId: request.id,
+          purpose: "MEDICAL_TRANSPORT",
+          result: "SUCCESS",
+          metadata: {
+            providerId: responder.id,
+            revision: created.revision,
+            lifecycleStatus: locked.status,
+            reasonCode,
+            destinationAddressPresent: destinationAddress !== null,
+          },
+        });
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    } catch (error) {
+      if (!this.uniqueConflict(error)) throw error;
+      const raced = await this.prisma.transportRouteRevision.findUnique({ where: { idempotencyKey } });
+      if (!raced || raced.requestDigest !== requestDigest || raced.transportRequestId !== request.id) {
+        throw new ConflictException("Destination changed concurrently. Refresh and retry.");
+      }
+    }
+    return this.currentDestination(principal, request.id);
+  }
+
+  private async currentDestination(principal: AuthPrincipal, requestIdRaw: string) {
+    const responder = await this.requireResponder(principal);
+    const request = await this.requireAssignedRequest(responder, requestIdRaw);
+    return {
+      requestId: request.id,
+      destinationLatitude: Number(request.destinationLatitude),
+      destinationLongitude: Number(request.destinationLongitude),
+      destinationAddress: request.destinationAddress,
+      etaMinutes: request.etaMinutes,
+      etaRequiresRefresh: request.etaMinutes === null,
+    };
+  }
+
   private async requireResponder(principal: AuthPrincipal): Promise<Responder> {
     const provider = await this.prisma.provider.findUnique({
       where: { userId: principal.accountId },
@@ -333,6 +469,24 @@ class TransportAdvancedLifecycleService {
     if (!Array.isArray(value) || value.length > 8) throw new BadRequestException("confirmedEquipment must be an array with at most 8 items.");
     const normalized = value.map((item) => this.vocabulary(item, EQUIPMENT, "confirmedEquipment")).sort();
     if (new Set(normalized).size !== normalized.length) throw new BadRequestException("confirmedEquipment cannot contain duplicates.");
+    return normalized;
+  }
+
+
+  private coordinate(value: unknown, min: number, max: number, field: string): number {
+    if (typeof value !== "number" || !Number.isFinite(value) || value < min || value > max) {
+      throw new BadRequestException(`${field} must be a finite number between ${min} and ${max}.`);
+    }
+    return Math.round(value * 1_000_000) / 1_000_000;
+  }
+
+  private optionalAddress(value: unknown): string | null {
+    if (value === undefined || value === null || value === "") return null;
+    if (typeof value !== "string") throw new BadRequestException("destinationAddress must be text.");
+    const normalized = value.trim();
+    if (!normalized || normalized.length > 500 || /\p{Cc}/u.test(normalized)) {
+      throw new BadRequestException("destinationAddress is invalid.");
+    }
     return normalized;
   }
 
@@ -391,6 +545,12 @@ class TransportAdvancedLifecycleController {
   @Header("Cache-Control", "no-store")
   routeRevision(@CurrentPrincipal() principal: AuthPrincipal, @Param("id") id: string, @Body() body: RouteRevisionBody) {
     return this.lifecycle.routeRevision(principal, id, body ?? {});
+  }
+
+  @Post(":id/destination-change")
+  @Header("Cache-Control", "no-store")
+  destinationChange(@CurrentPrincipal() principal: AuthPrincipal, @Param("id") id: string, @Body() body: DestinationChangeBody) {
+    return this.lifecycle.destinationChange(principal, id, body ?? {});
   }
 }
 
