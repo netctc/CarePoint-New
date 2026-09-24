@@ -77,6 +77,7 @@ import { ProviderWorkflowModule } from "./modules/provider-workflow/provider-wor
 import { RealtimeModule } from "./modules/realtime/realtime.module";
 import { RpmAlertModule } from "./modules/rpm/rpm-alert.module";
 import { SchedulingModule } from "./modules/scheduling/scheduling.module";
+import { SecondOpinionsModule } from "./modules/second-opinions/second-opinions.module";
 import { AvailabilityRequestsModule } from "./modules/scheduling/availability-requests.module";
 import { SmartModule } from "./modules/smart/smart.module";
 import { SymptomReportModule } from "./modules/symptom-reports/symptom-report.module";
@@ -115,6 +116,7 @@ const isolatedSyntheticPilot = isolatedSyntheticPrivatePilotActive(process.env);
     AppointmentContinuityModule,
     RefillModule,
     ReferralsModule,
+    SecondOpinionsModule,
     DataGovernanceModule,
     DataQualityModule,
     RetentionModule,
