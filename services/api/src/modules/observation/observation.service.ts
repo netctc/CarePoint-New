@@ -38,7 +38,7 @@ type StoredObservation = {
   canonicalValue: number;
   canonicalUnitCode: string;
   glucoseContext?: GlucoseContext | null;
-  verificationStatus: "PATIENT_DECLARED";
+  verificationStatus: "PATIENT_DECLARED" | "DEVICE_REPORTED";
 };
 type StoredObservationCorrection = {
   schemaVersion: 1;
@@ -83,6 +83,18 @@ export interface CreateObservationInput {
   observedAt: string;
   sourceType?: SourceType;
   sourceId?: string | null;
+  glucoseContext?: GlucoseContext | string | null;
+}
+
+export interface TrustedDeviceObservationInput {
+  code: string;
+  value: number;
+  unitCode: string;
+  observedAt: string;
+  deviceId: string;
+  actorId: string;
+  captureChannel: "SIGNED_DEVICE" | "PROVIDER_ASSISTED";
+  accessBasis: "DEVICE_ASSIGNMENT" | "TREATMENT";
   glucoseContext?: GlucoseContext | string | null;
 }
 
@@ -353,6 +365,81 @@ export class ObservationService {
     return this.present(row, payload, version.observationType.labels, "PATIENT_SELF");
   }
 
+  async recordTrustedDevice(patientIdRaw: string, input: TrustedDeviceObservationInput) {
+    const patientId = this.identifier(patientIdRaw, "patientId");
+    const deviceId = this.identifier(input?.deviceId, "deviceId");
+    const actorId = this.identifier(input?.actorId, "actorId");
+    const patient = await this.prisma.patientProfile.findUnique({ where: { id: patientId }, select: { id: true } });
+    if (!patient) throw new NotFoundException("Patient not found.");
+
+    const code = normalizeMetricCode(input?.code);
+    const glucoseContext = normalizeGlucoseContext(code, input?.glucoseContext);
+    const observedAt = normalizeObservedAt(input?.observedAt);
+    const version = await this.prisma.observationTypeVersion.findFirst({
+      where: { status: "ACTIVE", observationType: { code, active: true } },
+      include: { observationType: true },
+      orderBy: { version: "desc" },
+    });
+    if (!version) throw new NotFoundException("Active observation type not found.");
+
+    const originalUnitCode = normalizeUnitCode(input?.unitCode);
+    const allowed = this.jsonStringArray(version.allowedUnitCodes);
+    if (!allowed.includes(originalUnitCode)) throw new BadRequestException("unitCode is not allowed for this observation type.");
+    const normalized = convertMeasurement(
+      input?.value,
+      originalUnitCode,
+      version.canonicalUnitCode,
+      version.precision,
+      await this.conversions(originalUnitCode, version.canonicalUnitCode),
+    );
+    assertCanonicalRange(normalized.canonicalValue, version.minCanonical, version.maxCanonical);
+
+    const payload: StoredObservation = {
+      schemaVersion: 1,
+      metricCode: version.observationType.code,
+      metricVersion: version.version,
+      originalValue: normalized.originalValue,
+      originalUnitCode: normalized.originalUnitCode,
+      canonicalValue: normalized.canonicalValue,
+      canonicalUnitCode: normalized.canonicalUnitCode,
+      glucoseContext,
+      verificationStatus: "DEVICE_REPORTED",
+    };
+    const encrypted = await this.envelope.encryptRecord(payload);
+    const row = await this.prisma.observation.create({
+      data: {
+        patientId,
+        observationTypeId: version.observationTypeId,
+        observationTypeVersionId: version.id,
+        observedAt,
+        sourceType: "DEVICE",
+        sourceId: deviceId,
+        createdByActorId: actorId,
+        ...this.envelopeData(encrypted),
+      },
+    });
+    await this.audit.writeClinical({
+      actorId,
+      action: "DEVICE_OBSERVATION_RECORDED",
+      objectType: "OBSERVATION",
+      objectId: row.id,
+      purpose: "TREATMENT",
+      result: "SUCCESS",
+      metadata: {
+        domain: "OBSERVATION",
+        accessBasis: input.accessBasis,
+        patientId,
+        resourceId: row.id,
+        resourceVersion: version.version,
+        sourceType: "DEVICE",
+        deviceId,
+        captureChannel: input.captureChannel,
+        decision: "ALLOW",
+      },
+    });
+    return this.present(row, payload, version.observationType.labels, input.accessBasis);
+  }
+
   async historyMine(
     principal: AuthPrincipal,
     code: string,
@@ -560,6 +647,13 @@ export class ObservationService {
     const value = input.trim().toUpperCase();
     if (!/^[A-Z][A-Z0-9_]{1,63}$/.test(value)) throw new BadRequestException("dimension/category is invalid.");
     return value;
+  }
+
+  private identifier(value: unknown, field: string) {
+    if (typeof value !== "string") throw new BadRequestException(`${field} is required.`);
+    const normalized = value.trim();
+    if (!/^[A-Za-z0-9_.:-]{1,180}$/.test(normalized)) throw new BadRequestException(`${field} is invalid.`);
+    return normalized;
   }
 
   private sourceType(value: unknown): SourceType {

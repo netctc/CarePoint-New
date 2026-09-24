@@ -1,0 +1,69 @@
+model DeviceModel {
+  id                   String             @id @default(uuid())
+  code                 String             @unique
+  manufacturer         String
+  modelName            String
+  deviceType           String
+  supportedMetricCodes Json
+  active               Boolean            @default(true)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  devices              Device[]
+
+  @@index([active, deviceType])
+}
+
+model Device {
+  id            String                 @id @default(uuid())
+  deviceModelId String
+  serialNumber  String                 @unique
+  status        String                 @default("ACTIVE")
+  patientId     String?
+  providerId    String?
+  lastSeenAt    DateTime?
+  revokedAt     DateTime?
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+  model         DeviceModel            @relation(fields: [deviceModelId], references: [id], onDelete: Restrict)
+  credentials   DeviceCredential[]
+  ingestions    DeviceIngestionEvent[]
+
+  @@index([patientId, status])
+  @@index([providerId, status])
+  @@index([deviceModelId, status])
+}
+
+model DeviceCredential {
+  id           String   @id @default(uuid())
+  deviceId     String
+  keyId        String
+  publicKeyPem String
+  status       String   @default("ACTIVE")
+  activatedAt  DateTime @default(now())
+  revokedAt    DateTime?
+  createdAt    DateTime @default(now())
+  device       Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@unique([deviceId, keyId])
+  @@index([deviceId, status])
+}
+
+model DeviceIngestionEvent {
+  id              String   @id @default(uuid())
+  deviceId        String
+  externalEventId String
+  channel         String
+  credentialId    String?
+  providerId      String?
+  observationId   String?
+  payloadHash     String
+  status          String   @default("PENDING")
+  receivedAt      DateTime @default(now())
+  completedAt     DateTime?
+  device          Device   @relation(fields: [deviceId], references: [id], onDelete: Restrict)
+
+  @@unique([deviceId, externalEventId])
+  @@index([deviceId, receivedAt])
+  @@index([providerId, receivedAt])
+  @@index([status, receivedAt])
+}

@@ -40,6 +40,7 @@ import { ReferralsModule } from "./modules/referrals/referrals.module";
 import { SecondOpinionsModule } from "./modules/second-opinions/second-opinions.module";
 import { RetentionModule } from "./modules/retention/retention.module";
 import { DocumentsModule } from "./modules/documents/documents.module";
+import { DevicesModule } from "./modules/devices/devices.module";
 import { DocumentVersioningModule } from "./modules/documents/document-versioning.module";
 import { ClinicalMediaModule } from "./modules/documents/clinical-media.module";
 import { DoctorSnapshotModule } from "./modules/doctor-snapshot/doctor-snapshot.module";
@@ -122,6 +123,7 @@ const isolatedSyntheticPilot = isolatedSyntheticPrivatePilotActive(process.env);
     DataGovernanceModule,
     DataQualityModule,
     RetentionModule,
+    DevicesModule,
     EmergencyAccessModule,
     DependentsModule,
     EmergencyContactsModule,
