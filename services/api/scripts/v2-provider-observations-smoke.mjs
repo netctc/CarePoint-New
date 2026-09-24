@@ -20,6 +20,7 @@ test("provider observation input normalizes catalog tokens and optional encounte
     unitCode: "MMHG",
     observedAt: "2026-09-19T10:00:00.000Z",
     encounterId: "encounter-1",
+    glucoseContext: null,
   });
 });
 

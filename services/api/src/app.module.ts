@@ -37,6 +37,7 @@ import { PatientEducationModule } from "./modules/patient-education/patient-educ
 import { AdverseEventReportModule } from "./modules/adverse-events/adverse-events.module";
 import { RefillModule } from "./modules/refill/refill.module";
 import { ReferralsModule } from "./modules/referrals/referrals.module";
+import { SecondOpinionsModule } from "./modules/second-opinions/second-opinions.module";
 import { RetentionModule } from "./modules/retention/retention.module";
 import { DocumentsModule } from "./modules/documents/documents.module";
 import { DocumentVersioningModule } from "./modules/documents/document-versioning.module";
@@ -69,6 +70,7 @@ import { OtherProviderWorkspaceModule } from "./modules/other-provider-workspace
 import { ProviderFieldJobsModule } from "./modules/other-provider-workspace/provider-field-jobs.module";
 import { ProviderFieldRouteModule } from "./modules/other-provider-workspace/provider-field-route.module";
 import { ProviderWorkQueueModule } from "./modules/other-provider-workspace/provider-work-queue.module";
+import { ProviderSuppliesModule } from "./modules/provider-supplies/provider-supplies.module";
 import { ProviderFollowUpModule } from "./modules/provider-follow-up/provider-follow-up.module";
 import { ProviderOfflineSyncModule } from "./modules/provider-offline-sync/provider-offline-sync.module";
 import { ProvidersModule } from "./modules/providers/providers.module";
@@ -77,7 +79,6 @@ import { ProviderWorkflowModule } from "./modules/provider-workflow/provider-wor
 import { RealtimeModule } from "./modules/realtime/realtime.module";
 import { RpmAlertModule } from "./modules/rpm/rpm-alert.module";
 import { SchedulingModule } from "./modules/scheduling/scheduling.module";
-import { SecondOpinionsModule } from "./modules/second-opinions/second-opinions.module";
 import { AvailabilityRequestsModule } from "./modules/scheduling/availability-requests.module";
 import { SmartModule } from "./modules/smart/smart.module";
 import { SymptomReportModule } from "./modules/symptom-reports/symptom-report.module";
@@ -138,6 +139,7 @@ const isolatedSyntheticPilot = isolatedSyntheticPrivatePilotActive(process.env);
     ProviderFieldJobsModule,
     ProviderFieldRouteModule,
     ProviderWorkQueueModule,
+    ProviderSuppliesModule,
     ProviderNursingWorkflowsModule,
     PhysiotherapyModule,
     NutritionModule,

@@ -156,6 +156,127 @@ export class TerminologyService {
     return { items: rows };
   }
 
+  async medicationCatalogStatus(principal: AuthPrincipal) {
+    const systems = await this.prisma.codingSystem.findMany({
+      select: { id: true, uri: true, name: true, active: true, updatedAt: true },
+      orderBy: [{ active: "desc" }, { name: "asc" }],
+    });
+    const medicationSystems = systems.filter((item) => this.isMedicationSystem(item.uri, item.name));
+    const activeMedicationSystems = medicationSystems.filter((item) => item.active);
+    const targetSystems = activeMedicationSystems.map((item) => item.uri);
+
+    const conceptWhere = targetSystems.length > 0
+      ? { system: { in: targetSystems } }
+      : { id: { in: [] as string[] } };
+    const activeConceptWhere = targetSystems.length > 0
+      ? { system: { in: targetSystems }, status: ACTIVE }
+      : { id: { in: [] as string[] } };
+    const mappingWhere = targetSystems.length > 0
+      ? {
+          targetSystem: { in: targetSystems },
+          status: ACTIVE,
+          OR: [{ retiredAt: null }, { retiredAt: { gt: new Date() } }],
+        }
+      : { id: { in: [] as string[] } };
+
+    const [
+      totalConceptCount,
+      activeConceptCount,
+      latestConceptVersion,
+      activeMappingCount,
+      latestMapping,
+      sourceRows,
+    ] = await Promise.all([
+      this.prisma.terminologyConcept.count({ where: conceptWhere }),
+      this.prisma.terminologyConcept.count({ where: activeConceptWhere }),
+      this.prisma.terminologyConceptVersion.findFirst({
+        where: targetSystems.length > 0 ? { system: { in: targetSystems } } : { id: { in: [] as string[] } },
+        orderBy: { createdAt: "desc" },
+        select: { createdAt: true, system: true },
+      }),
+      this.prisma.externalCatalogMapping.count({ where: mappingWhere }),
+      this.prisma.externalCatalogMapping.findFirst({
+        where: mappingWhere,
+        orderBy: { createdAt: "desc" },
+        select: { createdAt: true, sourceSystem: true, targetSystem: true, version: true },
+      }),
+      this.prisma.externalCatalogMapping.findMany({
+        where: mappingWhere,
+        distinct: ["sourceSystem"],
+        orderBy: { sourceSystem: "asc" },
+        select: { sourceSystem: true },
+      }),
+    ]);
+
+    const catalogConfigured = activeMedicationSystems.length > 0;
+    const externalMappingsConfigured = activeMappingCount > 0;
+    const errorCodes = [
+      ...(!catalogConfigured ? ["MEDICATION_CODING_SYSTEM_NOT_CONFIGURED"] : []),
+      ...(catalogConfigured && activeConceptCount === 0 ? ["NO_ACTIVE_MEDICATION_CONCEPTS"] : []),
+      ...(catalogConfigured && !externalMappingsConfigured ? ["NO_ACTIVE_EXTERNAL_MAPPINGS"] : []),
+    ];
+    const state = !catalogConfigured
+      ? "NOT_CONFIGURED"
+      : errorCodes.length > 0
+        ? "DEGRADED"
+        : "HEALTHY";
+
+    const result = {
+      generatedAt: new Date().toISOString(),
+      state,
+      catalogConfigured,
+      externalMappingsConfigured,
+      syncMode: "VERSIONED_LOCAL_MAPPING",
+      externalSyncConfigured: false,
+      lastExternalSyncAt: null,
+      lastCatalogUpdateAt: latestConceptVersion?.createdAt.toISOString()
+        ?? activeMedicationSystems[0]?.updatedAt.toISOString()
+        ?? null,
+      lastMappingUpdateAt: latestMapping?.createdAt.toISOString() ?? null,
+      medicationCodingSystems: medicationSystems.map((item) => ({
+        uri: item.uri,
+        name: item.name,
+        active: item.active,
+        updatedAt: item.updatedAt.toISOString(),
+      })),
+      activeConceptCount,
+      totalConceptCount,
+      activeMappingCount,
+      externalSourceSystems: sourceRows.map((item) => item.sourceSystem),
+      latestMapping: latestMapping
+        ? {
+            sourceSystem: latestMapping.sourceSystem,
+            targetSystem: latestMapping.targetSystem,
+            mappingVersion: latestMapping.version,
+            recordedAt: latestMapping.createdAt.toISOString(),
+          }
+        : null,
+      errorCodes,
+      secretsExposed: false,
+      credentialValuesIncluded: false,
+      clinicalDataIncluded: false,
+      externalCatalogSeparateFromClinicalData: true,
+    };
+
+    await this.audit.write({
+      actorId: principal.accountId,
+      action: "MEDICATION_CATALOG_STATUS_READ",
+      objectType: "MEDICATION_CATALOG",
+      objectId: "status",
+      result: "SUCCESS",
+      metadata: {
+        state,
+        activeMedicationSystems: activeMedicationSystems.length,
+        activeConceptCount,
+        activeMappingCount,
+        externalSyncConfigured: false,
+        clinicalDataIncluded: false,
+      },
+    });
+
+    return result;
+  }
+
   async createSystem(principal: AuthPrincipal, input: CreateCodingSystemInput) {
     const uri = this.system(input?.uri, "uri");
     const name = this.text(input?.name, "name", 180);
@@ -343,6 +464,15 @@ export class TerminologyService {
       createdAt: concept.createdAt,
       updatedAt: concept.updatedAt,
     };
+  }
+
+  private isMedicationSystem(uri: string, name: string) {
+    const normalized = `${uri} ${name}`.toLowerCase();
+    return normalized.includes("rxnorm")
+      || normalized.includes("/atc")
+      || normalized.includes(" atc")
+      || normalized.includes("medication")
+      || normalized.includes("drug");
   }
 
   private status(value: unknown) {

@@ -118,6 +118,24 @@ class CarePointApi {
     return _asMap(await _send('POST', '/provider/services', body: {'labels': labels, 'currency': currency, 'modalities': [{'modality': modality, 'durationMinutes': durationMinutes, 'priceMinor': priceMinor}]}));
   }
   Future<List<Map<String, dynamic>>> providerAppointments({DateTime? from, DateTime? to}) async => _asList(await _send('GET', '/provider/appointments', query: {if (from != null) 'from': from.toUtc().toIso8601String(), if (to != null) 'to': to.toUtc().toIso8601String()}));
+  Future<Map<String, dynamic>> providerFieldJobs() async =>
+      _asMap(await _send('GET', '/provider/jobs'));
+  Future<Map<String, dynamic>> providerSupplyCatalog() async =>
+      _asMap(await _send('GET', '/provider/supplies/catalog'));
+  Future<Map<String, dynamic>> providerJobSupplies(String jobId) async =>
+      _asMap(await _send('GET', '/provider/jobs/${Uri.encodeComponent(jobId)}/supplies'));
+  Future<Map<String, dynamic>> recordProviderJobSupply(
+    String jobId, {
+    required String supplyItemId,
+    required num quantity,
+    required String unitCode,
+    required String idempotencyKey,
+  }) async => _asMap(await _send('POST', '/provider/jobs/${Uri.encodeComponent(jobId)}/supplies', body: {
+    'supplyItemId': supplyItemId,
+    'quantity': quantity,
+    'unitCode': unitCode,
+    'idempotencyKey': idempotencyKey,
+  }));
   Future<Map<String, dynamic>> secureProviderContact({
     required String appointmentId,
     required String subject,
@@ -527,6 +545,16 @@ class CarePointApi {
   Future<Map<String, dynamic>> actDoctorReferral(String referralId, Map<String, dynamic> body) async =>
       _asMap(await _send('POST', '/provider/referrals/$referralId/actions', body: body));
 
+  // DOC-079 / BE-034 — governed second opinion over an immutable scoped snapshot.
+  Future<Map<String, dynamic>> doctorPatientSecondOpinions(String patientId) async =>
+      _asMap(await _send('GET', '/provider/patients/$patientId/second-opinions'));
+  Future<Map<String, dynamic>> doctorSecondOpinionInbox() async =>
+      _asMap(await _send('GET', '/provider/second-opinions/inbox'));
+  Future<Map<String, dynamic>> createDoctorSecondOpinion(String patientId, Map<String, dynamic> body) async =>
+      _asMap(await _send('POST', '/provider/patients/$patientId/second-opinions', body: body));
+  Future<Map<String, dynamic>> respondDoctorSecondOpinion(String requestId, String response) async =>
+      _asMap(await _send('POST', '/provider/second-opinions/$requestId/respond', body: {'response': response}));
+
   // DOC-084 — exact-version Doctor questionnaire requests.
   Future<Map<String, dynamic>> doctorQuestionnaireRequestOptions(String patientId, String appointmentId) async =>
       _asMap(await _send('GET', '/doctor/patients/$patientId/questionnaire-requests/available', query: {'appointmentId': appointmentId}));
@@ -666,6 +694,18 @@ class CarePointApi {
   Future<Map<String, dynamic>> providerClinicalOrders(String patientId) async => _asMap(await _send('GET', '/clinical-orders/patients/$patientId'));
   Future<Map<String, dynamic>> doctorLabSeries(String patientId) async =>
       _asMap(await _send('GET', '/provider/patients/$patientId/lab-series'));
+  Future<Map<String, dynamic>> doctorGlucoseTrends(
+    String patientId, {
+    String? code,
+    DateTime? from,
+    DateTime? to,
+    String? sourceType,
+  }) async => _asMap(await _send('GET', '/provider/patients/$patientId/glucose-trends', query: {
+    if (code?.trim().isNotEmpty == true) 'code': code!.trim().toUpperCase(),
+    if (from != null) 'from': from.toUtc().toIso8601String(),
+    if (to != null) 'to': to.toUtc().toIso8601String(),
+    if (sourceType?.trim().isNotEmpty == true) 'sourceType': sourceType!.trim().toUpperCase(),
+  }));
   Future<Map<String, dynamic>> doctorChangesSinceLastVisit(String patientId) async =>
       _asMap(await _send('GET', '/provider/patients/$patientId/changes-since-last-visit'));
   Future<Map<String, dynamic>> clinicalOrder(String orderId) async => _asMap(await _send('GET', '/clinical-orders/$orderId'));

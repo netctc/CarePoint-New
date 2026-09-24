@@ -15,7 +15,7 @@ import { ClinicalEnvelopeService } from "../clinical/clinical-envelope.service";
 import { ClinicalService } from "../clinical/clinical.service";
 import {
   normalizeTemporaryShareScopes,
-  type ClinicalConsentPolicy,
+  resolveClinicalConsentPolicy,
 } from "../clinical-governance/clinical-consent-policy";
 import { NotificationsService } from "../communications/notifications.service";
 import { DoctorSnapshotService } from "../doctor-snapshot/doctor-snapshot.service";
@@ -89,7 +89,14 @@ export class SecondOpinionsService {
       return this.present(existing, "REFERRING");
     }
 
-    const snapshot = await this.buildSnapshot(principal, patientId, scopes);
+    const [snapshot, patient] = await Promise.all([
+      this.buildSnapshot(principal, patientId, scopes),
+      this.prisma.patientProfile.findUnique({
+        where: { id: patientId },
+        select: { id: true, firstName: true, lastName: true },
+      }),
+    ]);
+    if (!patient) throw new NotFoundException("Patient not found.");
     const capturedAt = new Date().toISOString();
     const requestPayload = {
       schemaVersion: 1,
@@ -97,6 +104,10 @@ export class SecondOpinionsService {
       capturedAt,
       scopes,
       consentIds,
+      patient: {
+        id: patient.id,
+        displayName: [patient.firstName, patient.lastName].filter(Boolean).join(" "),
+      },
       snapshot,
     };
     const serialized = JSON.stringify(requestPayload);
@@ -191,7 +202,10 @@ export class SecondOpinionsService {
     });
     const items = [];
     for (const row of rows) {
-      if (await this.shareActive(row.referralId, doctor.id)) {
+      if (
+        await this.shareActive(row.referralId, doctor.id) &&
+        await this.destinationConsentsStillActive(row)
+      ) {
         items.push(await this.present(row, "DESTINATION"));
       }
     }
@@ -215,14 +229,19 @@ export class SecondOpinionsService {
     if (!(await this.shareActive(request.referralId, doctor.id))) {
       throw new ForbiddenException("Second-opinion clinical share is no longer active.");
     }
+    if (!(await this.destinationConsentsStillActive(request))) {
+      throw new ForbiddenException("Patient consent for this second-opinion package is no longer active.");
+    }
 
     const referral = await this.prisma.referral.findUnique({ where: { id: request.referralId } });
     if (
       !referral ||
       referral.destinationProviderId !== doctor.id ||
-      !["REQUESTED", "ACCEPTED", "IN_PROGRESS"].includes(referral.status)
+      referral.status !== "IN_PROGRESS"
     ) {
-      throw new ConflictException("Second-opinion referral is no longer answerable.");
+      throw new ConflictException(
+        "Accept and start the linked referral before submitting the second-opinion response.",
+      );
     }
 
     const respondedAt = new Date();
@@ -260,10 +279,13 @@ export class SecondOpinionsService {
         throw new ConflictException("Second-opinion request changed concurrently.");
       }
 
-      await tx.referral.update({
-        where: { id: referral.id },
+      const referralChanged = await tx.referral.updateMany({
+        where: { id: referral.id, status: "IN_PROGRESS", version: referral.version },
         data: { status: "COMPLETED", version: { increment: 1 }, completedAt: respondedAt },
       });
+      if (referralChanged.count !== 1) {
+        throw new ConflictException("Linked referral changed concurrently. Refresh and retry.");
+      }
       await tx.referralStatusEvent.create({
         data: {
           referralId: referral.id,
@@ -432,8 +454,13 @@ export class SecondOpinionsService {
     },
     audience: Audience,
   ) {
-    if (audience === "DESTINATION" && !(await this.shareActive(row.referralId, row.destinationProviderId))) {
-      throw new ForbiddenException("Second-opinion clinical share is no longer active.");
+    if (audience === "DESTINATION") {
+      if (!(await this.shareActive(row.referralId, row.destinationProviderId))) {
+        throw new ForbiddenException("Second-opinion clinical share is no longer active.");
+      }
+      if (!(await this.destinationConsentsStillActive(row))) {
+        throw new ForbiddenException("Patient consent for this second-opinion package is no longer active.");
+      }
     }
     const payload = await this.envelope.decryptRecord<{
       schemaVersion: number;
@@ -441,6 +468,7 @@ export class SecondOpinionsService {
       capturedAt: string;
       scopes: string[];
       consentIds: string[];
+      patient: { id: string; displayName: string };
       snapshot: unknown;
     }>(this.envelopeOf(
       row.snapshotAlgorithm,
@@ -449,6 +477,10 @@ export class SecondOpinionsService {
       row.snapshotIv,
       row.snapshotCiphertext,
     ));
+    const payloadHash = createHash("sha256").update(JSON.stringify(payload)).digest("hex");
+    if (payloadHash !== row.snapshotHash) {
+      throw new ConflictException("Second-opinion snapshot integrity validation failed.");
+    }
     const response = row.responseCiphertext && row.responseAlgorithm && row.responseKeyId &&
       row.responseWrappedKey && row.responseIv
       ? await this.envelope.decryptRecord<{ response: string; respondedAt: string }>(
@@ -461,10 +493,16 @@ export class SecondOpinionsService {
           ),
         )
       : null;
-    const providers = await this.prisma.provider.findMany({
-      where: { id: { in: [row.referringProviderId, row.destinationProviderId] } },
-      select: { id: true, displayName: true },
-    });
+    const [providers, referral] = await Promise.all([
+      this.prisma.provider.findMany({
+        where: { id: { in: [row.referringProviderId, row.destinationProviderId] } },
+        select: { id: true, displayName: true },
+      }),
+      this.prisma.referral.findUnique({
+        where: { id: row.referralId },
+        select: { id: true, status: true, version: true },
+      }),
+    ]);
     const byId = new Map(providers.map((item) => [item.id, item.displayName]));
     return {
       id: row.id,
@@ -477,7 +515,9 @@ export class SecondOpinionsService {
         id: row.destinationProviderId,
         displayName: byId.get(row.destinationProviderId) ?? null,
       },
+      patient: payload.patient,
       referralId: row.referralId,
+      referral: referral ? { id: referral.id, status: referral.status, version: referral.version } : null,
       scopes: payload.scopes,
       consentIds: audience === "REFERRING" ? payload.consentIds : undefined,
       expiresAt: row.expiresAt,
@@ -494,6 +534,44 @@ export class SecondOpinionsService {
       updatedAt: row.updatedAt,
       immutableSnapshot: true,
     };
+  }
+
+
+  private async destinationConsentsStillActive(row: {
+    patientId: string;
+    destinationProviderId: string;
+    scopes: Prisma.JsonValue;
+    consentIds: Prisma.JsonValue;
+  }) {
+    const consentIds = this.jsonStringArray(row.consentIds);
+    const scopes = this.jsonStringArray(row.scopes);
+    if (consentIds.length < 1 || consentIds.length !== scopes.length) return false;
+    const now = new Date();
+    const consents = await this.prisma.consent.findMany({
+      where: {
+        id: { in: consentIds },
+        patientId: row.patientId,
+        providerId: row.destinationProviderId,
+        state: "GRANTED",
+        purpose: "TREATMENT",
+        OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+      },
+      select: { id: true, scope: true, version: true },
+    });
+    if (consents.length !== consentIds.length) return false;
+    const consentById = new Map(consents.map((item) => [item.id, item]));
+    for (const id of consentIds) {
+      const consent = consentById.get(id);
+      if (!consent || !scopes.includes(consent.scope)) return false;
+      const policy = resolveClinicalConsentPolicy(consent.scope);
+      if (!policy || policy.version !== consent.version || policy.access !== "READ") return false;
+    }
+    return true;
+  }
+
+  private jsonStringArray(value: unknown): string[] {
+    if (!Array.isArray(value)) return [];
+    return value.filter((item): item is string => typeof item === "string");
   }
 
   private async shareActive(referralId: string, destinationProviderId: string) {

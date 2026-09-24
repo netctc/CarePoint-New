@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'carepoint_api.dart';
 import 'carepoint_localization.dart';
+import 'second_opinion.dart';
 
 class DoctorOrdersCoordinationPage extends StatefulWidget {
   const DoctorOrdersCoordinationPage({
@@ -97,10 +98,32 @@ class _DoctorOrdersCoordinationPageState extends State<DoctorOrdersCoordinationP
                     if (destinations.isEmpty)
                       Padding(padding: const EdgeInsets.only(bottom: 8), child: Text(t('noDestinations'), style: const TextStyle(color: Color(0xFF64748B)))),
                     if (referrals.isEmpty) _empty(t('noReferrals')) else ...referrals.map(_referralCard),
+                    const SizedBox(height: 18),
+                    _section(secondOpinionText(widget.locale, 'title'), Icons.medical_information_outlined, action: TextButton.icon(
+                      key: const ValueKey('doctor-second-opinion-entry'),
+                      onPressed: _openSecondOpinions,
+                      icon: const Icon(Icons.open_in_new),
+                      label: Text(secondOpinionText(widget.locale, 'request')),
+                    )),
                   ],
                 ),
               ),
   );
+
+  Future<void> _openSecondOpinions() async {
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute(builder: (_) => Directionality(
+        textDirection: widget.locale.textDirection,
+        child: DoctorSecondOpinionPage(
+          session: widget.session,
+          locale: widget.locale,
+          patientId: widget.patientId,
+        ),
+      )),
+    );
+    await _load();
+  }
 
   Widget _section(String label, IconData icon, {Widget? action}) => Row(children: [
     Icon(icon),
