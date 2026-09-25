@@ -48,7 +48,9 @@ jobs:
         run: test "$(git rev-parse HEAD)" = "$CAREPOINT_TEST_SOURCE_SHA"
 
       - name: Validate integrated test workflow policy
-        run: node .ci/integrated-test-version-contract.mjs
+        run: |
+          node --check ops/test-version/static-server.mjs
+          node .ci/integrated-test-version-contract.mjs
 
   bundle:
     name: Build integrated test version
@@ -63,6 +65,9 @@ jobs:
       CAREPOINT_TEST_ARTIFACT_LABEL: ${{ inputs.artifact_label }}
       API_IMAGE: ghcr.io/netctc/carepoint-new-api
       ADMIN_IMAGE: ghcr.io/netctc/carepoint-new-admin
+      PATIENT_WEB_IMAGE: ghcr.io/netctc/carepoint-new-patient-web
+      DOCTOR_WEB_IMAGE: ghcr.io/netctc/carepoint-new-doctor-web
+      PROVIDER_WEB_IMAGE: ghcr.io/netctc/carepoint-new-provider-web
     steps:
       - name: Check out exact candidate SHA
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -158,15 +163,40 @@ jobs:
             cp -R "apps/${app}/build/web/." "integrated-test/web/${label}/"
           done
 
+      - name: Build and publish immutable Flutter Web images
+        shell: bash
+        run: |
+          set -euo pipefail
+          for spec in             "patient:$PATIENT_WEB_IMAGE"             "doctor:$DOCTOR_WEB_IMAGE"             "provider:$PROVIDER_WEB_IMAGE"; do
+            label="${spec%%:*}"
+            image="${spec#*:}"
+            tag="$image:test-$CAREPOINT_TEST_SOURCE_SHA-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+            metadata="integrated-test/evidence/${label}-web-image.json"
+            docker buildx build               --file ops/test-version/web.Dockerfile               --build-arg "WEB_ROOT=integrated-test/web/${label}"               --build-arg "RELEASE_SHA=$CAREPOINT_TEST_SOURCE_SHA"               --platform linux/amd64               --push               --provenance=mode=max               --sbom=true               --tag "$tag"               --metadata-file "$metadata"               .
+            digest="$(node --input-type=module -e 'import {readFileSync} from "node:fs"; const m=JSON.parse(readFileSync(process.argv[1],"utf8")); process.stdout.write(m["containerimage.digest"]||"");' "$metadata")"
+            [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+            case "$label" in
+              patient) echo "PATIENT_WEB_DIGEST=$digest" >> "$GITHUB_ENV" ;;
+              doctor) echo "DOCTOR_WEB_DIGEST=$digest" >> "$GITHUB_ENV" ;;
+              provider) echo "PROVIDER_WEB_DIGEST=$digest" >> "$GITHUB_ENV" ;;
+            esac
+          done
+
       - name: Create content-addressed integrated test manifest
         env:
           API_DIGEST: ${{ steps.api.outputs.digest }}
           ADMIN_DIGEST: ${{ steps.admin.outputs.digest }}
+          PATIENT_WEB_DIGEST: ${{ env.PATIENT_WEB_DIGEST }}
+          DOCTOR_WEB_DIGEST: ${{ env.DOCTOR_WEB_DIGEST }}
+          PROVIDER_WEB_DIGEST: ${{ env.PROVIDER_WEB_DIGEST }}
         shell: bash
         run: |
           set -euo pipefail
           [[ "$API_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
           [[ "$ADMIN_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+          [[ "$PATIENT_WEB_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+          [[ "$DOCTOR_WEB_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+          [[ "$PROVIDER_WEB_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
 
           find integrated-test/web -type f -print | LC_ALL=C sort | while IFS= read -r file; do
             sha256sum "$file"
@@ -193,10 +223,20 @@ jobs:
               embeddedSecrets: false
             },
             webClients: {
-              patient: "web/patient",
-              doctor: "web/doctor",
-              provider: "web/provider"
+              patient: {
+                artifactPath: "web/patient",
+                immutableImage: process.env.PATIENT_WEB_IMAGE + "@" + process.env.PATIENT_WEB_DIGEST
+              },
+              doctor: {
+                artifactPath: "web/doctor",
+                immutableImage: process.env.DOCTOR_WEB_IMAGE + "@" + process.env.DOCTOR_WEB_DIGEST
+              },
+              provider: {
+                artifactPath: "web/provider",
+                immutableImage: process.env.PROVIDER_WEB_IMAGE + "@" + process.env.PROVIDER_WEB_DIGEST
+              }
             },
+            runtimeContract: "ops/test-version/runtime-contract.json",
             apiOrigin: apiBase.origin,
             apiPath: apiBase.pathname,
             controls: {
@@ -211,7 +251,8 @@ jobs:
           writeFileSync("integrated-test/manifest.json", JSON.stringify(manifest, null, 2) + "\n", { mode: 0o600 });
           NODE
 
-          sha256sum integrated-test/manifest.json > integrated-test/evidence/manifest.sha256
+          cp ops/test-version/runtime-contract.json integrated-test/runtime-contract.json
+          sha256sum integrated-test/manifest.json integrated-test/runtime-contract.json > integrated-test/evidence/manifest.sha256
           sha256sum --check --strict integrated-test/evidence/manifest.sha256
           ! find integrated-test -type f \( -name '.env' -o -name '.env.*' \) -print -quit | grep -q .
 
@@ -229,8 +270,8 @@ jobs:
           {
             echo "### CarePoint integrated test version"
             echo "- Source SHA: $CAREPOINT_TEST_SOURCE_SHA"
-            echo "- API/Admin images: immutable GHCR digests recorded in manifest"
-            echo "- Flutter Web clients: Patient, Doctor, Other Provider"
+            echo "- OCI images: API, Admin, Patient Web, Doctor Web, Other Provider Web"
+            echo "- All five immutable GHCR digests are recorded in the manifest"
             echo "- API base: $CAREPOINT_TEST_API_BASE"
             echo "- Runtime profile: isolated-synthetic"
             echo "- Production release evidence: false"
