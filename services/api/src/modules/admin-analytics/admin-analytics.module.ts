@@ -8,7 +8,6 @@ import {
   Query,
 } from "@nestjs/common";
 import type { AuthPrincipal } from "@carepoint/identity";
-import { Prisma } from "@prisma/client";
 import { PrismaService } from "../../infrastructure/prisma/prisma.module";
 import { CurrentPrincipal, RequirePermissions } from "../../security/api-security.module";
 
@@ -37,6 +36,7 @@ const REVIEW_ONBOARDING_STATES = ["PENDING_REVIEW", "REQUEST_CHANGES"] as const;
 type PeriodDays = (typeof PERIOD_DAYS)[number];
 type PopulationPeriodDays = (typeof POPULATION_PERIOD_DAYS)[number];
 type PopulationRow = { month: Date; patientCount: number | bigint; eventCount: number | bigint };
+type PopulationMetricType = "OBSERVATION" | "RPM_ALERT" | "CARE_PLAN" | "QUESTIONNAIRE" | "LABORATORY_RESULT";
 type Period = { from: Date; to: Date };
 type FavorableDirection = "HIGHER" | "LOWER" | "NEUTRAL";
 
@@ -99,55 +99,53 @@ class AdminAnalyticsService {
     const days = this.populationPeriodDays(rawDays);
     const generatedAt = new Date();
     const from = new Date(generatedAt.getTime() - days * 24 * 60 * 60 * 1000);
+    const firstMonth = new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), 1));
 
-    const [observations, carePlans, questionnaires, laboratoryResults] = await Promise.all([
-      this.prisma.$queryRaw<PopulationRow[]>(Prisma.sql`
-        SELECT date_trunc('month', "observedAt") AS month,
-               COUNT(DISTINCT "patientId")::int AS "patientCount",
-               COUNT(*)::int AS "eventCount"
-        FROM "Observation"
-        WHERE "observedAt" >= ${from} AND "observedAt" < ${generatedAt}
-        GROUP BY 1
-        ORDER BY 1 ASC
-      `),
-      this.prisma.$queryRaw<PopulationRow[]>(Prisma.sql`
-        SELECT date_trunc('month', "createdAt") AS month,
-               COUNT(DISTINCT "patientId")::int AS "patientCount",
-               COUNT(*)::int AS "eventCount"
-        FROM "CarePlan"
-        WHERE "createdAt" >= ${from} AND "createdAt" < ${generatedAt}
-        GROUP BY 1
-        ORDER BY 1 ASC
-      `),
-      this.prisma.$queryRaw<PopulationRow[]>(Prisma.sql`
-        SELECT date_trunc('month', "completedAt") AS month,
-               COUNT(DISTINCT "patientId")::int AS "patientCount",
-               COUNT(*)::int AS "eventCount"
-        FROM "QuestionnaireResponse"
-        WHERE "completedAt" >= ${from} AND "completedAt" < ${generatedAt}
-        GROUP BY 1
-        ORDER BY 1 ASC
-      `),
-      this.prisma.$queryRaw<PopulationRow[]>(Prisma.sql`
-        SELECT date_trunc('month', lr."releasedAt") AS month,
-               COUNT(DISTINCT co."patientId")::int AS "patientCount",
-               COUNT(*)::int AS "eventCount"
-        FROM "LaboratoryResult" lr
-        INNER JOIN "ClinicalOrder" co ON co.id = lr."orderId"
-        WHERE lr."status" = 'RELEASED'
-          AND lr."releasedAt" IS NOT NULL
-          AND lr."releasedAt" >= ${from}
-          AND lr."releasedAt" < ${generatedAt}
-        GROUP BY 1
-        ORDER BY 1 ASC
-      `),
-    ]);
+    const rows = await this.prisma.populationMetric.findMany({
+      where: { month: { gte: firstMonth, lt: generatedAt } },
+      select: {
+        metricType: true,
+        month: true,
+        patientCount: true,
+        eventCount: true,
+        sourceWatermark: true,
+        refreshedAt: true,
+      },
+      orderBy: [{ month: "asc" }, { metricType: "asc" }],
+    });
+
+    const series = (metricType: PopulationMetricType) => this.populationSeries(
+      rows
+        .filter((row) => row.metricType === metricType)
+        .map((row) => ({
+          month: row.month,
+          patientCount: row.patientCount,
+          eventCount: row.eventCount,
+        })),
+    );
+    const freshness = rows
+      .map((row) => row.sourceWatermark)
+      .filter((value): value is Date => value instanceof Date)
+      .sort((left, right) => right.getTime() - left.getTime())[0] ?? null;
 
     return {
       generatedAt: generatedAt.toISOString(),
-      window: { days, from: from.toISOString(), to: generatedAt.toISOString() },
+      window: {
+        days,
+        from: from.toISOString(),
+        to: generatedAt.toISOString(),
+        bucketPolicy: "CALENDAR_MONTHS_OVERLAPPING_WINDOW",
+      },
+      source: {
+        store: "PSEUDONYMIZED_ANALYTICS",
+        runtimeOltpReads: false,
+        factSchemaVersion: 1,
+        lastSourceEventAt: freshness?.toISOString() ?? null,
+      },
       privacy: {
         aggregateOnly: true,
+        pseudonymizedFacts: true,
+        directIdentifiersStoredInAnalytics: false,
         minimumCellSize: MIN_POPULATION_CELL_SIZE,
         suppressedCellsOmitted: true,
         patientIdentifiersReturned: false,
@@ -155,10 +153,11 @@ class AdminAnalyticsService {
         drillDownEnabled: false,
       },
       series: {
-        observations: this.populationSeries(observations),
-        carePlans: this.populationSeries(carePlans),
-        questionnaires: this.populationSeries(questionnaires),
-        laboratoryResults: this.populationSeries(laboratoryResults),
+        observations: series("OBSERVATION"),
+        rpmAlerts: series("RPM_ALERT"),
+        carePlans: series("CARE_PLAN"),
+        questionnaires: series("QUESTIONNAIRE"),
+        laboratoryResults: series("LABORATORY_RESULT"),
       },
     };
   }
