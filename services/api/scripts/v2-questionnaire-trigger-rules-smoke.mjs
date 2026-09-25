@@ -15,3 +15,4 @@ assert.match(questionnaire,/safeReconcilePatient/);assert.match(questionnaire,/p
 assert.doesNotMatch(service,/ciphertext|wrappedKey/);
 console.log("ADM-076 deterministic questionnaire trigger orchestration acceptance passed");
 function read(relative){return readFileSync(new URL(relative,import.meta.url),"utf8");}
+await import("./v2-questionnaire-monitoring-smoke.mjs");

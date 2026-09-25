@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { useI18n, type Locale } from "@/lib/i18n";
@@ -42,7 +43,7 @@ type Copy = Record<
   | "description" | "create" | "builder" | "questions" | "addQuestion" | "required" | "options"
   | "activation" | "dueIfNoResponse" | "repeatDays" | "askHealthChanged" | "preview" | "draft"
   | "versions" | "activate" | "active" | "retired" | "empty" | "select" | "reload" | "saved"
-  | "error" | "remove" | "immutableHint" | "noVersion" | "schemaVersion",
+  | "error" | "remove" | "immutableHint" | "noVersion" | "schemaVersion" | "monitoring",
   string
 >;
 
@@ -57,7 +58,7 @@ const copy: Record<Locale, Copy> = {
     askHealthChanged:"Ask health-changed confirmation", preview:"Preview", draft:"Create DRAFT version", versions:"Version history",
     activate:"Activate", active:"ACTIVE", retired:"RETIRED", empty:"No questionnaires yet.", select:"Select a questionnaire to build a version.",
     reload:"Reload", saved:"Saved.", error:"Request failed.", remove:"Remove", immutableHint:"DRAFT versions are validated server-side. Activating a version retires the previous ACTIVE version; historical responses remain pinned to their original version.",
-    noVersion:"No versions", schemaVersion:"Schema v1"
+    noVersion:"No versions", schemaVersion:"Schema v1", monitoring:"Compliance monitoring"
   },
   ar: {
     title:"منشئ الاستبيانات", eyebrow:"P0 · ADM-074 / ADM-075", subtitle:"إنشاء مخططات استبيان مُتحقق منها ونشر إصدارات غير قابلة للتغيير.",
@@ -67,7 +68,7 @@ const copy: Record<Locale, Copy> = {
     askHealthChanged:"طلب تأكيد تغيّر الحالة الصحية", preview:"معاينة", draft:"إنشاء إصدار مسودة", versions:"سجل الإصدارات",
     activate:"تفعيل", active:"نشط", retired:"متقاعد", empty:"لا توجد استبيانات.", select:"اختر استبياناً لبناء إصدار.",
     reload:"تحديث", saved:"تم الحفظ.", error:"فشل الطلب.", remove:"إزالة", immutableHint:"يتم التحقق من إصدارات المسودة على الخادم. تفعيل إصدار جديد يسحب الإصدار النشط السابق مع بقاء الاستجابات التاريخية مرتبطة بإصدارها الأصلي.",
-    noVersion:"لا توجد إصدارات", schemaVersion:"المخطط v1"
+    noVersion:"لا توجد إصدارات", schemaVersion:"المخطط v1", monitoring:"مراقبة الاستكمال"
   },
   fr: {
     title:"Créateur de questionnaires", eyebrow:"P0 · ADM-074 / ADM-075", subtitle:"Construire des schémas validés et publier des versions immuables.",
@@ -77,7 +78,7 @@ const copy: Record<Locale, Copy> = {
     askHealthChanged:"Demander la confirmation d’un changement de santé", preview:"Aperçu", draft:"Créer une version BROUILLON", versions:"Historique des versions",
     activate:"Activer", active:"ACTIVE", retired:"RETIRÉE", empty:"Aucun questionnaire.", select:"Sélectionnez un questionnaire pour construire une version.",
     reload:"Actualiser", saved:"Enregistré.", error:"Échec de la requête.", remove:"Supprimer", immutableHint:"Les versions DRAFT sont validées côté serveur. L’activation retire l’ancienne version ACTIVE; les réponses historiques restent liées à leur version d’origine.",
-    noVersion:"Aucune version", schemaVersion:"Schéma v1"
+    noVersion:"Aucune version", schemaVersion:"Schéma v1", monitoring:"Suivi de complétion"
   },
   es: {
     title:"Constructor de cuestionarios", eyebrow:"P0 · ADM-074 / ADM-075", subtitle:"Construye schemas validados y publica versiones inmutables.",
@@ -87,7 +88,7 @@ const copy: Record<Locale, Copy> = {
     askHealthChanged:"Preguntar si cambió la salud", preview:"Vista previa", draft:"Crear versión DRAFT", versions:"Historial de versiones",
     activate:"Activar", active:"ACTIVE", retired:"RETIRADA", empty:"No hay cuestionarios.", select:"Selecciona un cuestionario para construir una versión.",
     reload:"Actualizar", saved:"Guardado.", error:"Error en la solicitud.", remove:"Eliminar", immutableHint:"Las versiones DRAFT se validan en servidor. Activar una versión retira la ACTIVE anterior; las respuestas históricas siguen vinculadas a su versión original.",
-    noVersion:"Sin versiones", schemaVersion:"Schema v1"
+    noVersion:"Sin versiones", schemaVersion:"Schema v1", monitoring:"Monitor de cumplimiento"
   },
 };
 
@@ -228,7 +229,10 @@ export default function QuestionnairesPage() {
   return <AppShell active="22" eyebrow={t.eyebrow} title={t.title}>
     <section className="notice-card">
       <div><span>{t.subtitle}</span><p>{message}</p></div>
-      <button className="secondary-button" onClick={()=>void load(selectedId)}>{t.reload}</button>
+      <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+        <Link className="secondary-button" href="/questionnaires/monitoring">{t.monitoring}</Link>
+        <button className="secondary-button" onClick={()=>void load(selectedId)}>{t.reload}</button>
+      </div>
     </section>
 
     {busy ? <p>Loading…</p> : <div style={{display:"grid",gridTemplateColumns:"minmax(240px,300px) 1fr",gap:18}}>

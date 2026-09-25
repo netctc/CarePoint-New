@@ -13,6 +13,13 @@ export interface CreateQuestionnaireTriggerRuleInput { code: string; labels: unk
 export interface CreateQuestionnaireTriggerVersionInput { questionnaireVersionId: string; triggerType: QuestionnaireTriggerType | string; config: unknown; }
 export interface SimulateQuestionnaireTriggerInput { eventType: QuestionnaireTriggerType | string; occurredAt?: string; appointmentStartsAt?: string; }
 export interface ManualQuestionnaireTriggerInput { patientId: string; eventId: string; }
+export interface QuestionnaireComplianceMetricsQuery {
+  from?: string;
+  to?: string;
+  source?: string;
+  questionnaireCode?: string;
+  abandonAfterHours?: string;
+}
 
 @Injectable()
 export class QuestionnaireTriggerService {
@@ -21,6 +28,171 @@ export class QuestionnaireTriggerService {
   async adminList() {
     const rows = await this.prisma.questionnaireTriggerRule.findMany({ include: { versions: { orderBy: { version: "desc" } } }, orderBy: { code: "asc" } });
     return { items: rows.map((row) => ({ id: row.id, code: row.code, labels: row.labels, active: row.active, versions: row.versions.map((v) => this.presentVersion(v)) })) };
+  }
+
+
+  async adminComplianceMetrics(principal: AuthPrincipal, query: QuestionnaireComplianceMetricsQuery = {}) {
+    const now = new Date();
+    const to = query.to ? this.instant(query.to, "to") : now;
+    const from = query.from ? this.instant(query.from, "from") : new Date(to.getTime() - 30 * 86400000);
+    if (to.getTime() > now.getTime() + 60000) throw new BadRequestException("to cannot be in the future.");
+    if (from >= to) throw new BadRequestException("from must be before to.");
+    if (to.getTime() - from.getTime() > 365 * 86400000) {
+      throw new BadRequestException("Questionnaire monitoring period cannot exceed 365 days.");
+    }
+
+    const sourceRaw = String(query.source ?? "ALL").trim().toUpperCase();
+    if (!["ALL", "TRIGGER", "DOCTOR_REQUEST"].includes(sourceRaw)) {
+      throw new BadRequestException("source must be ALL, TRIGGER, or DOCTOR_REQUEST.");
+    }
+    const source = sourceRaw as "ALL" | "TRIGGER" | "DOCTOR_REQUEST";
+    const questionnaireCode = query.questionnaireCode?.trim()
+      ? this.code(query.questionnaireCode)
+      : null;
+    const abandonAfterHours = query.abandonAfterHours?.trim()
+      ? this.int(query.abandonAfterHours, "abandonAfterHours", 24, 720)
+      : 168;
+    const abandonedBefore = new Date(now.getTime() - abandonAfterHours * 3600000);
+
+    const [dispatches, doctorRequests] = await Promise.all([
+      source === "DOCTOR_REQUEST" ? Promise.resolve([]) : this.prisma.questionnaireTriggerDispatch.findMany({
+        where: { createdAt: { gte: from, lt: to } },
+        select: {
+          questionnaireVersionId: true,
+          eventType: true,
+          status: true,
+          dueAt: true,
+          completedAt: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: "asc" },
+        take: 50001,
+      }),
+      source === "TRIGGER" ? Promise.resolve([]) : this.prisma.questionnaireRequest.findMany({
+        where: { createdAt: { gte: from, lt: to } },
+        select: {
+          questionnaireVersionId: true,
+          context: true,
+          status: true,
+          dueAt: true,
+          completedAt: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: "asc" },
+        take: 50001,
+      }),
+    ]);
+    if (dispatches.length > 50000 || doctorRequests.length > 50000) {
+      throw new BadRequestException("Questionnaire monitoring result is too large; narrow the date range.");
+    }
+
+    const versionIds = [...new Set([
+      ...dispatches.map((item) => item.questionnaireVersionId),
+      ...doctorRequests.map((item) => item.questionnaireVersionId),
+    ])];
+    const versions = versionIds.length === 0 ? [] : await this.prisma.questionnaireVersion.findMany({
+      where: { id: { in: versionIds } },
+      select: { id: true, questionnaire: { select: { code: true } } },
+    });
+    const codeByVersion = new Map(versions.map((item) => [item.id, item.questionnaire.code]));
+
+    type OperationalStatus = "PENDING" | "COMPLETED" | "EXPIRED" | "ABANDONED";
+    type Row = { code: string; source: "TRIGGER" | "DOCTOR_REQUEST"; status: OperationalStatus };
+    const classify = (status: string, completedAt: Date | null, dueAt: Date | null): OperationalStatus => {
+      if (completedAt || status === "COMPLETED") return "COMPLETED";
+      if (dueAt && dueAt < abandonedBefore) return "ABANDONED";
+      if (dueAt && dueAt < now) return "EXPIRED";
+      return "PENDING";
+    };
+    const rows: Row[] = [];
+    for (const item of dispatches) {
+      const code = codeByVersion.get(item.questionnaireVersionId);
+      if (!code || (questionnaireCode && code !== questionnaireCode)) continue;
+      rows.push({ code, source: "TRIGGER", status: classify(item.status, item.completedAt, item.dueAt) });
+    }
+    for (const item of doctorRequests) {
+      const code = codeByVersion.get(item.questionnaireVersionId);
+      if (!code || (questionnaireCode && code !== questionnaireCode)) continue;
+      rows.push({ code, source: "DOCTOR_REQUEST", status: classify(item.status, item.completedAt, item.dueAt) });
+    }
+
+    const tally = (items: Row[]) => {
+      const assigned = items.length;
+      const completed = items.filter((item) => item.status === "COMPLETED").length;
+      const pending = items.filter((item) => item.status === "PENDING").length;
+      const expired = items.filter((item) => item.status === "EXPIRED").length;
+      const abandoned = items.filter((item) => item.status === "ABANDONED").length;
+      return {
+        assigned,
+        completed,
+        pending,
+        expired,
+        abandoned,
+        completionRatePct: assigned === 0 ? 0 : Math.round((completed / assigned) * 10000) / 100,
+      };
+    };
+
+    const groups = new Map<string, Row[]>();
+    for (const row of rows) groups.set(row.code, [...(groups.get(row.code) ?? []), row]);
+    const MIN_BREAKDOWN_GROUP_SIZE = 3;
+    const breakdown = [...groups.entries()]
+      .filter(([, items]) => items.length >= MIN_BREAKDOWN_GROUP_SIZE)
+      .map(([code, items]) => ({ code, ...tally(items) }))
+      .sort((left, right) => right.assigned - left.assigned || left.code.localeCompare(right.code));
+    const suppressedQuestionnaireGroups = [...groups.values()]
+      .filter((items) => items.length < MIN_BREAKDOWN_GROUP_SIZE).length;
+
+    const totals = tally(rows);
+    const sources = {
+      TRIGGER: tally(rows.filter((item) => item.source === "TRIGGER")),
+      DOCTOR_REQUEST: tally(rows.filter((item) => item.source === "DOCTOR_REQUEST")),
+    };
+    await this.audit.write({
+      actorId: principal.accountId,
+      action: "ADMIN_QUESTIONNAIRE_METRICS_READ",
+      objectType: "QUESTIONNAIRE_METRICS",
+      objectId: "AGGREGATE",
+      purpose: "OPERATIONAL_ANALYTICS",
+      result: "SUCCESS",
+      metadata: {
+        from: from.toISOString(),
+        to: to.toISOString(),
+        source,
+        questionnaireCode,
+        abandonAfterHours,
+        assigned: totals.assigned,
+        completed: totals.completed,
+        suppressedQuestionnaireGroups,
+        patientIdentifiersIncluded: false,
+        answerPayloadsIncluded: false,
+      },
+    });
+
+    return {
+      generatedAt: now.toISOString(),
+      filters: {
+        from: from.toISOString(),
+        to: to.toISOString(),
+        source,
+        questionnaireCode,
+        abandonAfterHours,
+      },
+      definitions: {
+        assigned: "Dispatches and Doctor requests created inside the selected period.",
+        completed: "Assignment has a linked completion timestamp or COMPLETED status.",
+        expired: "Due date passed but remains within the abandonment grace period.",
+        abandoned: "Still incomplete after the due date plus the configured abandonment grace period.",
+      },
+      totals,
+      sources,
+      breakdown,
+      privacy: {
+        patientIdentifiersIncluded: false,
+        answerPayloadsIncluded: false,
+        minBreakdownGroupSize: MIN_BREAKDOWN_GROUP_SIZE,
+        suppressedQuestionnaireGroups,
+      },
+    };
   }
 
   async createRule(principal: AuthPrincipal, input: CreateQuestionnaireTriggerRuleInput) {
