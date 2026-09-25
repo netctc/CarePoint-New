@@ -117,3 +117,4 @@ console.log("V2 doctor patient snapshot aggregation acceptance passed");
 await import("./v2-doctor-work-queue-smoke.mjs");
 
 await import("./v2-doctor-lab-series-ui-smoke.mjs");
+await import("./v2-doctor-dictation-smoke.mjs");
