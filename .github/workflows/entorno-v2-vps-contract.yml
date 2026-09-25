@@ -23,6 +23,8 @@ jobs:
           bash -n ops/test-v2/scripts/deploy.sh
           bash -n ops/test-v2/scripts/smoke.sh
           bash -n ops/test-v2/scripts/verify-public.sh
+          bash -n ops/test-v2/scripts/load-test-fixtures.sh
+          bash -n ops/test-v2/scripts/use-nipio-domains.sh
       - name: Enforce synthetic lane boundaries
         run: |
           test -z "$(find ops/test-v2 -type f -name '.env*' -print)"
@@ -39,3 +41,10 @@ jobs:
           for marker in API ADMIN PATIENT DOCTOR PROVIDER; do
             grep -q "__${marker}_DOMAIN__" ops/test-v2/nginx/carepoint-v2-http.conf.template
           done
+
+      - name: Validate Flutter release build identity
+        run: |
+          grep -q 'CAREPOINT_BUILD_ENV' ops/test-v2/Dockerfile.flutter-web
+          grep -q 'CAREPOINT_RELEASE_SHA' ops/test-v2/Dockerfile.flutter-web
+          grep -q 'CAREPOINT_BUILD_ENV: staging' ops/test-v2/compose.yaml
+          grep -q 'CAREPOINT_RELEASE_SHA:' ops/test-v2/compose.yaml
