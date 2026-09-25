@@ -48,3 +48,13 @@ jobs:
           grep -q 'CAREPOINT_RELEASE_SHA' ops/test-v2/Dockerfile.flutter-web
           grep -q 'CAREPOINT_BUILD_ENV: staging' ops/test-v2/compose.yaml
           grep -q 'CAREPOINT_RELEASE_SHA:' ops/test-v2/compose.yaml
+
+      - name: Validate Flutter Dockerfile syntax
+        run: |
+          docker buildx build --check \
+            -f ops/test-v2/Dockerfile.flutter-web \
+            --build-arg APP_PATH=apps/patient-mobile \
+            --build-arg CAREPOINT_API_BASE=https://api-test.example.com/api/v1 \
+            --build-arg CAREPOINT_BUILD_ENV=staging \
+            --build-arg CAREPOINT_RELEASE_SHA=0123456789abcdef0123456789abcdef01234567 \
+            .
