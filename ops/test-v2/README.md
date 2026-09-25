@@ -20,6 +20,17 @@ This directory defines the repeatable **non-production / synthetic-only** deploy
 
 Host Nginx terminates TLS and routes the public test subdomains to those loopback ports.
 
+
+### Flutter Web release configuration
+
+The three Flutter Web applications are built in release mode. The test Docker build therefore injects all release-time values required by `CarePointMobileReleaseConfig`:
+
+- `CAREPOINT_API_BASE` = the public HTTPS API base.
+- `CAREPOINT_BUILD_ENV=staging`.
+- `CAREPOINT_RELEASE_SHA` = the full 40-character deployed Git SHA.
+
+Missing build environment or release SHA causes the Flutter application to fail before the login UI is rendered, while Nginx `/healthz` can still return 200. `smoke.sh` and `verify-public.sh` now check the Flutter root and generated JavaScript assets as well as `/healthz`.
+
 The generic repository Dockerfile keeps its default image metadata, but this test lane overrides the API runtime `PORT` to `4200` and the Admin runtime `PORT` to `3200` in Compose. The Flutter Web containers still listen internally on port 80 and are published only to loopback ports `8280`, `8281` and `8282`.
 
 ## Recommended Ubuntu host
@@ -67,6 +78,36 @@ Run local smoke checks:
 
 ```bash
 ops/test-v2/scripts/smoke.sh
+```
+
+
+### Synthetic integral-test data
+
+After the API has been rebuilt from this branch, load or refresh the deterministic synthetic dataset:
+
+```bash
+export CAREPOINT_TEST_FIXTURE_PASSWORD='<test password with at least 16 characters>'
+export CAREPOINT_TEST_FIXTURE_EMAIL_DOMAIN=carepoint.test
+export CAREPOINT_TEST_FIXTURE_TIMEZONE=Asia/Riyadh
+ops/test-v2/scripts/load-test-fixtures.sh
+```
+
+The loader is idempotent and safety-gated to databases whose name contains `test`, `pilot`, `staging` or `uat`. It creates/refreshes:
+
+- one dedicated ADMIN and one SUPPORT account;
+- five PATIENT accounts;
+- one DOCTOR account for every active medical specialty;
+- one OTHER_PROVIDER account for every active provider category;
+- verified synthetic credentials and schedulable services where the category supports appointment modalities;
+- appointment history spanning approximately the previous 30 days;
+- open booking slots spanning approximately the next 30 days.
+
+All managed accounts use the runtime value of `CAREPOINT_TEST_FIXTURE_PASSWORD`. The password is never committed or printed. MFA state is reset only for those managed synthetic accounts so privileged/provider accounts can perform a fresh test enrollment.
+
+For a nip.io VPS, load all public hostnames into the current shell with:
+
+```bash
+source ops/test-v2/scripts/use-nipio-domains.sh 167.86.92.207
 ```
 
 ## Nginx / TLS
