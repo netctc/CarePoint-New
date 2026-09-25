@@ -39,7 +39,7 @@ jobs:
         run: flutter pub get
       - name: Build web test app
         working-directory: apps/${{ matrix.app }}
-        run: flutter build web --release --dart-define=CAREPOINT_API_BASE=https://api.test.invalid/api/v1
+        run: flutter build web --release --dart-define=CAREPOINT_API_BASE=https://api-test.example.com/api/v1 --dart-define=CAREPOINT_BUILD_ENV=staging --dart-define=CAREPOINT_RELEASE_SHA=0123456789abcdef0123456789abcdef01234567
 
   compose-config:
     runs-on: ubuntu-latest
@@ -52,6 +52,7 @@ jobs:
       CAREPOINT_API_PUBLIC_BASE: https://api.test.invalid/api/v1
       TEST_POSTGRES_PASSWORD: test-postgres-password
       TEST_REDIS_PASSWORD: test-redis-password
+      TEST_RELEASE_SHA: 0123456789abcdef0123456789abcdef01234567
       MFA_ENVELOPE_KEY_BASE64: dGVzdC10ZXN0LXRlc3QtdGVzdC10ZXN0LXRlc3Q=
       CLINICAL_ENVELOPE_KEY_BASE64: dGVzdC10ZXN0LXRlc3QtdGVzdC10ZXN0LXRlc3Q=
       ORDER_ENVELOPE_KEY_BASE64: dGVzdC10ZXN0LXRlc3QtdGVzdC10ZXN0LXRlc3Q=
