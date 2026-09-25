@@ -76,6 +76,25 @@ else
   echo "==> BOOTSTRAP_ADMIN_EMAIL/PASSWORD not both set; skipping bootstrap"
 fi
 
+if [[ "${LOAD_SYNTHETIC_TEST_FIXTURES:-false}" == "true" ]]; then
+  if [[ -z "${CAREPOINT_TEST_FIXTURE_PASSWORD:-}" || ${#CAREPOINT_TEST_FIXTURE_PASSWORD} -lt 16 ]]; then
+    echo "ERROR: CAREPOINT_TEST_FIXTURE_PASSWORD (minimum 16 chars) is required when LOAD_SYNTHETIC_TEST_FIXTURES=true" >&2
+    exit 2
+  fi
+  export CAREPOINT_TEST_FIXTURES_CONFIRM="CREATE_SYNTHETIC_TEST_FIXTURES"
+  export CAREPOINT_TEST_FIXTURE_EMAIL_DOMAIN="${CAREPOINT_TEST_FIXTURE_EMAIL_DOMAIN:-carepoint.test}"
+  export CAREPOINT_TEST_FIXTURE_TIMEZONE="${CAREPOINT_TEST_FIXTURE_TIMEZONE:-Asia/Riyadh}"
+  echo "==> Loading integral synthetic test fixtures"
+  docker compose -f "$COMPOSE_FILE" run --rm \
+    -e CAREPOINT_TEST_FIXTURES_CONFIRM \
+    -e CAREPOINT_TEST_FIXTURE_PASSWORD \
+    -e CAREPOINT_TEST_FIXTURE_EMAIL_DOMAIN \
+    -e CAREPOINT_TEST_FIXTURE_TIMEZONE \
+    api npm run db:test-fixtures
+else
+  echo "==> Integral test fixtures disabled (set LOAD_SYNTHETIC_TEST_FIXTURES=true to load them)"
+fi
+
 if [[ "${LOAD_SYNTHETIC_PILOT_FIXTURES:-false}" == "true" ]]; then
   echo "==> Loading repository synthetic private-pilot fixtures"
   docker compose -f "$COMPOSE_FILE" run --rm api npm run db:pilot-fixtures
