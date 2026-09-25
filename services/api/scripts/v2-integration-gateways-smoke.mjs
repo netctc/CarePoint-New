@@ -30,7 +30,7 @@ assert.match(moduleSource, /INTEGRATION_EGRESS_ALLOWLIST/);
 assert.match(moduleSource, /Production activation requires a successful SANDBOX connectivity test/);
 assert.match(moduleSource, /CapabilityStatement/);
 assert.match(moduleSource, /FHIR_GATEWAY_CONNECTIVITY_TESTED/);
-assert.match(moduleSource, /IntegrationExchange/);
+assert.match(moduleSource, /prisma\.integrationExchange\.create/);
 assert.match(fhirRuntime, /@Controller\("fhir\/R4"\)/);
 assert.match(fhirRuntime, /FhirService/);
 assert.doesNotMatch(fhirRuntime, /FhirGatewayConfig|FhirResourceMapping/);
