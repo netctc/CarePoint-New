@@ -184,6 +184,26 @@ class CarePointApi {
   Future<Map<String, dynamic>> doctorEncounterTemplates(String appointmentId) async =>
       _asMap(await _send('GET', '/provider/encounter-templates', query: {'appointmentId': appointmentId}));
   Future<Map<String, dynamic>> writeClinicalRecord(String appointmentId, Map<String, dynamic> record) async => _asMap(await _send('POST', '/clinical/appointments/$appointmentId/records', body: record));
+  // DOC-088 — encrypted dictation draft with explicit human confirmation.
+  Future<Map<String, dynamic>> createDoctorDictationJob({
+    required String appointmentId,
+    required String targetField,
+    required String transcript,
+    required String idempotencyKey,
+    required bool deviceSpeechDisclosureAccepted,
+    String? locale,
+  }) async => _asMap(await _send('POST', '/provider/dictation/jobs', body: {
+    'appointmentId': appointmentId,
+    'targetField': targetField,
+    'transcript': transcript,
+    'idempotencyKey': idempotencyKey,
+    'deviceSpeechDisclosureAccepted': deviceSpeechDisclosureAccepted,
+    if (locale?.isNotEmpty == true) 'locale': locale,
+  }));
+  Future<Map<String, dynamic>> confirmDoctorDictationJob(String jobId) async =>
+      _asMap(await _send('POST', '/provider/dictation/jobs/$jobId/confirm', body: const {}));
+  Future<Map<String, dynamic>> discardDoctorDictationJob(String jobId) async =>
+      _asMap(await _send('POST', '/provider/dictation/jobs/$jobId/discard', body: const {}));
   Future<Map<String, dynamic>> signClinicalEncounter(String appointmentId) async =>
       _asMap(await _send('POST', '/provider/encounters/' + appointmentId + '/sign', body: const {}));
   Future<Map<String, dynamic>> finalizeClinicalEncounter(String appointmentId) async => _asMap(await _send('POST', '/clinical/appointments/$appointmentId/finalize', body: const {}));

@@ -1,0 +1,26 @@
+model DictationJob {
+  id               String   @id @default(uuid())
+  idempotencyKey   String   @unique
+  providerId       String
+  patientId        String
+  appointmentId    String
+  targetField      String
+  status           String   @default("DRAFT")
+  source           String   @default("DEVICE_SPEECH_RECOGNITION")
+  locale           String?
+  expiresAt        DateTime
+  confirmedAt      DateTime?
+  discardedAt      DateTime?
+  createdByActorId String
+  algorithm        String
+  keyId            String
+  wrappedKey       String
+  iv               String
+  ciphertext       String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([providerId, status, expiresAt])
+  @@index([appointmentId, createdAt])
+  @@index([patientId, createdAt])
+}
