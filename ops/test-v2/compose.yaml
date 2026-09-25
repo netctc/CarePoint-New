@@ -139,6 +139,8 @@ services:
       dockerfile: ops/test-v2/Dockerfile.flutter-web
       args:
         APP_PATH: apps/patient-mobile
+        CAREPOINT_BUILD_ENV: staging
+        CAREPOINT_RELEASE_SHA: ${TEST_RELEASE_SHA:?TEST_RELEASE_SHA is required}
         APP_TITLE: CarePoint Patient Test
         CAREPOINT_API_BASE: ${CAREPOINT_API_PUBLIC_BASE:?}
     restart: unless-stopped
@@ -152,6 +154,8 @@ services:
       dockerfile: ops/test-v2/Dockerfile.flutter-web
       args:
         APP_PATH: apps/doctor-mobile
+        CAREPOINT_BUILD_ENV: staging
+        CAREPOINT_RELEASE_SHA: ${TEST_RELEASE_SHA:?TEST_RELEASE_SHA is required}
         APP_TITLE: CarePoint Doctor Test
         CAREPOINT_API_BASE: ${CAREPOINT_API_PUBLIC_BASE:?}
     restart: unless-stopped
@@ -165,6 +169,8 @@ services:
       dockerfile: ops/test-v2/Dockerfile.flutter-web
       args:
         APP_PATH: apps/provider-mobile
+        CAREPOINT_BUILD_ENV: staging
+        CAREPOINT_RELEASE_SHA: ${TEST_RELEASE_SHA:?TEST_RELEASE_SHA is required}
         APP_TITLE: CarePoint Provider Test
         CAREPOINT_API_BASE: ${CAREPOINT_API_PUBLIC_BASE:?}
     restart: unless-stopped
