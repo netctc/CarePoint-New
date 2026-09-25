@@ -477,3 +477,31 @@ sudo docker system df
 ```
 
 No ejecutar `docker system prune --volumes` en un VPS con un entorno que deba conservar datos.
+
+
+## 20. Corrección de Flutter Web y dataset integral
+
+Las aplicaciones Patient, Doctor y Provider se construyen en modo `release`. Para que `CarePointMobileReleaseConfig` permita el arranque, el build de `entorno-v2` inyecta:
+
+- `CAREPOINT_API_BASE` con el endpoint HTTPS;
+- `CAREPOINT_BUILD_ENV=staging`;
+- `CAREPOINT_RELEASE_SHA` con el SHA Git completo de 40 caracteres.
+
+Si faltan los dos últimos valores, el contenedor Nginx puede responder `/healthz` correctamente mientras la aplicación queda en blanco antes de renderizar el login. Los scripts `smoke.sh` y `verify-public.sh` comprueban ahora también `/`, `/flutter_bootstrap.js` y `/main.dart.js`.
+
+Para cargar los dominios nip.io de este VPS en la sesión actual:
+
+```bash
+source ops/test-v2/scripts/use-nipio-domains.sh 167.86.92.207
+```
+
+Para crear o actualizar datos sintéticos integrales:
+
+```bash
+export CAREPOINT_TEST_FIXTURE_PASSWORD='<contraseña de test de al menos 16 caracteres>'
+export CAREPOINT_TEST_FIXTURE_EMAIL_DOMAIN=carepoint.test
+export CAREPOINT_TEST_FIXTURE_TIMEZONE=Asia/Riyadh
+ops/test-v2/scripts/load-test-fixtures.sh
+```
+
+El dataset crea un ADMIN, un SUPPORT, cinco pacientes, un médico por cada especialidad activa y un proveedor por cada categoría activa; añade credenciales, servicios, unos 30 días de histórico de citas y unos 30 días de franjas abiertas. Todas las cuentas usan la contraseña suministrada por variable de entorno y las cuentas privilegiadas/proveedor volverán a solicitar enrolamiento MFA de prueba.
