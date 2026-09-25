@@ -41,11 +41,19 @@ Synthetic bootstrap admin (recommended for a fresh test DB)
 BOOTSTRAP_ADMIN_EMAIL=<test-only email>
 BOOTSTRAP_ADMIN_PASSWORD=<strong test-only password>
 
-Optional synthetic fixture set
-------------------------------
-# Uses the repository's closed private-pilot synthetic fixture bootstrap.
-# Leave false if you want a completely empty test tenant after the admin bootstrap.
-LOAD_SYNTHETIC_PILOT_FIXTURES=true
+Synthetic integral-test fixtures
+--------------------------------
+# Recommended for entorno-v2. Creates/refreshes dedicated synthetic users,
+# doctors for every active specialty, other providers for every active category,
+# five patients, ~30 days of appointment history and ~30 days of open slots.
+LOAD_SYNTHETIC_TEST_FIXTURES=false
+CAREPOINT_TEST_FIXTURE_PASSWORD=<set manually; minimum 16 characters>
+CAREPOINT_TEST_FIXTURE_EMAIL_DOMAIN=carepoint.test
+CAREPOINT_TEST_FIXTURE_TIMEZONE=Asia/Riyadh
+
+# Private-pilot fixtures use a stricter pilot/staging/uat database-name guard and
+# are not the default fixture set for the carepoint_test database.
+LOAD_SYNTHETIC_PILOT_FIXTURES=false
 
 Build identity (optional; deploy.sh fills TEST_RELEASE_SHA automatically when omitted)
 --------------------------------------------------------------------------------------
