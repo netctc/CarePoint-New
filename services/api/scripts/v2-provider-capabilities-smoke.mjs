@@ -15,14 +15,14 @@ const parsed = parseProviderCategoryCapabilities({
   clinicalSummarySections: ["health_profile", "ALLERGIES", "INVALID"],
   observationCodes: ["heart_rate", "SpO2", "bad code"],
   questionnaireCodes: ["intake_general", "INTAKE_GENERAL", "bad code"],
-  workflowCapabilities: ["category_forms", "HOME_VISIT_ARRIVAL", "MED_ADMIN", "WOUND_CARE", "PROCEDURE_CHECKLIST", "INVALID"],
+  workflowCapabilities: ["category_forms", "HOME_VISIT_ARRIVAL", "MED_ADMIN", "WOUND_CARE", "PROCEDURE_CHECKLIST", "supply_tracking", "INVALID"],
 });
 assert.deepEqual(parsed.enabledModalities, ["HOME_VISIT"]);
 assert.deepEqual(parsed.clinicalOrderCapabilities, ["LABORATORY"]);
 assert.deepEqual(parsed.clinicalSummarySections, ["HEALTH_PROFILE", "ALLERGIES"]);
 assert.deepEqual(parsed.observationCodes, ["HEART_RATE", "SPO2"]);
 assert.deepEqual(parsed.questionnaireCodes, ["INTAKE_GENERAL"]);
-assert.deepEqual(parsed.workflowCapabilities, ["CATEGORY_FORMS", "HOME_VISIT_ARRIVAL", "MED_ADMIN", "WOUND_CARE", "PROCEDURE_CHECKLIST"]);
+assert.deepEqual(parsed.workflowCapabilities, ["CATEGORY_FORMS", "HOME_VISIT_ARRIVAL", "MED_ADMIN", "WOUND_CARE", "PROCEDURE_CHECKLIST", "SUPPLY_TRACKING"]);
 
 const payload = providerCategoryCapabilitiesPayload({
   enabledModalities: ["CLINIC"],

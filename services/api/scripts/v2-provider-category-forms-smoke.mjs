@@ -54,3 +54,5 @@ test("form purpose is bound to an authorized operational context", () => {
 });
 
 console.log("V2 provider category forms acceptance passed");
+
+await import("./v2-provider-category-forms-mobile-smoke.mjs");

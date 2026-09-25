@@ -83,8 +83,20 @@ class AdminTerminologyController {
   }
 }
 
+@Controller("admin/medication-catalog")
+class AdminMedicationCatalogController {
+  constructor(private readonly terminology: TerminologyService) {}
+
+  @RequirePermissions("CATALOG_MANAGE")
+  @Get("status")
+  @Header("Cache-Control", "no-store")
+  status(@CurrentPrincipal() principal: AuthPrincipal) {
+    return this.terminology.medicationCatalogStatus(principal);
+  }
+}
+
 @Module({
-  controllers: [TerminologyController, AdminTerminologyController],
+  controllers: [TerminologyController, AdminTerminologyController, AdminMedicationCatalogController],
   providers: [TerminologyService],
   exports: [TerminologyService],
 })

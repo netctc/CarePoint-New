@@ -14,10 +14,12 @@ import { ClinicalEnvelopeService } from "../clinical/clinical-envelope.service";
 import {
   assertCanonicalRange,
   convertMeasurement,
+  normalizeGlucoseContext,
   normalizeMetricCode,
   normalizeObservedAt,
   normalizeUnitCode,
   type ConversionRule,
+  type GlucoseContext,
 } from "./observation.engine";
 
 const OBSERVATION_CONSENT_VERSION = "observation-read-v1";
@@ -35,6 +37,7 @@ type StoredObservation = {
   originalUnitCode: string;
   canonicalValue: number;
   canonicalUnitCode: string;
+  glucoseContext?: GlucoseContext | null;
   verificationStatus: "PATIENT_DECLARED";
 };
 type StoredObservationCorrection = {
@@ -80,6 +83,7 @@ export interface CreateObservationInput {
   observedAt: string;
   sourceType?: SourceType;
   sourceId?: string | null;
+  glucoseContext?: GlucoseContext | string | null;
 }
 
 @Injectable()
@@ -277,6 +281,7 @@ export class ObservationService {
   async recordMine(principal: AuthPrincipal, input: CreateObservationInput) {
     const patient = await this.requirePatient(principal);
     const code = normalizeMetricCode(input?.code);
+    const glucoseContext = normalizeGlucoseContext(code, input?.glucoseContext);
     const observedAt = normalizeObservedAt(input?.observedAt);
     const sourceType = this.sourceType(input?.sourceType);
     const sourceId = this.sourceId(input?.sourceId, sourceType);
@@ -310,6 +315,7 @@ export class ObservationService {
       originalUnitCode: normalized.originalUnitCode,
       canonicalValue: normalized.canonicalValue,
       canonicalUnitCode: normalized.canonicalUnitCode,
+      glucoseContext,
       verificationStatus: "PATIENT_DECLARED",
     };
     const encrypted = await this.envelope.encryptRecord(payload);
@@ -660,6 +666,7 @@ export class ObservationService {
       originalUnitCode: payload.originalUnitCode,
       originalCanonicalValue: payload.canonicalValue,
       originalCanonicalUnitCode: payload.canonicalUnitCode,
+      glucoseContext: payload.glucoseContext ?? null,
       correctionSequence: correctionRow?.sequence ?? 0,
       correctedAt: correctionRow?.createdAt ?? null,
       isCorrected: Boolean(correctionRow),

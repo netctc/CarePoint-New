@@ -1,5 +1,6 @@
 import 'package:carepoint_mobile_core/carepoint_api.dart';
 import 'package:carepoint_mobile_core/carepoint_localization.dart';
+import 'package:carepoint_mobile_core/food_diary.dart';
 import 'package:carepoint_mobile_core/nutrition.dart';
 import 'package:carepoint_mobile_core/nutrition_plan.dart';
 import 'package:flutter/material.dart';
@@ -119,6 +120,12 @@ class NutritionCapabilityLauncher extends StatelessWidget {
                   title: Text(nutritionPlanText(locale, 'title')),
                   onTap: () => Navigator.pop(sheetContext, 'plan'),
                 ),
+                ListTile(
+                  key: const ValueKey('provider-food-diary-action'),
+                  leading: const Icon(Icons.restaurant_outlined),
+                  title: Text(foodDiaryText(locale, 'providerTitle')),
+                  onTap: () => Navigator.pop(sheetContext, 'foodDiary'),
+                ),
               ],
             ),
           ),
@@ -132,7 +139,9 @@ class NutritionCapabilityLauncher extends StatelessWidget {
             textDirection: locale.textDirection,
             child: action == 'plan'
                 ? ProviderNutritionPlanPage(session: session, locale: locale, appointment: selected)
-                : NutritionAnthropometryPage(session: session, locale: locale, appointment: selected),
+                : action == 'foodDiary'
+                    ? ProviderFoodDiaryPage(session: session, locale: locale, appointment: selected)
+                    : NutritionAnthropometryPage(session: session, locale: locale, appointment: selected),
           ),
         ),
       );

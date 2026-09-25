@@ -11,6 +11,7 @@ import type { EncryptedEnvelope } from "@carepoint/security";
 import { PrismaService } from "../../infrastructure/prisma/prisma.module";
 import { DatabaseAuditService } from "../../infrastructure/audit/audit.service";
 import { ClinicalEnvelopeService } from "../clinical/clinical-envelope.service";
+import { QuestionnaireTriggerService } from "../questionnaire-triggers/questionnaire-trigger.service";
 import {
   diffQuestionnaireAnswers,
   evaluateQuestionnaireActivation,
@@ -65,6 +66,7 @@ export class QuestionnaireService {
     private readonly prisma: PrismaService,
     private readonly audit: DatabaseAuditService,
     private readonly envelope: ClinicalEnvelopeService,
+    private readonly triggers: QuestionnaireTriggerService,
   ) {}
 
   async adminList() {
@@ -156,6 +158,7 @@ export class QuestionnaireService {
 
   async dueMine(principal: AuthPrincipal) {
     const patient = await this.requirePatient(principal);
+    await this.triggers.safeReconcilePatient(patient.id);
     const versions = await this.prisma.questionnaireVersion.findMany({
       where: { status: "ACTIVE", questionnaire: { active: true } },
       include: { questionnaire: true },
@@ -164,6 +167,7 @@ export class QuestionnaireService {
     if (versions.length === 0) return { patientId: patient.id, items: [] };
 
     const questionnaireIds = [...new Set(versions.map((item) => item.questionnaireId))];
+    const pendingTriggers = await this.triggers.pendingForPatient(patient.id, versions.map((item) => item.id));
     const responses = await this.prisma.questionnaireResponse.findMany({
       where: { patientId: patient.id, questionnaireId: { in: questionnaireIds } },
       orderBy: { completedAt: "desc" },
@@ -184,6 +188,10 @@ export class QuestionnaireService {
       const previous = latest.get(item.questionnaireId) ?? null;
       const rules = normalizeActivationRules(item.activationRules);
       const activation = evaluateQuestionnaireActivation(rules, previous?.completedAt ?? null);
+      const triggered = pendingTriggers.get(item.id) ?? null;
+      const effectiveActivation = triggered
+        ? { due: true, reason: `TRIGGER_${triggered.eventType}`, askHealthChanged: activation.askHealthChanged, dueAt: triggered.dueAt }
+        : activation;
       return {
         questionnaireId: item.questionnaireId,
         code: item.questionnaire.code,
@@ -195,10 +203,11 @@ export class QuestionnaireService {
         latestQuestionnaireVersionId: previous?.questionnaireVersionId ?? null,
         lastCompletedAt: previous?.completedAt ?? null,
         canConfirmNoChanges:
-          activation.due &&
+          effectiveActivation.due &&
           previous !== null &&
           previous.questionnaireVersionId === item.id,
-        ...activation,
+        triggerDispatchId: triggered?.id ?? null,
+        ...effectiveActivation,
       };
     });
 
@@ -378,6 +387,11 @@ export class QuestionnaireService {
           sourceActorId: principal.accountId,
           ...this.envelopeData(encrypted),
         },
+      });
+
+      await tx.questionnaireTriggerDispatch.updateMany({
+        where: { patientId: patient.id, questionnaireVersionId: active.id, status: "PENDING" },
+        data: { status: "COMPLETED", completedResponseId: created.id, completedAt: created.completedAt },
       });
 
       await this.audit.writeClinicalInTransaction(tx, {

@@ -33,12 +33,15 @@ import { EmergencyContactsModule } from "./modules/emergency-contacts/emergency-
 import { EncounterTemplatesModule } from "./modules/encounter-templates/encounter-templates.module";
 import { CredentialExpiryModule } from "./modules/credential-expiry/credential-expiry.module";
 import { MedicationReminderModule } from "./modules/medication-reminders/medication-reminders.module";
+import { MedicalDeviceModule } from "./modules/medical-devices/medical-device.module";
 import { PatientEducationModule } from "./modules/patient-education/patient-education.module";
 import { AdverseEventReportModule } from "./modules/adverse-events/adverse-events.module";
 import { RefillModule } from "./modules/refill/refill.module";
 import { ReferralsModule } from "./modules/referrals/referrals.module";
+import { SecondOpinionsModule } from "./modules/second-opinions/second-opinions.module";
 import { RetentionModule } from "./modules/retention/retention.module";
 import { DocumentsModule } from "./modules/documents/documents.module";
+import { DictationModule } from "./modules/dictation/dictation.module";
 import { DocumentVersioningModule } from "./modules/documents/document-versioning.module";
 import { ClinicalMediaModule } from "./modules/documents/clinical-media.module";
 import { DoctorSnapshotModule } from "./modules/doctor-snapshot/doctor-snapshot.module";
@@ -46,7 +49,9 @@ import { DoctorWorkQueueModule } from "./modules/doctor-work-queue/doctor-work-q
 import { emergencyAmbulanceModuleEnabled } from "./modules/emergency/emergency-launch-policy";
 import { EmergencyModule } from "./modules/emergency/emergency.module";
 import { FeatureFlagsModule } from "./modules/feature-flags/feature-flags.module";
+import { FoodDiaryModule } from "./modules/food-diary/food-diary.module";
 import { FhirModule } from "./modules/fhir/fhir.module";
+import { IntegrationGatewaysModule } from "./modules/integration-gateways/integration-gateways.module";
 import { HealthModule } from "./modules/health/health.module";
 import { HealthProfileModule } from "./modules/health-profile/health-profile.module";
 import { IamModule } from "./modules/iam/iam.module";
@@ -59,6 +64,7 @@ import { PatientHealthSummaryModule } from "./modules/patient-health-summary/pat
 import { PatientEmergencyCardModule } from "./modules/patient-emergency-card/patient-emergency-card.module";
 import { PatientMergeModule } from "./modules/patient-merge/patient-merge.module";
 import { PatientProfileModule } from "./modules/patient-profile/patient-profile.module";
+import { PreventiveCareModule } from "./modules/preventive-care/preventive-care.module";
 import { PhysiotherapyModule } from "./modules/physiotherapy/physiotherapy.module";
 import { ProviderFieldMediaModule } from "./modules/provider-field-media/provider-field-media.module";
 import { QuestionnaireModule } from "./modules/questionnaire/questionnaire.module";
@@ -69,6 +75,7 @@ import { OtherProviderWorkspaceModule } from "./modules/other-provider-workspace
 import { ProviderFieldJobsModule } from "./modules/other-provider-workspace/provider-field-jobs.module";
 import { ProviderFieldRouteModule } from "./modules/other-provider-workspace/provider-field-route.module";
 import { ProviderWorkQueueModule } from "./modules/other-provider-workspace/provider-work-queue.module";
+import { ProviderSuppliesModule } from "./modules/provider-supplies/provider-supplies.module";
 import { ProviderFollowUpModule } from "./modules/provider-follow-up/provider-follow-up.module";
 import { ProviderOfflineSyncModule } from "./modules/provider-offline-sync/provider-offline-sync.module";
 import { ProvidersModule } from "./modules/providers/providers.module";
@@ -101,6 +108,8 @@ const isolatedSyntheticPilot = isolatedSyntheticPrivatePilotActive(process.env);
     SiemExportModule,
     ApiSecurityModule,
     FeatureFlagsModule,
+    FoodDiaryModule,
+    IntegrationGatewaysModule,
     HealthModule,
     AccessNeedsModule,
     AdminAnalyticsModule,
@@ -115,6 +124,7 @@ const isolatedSyntheticPilot = isolatedSyntheticPrivatePilotActive(process.env);
     AppointmentContinuityModule,
     RefillModule,
     ReferralsModule,
+    SecondOpinionsModule,
     DataGovernanceModule,
     DataQualityModule,
     RetentionModule,
@@ -124,6 +134,7 @@ const isolatedSyntheticPilot = isolatedSyntheticPrivatePilotActive(process.env);
     EncounterTemplatesModule,
     CredentialExpiryModule,
     MedicationReminderModule,
+    MedicalDeviceModule,
     PatientEducationModule,
     AdverseEventReportModule,
     ProvidersModule,
@@ -136,6 +147,7 @@ const isolatedSyntheticPilot = isolatedSyntheticPrivatePilotActive(process.env);
     ProviderFieldJobsModule,
     ProviderFieldRouteModule,
     ProviderWorkQueueModule,
+    ProviderSuppliesModule,
     ProviderNursingWorkflowsModule,
     PhysiotherapyModule,
     NutritionModule,
@@ -149,6 +161,7 @@ const isolatedSyntheticPilot = isolatedSyntheticPrivatePilotActive(process.env);
     IamModule,
     LocalizationModule,
     PatientProfileModule,
+    PreventiveCareModule,
     PatientMergeModule,
     HealthProfileModule,
     PatientHealthSummaryModule,
@@ -174,6 +187,7 @@ const isolatedSyntheticPilot = isolatedSyntheticPrivatePilotActive(process.env);
     DoctorWorkQueueModule,
     OrdersModule,
     DocumentsModule,
+    DictationModule,
     DocumentVersioningModule,
     ClinicalMediaModule,
     ...(runtimeFeatures.payments ? [BillingModule, ClaimsModule] : []),

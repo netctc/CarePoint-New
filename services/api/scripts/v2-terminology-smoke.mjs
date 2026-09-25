@@ -72,4 +72,5 @@ assert.match(moduleSource, /@Post\("mappings"\)/);
 assert.match(appModule, /TerminologyModule/);
 
 console.log("BE-039 versioned terminology abstraction acceptance passed");
+await import("./v2-admin-medication-catalog-status-smoke.mjs");
 await import("./v2-localization-smoke.mjs");

@@ -1,0 +1,27 @@
+model AnalyticsFact {
+  id             String   @id
+  sourceEventKey String   @unique
+  schemaVersion  Int      @default(1)
+  factType       String
+  subjectKey     String
+  occurredAt     DateTime
+  month          DateTime
+  createdAt      DateTime @default(now())
+
+  @@index([factType, month, subjectKey])
+  @@index([month, factType])
+}
+
+model PopulationMetric {
+  id              String   @id
+  metricType      String
+  month           DateTime
+  patientCount    Int
+  eventCount      Int
+  sourceWatermark DateTime?
+  createdAt       DateTime @default(now())
+  refreshedAt     DateTime @updatedAt
+
+  @@unique([metricType, month])
+  @@index([month, metricType])
+}

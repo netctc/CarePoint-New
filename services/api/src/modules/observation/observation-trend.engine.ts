@@ -7,6 +7,7 @@ export type TrendObservation = {
   unitCode: string;
   canonicalValue: number;
   canonicalUnitCode: string;
+  glucoseContext?: string | null;
   sourceType: string;
   sourceId: string | null;
   verificationStatus: string;
@@ -53,6 +54,7 @@ export function buildObservationTrend(items: TrendObservation[], sourceType: Tre
         observedAt: point.observedAt,
         canonicalValue: point.canonicalValue,
         canonicalUnitCode: point.canonicalUnitCode,
+        glucoseContext: point.glucoseContext ?? null,
         sourceType: point.sourceType,
       })),
     }];
@@ -70,6 +72,7 @@ export function buildObservationTrend(items: TrendObservation[], sourceType: Tre
       unitCode: item.unitCode,
       canonicalValue: item.canonicalValue,
       canonicalUnitCode: item.canonicalUnitCode,
+      glucoseContext: item.glucoseContext ?? null,
       sourceType: item.sourceType,
       sourceId: item.sourceId,
       verificationStatus: item.verificationStatus,

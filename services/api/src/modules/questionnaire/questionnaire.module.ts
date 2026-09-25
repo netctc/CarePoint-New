@@ -1,7 +1,12 @@
-import { Body, Controller, Get, Header, Module, Param, Patch, Post } from "@nestjs/common";
+import { Body, Controller, Get, Header, Module, Param, Patch, Post, Query } from "@nestjs/common";
 import type { AuthPrincipal } from "@carepoint/identity";
 import { CurrentPrincipal, RequirePermissions } from "../../security/api-security.module";
 import { ClinicalModule } from "../clinical/clinical.module";
+import { QuestionnaireTriggersModule } from "../questionnaire-triggers/questionnaire-triggers.module";
+import {
+  QuestionnaireTriggerService,
+  type QuestionnaireComplianceMetricsQuery,
+} from "../questionnaire-triggers/questionnaire-trigger.service";
 import { QuestionnaireReviewService } from "./questionnaire-review.service";
 import {
   QuestionnaireService,
@@ -13,7 +18,20 @@ import {
 
 @Controller("admin/questionnaires")
 class AdminQuestionnaireController {
-  constructor(private readonly questionnaires: QuestionnaireService) {}
+  constructor(
+    private readonly questionnaires: QuestionnaireService,
+    private readonly triggers: QuestionnaireTriggerService,
+  ) {}
+
+  @RequirePermissions("CATALOG_MANAGE")
+  @Get("metrics")
+  @Header("Cache-Control", "no-store")
+  metrics(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Query() query: QuestionnaireComplianceMetricsQuery,
+  ) {
+    return this.triggers.adminComplianceMetrics(principal, query);
+  }
 
   @RequirePermissions("CATALOG_MANAGE")
   @Get()
@@ -184,7 +202,7 @@ class DoctorQuestionnaireController {
 }
 
 @Module({
-  imports: [ClinicalModule],
+  imports: [ClinicalModule, QuestionnaireTriggersModule],
   controllers: [
     AdminQuestionnaireController,
     PatientQuestionnaireController,

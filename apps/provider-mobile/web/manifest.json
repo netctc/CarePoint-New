@@ -1,0 +1,11 @@
+{
+  "name": "CarePoint Provider Test",
+  "short_name": "Provider Test",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#F8FAFC",
+  "theme_color": "#10B981",
+  "description": "CarePoint Other Provider browser test client.",
+  "orientation": "any",
+  "prefer_related_applications": false
+}
