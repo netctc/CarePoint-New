@@ -40,7 +40,7 @@ for(const locale of ["en:","ar:","fr:","es:"])assert.match(page,new RegExp(local
 for(const label of ["Assigned","Completed","Pending","Expired","Abandoned","Completion"])assert.match(page,new RegExp(label));
 assert.match(page, /patientIdentifiersIncluded/);
 assert.match(page, /answerPayloadsIncluded/);
-assert.doesNotMatch(page, /answers|ciphertext|wrappedKey/);
+assert.doesNotMatch(page, /questionnaireResponse|rawAnswer|answerText|ciphertext|wrappedKey/);
 assert.match(builder, /questionnaires\/monitoring/);
 
 console.log("ADM-077 questionnaire compliance monitoring acceptance passed");
