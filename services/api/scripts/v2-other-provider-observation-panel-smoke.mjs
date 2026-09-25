@@ -52,3 +52,4 @@ console.log("PRV-061 capability-bound Other Provider observation panel acceptanc
 function read(relative) {
   return readFileSync(new URL(relative, import.meta.url), "utf8");
 }
+await import("./v2-other-provider-snapshot-ui-smoke.mjs");

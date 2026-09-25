@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Header, Module, Param, Post } from "@nestjs/common";
 import type { AuthPrincipal } from "@carepoint/identity";
 import { CurrentPrincipal, RequirePermissions } from "../../security/api-security.module";
+import { ClinicalGovernanceModule } from "../clinical-governance/clinical-governance.module";
 import { PersistentConsentService } from "./persistent-consent.service";
 
 interface GrantConsentBody { providerId?: string; scope: string; version: string; purpose?: string; expiresAt?: string; }
@@ -23,5 +24,5 @@ class ConsentController {
   regrant(@CurrentPrincipal() principal: AuthPrincipal, @Param("consentId") consentId: string) { return this.consents.regrant(principal, consentId); }
 }
 
-@Module({ controllers: [ConsentController], providers: [PersistentConsentService] })
+@Module({ imports: [ClinicalGovernanceModule], controllers: [ConsentController], providers: [PersistentConsentService] })
 export class ConsentModule {}

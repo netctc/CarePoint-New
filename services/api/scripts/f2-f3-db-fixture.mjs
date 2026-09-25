@@ -22,7 +22,8 @@ after(async () => { await db.$disconnect(); });
 export const audit = new DatabaseAuditService(db, new SiemAuditOutboxStoreService(db), { wake() {} });
 export const journeys = new PatientJourneysService(db, audit);
 export const requests = new AvailabilityRequestsService(db, audit);
-export const booking = new Release1ContextualBookingService(db, audit, {});
+const questionnaireTriggers = { async safeDispatchAppointmentConfirmed() {} };
+export const booking = new Release1ContextualBookingService(db, audit, {}, questionnaireTriggers);
 export const conflict = (error) => error?.getStatus?.() === 409;
 export const notFound = (error) => error?.getStatus?.() === 404;
 export const key = () => `synthetic-${randomUUID()}`;
@@ -105,5 +106,5 @@ export function failingBooking() {
       throw new Error('SYNTHETIC_ROLLBACK_AFTER_AUDIT');
     },
     write: (input) => audit.write(input),
-  }, {});
+  }, {}, questionnaireTriggers);
 }

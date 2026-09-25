@@ -23,6 +23,11 @@ const TREATMENT_LOOKAHEAD_DAYS = 30;
 type OrderType = "PRESCRIPTION" | "LABORATORY";
 type AccessBasis = "PATIENT_SELF" | "OWN_AUTHORSHIP" | "TREATMENT_RELATIONSHIP" | "PATIENT_CONSENT";
 type JsonObject = Record<string, unknown>;
+type ExternalLabProvenance = {
+  sourceSystem: string;
+  externalResultId: string;
+  externalOrderId: string;
+};
 type ProviderContext = {
   id: string;
   class: "DOCTOR" | "OTHER_PROVIDER";
@@ -207,7 +212,7 @@ export class OrdersService {
     return this.presentOrder(updated, "OWN_AUTHORSHIP", false);
   }
 
-  async enterLabResult(principal: AuthPrincipal, orderId: string, input: JsonObject) {
+  async enterLabResult(principal: AuthPrincipal, orderId: string, input: JsonObject, source?: ExternalLabProvenance) {
     const provider = await this.requireActiveProvider(principal);
     const order = await this.requireOrder(orderId);
     if (order.type !== "LABORATORY") throw new ConflictException("Laboratory results can only be attached to laboratory orders.");
@@ -216,6 +221,14 @@ export class OrdersService {
     if (order.providerId !== provider.id && !provider.capabilities.has("LAB_RESULT_ENTRY")) throw new ForbiddenException("Provider is not authorized to enter laboratory results.");
 
     const payload = this.validateLabResultPayload(input);
+    if (source) {
+      payload.provenance = {
+        sourceType: "EXTERNAL_LAB",
+        sourceSystem: this.requiredText(source.sourceSystem, 180, "sourceSystem"),
+        externalResultId: this.requiredText(source.externalResultId, 180, "externalResultId"),
+        externalOrderId: this.requiredText(source.externalOrderId, 180, "externalOrderId"),
+      };
+    }
     const encrypted = await this.envelope.encrypt({ schemaVersion: 1, ...payload });
     const payloadDigest = this.attestation.digest(this.resultAttestationMaterial(order.id, encrypted));
     const result = await this.prisma.laboratoryResult.create({

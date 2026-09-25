@@ -5,6 +5,50 @@ import {
   ClinicalGovernanceService,
   type CreateTemporaryClinicalShareInput,
 } from "./clinical-governance.service";
+import {
+  ConsentPolicyGovernanceService,
+  type CreateConsentPolicyDefinitionInput,
+  type CreateConsentPolicyVersionInput,
+} from "./consent-policy-governance.service";
+
+@Controller("admin/consent-policies")
+class AdminConsentPolicyController {
+  constructor(private readonly policies: ConsentPolicyGovernanceService) {}
+
+  @RequirePermissions("DATA_GOVERNANCE_MANAGE")
+  @Get()
+  @Header("Cache-Control", "no-store")
+  list() { return this.policies.catalog(); }
+
+  @RequirePermissions("DATA_GOVERNANCE_MANAGE")
+  @Post()
+  @Header("Cache-Control", "no-store")
+  create(@CurrentPrincipal() principal: AuthPrincipal, @Body() body: CreateConsentPolicyDefinitionInput) {
+    return this.policies.createDefinition(principal, body);
+  }
+
+  @RequirePermissions("DATA_GOVERNANCE_MANAGE")
+  @Post(":policyId/versions")
+  @Header("Cache-Control", "no-store")
+  version(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Param("policyId") policyId: string,
+    @Body() body: CreateConsentPolicyVersionInput,
+  ) {
+    return this.policies.createVersion(principal, policyId, body);
+  }
+
+  @RequirePermissions("DATA_GOVERNANCE_MANAGE")
+  @Post(":policyId/versions/:version/activate")
+  @Header("Cache-Control", "no-store")
+  activate(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Param("policyId") policyId: string,
+    @Param("version") version: string,
+  ) {
+    return this.policies.activate(principal, policyId, version);
+  }
+}
 
 @Controller("patient/clinical-shares")
 class PatientClinicalShareController {
@@ -103,8 +147,8 @@ class AdminClinicalAccessController {
 }
 
 @Module({
-  controllers: [PatientClinicalShareController, AdminClinicalAccessController],
-  providers: [ClinicalGovernanceService],
-  exports: [ClinicalGovernanceService],
+  controllers: [AdminConsentPolicyController, PatientClinicalShareController, AdminClinicalAccessController],
+  providers: [ClinicalGovernanceService, ConsentPolicyGovernanceService],
+  exports: [ClinicalGovernanceService, ConsentPolicyGovernanceService],
 })
 export class ClinicalGovernanceModule {}

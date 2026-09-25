@@ -9,9 +9,11 @@ import 'other_provider_insights.dart';
 import 'follow_up_recommendation.dart';
 import 'doctor_immunizations.dart';
 import 'doctor_lab_series.dart';
+import 'doctor_glucose_trends.dart';
 import 'doctor_changes_since_last_visit.dart';
 import 'doctor_procedures.dart';
 import 'doctor_care_plan_rpm.dart';
+import 'doctor_dictation.dart';
 import 'doctor_orders_coordination.dart';
 import 'questionnaire_requests.dart';
 import 'patient_education.dart';
@@ -149,6 +151,13 @@ class _ClinicalRecordPageState extends State<ClinicalRecordPage> {
         ),
         const SizedBox(height: 10),
         OutlinedButton.icon(
+          key: const ValueKey('doctor-glucose-trends-entry'),
+          onPressed: _openGlucoseTrends,
+          icon: const Icon(Icons.water_drop_outlined),
+          label: Text(doctorGlucoseTrendText(locale, 'title')),
+        ),
+        const SizedBox(height: 10),
+        OutlinedButton.icon(
           key: const ValueKey('doctor-lab-series-entry'),
           onPressed: _openLabSeries,
           icon: const Icon(Icons.show_chart_outlined),
@@ -199,7 +208,14 @@ class _ClinicalRecordPageState extends State<ClinicalRecordPage> {
     ]),
   );
 
-  Widget _textField(TextEditingController controller, String key, int maxLines, {String? helperText, bool required = false}) => Padding(
+  Widget _textField(
+    TextEditingController controller,
+    String key,
+    int maxLines, {
+    String? helperText,
+    bool required = false,
+    String? dictationTarget,
+  }) => Padding(
     padding: const EdgeInsets.only(bottom: 12),
     child: TextField(
       enabled: !finalized,
@@ -208,10 +224,36 @@ class _ClinicalRecordPageState extends State<ClinicalRecordPage> {
         labelText: clinicalText(locale, key) + (required ? ' *' : ''),
         helperText: helperText,
         border: const OutlineInputBorder(),
+        suffixIcon: widget.session.role == 'DOCTOR' && !finalized && dictationTarget != null
+            ? IconButton(
+                key: ValueKey('doctor-dictation-${dictationTarget.toLowerCase()}'),
+                tooltip: doctorDictationText(locale, 'title'),
+                onPressed: () => _dictate(controller, dictationTarget),
+                icon: const Icon(Icons.mic_none_outlined),
+              )
+            : null,
       ),
       maxLines: maxLines,
     ),
   );
+
+  Future<void> _dictate(TextEditingController controller, String targetField) async {
+    final confirmed = await showDoctorDictationDialog(
+      context: context,
+      session: widget.session,
+      locale: locale,
+      appointmentId: appointmentId,
+      targetField: targetField,
+    );
+    if (!mounted || confirmed == null || confirmed.trim().isEmpty) return;
+    final current = controller.text.trim();
+    controller.text = current.isEmpty ? confirmed : '$current\n$confirmed';
+    controller.selection = TextSelection.collapsed(offset: controller.text.length);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(doctorDictationText(locale, 'safety'))),
+    );
+  }
+
   Widget _numberField(TextEditingController controller, String key) => SizedBox(width: 170, child: TextField(enabled: !finalized, controller: controller, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: clinicalText(locale, key), border: const OutlineInputBorder())));
   Widget _summary() { final latest = _map(encounter?['latestRecord']); return Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(children: [const Icon(Icons.shield_outlined), const SizedBox(width: 8), Expanded(child: Text(clinicalText(locale, 'encrypted'), style: const TextStyle(fontWeight: FontWeight.w800))), if (finalized) Chip(label: Text(clinicalText(locale, 'finalized')))]), if (latest['revision'] != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text('${clinicalText(locale, 'revision')}: ${latest['revision']}')), if (encounter?['accessBasis'] != null) Text('${clinicalText(locale, 'accessBasis')}: ${encounter!['accessBasis']}')]))); }
 
@@ -302,6 +344,7 @@ class _ClinicalRecordPageState extends State<ClinicalRecordPage> {
         key == 'CHIEF_COMPLAINT' ? 2 : 4,
         helperText: _localizedTemplate(section['guidanceLabels'], locale, ''),
         required: section['required'] == true,
+        dictationTarget: key,
       );
     }).toList(growable: false);
   }
@@ -520,6 +563,15 @@ class _ClinicalRecordPageState extends State<ClinicalRecordPage> {
     await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => Directionality(
       textDirection: locale.textDirection,
       child: DoctorCarePlanRpmPage(session: widget.session, locale: locale, patientId: patientId),
+    )));
+  }
+
+  Future<void> _openGlucoseTrends() async {
+    final patientId = _map(widget.appointment['patient'])['id']?.toString();
+    if (patientId == null || patientId.isEmpty) return;
+    await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => Directionality(
+      textDirection: locale.textDirection,
+      child: DoctorGlucoseTrendsPage(session: widget.session, locale: locale, patientId: patientId),
     )));
   }
 

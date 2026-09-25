@@ -501,11 +501,14 @@ model Consent {
   grantedAt         DateTime            @default(now())
   revokedAt         DateTime?
   expiresAt         DateTime?
+  policyVersionId   String?
+  policyJurisdiction String?
   patient           PatientProfile      @relation(fields: [patientId], references: [id], onDelete: Cascade)
   telehealthSession TelehealthSession?
 
   @@index([patientId, providerId, scope, state])
   @@index([patientId, providerId, scope, purpose, state])
+  @@index([policyVersionId])
 }
 
 model AuditEvent {

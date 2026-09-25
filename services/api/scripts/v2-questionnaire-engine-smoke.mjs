@@ -137,3 +137,5 @@ await import("./v2-doctor-questionnaire-request-ui-smoke.mjs");
 
 await import("./v2-patient-questionnaire-status-ui-smoke.mjs");
 await import("./v2-patient-social-history-smoke.mjs");
+
+await import("./v2-questionnaire-trigger-rules-smoke.mjs");

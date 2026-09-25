@@ -118,6 +118,44 @@ class CarePointApi {
     return _asMap(await _send('POST', '/provider/services', body: {'labels': labels, 'currency': currency, 'modalities': [{'modality': modality, 'durationMinutes': durationMinutes, 'priceMinor': priceMinor}]}));
   }
   Future<List<Map<String, dynamic>>> providerAppointments({DateTime? from, DateTime? to}) async => _asList(await _send('GET', '/provider/appointments', query: {if (from != null) 'from': from.toUtc().toIso8601String(), if (to != null) 'to': to.toUtc().toIso8601String()}));
+  Future<Map<String, dynamic>> providerCategoryForms() async =>
+      _asMap(await _send('GET', '/provider/category-forms'));
+  Future<Map<String, dynamic>> submitProviderCategoryForm(
+    String code, {
+    required String contextType,
+    required String contextId,
+    required int expectedLatestSequence,
+    required Map<String, dynamic> answers,
+  }) async => _asMap(await _send(
+    'POST',
+    '/provider/category-forms/${Uri.encodeComponent(code)}/responses',
+    body: {
+      'contextType': contextType,
+      'contextId': contextId,
+      'expectedLatestSequence': expectedLatestSequence,
+      'answers': answers,
+    },
+  ));
+  Future<Map<String, dynamic>> providerFieldJobs() async =>
+      _asMap(await _send('GET', '/provider/jobs'));
+  Future<Map<String, dynamic>> providerJobFinancialSummary(String jobId) async =>
+      _asMap(await _send('GET', '/provider/jobs/${Uri.encodeComponent(jobId)}/financial-summary'));
+  Future<Map<String, dynamic>> providerSupplyCatalog() async =>
+      _asMap(await _send('GET', '/provider/supplies/catalog'));
+  Future<Map<String, dynamic>> providerJobSupplies(String jobId) async =>
+      _asMap(await _send('GET', '/provider/jobs/${Uri.encodeComponent(jobId)}/supplies'));
+  Future<Map<String, dynamic>> recordProviderJobSupply(
+    String jobId, {
+    required String supplyItemId,
+    required num quantity,
+    required String unitCode,
+    required String idempotencyKey,
+  }) async => _asMap(await _send('POST', '/provider/jobs/${Uri.encodeComponent(jobId)}/supplies', body: {
+    'supplyItemId': supplyItemId,
+    'quantity': quantity,
+    'unitCode': unitCode,
+    'idempotencyKey': idempotencyKey,
+  }));
   Future<Map<String, dynamic>> secureProviderContact({
     required String appointmentId,
     required String subject,
@@ -146,6 +184,26 @@ class CarePointApi {
   Future<Map<String, dynamic>> doctorEncounterTemplates(String appointmentId) async =>
       _asMap(await _send('GET', '/provider/encounter-templates', query: {'appointmentId': appointmentId}));
   Future<Map<String, dynamic>> writeClinicalRecord(String appointmentId, Map<String, dynamic> record) async => _asMap(await _send('POST', '/clinical/appointments/$appointmentId/records', body: record));
+  // DOC-088 — encrypted dictation draft with explicit human confirmation.
+  Future<Map<String, dynamic>> createDoctorDictationJob({
+    required String appointmentId,
+    required String targetField,
+    required String transcript,
+    required String idempotencyKey,
+    required bool deviceSpeechDisclosureAccepted,
+    String? locale,
+  }) async => _asMap(await _send('POST', '/provider/dictation/jobs', body: {
+    'appointmentId': appointmentId,
+    'targetField': targetField,
+    'transcript': transcript,
+    'idempotencyKey': idempotencyKey,
+    'deviceSpeechDisclosureAccepted': deviceSpeechDisclosureAccepted,
+    if (locale?.isNotEmpty == true) 'locale': locale,
+  }));
+  Future<Map<String, dynamic>> confirmDoctorDictationJob(String jobId) async =>
+      _asMap(await _send('POST', '/provider/dictation/jobs/$jobId/confirm', body: const {}));
+  Future<Map<String, dynamic>> discardDoctorDictationJob(String jobId) async =>
+      _asMap(await _send('POST', '/provider/dictation/jobs/$jobId/discard', body: const {}));
   Future<Map<String, dynamic>> signClinicalEncounter(String appointmentId) async =>
       _asMap(await _send('POST', '/provider/encounters/' + appointmentId + '/sign', body: const {}));
   Future<Map<String, dynamic>> finalizeClinicalEncounter(String appointmentId) async => _asMap(await _send('POST', '/clinical/appointments/$appointmentId/finalize', body: const {}));
@@ -491,6 +549,46 @@ class CarePointApi {
   Future<Map<String, dynamic>> doctorAdverseEventInbox() async =>
       _asMap(await _send('GET', '/provider/adverse-events'));
 
+  // PRV-071 — patient-owned food diary with explicit sharing + append-only provider comments.
+  Future<Map<String, dynamic>> patientFoodDiary() async =>
+      _asMap(await _send('GET', '/patient/food-diary'));
+  Future<Map<String, dynamic>> createPatientFoodDiaryEntry({
+    required DateTime mealAt,
+    required String mealType,
+    required String description,
+    required String idempotencyKey,
+    String? notes,
+    bool shared = false,
+  }) async => _asMap(await _send('POST', '/patient/food-diary', body: {
+    'mealAt': mealAt.toUtc().toIso8601String(),
+    'mealType': mealType,
+    'description': description,
+    'idempotencyKey': idempotencyKey,
+    'shared': shared,
+    if (notes?.trim().isNotEmpty == true) 'notes': notes!.trim(),
+  }));
+  Future<Map<String, dynamic>> setPatientFoodDiarySharing(
+    String entryId, {
+    required int expectedVersion,
+    required bool shared,
+  }) async => _asMap(await _send('POST', '/patient/food-diary/$entryId/share', body: {
+    'expectedVersion': expectedVersion,
+    'shared': shared,
+  }));
+  Future<Map<String, dynamic>> providerFoodDiary(String patientId, String appointmentId) async =>
+      _asMap(await _send('GET', '/provider/patients/$patientId/food-diary', query: {'appointmentId': appointmentId}));
+  Future<Map<String, dynamic>> addProviderFoodDiaryComment(
+    String entryId, {
+    required String appointmentId,
+    required String comment,
+    required String idempotencyKey,
+  }) async => _asMap(await _send('POST', '/provider/food-diary/$entryId/comments', body: {
+    'appointmentId': appointmentId,
+    'comment': comment,
+    'idempotencyKey': idempotencyKey,
+  }));
+
+
   // DOC-076..078 — Doctor refill, imaging and referral coordination.
   Future<Map<String, dynamic>> doctorRefillRequests() async =>
       _asMap(await _send('GET', '/provider/refill-requests'));
@@ -527,6 +625,16 @@ class CarePointApi {
   Future<Map<String, dynamic>> actDoctorReferral(String referralId, Map<String, dynamic> body) async =>
       _asMap(await _send('POST', '/provider/referrals/$referralId/actions', body: body));
 
+  // DOC-079 / BE-034 — governed second opinion over an immutable scoped snapshot.
+  Future<Map<String, dynamic>> doctorPatientSecondOpinions(String patientId) async =>
+      _asMap(await _send('GET', '/provider/patients/$patientId/second-opinions'));
+  Future<Map<String, dynamic>> doctorSecondOpinionInbox() async =>
+      _asMap(await _send('GET', '/provider/second-opinions/inbox'));
+  Future<Map<String, dynamic>> createDoctorSecondOpinion(String patientId, Map<String, dynamic> body) async =>
+      _asMap(await _send('POST', '/provider/patients/$patientId/second-opinions', body: body));
+  Future<Map<String, dynamic>> respondDoctorSecondOpinion(String requestId, String response) async =>
+      _asMap(await _send('POST', '/provider/second-opinions/$requestId/respond', body: {'response': response}));
+
   // DOC-084 — exact-version Doctor questionnaire requests.
   Future<Map<String, dynamic>> doctorQuestionnaireRequestOptions(String patientId, String appointmentId) async =>
       _asMap(await _send('GET', '/doctor/patients/$patientId/questionnaire-requests/available', query: {'appointmentId': appointmentId}));
@@ -542,6 +650,22 @@ class CarePointApi {
       _asMap(await _send('GET', '/patient/questionnaires/status'));
   Future<Map<String, dynamic>> patientSocialHistory() async =>
       _asMap(await _send('GET', '/patient/social-history'));
+  Future<Map<String, dynamic>> patientPreventiveCare() async =>
+      _asMap(await _send('GET', '/patient/preventive-care'));
+  Future<Map<String, dynamic>> actPatientPreventiveCare(
+    String ruleVersionId, {
+    required String action,
+    String? postponedUntil,
+    required String idempotencyKey,
+  }) async => _asMap(await _send(
+    'POST',
+    '/patient/preventive-care/${Uri.encodeComponent(ruleVersionId)}/actions',
+    body: {
+      'action': action,
+      if (postponedUntil != null) 'postponedUntil': postponedUntil,
+      'idempotencyKey': idempotencyKey,
+    },
+  ));
   Future<Map<String, dynamic>> updatePatientSocialHistory(Map<String, dynamic> body) async =>
       _asMap(await _send('PATCH', '/patient/social-history', body: body));
   Future<Map<String, dynamic>> patientDueQuestionnaires() async =>
@@ -561,6 +685,51 @@ class CarePointApi {
       _asMap(await _send('GET', '/patient/observations/catalog'));
   Future<Map<String, dynamic>> providerObservationCatalog() async =>
       _asMap(await _send('GET', '/provider/observations/catalog'));
+  // PRV-059 / PRV-060 — capability- and consent-bounded Other Provider snapshot projections.
+  Future<Map<String, dynamic>> otherProviderObservationTrends(
+    String patientId, {
+    required String contextType,
+    required String contextId,
+  }) async => _asMap(await _send(
+    'GET',
+    '/provider/capability-workspace/$patientId/observation-trends',
+    query: {'contextType': contextType, 'contextId': contextId},
+  ));
+  Future<Map<String, dynamic>> otherProviderQuestionnaireSummary(
+    String patientId, {
+    required String contextType,
+    required String contextId,
+  }) async => _asMap(await _send(
+    'GET',
+    '/provider/capability-workspace/$patientId/questionnaire-summary',
+    query: {'contextType': contextType, 'contextId': contextId},
+  ));
+  Future<Map<String, dynamic>> providerAssignedDevices(String patientId, String appointmentId) async =>
+      _asMap(await _send('GET', '/provider/device-observations/devices', query: {
+        'patientId': patientId,
+        'appointmentId': appointmentId,
+      }));
+  Future<Map<String, dynamic>> recordProviderDeviceObservation(
+    String patientId, {
+    required String deviceId,
+    required String externalEventId,
+    required String code,
+    required double value,
+    required String unitCode,
+    required DateTime observedAt,
+    required String encounterId,
+    String? glucoseContext,
+  }) async => _asMap(await _send('POST', '/provider/device-observations', body: {
+    'patientId': patientId,
+    'deviceId': deviceId,
+    'externalEventId': externalEventId,
+    'code': code,
+    'value': value,
+    'unitCode': unitCode,
+    'observedAt': observedAt.toUtc().toIso8601String(),
+    'encounterId': encounterId,
+    if (glucoseContext?.trim().isNotEmpty == true) 'glucoseContext': glucoseContext!.trim().toUpperCase(),
+  }));
   Future<Map<String, dynamic>> recordProviderObservation(
     String patientId, {
     required String code,
@@ -666,6 +835,18 @@ class CarePointApi {
   Future<Map<String, dynamic>> providerClinicalOrders(String patientId) async => _asMap(await _send('GET', '/clinical-orders/patients/$patientId'));
   Future<Map<String, dynamic>> doctorLabSeries(String patientId) async =>
       _asMap(await _send('GET', '/provider/patients/$patientId/lab-series'));
+  Future<Map<String, dynamic>> doctorGlucoseTrends(
+    String patientId, {
+    String? code,
+    DateTime? from,
+    DateTime? to,
+    String? sourceType,
+  }) async => _asMap(await _send('GET', '/provider/patients/$patientId/glucose-trends', query: {
+    if (code?.trim().isNotEmpty == true) 'code': code!.trim().toUpperCase(),
+    if (from != null) 'from': from.toUtc().toIso8601String(),
+    if (to != null) 'to': to.toUtc().toIso8601String(),
+    if (sourceType?.trim().isNotEmpty == true) 'sourceType': sourceType!.trim().toUpperCase(),
+  }));
   Future<Map<String, dynamic>> doctorChangesSinceLastVisit(String patientId) async =>
       _asMap(await _send('GET', '/provider/patients/$patientId/changes-since-last-visit'));
   Future<Map<String, dynamic>> clinicalOrder(String orderId) async => _asMap(await _send('GET', '/clinical-orders/$orderId'));
