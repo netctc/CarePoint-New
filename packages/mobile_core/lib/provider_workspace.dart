@@ -5,6 +5,7 @@ import 'carepoint_localization.dart';
 import 'clinical_record.dart';
 import 'doctor_offline_clinical_draft.dart';
 import 'doctor_work_queue.dart';
+import 'other_provider_patient_snapshot.dart';
 import 'secure_contact_action.dart';
 import 'telehealth_room.dart';
 
@@ -162,15 +163,26 @@ class _ProviderWorkspaceState extends State<ProviderWorkspace> {
           clinicalOrderCapabilities: widget.clinicalOrderCapabilities,
         ),
       ),
-      if (clinical && widget.session.role == 'OTHER_PROVIDER') Padding(
-        padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
-        child: SecureContextContactButton(
-          session: widget.session,
-          locale: locale,
-          accent: widget.accent,
-          appointment: item,
+      if (clinical && widget.session.role == 'OTHER_PROVIDER') ...[
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
+          child: OtherProviderPatientSnapshotButton(
+            session: widget.session,
+            locale: locale,
+            accent: widget.accent,
+            appointment: item,
+          ),
         ),
-      ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
+          child: SecureContextContactButton(
+            session: widget.session,
+            locale: locale,
+            accent: widget.accent,
+            appointment: item,
+          ),
+        ),
+      ],
       if (clinical && widget.session.role == 'DOCTOR' && item['modality'] == 'HOME_VISIT') Padding(
         padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
         child: OutlinedButton.icon(
