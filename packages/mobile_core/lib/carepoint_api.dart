@@ -685,7 +685,6 @@ class CarePointApi {
       _asMap(await _send('GET', '/patient/observations/catalog'));
   Future<Map<String, dynamic>> providerObservationCatalog() async =>
       _asMap(await _send('GET', '/provider/observations/catalog'));
-
   // PRV-059 / PRV-060 — capability- and consent-bounded Other Provider snapshot projections.
   Future<Map<String, dynamic>> otherProviderObservationTrends(
     String patientId, {
