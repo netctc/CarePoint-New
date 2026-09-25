@@ -1,0 +1,11 @@
+{
+  "name": "CarePoint Patient Test",
+  "short_name": "Patient Test",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#F8FAFC",
+  "theme_color": "#0EA5E9",
+  "description": "CarePoint Patient browser test client.",
+  "orientation": "any",
+  "prefer_related_applications": false
+}
