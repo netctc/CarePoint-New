@@ -685,6 +685,25 @@ class CarePointApi {
       _asMap(await _send('GET', '/patient/observations/catalog'));
   Future<Map<String, dynamic>> providerObservationCatalog() async =>
       _asMap(await _send('GET', '/provider/observations/catalog'));
+  // PRV-059 / PRV-060 — capability- and consent-bounded Other Provider snapshot projections.
+  Future<Map<String, dynamic>> otherProviderObservationTrends(
+    String patientId, {
+    required String contextType,
+    required String contextId,
+  }) async => _asMap(await _send(
+    'GET',
+    '/provider/capability-workspace/$patientId/observation-trends',
+    query: {'contextType': contextType, 'contextId': contextId},
+  ));
+  Future<Map<String, dynamic>> otherProviderQuestionnaireSummary(
+    String patientId, {
+    required String contextType,
+    required String contextId,
+  }) async => _asMap(await _send(
+    'GET',
+    '/provider/capability-workspace/$patientId/questionnaire-summary',
+    query: {'contextType': contextType, 'contextId': contextId},
+  ));
   Future<Map<String, dynamic>> providerAssignedDevices(String patientId, String appointmentId) async =>
       _asMap(await _send('GET', '/provider/device-observations/devices', query: {
         'patientId': patientId,
