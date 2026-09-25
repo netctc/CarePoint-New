@@ -87,7 +87,7 @@ async function managedUser(email: string, role: UserRole, password: string): Pro
   await prisma.authChallenge.deleteMany({ where: { userId: user.id } });
   await prisma.mfaEnrollment.deleteMany({ where: { userId: user.id } });
 
-  return { key: email.split("@")[0], email, role, userId: user.id };
+  return { key: email.slice(0, email.indexOf("@")), email, role, userId: user.id };
 }
 
 async function ensurePatient(user: ManagedUser, index: number) {
@@ -321,13 +321,13 @@ async function ensureHistory(patientIds: string[], services: SchedulableService[
   let count = 0;
   for (let daysAgo = HISTORY_DAYS; daysAgo >= 1; daysAgo -= 2) {
     const index = count % services.length;
-    const service = services[index];
-    const patientId = patientIds[count % patientIds.length];
-    const modality = service.modalities[count % service.modalities.length];
+    const service = services[index]!;
+    const patientId = patientIds[count % patientIds.length]!;
+    const modality = service.modalities[count % service.modalities.length]!;
     const date = dayjs().tz(config.timezone).subtract(daysAgo, "day");
     const startsAt = dayjs.tz(`${date.format("YYYY-MM-DD")}T${String(10 + (count % 5)).padStart(2, "0")}:00:00`, config.timezone);
     const statusCycle = ["COMPLETED", "COMPLETED", "COMPLETED", "NO_SHOW", "CANCELLED"] as const;
-    const status = statusCycle[count % statusCycle.length];
+    const status = statusCycle[count % statusCycle.length]!;
     const key = `test-history-${date.format("YYYYMMDD")}-${safeLocalPart(service.providerId).slice(0, 12)}-${count}`;
     await prisma.appointment.upsert({
       where: { idempotencyKey: key },
