@@ -93,6 +93,11 @@ function Integrations({c}:{c:Copy}) {
   return <><Toolbar c={c} loading={loading} error={error} load={load}/>
     <section className={styles.panel}>
       <div className={styles.notice}>secretsExposed={String(data?.secretsExposed??false)}</div>
+      <div className={styles.actions}>
+        <Link href="/integrations/fhir">FHIR Gateway · ADM-103</Link>
+        <Link href="/integrations/labs">External Labs · ADM-104</Link>
+        <Link href="/integrations/devices">Device Integrations · ADM-105</Link>
+      </div>
       <Table headers={[c.connector,c.health,c.configured,c.credentials,c.lastSync,c.lastError]}>
         {items.map(row=><tr key={String(row.key)}><td><strong>{String(row.label)}</strong><small>{String(row.key)}</small></td><td>{String(row.state)}</td><td>{row.configured?c.yes:c.no}</td><td>{Array.isArray(row.credentialReferences)&&row.credentialReferences.length?row.credentialReferences.join(" · "):"—"}</td><td>{fmt(row.lastSyncAt)}</td><td>{String(row.lastErrorCode??"—")}</td></tr>)}
       </Table>
