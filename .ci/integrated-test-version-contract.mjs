@@ -29,7 +29,8 @@ assert.match(workflow, /noEnvFiles: true/);
 assert.match(workflow, /noEmbeddedSecrets: true/);
 assert.match(workflow, /web-files\.sha256/);
 assert.doesNotMatch(workflow, /:latest\b/);
-assert.doesNotMatch(workflow, /\.env(?:\.|["'\s])/);
+assert.match(workflow, /find integrated-test -type f/);
+assert.doesNotMatch(workflow, /(?:cat|printf|echo)[^\n]*>\s*\.env\b|path:\s*\.env\b/);
 
 assert.match(dockerfile, /AS api/);
 assert.match(dockerfile, /AS admin/);
