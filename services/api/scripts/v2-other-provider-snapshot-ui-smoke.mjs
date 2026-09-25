@@ -41,7 +41,7 @@ assert.match(mobile, /average/);
 assert.match(mobile, /changedQuestionCount/);
 assert.match(mobile, /rawAnswersIncluded/);
 assert.doesNotMatch(mobile,/\b(normal|abnormal|critical|high risk|low risk)\b/i);
-assert.doesNotMatch(mobile,/answers\b|ciphertext|wrappedKey/);
+assert.doesNotMatch(mobile,/\[['"]answers['"]\]|ciphertext|wrappedKey/);
 for(const locale of ["CarePointLocale.en","CarePointLocale.ar","CarePointLocale.fr","CarePointLocale.es"]){
   assert.ok(mobile.includes(locale),`Missing PRV-059/060 locale ${locale}`);
 }

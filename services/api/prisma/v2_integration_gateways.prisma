@@ -1,0 +1,127 @@
+model FhirGatewayConfig {
+  id                  String                @id @default(uuid())
+  code                String
+  displayName         String
+  environment         String
+  baseUrl             String
+  credentialReference String?
+  scopes              Json
+  enabled             Boolean               @default(false)
+  lastTestStatus      String?
+  lastTestAt          DateTime?
+  lastErrorCode       String?
+  createdByActorId    String
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+  mappings            FhirResourceMapping[]
+
+  @@unique([code, environment])
+  @@index([enabled, environment, code])
+}
+
+model FhirResourceMapping {
+  id               String            @id @default(uuid())
+  configId         String
+  resourceType     String
+  direction        String
+  version          Int
+  status           String            @default("DRAFT")
+  mapping          Json
+  createdByActorId String
+  publishedAt      DateTime?
+  retiredAt        DateTime?
+  createdAt        DateTime          @default(now())
+  config           FhirGatewayConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+
+  @@unique([configId, resourceType, direction, version])
+  @@index([configId, status, resourceType])
+}
+
+model LabIntegrationConfig {
+  id                   String           @id @default(uuid())
+  code                 String
+  displayName          String
+  environment          String
+  baseUrl              String
+  healthPath           String
+  credentialReference  String?
+  sourceSystem         String
+  webhookPublicKeyPem  String
+  enabled              Boolean          @default(false)
+  lastTestStatus       String?
+  lastTestAt           DateTime?
+  lastErrorCode        String?
+  createdByActorId     String
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+  mappings             LabTestMapping[]
+  externalResults      ExternalLabResult[]
+
+  @@unique([code, environment])
+  @@index([enabled, environment, code])
+}
+
+model LabTestMapping {
+  id                 String               @id @default(uuid())
+  configId           String
+  externalCode       String
+  version            Int
+  status             String               @default("DRAFT")
+  internalCodeSystem String
+  internalCode       String
+  internalDisplay    String
+  canonicalUnit      String?
+  createdByActorId   String
+  publishedAt        DateTime?
+  retiredAt          DateTime?
+  createdAt          DateTime             @default(now())
+  config             LabIntegrationConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+
+  @@unique([configId, externalCode, version])
+  @@index([configId, status, externalCode])
+}
+
+model ExternalLabResult {
+  id               String               @id @default(uuid())
+  configId         String
+  externalEventId  String
+  externalOrderId  String
+  externalResultId String
+  clinicalOrderId  String
+  sourceSystem     String
+  status           String
+  payloadDigest    String
+  algorithm        String
+  keyId            String
+  wrappedKey       String
+  iv               String
+  ciphertext       String
+  retryCount       Int                  @default(0)
+  lastErrorCode    String?
+  receivedAt       DateTime             @default(now())
+  processedAt      DateTime?
+  importedAt       DateTime?
+  importedByActorId String?
+  config           LabIntegrationConfig @relation(fields: [configId], references: [id], onDelete: Restrict)
+
+  @@unique([configId, externalEventId])
+  @@index([configId, status, receivedAt])
+  @@index([clinicalOrderId, status])
+}
+
+model IntegrationExchange {
+  id              String   @id @default(uuid())
+  connectorKind   String
+  configId        String
+  direction       String
+  eventType       String
+  status          String
+  externalEventId String?
+  resourceRef     String?
+  payloadDigest   String?
+  errorCode       String?
+  createdAt       DateTime @default(now())
+
+  @@index([connectorKind, configId, createdAt])
+  @@index([status, createdAt])
+}
