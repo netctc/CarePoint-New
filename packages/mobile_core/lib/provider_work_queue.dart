@@ -192,7 +192,7 @@ class _ProviderWorkQueuePageState extends State<ProviderWorkQueuePage> {
           OutlinedButton.icon(
             key: ValueKey('provider-job-finance-${item['id']}'),
             onPressed: () {
-              final jobId = item['id']?.toString();
+              final jobId = item['jobId']?.toString();
               if (jobId == null || jobId.isEmpty) return;
               Navigator.of(context).push(MaterialPageRoute(
                 builder: (_) => Directionality(
