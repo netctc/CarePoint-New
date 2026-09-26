@@ -5,6 +5,17 @@ extension CarePointSelfServiceApi on CarePointApi {
   Future<void> revokeAccountSession(String sessionId) async { await _send('DELETE', '/iam/sessions/$sessionId'); }
   Future<void> revokeAllAccountSessions() async { await _send('POST', '/iam/sessions/revoke-all', body: const {}); }
   Future<Map<String, dynamic>> mfaStatus() async => _asMap(await _send('GET', '/iam/mfa/status'));
+  Future<Map<String, dynamic>> changeOwnPassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async => _asMap(await _send(
+    'POST',
+    '/iam/accounts/me/password',
+    body: {
+      'currentPassword': currentPassword,
+      'newPassword': newPassword,
+    },
+  ));
   Future<Map<String, dynamic>> beginMfaEnrollment() async => _asMap(await _send('POST', '/iam/mfa/enroll', body: const {}));
   Future<Map<String, dynamic>> confirmMfaEnrollment(String code) async => _asMap(await _send('POST', '/iam/mfa/confirm', body: {'code': code.trim()}));
   Future<Map<String, dynamic>> patientProfile() async => _asMap(await _send('GET', '/iam/patient-profile'));
