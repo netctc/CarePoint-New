@@ -9,6 +9,7 @@ import { carePointRuntimeFeatures } from "../../infrastructure/release/private-p
 interface PatientRegistrationBody { email: string; password: string; firstName: string; lastName: string; phone?: string; }
 interface ManagedAccountBody { email: string; password: string; role: IdentityRole; }
 interface LoginBody { email: string; password: string; }
+interface ChangePasswordBody { currentPassword: string; newPassword: string; }
 interface ConfirmMfaBody { code: string; }
 interface CompleteMfaBody { challengeId: string; code: string; }
 interface BeginRequiredMfaBody { challengeId: string; }
@@ -91,6 +92,18 @@ class IamController {
   @Get("accounts/me")
   me(@CurrentPrincipal() principal: AuthPrincipal) {
     return this.auth.getAccount(principal, principal.accountId);
+  }
+
+  @Post("accounts/me/password")
+  changeMyPassword(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Body() body: ChangePasswordBody,
+  ) {
+    return this.auth.changeOwnPassword(
+      principal,
+      body.currentPassword,
+      body.newPassword,
+    );
   }
 
   @RequirePermissions("IAM_MANAGE_ACCOUNTS")
