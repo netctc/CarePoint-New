@@ -6,6 +6,8 @@ import { QuestionnaireTriggersModule } from "../questionnaire-triggers/questionn
 import { OrdersModule } from "../orders/orders.module";
 import { DoctorAllergyReconciliationController } from "./allergy-reconciliation.controller";
 import { AllergyReconciliationService } from "./allergy-reconciliation.service";
+import { DoctorProblemListController } from "./problem-list.controller";
+import { ProblemListService } from "./problem-list.service";
 import {
   ClinicalProfileService,
   type CreateClinicalProfileEntryInput,
@@ -192,8 +194,9 @@ class ProviderDataCorrectionController {
     DoctorClinicalProfileController,
     ProviderDataCorrectionController,
     DoctorAllergyReconciliationController,
+    DoctorProblemListController,
   ],
-  providers: [ClinicalProfileService, DataCorrectionService, MedicationReconciliationService, AllergyReconciliationService],
-  exports: [ClinicalProfileService, DataCorrectionService, MedicationReconciliationService, AllergyReconciliationService],
+  providers: [ClinicalProfileService, DataCorrectionService, MedicationReconciliationService, AllergyReconciliationService, ProblemListService],
+  exports: [ClinicalProfileService, DataCorrectionService, MedicationReconciliationService, AllergyReconciliationService, ProblemListService],
 })
 export class ClinicalProfileModule {}
