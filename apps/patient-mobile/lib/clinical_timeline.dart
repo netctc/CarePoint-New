@@ -12,9 +12,15 @@ import 'package:carepoint_mobile_core/revenue_cycle_workspace.dart';
 import 'package:flutter/material.dart';
 
 class PatientClinicalTimelinePage extends StatefulWidget {
-  const PatientClinicalTimelinePage({super.key, required this.session, required this.locale});
+  const PatientClinicalTimelinePage({
+    super.key,
+    required this.session,
+    required this.locale,
+    this.header,
+  });
   final CarePointSession session;
   final CarePointLocale locale;
+  final Widget? header;
   @override State<PatientClinicalTimelinePage> createState() => _PatientClinicalTimelinePageState();
 }
 
@@ -31,9 +37,29 @@ class _PatientClinicalTimelinePageState extends State<PatientClinicalTimelinePag
   }
 
   @override Widget build(BuildContext context) {
-    if (busy) return const Center(child: CircularProgressIndicator());
-    if (error != null) return Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [Text(error!, textAlign: TextAlign.center), const SizedBox(height: 12), FilledButton(onPressed: load, child: Text(cpText(widget.locale, 'common.retry')))])));
+    if (busy) {
+      return ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          if (widget.header != null) widget.header!,
+          if (widget.header != null) const SizedBox(height: 18),
+          const Center(child: Padding(padding: EdgeInsets.all(28), child: CircularProgressIndicator())),
+        ],
+      );
+    }
+    if (error != null) {
+      return ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          if (widget.header != null) widget.header!,
+          if (widget.header != null) const SizedBox(height: 18),
+          Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [Text(error!, textAlign: TextAlign.center), const SizedBox(height: 12), FilledButton(onPressed: load, child: Text(cpText(widget.locale, 'common.retry')))]))),
+        ],
+      );
+    }
     return RefreshIndicator(onRefresh: load, child: ListView(padding: const EdgeInsets.all(16), children: [
+      if (widget.header != null) widget.header!,
+      if (widget.header != null) const SizedBox(height: 18),
       Text(clinicalText(widget.locale, 'healthRecord'), style: const TextStyle(fontSize: 27, fontWeight: FontWeight.w900)), const SizedBox(height: 4),
       Row(children: [const Icon(Icons.lock_outline, size: 17, color: Color(0xFF10B981)), const SizedBox(width: 6), Text(clinicalText(widget.locale, 'encrypted'), style: const TextStyle(color: Color(0xFF475569)))]),
       const SizedBox(height: 12),
