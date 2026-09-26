@@ -44,15 +44,46 @@ model ClinicalProfileEntryRevision {
 }
 
 model MedicationReconciliation {
-  id               String         @id @default(uuid())
-  patientId        String
-  providerId       String
-  entryIds         Json
-  status           String         @default("COMPLETED")
-  createdByActorId String
-  createdAt        DateTime       @default(now())
-  patient          PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  id                 String                         @id @default(uuid())
+  patientId          String
+  providerId         String
+  entryIds           Json
+  version            Int                            @default(1)
+  supersedesId       String?
+  status             String                         @default("COMPLETED")
+  payloadDigest      String?
+  signatureAlgorithm String?
+  signatureKeyId     String?
+  signature          String?
+  signedAt           DateTime?
+  createdByActorId   String
+  createdAt          DateTime                       @default(now())
+  patient            PatientProfile                 @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  items              MedicationReconciliationItem[]
 
   @@index([patientId, createdAt])
+  @@index([patientId, version])
   @@index([providerId, createdAt])
+}
+
+model MedicationReconciliationItem {
+  id                  String                   @id @default(uuid())
+  reconciliationId    String
+  patientId           String
+  statementEntryId    String
+  prescriptionOrderId String?
+  outcome             String
+  resolutionStatus    String
+  algorithm           String
+  keyId               String
+  wrappedKey          String
+  iv                  String
+  ciphertext          String
+  createdAt           DateTime                 @default(now())
+  reconciliation      MedicationReconciliation @relation(fields: [reconciliationId], references: [id], onDelete: Cascade)
+
+  @@unique([reconciliationId, statementEntryId])
+  @@index([patientId, resolutionStatus, createdAt])
+  @@index([statementEntryId, createdAt])
+  @@index([prescriptionOrderId, createdAt])
 }

@@ -17,6 +17,7 @@ import 'doctor_dictation.dart';
 import 'doctor_orders_coordination.dart';
 import 'questionnaire_requests.dart';
 import 'patient_education.dart';
+import 'medication_reconciliation.dart';
 
 class ClinicalActionButton extends StatelessWidget {
   const ClinicalActionButton({
@@ -155,6 +156,13 @@ class _ClinicalRecordPageState extends State<ClinicalRecordPage> {
           onPressed: _openGlucoseTrends,
           icon: const Icon(Icons.water_drop_outlined),
           label: Text(doctorGlucoseTrendText(locale, 'title')),
+        ),
+        const SizedBox(height: 10),
+        OutlinedButton.icon(
+          key: const ValueKey('doctor-medication-reconciliation-entry'),
+          onPressed: _openMedicationReconciliation,
+          icon: const Icon(Icons.medication_liquid_outlined),
+          label: Text(medicationReconciliationText(locale, 'doctorTitle')),
         ),
         const SizedBox(height: 10),
         OutlinedButton.icon(
@@ -572,6 +580,19 @@ class _ClinicalRecordPageState extends State<ClinicalRecordPage> {
     await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => Directionality(
       textDirection: locale.textDirection,
       child: DoctorGlucoseTrendsPage(session: widget.session, locale: locale, patientId: patientId),
+    )));
+  }
+
+  Future<void> _openMedicationReconciliation() async {
+    final patientId = _map(widget.appointment['patient'])['id']?.toString();
+    if (patientId == null || patientId.isEmpty) return;
+    await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => Directionality(
+      textDirection: locale.textDirection,
+      child: DoctorMedicationReconciliationPage(
+        session: widget.session,
+        locale: locale,
+        patientId: patientId,
+      ),
     )));
   }
 

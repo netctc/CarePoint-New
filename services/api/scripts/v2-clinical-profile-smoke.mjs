@@ -66,3 +66,5 @@ await import("./v2-clinical-history-smoke.mjs");
 await import("./v2-emergency-access-smoke.mjs");
 
 await import("./v2-patient-extended-clinical-profile-smoke.mjs");
+
+await import("./v2-medication-reconciliation-smoke.mjs");

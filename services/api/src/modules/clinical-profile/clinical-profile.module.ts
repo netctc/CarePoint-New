@@ -3,14 +3,18 @@ import type { AuthPrincipal } from "@carepoint/identity";
 import { CurrentPrincipal, RequirePermissions } from "../../security/api-security.module";
 import { ClinicalModule } from "../clinical/clinical.module";
 import { QuestionnaireTriggersModule } from "../questionnaire-triggers/questionnaire-triggers.module";
+import { OrdersModule } from "../orders/orders.module";
 import {
   ClinicalProfileService,
   type CreateClinicalProfileEntryInput,
-  type ReconcileMedicationInput,
   type UpdateClinicalProfileEntryInput,
   type VerifyClinicalProfileEntryInput,
 } from "./clinical-profile.service";
 import { DataCorrectionService } from "./data-correction.service";
+import {
+  MedicationReconciliationService,
+  type SignedMedicationReconciliationInput,
+} from "./medication-reconciliation.service";
 
 @Controller("patient/clinical-profile/entries")
 class PatientClinicalProfileController {
@@ -42,6 +46,18 @@ class PatientClinicalProfileController {
   }
 }
 
+@Controller("patient/clinical-profile/medications")
+class PatientMedicationReconciliationController {
+  constructor(private readonly reconciliation: MedicationReconciliationService) {}
+
+  @RequirePermissions("PATIENT_MANAGE_CLINICAL_PROFILE")
+  @Get("reconciliation")
+  @Header("Cache-Control", "no-store")
+  get(@CurrentPrincipal() principal: AuthPrincipal) {
+    return this.reconciliation.mine(principal);
+  }
+}
+
 @Controller("patient/data-correction-requests")
 class PatientDataCorrectionController {
   constructor(private readonly corrections: DataCorrectionService) {}
@@ -66,7 +82,10 @@ class PatientDataCorrectionController {
 
 @Controller("doctor/patients")
 class DoctorClinicalProfileController {
-  constructor(private readonly profile: ClinicalProfileService) {}
+  constructor(
+    private readonly profile: ClinicalProfileService,
+    private readonly reconciliation: MedicationReconciliationService,
+  ) {}
 
   @RequirePermissions("CLINICAL_PROFILE_READ")
   @Get(":patientId/clinical-profile/entries")
@@ -114,15 +133,25 @@ class DoctorClinicalProfileController {
     return this.profile.verifyForDoctor(principal, patientId, entryId, body);
   }
 
+  @RequirePermissions("CLINICAL_PROFILE_READ")
+  @Get(":patientId/clinical-profile/medications/reconciliation")
+  @Header("Cache-Control", "no-store")
+  medicationReconciliation(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Param("patientId") patientId: string,
+  ) {
+    return this.reconciliation.forDoctor(principal, patientId);
+  }
+
   @RequirePermissions("CLINICAL_PROFILE_WRITE")
   @Post(":patientId/clinical-profile/medications/reconcile")
   @Header("Cache-Control", "no-store")
   reconcile(
     @CurrentPrincipal() principal: AuthPrincipal,
     @Param("patientId") patientId: string,
-    @Body() body: ReconcileMedicationInput,
+    @Body() body: SignedMedicationReconciliationInput,
   ) {
-    return this.profile.reconcileMedications(principal, patientId, body);
+    return this.reconciliation.reconcile(principal, patientId, body);
   }
 }
 
@@ -153,14 +182,15 @@ class ProviderDataCorrectionController {
 }
 
 @Module({
-  imports: [ClinicalModule, QuestionnaireTriggersModule],
+  imports: [ClinicalModule, QuestionnaireTriggersModule, OrdersModule],
   controllers: [
     PatientClinicalProfileController,
+    PatientMedicationReconciliationController,
     PatientDataCorrectionController,
     DoctorClinicalProfileController,
     ProviderDataCorrectionController,
   ],
-  providers: [ClinicalProfileService, DataCorrectionService],
-  exports: [ClinicalProfileService, DataCorrectionService],
+  providers: [ClinicalProfileService, DataCorrectionService, MedicationReconciliationService],
+  exports: [ClinicalProfileService, DataCorrectionService, MedicationReconciliationService],
 })
 export class ClinicalProfileModule {}
