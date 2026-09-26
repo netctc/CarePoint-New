@@ -265,11 +265,6 @@ class _PatientShellState extends State<PatientShell> {
       ]),
       actions: [
         IconButton(onPressed: openDependents, icon: const Icon(Icons.family_restroom), tooltip: patientDependentsText(widget.locale, 'title')),
-        TextButton.icon(
-          onPressed: widget.onSignOut,
-          icon: const Icon(Icons.logout_rounded),
-          label: Text(cpText(widget.locale, 'auth.signOut')),
-        ),
       ],
     ),
     body: IndexedStack(index: tab, children: [
