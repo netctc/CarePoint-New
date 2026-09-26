@@ -26,6 +26,77 @@ class CarePointSessionUiController extends ChangeNotifier {
   void signOut() => _signOut?.call();
 }
 
+class CarePointSessionChrome extends StatelessWidget {
+  const CarePointSessionChrome({
+    super.key,
+    required this.controller,
+    required this.locale,
+    required this.onLocaleChanged,
+    required this.child,
+    this.dark = false,
+  });
+
+  final CarePointSessionUiController controller;
+  final CarePointLocale locale;
+  final ValueChanged<CarePointLocale> onLocaleChanged;
+  final Widget child;
+  final bool dark;
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+        animation: controller,
+        builder: (context, _) => Column(
+          children: [
+            Material(
+              color: dark ? const Color(0xFF0B1220) : Theme.of(context).colorScheme.surface,
+              elevation: 1,
+              child: SafeArea(
+                bottom: false,
+                child: SizedBox(
+                  height: 48,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      PopupMenuButton<CarePointLocale>(
+                        tooltip: _languageLabel(locale),
+                        icon: const Icon(Icons.language_rounded),
+                        initialValue: locale,
+                        onSelected: onLocaleChanged,
+                        itemBuilder: (_) => CarePointLocale.values
+                            .map(
+                              (value) => PopupMenuItem(
+                                value: value,
+                                child: Row(
+                                  children: [
+                                    if (value == locale) const Icon(Icons.check, size: 18),
+                                    if (value == locale) const SizedBox(width: 8),
+                                    Text(value.label),
+                                  ],
+                                ),
+                              ),
+                            )
+                            .toList(growable: false),
+                      ),
+                      if (controller.hasSession) ...[
+                        const SizedBox(width: 4),
+                        TextButton.icon(
+                          onPressed: controller.signOut,
+                          icon: const Icon(Icons.logout_rounded),
+                          label: Text(cpText(locale, 'auth.signOut')),
+                        ),
+                      ],
+                      const SizedBox(width: 8),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            Expanded(child: child),
+          ],
+        ),
+      );
+}
+
 class CarePointLoginGate extends StatefulWidget {
   const CarePointLoginGate({
     super.key,
@@ -233,4 +304,12 @@ String _differentAccountLabel(CarePointLocale locale) => switch (locale) {
   CarePointLocale.ar => 'استخدام حساب مختلف',
   CarePointLocale.fr => 'Utiliser un autre compte',
   CarePointLocale.es => 'Usar otra cuenta',
+};
+
+
+String _languageLabel(CarePointLocale locale) => switch (locale) {
+  CarePointLocale.en => 'Language',
+  CarePointLocale.ar => 'اللغة',
+  CarePointLocale.fr => 'Langue',
+  CarePointLocale.es => 'Idioma',
 };
