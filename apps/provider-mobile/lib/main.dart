@@ -28,7 +28,7 @@ class _ProviderAppState extends State<ProviderApp> {
     home: Directionality(textDirection: locale.textDirection, child: Scaffold(body: Stack(children: [
       CarePointLoginGate(locale: locale, expectedRole: 'OTHER_PROVIDER', title: cpText(locale, 'provider.title'), accent: const Color(0xFF10B981),
         builder: (_, session, signOut) => OtherProviderAccessGate(session: session, locale: locale, onSignOut: signOut, accent: const Color(0xFF10B981),
-          activeBuilder: (_) => OtherProviderCapabilityScope(session: session, locale: locale, accent: const Color(0xFF10B981),
+          activeBuilder: (_) => OtherProviderCapabilityScope(session: session, locale: locale, onSignOut: signOut, accent: const Color(0xFF10B981),
             builder: (_, serviceModalities, clinicalOrderCapabilities, observationCodes, workflowCapabilities) => CareProviderActions(session: session, locale: locale, onSignOut: signOut, accent: const Color(0xFF10B981), transport: true,
               allowedModalities: serviceModalities.toList(),
               child: ProviderCategoryFormsLauncher(
