@@ -95,11 +95,6 @@ class _DoctorAccessGateState extends State<DoctorAccessGate> {
         title: Text(_t('credentialing')),
         actions: [
           IconButton(onPressed: refresh, tooltip: _t('refresh'), icon: const Icon(Icons.refresh_rounded)),
-          TextButton.icon(
-            onPressed: widget.onSignOut,
-            icon: const Icon(Icons.logout_rounded),
-            label: Text(cpText(widget.locale, 'auth.signOut')),
-          ),
         ],
       ),
       body: RefreshIndicator(
