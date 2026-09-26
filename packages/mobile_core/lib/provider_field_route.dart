@@ -119,8 +119,9 @@ class _ProviderFieldRoutePageState extends State<ProviderFieldRoutePage> {
   Map<String, dynamic> route = const {};
 
   String get jobId =>
+      widget.workItem['jobId']?.toString() ??
       widget.workItem['id']?.toString() ??
-      'HOME_VISIT:${widget.workItem['jobId']?.toString() ?? ''}';
+      '';
 
   @override
   void initState() {
