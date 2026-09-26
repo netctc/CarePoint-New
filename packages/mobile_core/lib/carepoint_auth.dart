@@ -7,6 +7,25 @@ import 'mobile_release_config.dart';
 
 typedef CarePointAuthenticatedBuilder = Widget Function(BuildContext context, CarePointSession session, VoidCallback signOut);
 
+class CarePointSessionUiController extends ChangeNotifier {
+  VoidCallback? _signOut;
+
+  bool get hasSession => _signOut != null;
+
+  void bind(VoidCallback signOut) {
+    _signOut = signOut;
+    notifyListeners();
+  }
+
+  void clear() {
+    if (_signOut == null) return;
+    _signOut = null;
+    notifyListeners();
+  }
+
+  void signOut() => _signOut?.call();
+}
+
 class CarePointLoginGate extends StatefulWidget {
   const CarePointLoginGate({
     super.key,
