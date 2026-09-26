@@ -98,11 +98,6 @@ class _OtherProviderAccessGateState extends State<OtherProviderAccessGate> {
         actions: [
           IconButton(onPressed: _openAccount, tooltip: _t('accountSecurity'), icon: const Icon(Icons.manage_accounts_outlined)),
           IconButton(onPressed: refresh, tooltip: _t('refresh'), icon: const Icon(Icons.refresh_rounded)),
-          TextButton.icon(
-            onPressed: widget.onSignOut,
-            icon: const Icon(Icons.logout_rounded),
-            label: Text(cpText(widget.locale, 'auth.signOut')),
-          ),
         ],
       ),
       body: RefreshIndicator(
