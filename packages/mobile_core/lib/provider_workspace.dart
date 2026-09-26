@@ -90,7 +90,11 @@ class _ProviderWorkspaceState extends State<ProviderWorkspace> {
     backgroundColor: widget.dark ? const Color(0xFF0F172A) : null,
     appBar: AppBar(title: Text(widget.title), actions: [
       IconButton(onPressed: refreshAll, icon: const Icon(Icons.refresh_rounded), tooltip: cpText(locale, 'common.refresh')),
-      PopupMenuButton<String>(onSelected: (value) { if (value == 'logout') widget.onSignOut(); }, itemBuilder: (_) => [PopupMenuItem(value: 'logout', child: Text(cpText(locale, 'auth.signOut')))]),
+      TextButton.icon(
+        onPressed: widget.onSignOut,
+        icon: const Icon(Icons.logout_rounded),
+        label: Text(cpText(locale, 'auth.signOut')),
+      ),
     ]),
     body: busy ? const Center(child: CircularProgressIndicator()) : error != null ? _ErrorPanel(message: error!, onRetry: refreshAll, locale: locale) : IndexedStack(index: tab, children: [_agenda(), _services(), _availability()]),
     bottomNavigationBar: NavigationBar(selectedIndex: tab, onDestinationSelected: (value) => setState(() => tab = value), destinations: [
