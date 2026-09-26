@@ -45,6 +45,21 @@ export class ProviderSelfOnboardingService {
           status: true,
           createdAt: true,
           updatedAt: true,
+          otherProviderProfile: {
+            select: {
+              category: {
+                select: {
+                  id: true,
+                  slug: true,
+                  labels: true,
+                  family: true,
+                  active: true,
+                  requiredCredentialTypes: true,
+                  capabilities: true,
+                },
+              },
+            },
+          },
         },
       }),
       this.prisma.providerOnboarding.findFirst({
