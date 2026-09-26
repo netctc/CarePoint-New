@@ -15,6 +15,7 @@ class CarePointLoginGate extends StatefulWidget {
     required this.title,
     required this.builder,
     this.api,
+    this.sessionUiController,
     this.accent = const Color(0xFF0EA5E9),
     this.dark = false,
   });
@@ -24,6 +25,7 @@ class CarePointLoginGate extends StatefulWidget {
   final String title;
   final CarePointAuthenticatedBuilder builder;
   final CarePointApi? api;
+  final CarePointSessionUiController? sessionUiController;
   final Color accent;
   final bool dark;
 
