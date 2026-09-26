@@ -1,0 +1,56 @@
+name: Release 1 Final Go-Live Readiness Contract
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  CAREPOINT_FINAL_GATE_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  contract:
+    name: R10 final go-live readiness contract
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out exact candidate SHA
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          ref: ${{ env.CAREPOINT_FINAL_GATE_SOURCE_SHA }}
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+      - name: Verify exact checkout identity
+        run: test "$(git rev-parse HEAD)" = "$CAREPOINT_FINAL_GATE_SOURCE_SHA"
+      - name: Self-test fail-closed final gate
+        run: node .ci/release-final-go-live-readiness-contract.mjs --self-test
+      - name: Verify deliberately blocked final evidence template
+        run: >-
+          node .ci/release-final-go-live-readiness-contract.mjs
+          --validate-template ops/release-1/final-go-live-readiness.example.json
+      - name: Capture sanitized final-gate contract evidence
+        run: |
+          mkdir -p final-go-live-contract-evidence
+          node .ci/release-final-go-live-readiness-contract.mjs \
+            --contract-evidence \
+            ops/release-1/final-go-live-readiness.example.json \
+            final-go-live-contract-evidence/contract-evidence.json
+          sha256sum \
+            .ci/release-final-go-live-readiness-contract.mjs \
+            ops/release-1/final-go-live-readiness.example.json \
+            final-go-live-contract-evidence/contract-evidence.json \
+            > final-go-live-contract-evidence/SHA256SUMS
+          printf 'sourceSha=%s\nproductionAcceptance=false\nexternalApprovalsExecuted=false\nworkflowPurpose=contract-validation-only\n' \
+            "$CAREPOINT_FINAL_GATE_SOURCE_SHA" \
+            > final-go-live-contract-evidence/metadata.txt
+      - name: Upload final-gate contract evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: carepoint-final-go-live-contract-${{ env.CAREPOINT_FINAL_GATE_SOURCE_SHA }}
+          path: final-go-live-contract-evidence
+          if-no-files-found: error

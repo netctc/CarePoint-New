@@ -1,0 +1,79 @@
+{
+  "schema": "carepoint.release-go-live-readiness/v1",
+  "approved": false,
+  "overallStatus": "BLOCKED",
+  "sensitiveDataIncluded": false,
+  "release": {
+    "sourceSha": "0000000000000000000000000000000000000000",
+    "releaseVersion": "TO-BE-SET-FROM-EXACT-RC",
+    "rcEvidenceDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "apiArtifactDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "adminArtifactDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "rcEvidenceRef": "PENDING"
+  },
+  "environment": {
+    "id": "TO-BE-SET",
+    "classification": "production-equivalent",
+    "jurisdiction": "KSA",
+    "launchCloud": "OCI",
+    "evidenceRef": "PENDING"
+  },
+  "gates": [
+    { "id": "R3", "status": "BLOCKED" },
+    { "id": "R4", "status": "BLOCKED" },
+    { "id": "R5", "status": "BLOCKED" },
+    { "id": "R6", "status": "BLOCKED" },
+    { "id": "R7", "status": "BLOCKED" },
+    { "id": "R8", "status": "BLOCKED" },
+    { "id": "R9", "status": "BLOCKED" },
+    { "id": "R10", "status": "BLOCKED" }
+  ],
+  "security": {
+    "independentCodeQLStatus": "PENDING",
+    "unresolvedCriticalHighFindings": 999,
+    "securityOwnerDisposition": "PENDING",
+    "pentestStatus": "PENDING",
+    "codeQLEvidenceRef": "PENDING",
+    "securityOwnerEvidenceRef": "PENDING",
+    "pentestEvidenceRef": "PENDING"
+  },
+  "mobileArtifacts": [
+    {
+      "app": "patient",
+      "android": { "signed": false, "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000", "evidenceRef": "PENDING" },
+      "ios": { "signed": false, "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000", "evidenceRef": "PENDING" },
+      "deviceAcceptanceRef": "PENDING"
+    },
+    {
+      "app": "doctor",
+      "android": { "signed": false, "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000", "evidenceRef": "PENDING" },
+      "ios": { "signed": false, "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000", "evidenceRef": "PENDING" },
+      "deviceAcceptanceRef": "PENDING"
+    },
+    {
+      "app": "provider",
+      "android": { "signed": false, "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000", "evidenceRef": "PENDING" },
+      "ios": { "signed": false, "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000", "evidenceRef": "PENDING" },
+      "deviceAcceptanceRef": "PENDING"
+    }
+  ],
+  "promotion": {
+    "authorized": false,
+    "sourceBranch": "release/release-1-integration-go-live-readiness",
+    "targetBranch": "main",
+    "finalDecision": "NO-GO",
+    "policyEvidenceRef": "PENDING",
+    "finalDecisionRef": "PENDING"
+  },
+  "approvals": [
+    { "role": "Release Authority", "decision": "PENDING" },
+    { "role": "Operations", "decision": "PENDING" },
+    { "role": "SRE", "decision": "PENDING" },
+    { "role": "Security", "decision": "PENDING" },
+    { "role": "Database", "decision": "PENDING" },
+    { "role": "Privacy/Compliance", "decision": "PENDING" },
+    { "role": "Clinical Safety", "decision": "PENDING" },
+    { "role": "Product/Market", "decision": "PENDING" }
+  ],
+  "acceptedAt": null
+}
