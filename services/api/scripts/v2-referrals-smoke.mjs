@@ -6,6 +6,7 @@ const require = createRequire(import.meta.url);
 const engine = require("../dist/modules/referrals/referral.engine.js");
 
 await import("./v2-encounter-addenda-smoke.mjs");
+await import("./v2-referral-outcome-smoke.mjs");
 
 const now = new Date("2026-09-19T09:00:00.000Z");
 
@@ -41,6 +42,31 @@ test("referral state machine allows only explicit forward transitions", () => {
   assert.equal(engine.referralTargetStatus("IN_PROGRESS", "COMPLETE"), "COMPLETED");
   assert.throws(() => engine.referralTargetStatus("COMPLETED", "START"), /not allowed/);
   assert.throws(() => engine.referralTargetStatus("REQUESTED", "COMPLETE"), /not allowed/);
+});
+
+test("referral completion requires a bounded clinical outcome and keeps it action-scoped", () => {
+  assert.throws(
+    () => engine.normalizeReferralAction({ action: "COMPLETE", expectedVersion: 2 }),
+    /completionOutcome/,
+  );
+  assert.deepEqual(engine.normalizeReferralAction({
+    action: "COMPLETE",
+    expectedVersion: 2,
+    completionOutcome: "Specialist assessment completed; follow-up with referring clinician.",
+  }), {
+    action: "COMPLETE",
+    expectedVersion: 2,
+    reasonCode: null,
+    completionOutcome: "Specialist assessment completed; follow-up with referring clinician.",
+  });
+  assert.throws(
+    () => engine.normalizeReferralAction({
+      action: "ACCEPT",
+      expectedVersion: 1,
+      completionOutcome: "Not valid for this action",
+    }),
+    /only allowed for COMPLETE/,
+  );
 });
 
 test("referral actions require optimistic concurrency and reason codes for decline or cancellation", () => {
