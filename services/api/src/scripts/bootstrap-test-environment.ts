@@ -202,7 +202,7 @@ async function ensureDoctors(config: FixtureConfig, credentials: ManagedUser[], 
       create: { doctorId: profile.id, specialtyId: specialty.id, primary: true },
       update: { primary: true },
     });
-    await ensureCredential(provider.id, `TEST-DOC-${specialty.code}`);
+    await ensureCredential(provider.id, `TEST-DOC-${specialty.code}`, "medical-license");
     const service = await ensureService(
       provider.id,
       `Synthetic ${specialty.code} Consultation`,
