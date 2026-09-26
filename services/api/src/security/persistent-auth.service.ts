@@ -82,6 +82,64 @@ export class PersistentAuthService {
     return this.safeAccount(user);
   }
 
+  async changeOwnPassword(
+    principal: AuthPrincipal,
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<{ changed: true; reauthenticate: true }> {
+    if (!currentPassword || !newPassword) {
+      throw new BadRequestException("Current password and new password are required.");
+    }
+    if (newPassword.length < 12 || newPassword.length > 128) {
+      throw new BadRequestException("New password must contain between 12 and 128 characters.");
+    }
+
+    const user = await this.prisma.user.findUnique({ where: { id: principal.accountId } });
+    if (!user || user.status !== "ACTIVE") {
+      throw new UnauthorizedException("Account is not active.");
+    }
+    if (!(await verifyPasswordAsync(currentPassword, user.passwordHash))) {
+      await this.audit.write({
+        actorId: principal.accountId,
+        action: "PASSWORD_CHANGE_DENIED",
+        objectType: "ACCOUNT",
+        objectId: principal.accountId,
+        result: "DENIED",
+        metadata: { reason: "CURRENT_PASSWORD_INVALID" },
+      });
+      throw new UnauthorizedException("Current password is incorrect.");
+    }
+    if (await verifyPasswordAsync(newPassword, user.passwordHash)) {
+      throw new BadRequestException("New password must be different from the current password.");
+    }
+
+    const nextHash = await hashPasswordAsync(newPassword);
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: principal.accountId },
+        data: {
+          passwordHash: nextHash,
+          failedLoginCount: 0,
+          lockedUntil: null,
+        },
+      }),
+      this.prisma.authSession.updateMany({
+        where: { userId: principal.accountId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      }),
+    ]);
+
+    await this.audit.write({
+      actorId: principal.accountId,
+      action: "PASSWORD_CHANGED",
+      objectType: "ACCOUNT",
+      objectId: principal.accountId,
+      result: "SUCCESS",
+      metadata: { allSessionsRevoked: true },
+    });
+    return { changed: true, reauthenticate: true };
+  }
+
   async getAccount(principal: AuthPrincipal, accountId: string) {
     if (!canActOnAccount(principal, accountId)) {
       await this.denied(principal, "ACCOUNT_READ_DENIED", "ACCOUNT", accountId);
