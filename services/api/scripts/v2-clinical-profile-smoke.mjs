@@ -38,6 +38,18 @@ const condition = normalizeClinicalProfilePayload("CONDITION", {
   clinicalStatus: "active",
   onsetDate: "2024-02-01",
 });
+
+const linkedCondition = normalizeClinicalProfilePayload("CONDITION", {
+  display: "Hypertension",
+  clinicalStatus: "active",
+  encounterId: "enc-1",
+  documentIds: ["doc-1", "doc-1", "doc-2"],
+  carePlanIds: ["plan-1"],
+});
+assert.equal(linkedCondition.kind, "CONDITION");
+assert.equal(linkedCondition.encounterId, "enc-1");
+assert.deepEqual(linkedCondition.documentIds, ["doc-1", "doc-2"]);
+assert.deepEqual(linkedCondition.carePlanIds, ["plan-1"]);
 const updatedCondition = normalizeClinicalProfilePayload("CONDITION", {
   clinicalStatus: "resolved",
 }, condition);
@@ -67,6 +79,10 @@ assert.throws(
   /display is invalid/,
 );
 assert.throws(
+  () => normalizeClinicalProfilePayload("CONDITION", { display: "X", documentIds: ["bad id with spaces"] }),
+  /documentIds\[0\] is invalid/,
+);
+assert.throws(
   () => normalizeClinicalProfileStatus("deleted"),
   /Unsupported clinical profile entry status/,
 );
@@ -80,3 +96,4 @@ await import("./v2-patient-extended-clinical-profile-smoke.mjs");
 
 await import("./v2-medication-reconciliation-smoke.mjs");
 await import("./v2-allergy-reconciliation-smoke.mjs");
+await import("./v2-problem-list-smoke.mjs");
