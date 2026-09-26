@@ -33,8 +33,12 @@ class CarePointSession {
 }
 
 class CarePointApi {
-  CarePointApi({String? baseUrl, http.Client? client, CarePointTokenStore? tokenStore})
-      : baseUrl = (baseUrl ?? const String.fromEnvironment('CAREPOINT_API_BASE', defaultValue: 'http://10.0.2.2:4000/api/v1')).replaceAll(RegExp(r'/+$'), ''),
+  CarePointApi({
+    String? baseUrl,
+    http.Client? client,
+    CarePointTokenStore? tokenStore,
+    this.onSessionInvalidated,
+  }) : baseUrl = (baseUrl ?? const String.fromEnvironment('CAREPOINT_API_BASE', defaultValue: 'http://10.0.2.2:4000/api/v1')).replaceAll(RegExp(r'/+$'), ''),
         _client = client ?? http.Client(),
         _tokenStore = tokenStore ?? SecureCarePointTokenStore();
 
@@ -43,6 +47,7 @@ class CarePointApi {
   final CarePointTokenStore _tokenStore;
   String? accessToken;
   String? refreshToken;
+  void Function()? onSessionInvalidated;
 
   bool get isAuthenticated => accessToken != null;
 
@@ -918,9 +923,15 @@ class CarePointApi {
 
   Future<dynamic> _send(String method, String path, {Map<String, String>? query, Map<String, dynamic>? body, bool authenticated = true, bool retryAuth = true}) async {
     final response = await _raw(method, path, query: query, body: body, authenticated: authenticated);
-    if (response.statusCode == 401 && authenticated && retryAuth && refreshToken != null) {
-      final refreshed = await _refresh();
-      if (refreshed) return _send(method, path, query: query, body: body, authenticated: authenticated, retryAuth: false);
+    if (response.statusCode == 401 && authenticated) {
+      if (retryAuth && refreshToken != null) {
+        final refreshed = await _refresh();
+        if (refreshed) {
+          return _send(method, path, query: query, body: body, authenticated: authenticated, retryAuth: false);
+        }
+      }
+      await logout();
+      onSessionInvalidated?.call();
     }
     return _decode(response);
   }
