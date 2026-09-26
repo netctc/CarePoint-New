@@ -53,14 +53,35 @@ class CarePointPatientApp extends StatefulWidget {
 }
 class _CarePointPatientAppState extends State<CarePointPatientApp> {
   CarePointLocale locale = CarePointLocale.en;
+  final sessionUi = CarePointSessionUiController();
+
+  @override
+  void dispose() {
+    sessionUi.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) => MaterialApp(
-    debugShowCheckedModeBanner: false, locale: locale.locale,
+    debugShowCheckedModeBanner: false,
+    locale: locale.locale,
     theme: ThemeData(useMaterial3: true, scaffoldBackgroundColor: const Color(0xFFF8FAFC), colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF0EA5E9))),
-    home: Directionality(textDirection: locale.textDirection, child: Scaffold(body: Stack(children: [
-      CarePointLoginGate(locale: locale, expectedRole: 'PATIENT', title: 'CarePoint Patient', builder: (_, session, signOut) => PatientShell(session: session, locale: locale, onSignOut: signOut)),
-      PositionedDirectional(top: 10, end: 10, child: SafeArea(child: PopupMenuButton<CarePointLocale>(initialValue: locale, onSelected: (v) => setState(() => locale = v), itemBuilder: (_) => CarePointLocale.values.map((l) => PopupMenuItem(value: l, child: Text(l.label))).toList()))),
-    ]))),
+    builder: (context, child) => CarePointSessionChrome(
+      controller: sessionUi,
+      locale: locale,
+      onLocaleChanged: (value) => setState(() => locale = value),
+      child: child ?? const SizedBox.shrink(),
+    ),
+    home: Directionality(
+      textDirection: locale.textDirection,
+      child: CarePointLoginGate(
+        locale: locale,
+        expectedRole: 'PATIENT',
+        title: 'CarePoint Patient',
+        sessionUiController: sessionUi,
+        builder: (_, session, signOut) => PatientShell(session: session, locale: locale, onSignOut: signOut),
+      ),
+    ),
   );
 }
 class PatientShell extends StatefulWidget {
