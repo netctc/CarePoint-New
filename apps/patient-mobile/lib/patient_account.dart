@@ -1,5 +1,7 @@
 import 'package:carepoint_mobile_core/carepoint_api.dart';
 import 'package:carepoint_mobile_core/carepoint_localization.dart';
+import 'package:carepoint_mobile_core/mfa_setup_panel.dart';
+import 'package:carepoint_mobile_core/password_change_dialog.dart';
 import 'package:flutter/material.dart';
 
 class PatientAccountPage extends StatefulWidget {
@@ -123,6 +125,12 @@ class _PatientAccountPageState extends State<PatientAccountPage> {
             _kv(_t('role'), account['role']),
             _kv(_t('status'), account['status']),
             _kv(_t('created'), _dateTime(account['createdAt'])),
+            const Divider(),
+            OutlinedButton.icon(
+              onPressed: _changePassword,
+              icon: const Icon(Icons.password_rounded),
+              label: Text(passwordChangeLabel(widget.locale)),
+            ),
           ]),
         ),
       );
@@ -313,6 +321,18 @@ class _PatientAccountPageState extends State<PatientAccountPage> {
         onChanged: savingPreferences ? null : (value) => _savePreferences(key: key, enabled: value),
       );
 
+  Future<void> _changePassword() async {
+    final changed = await showCarePointPasswordChangeDialog(
+      context,
+      session: widget.session,
+      locale: widget.locale,
+    );
+    if (changed && mounted) {
+      _snack(passwordChangedReauthLabel(widget.locale));
+      widget.onSignOut();
+    }
+  }
+
   Future<void> _savePreferences({String? locale, String? key, bool? enabled}) async {
     setState(() => savingPreferences = true);
     try {
@@ -342,13 +362,11 @@ class _PatientAccountPageState extends State<PatientAccountPage> {
         builder: (_) => AlertDialog(
           title: Text(_t('mfaSetup')),
           content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            Text(_t('mfaSetupHint')),
-            const SizedBox(height: 12),
-            Text(_t('secret'), style: const TextStyle(fontWeight: FontWeight.w800)),
-            SelectableText(setup['secret']?.toString() ?? ''),
-            const SizedBox(height: 8),
-            Text(_t('otpUri'), style: const TextStyle(fontWeight: FontWeight.w800)),
-            SelectableText(setup['otpauthUri']?.toString() ?? '', style: const TextStyle(fontSize: 11)),
+            CarePointMfaSetupPanel(
+              locale: widget.locale,
+              secret: setup['secret']?.toString() ?? '',
+              otpauthUri: setup['otpauthUri']?.toString() ?? '',
+            ),
             const SizedBox(height: 14),
             TextField(
               controller: code,
