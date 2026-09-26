@@ -95,9 +95,10 @@ class _DoctorAccessGateState extends State<DoctorAccessGate> {
         title: Text(_t('credentialing')),
         actions: [
           IconButton(onPressed: refresh, tooltip: _t('refresh'), icon: const Icon(Icons.refresh_rounded)),
-          PopupMenuButton<String>(
-            onSelected: (value) { if (value == 'logout') widget.onSignOut(); },
-            itemBuilder: (_) => [PopupMenuItem(value: 'logout', child: Text(cpText(widget.locale, 'auth.signOut')))],
+          TextButton.icon(
+            onPressed: widget.onSignOut,
+            icon: const Icon(Icons.logout_rounded),
+            label: Text(cpText(widget.locale, 'auth.signOut')),
           ),
         ],
       ),
