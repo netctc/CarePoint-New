@@ -9,6 +9,11 @@ model EmergencyContact {
   displayName   String
   relationship  String
   phone         String
+  algorithm     String?
+  keyId         String?
+  wrappedKey    String?
+  iv            String?
+  ciphertext    String?
   priority      Int
   status        EmergencyContactStatus @default(ACTIVE)
   revokedAt     DateTime?
