@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'carepoint_api.dart';
 import 'carepoint_localization.dart';
 import 'mfa_enrollment_api.dart';
+import 'mfa_setup_panel.dart';
 import 'mobile_release_config.dart';
 
 typedef CarePointAuthenticatedBuilder = Widget Function(BuildContext context, CarePointSession session, VoidCallback signOut);
@@ -131,6 +132,7 @@ class _CarePointLoginGateState extends State<CarePointLoginGate> {
   CarePointSession? session;
   String? challengeId;
   String? enrollmentSecret;
+  String? enrollmentUri;
   String? error;
   bool busy = false;
   bool restoring = true;
@@ -178,15 +180,17 @@ class _CarePointLoginGateState extends State<CarePointLoginGate> {
         throw CarePointApiException('This account belongs to ${next.role}, not ${widget.expectedRole}.');
       }
       if (mounted) {
-        setState(() { session = next; challengeId = null; enrollmentSecret = null; });
+        setState(() { session = next; challengeId = null; enrollmentSecret = null; enrollmentUri = null; });
         widget.sessionUiController?.bind(signOut);
       }
     } on CarePointMfaRequired catch (value) {
       String? setupSecret;
+      String? setupUri;
       if (value.challengeId.startsWith('mfaenroll_')) {
         try {
           final setup = await api.beginRequiredMfaEnrollment(value.challengeId);
           setupSecret = setup['secret'];
+          setupUri = setup['otpauthUri'];
         } catch (setupError) {
           if (mounted) setState(() => error = setupError.toString());
         }
@@ -195,6 +199,7 @@ class _CarePointLoginGateState extends State<CarePointLoginGate> {
         setState(() {
           challengeId = value.challengeId;
           enrollmentSecret = setupSecret;
+          enrollmentUri = setupUri;
           password.clear();
           mfa.clear();
         });
@@ -230,6 +235,7 @@ class _CarePointLoginGateState extends State<CarePointLoginGate> {
       session = null;
       challengeId = null;
       enrollmentSecret = null;
+      enrollmentUri = null;
       error = null;
       mfa.clear();
     });
@@ -239,6 +245,7 @@ class _CarePointLoginGateState extends State<CarePointLoginGate> {
     setState(() {
       challengeId = null;
       enrollmentSecret = null;
+      enrollmentUri = null;
       error = null;
       mfa.clear();
     });
@@ -279,13 +286,14 @@ class _CarePointLoginGateState extends State<CarePointLoginGate> {
                       const SizedBox(height: 12),
                       TextField(controller: password, obscureText: true, autofillHints: const [AutofillHints.password], onSubmitted: (_) => submit(), decoration: InputDecoration(labelText: cpText(locale, 'auth.password'), border: const OutlineInputBorder())),
                     ] else ...[
-                      Text(enrollment ? _enrollmentPrompt(locale) : cpText(locale, 'auth.mfaPrompt')),
-                      if (enrollment) ...[
-                        const SizedBox(height: 12),
-                        Text(_setupKeyLabel(locale), style: const TextStyle(fontWeight: FontWeight.w700)),
-                        const SizedBox(height: 6),
-                        SelectableText(enrollmentSecret!, textAlign: TextAlign.center, style: const TextStyle(fontFamily: 'monospace', fontWeight: FontWeight.w700)),
-                      ],
+                      if (enrollment)
+                        CarePointMfaSetupPanel(
+                          locale: locale,
+                          secret: enrollmentSecret!,
+                          otpauthUri: enrollmentUri ?? '',
+                        )
+                      else
+                        Text(cpText(locale, 'auth.mfaPrompt')),
                       const SizedBox(height: 12),
                       TextField(controller: mfa, keyboardType: TextInputType.number, maxLength: 6, onSubmitted: (_) => submit(), decoration: InputDecoration(labelText: cpText(locale, 'auth.mfaCode'), border: const OutlineInputBorder())),
                     ],
