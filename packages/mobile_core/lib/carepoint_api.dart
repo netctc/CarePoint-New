@@ -802,6 +802,23 @@ class CarePointApi {
   }) async => _asMap(await _send('POST', '/patient/clinical-profile/entries', body: {
     'kind': kind, 'status': status, 'data': data,
   }));
+  Future<Map<String, dynamic>> patientMedicationReconciliation() async =>
+      _asMap(await _send('GET', '/patient/clinical-profile/medications/reconciliation'));
+  Future<Map<String, dynamic>> doctorClinicalProfileEntries(String patientId, {String? kind}) async =>
+      _asMap(await _send('GET', '/doctor/patients/$patientId/clinical-profile/entries', query: {
+        if (kind?.isNotEmpty == true) 'kind': kind!,
+      }));
+  Future<Map<String, dynamic>> doctorMedicationReconciliation(String patientId) async =>
+      _asMap(await _send('GET', '/doctor/patients/$patientId/clinical-profile/medications/reconciliation'));
+  Future<Map<String, dynamic>> reconcileDoctorMedications(
+    String patientId, {
+    String? expectedLatestReconciliationId,
+    required List<Map<String, dynamic>> items,
+  }) async => _asMap(await _send('POST', '/doctor/patients/$patientId/clinical-profile/medications/reconcile', body: {
+    'expectedLatestReconciliationId': expectedLatestReconciliationId,
+    'items': items,
+  }));
+
   Future<Map<String, dynamic>> updatePatientClinicalProfileEntry(
     String entryId, {
     required int expectedVersion,
