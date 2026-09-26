@@ -19,10 +19,17 @@ const allergy = normalizeClinicalProfilePayload("ALLERGY", {
 });
 assert.deepEqual(allergy, {
   kind: "ALLERGY",
+  classification: "ALLERGY",
   substance: "Penicillin",
   reaction: "Rash",
   severity: "MODERATE",
 });
+
+const intolerance = normalizeClinicalProfilePayload("ALLERGY", {
+  classification: "intolerance",
+  substance: "Synthetic ingredient",
+});
+assert.equal(intolerance.classification, "INTOLERANCE");
 
 const condition = normalizeClinicalProfilePayload("CONDITION", {
   display: "Hypertension",
@@ -52,6 +59,10 @@ assert.throws(
   /Unsupported clinical profile field/,
 );
 assert.throws(
+  () => normalizeClinicalProfilePayload("ALLERGY", { classification: "sensitivity", substance: "A" }),
+  /classification is invalid/,
+);
+assert.throws(
   () => normalizeClinicalProfilePayload("CONDITION", { display: "" }),
   /display is invalid/,
 );
@@ -68,3 +79,4 @@ await import("./v2-emergency-access-smoke.mjs");
 await import("./v2-patient-extended-clinical-profile-smoke.mjs");
 
 await import("./v2-medication-reconciliation-smoke.mjs");
+await import("./v2-allergy-reconciliation-smoke.mjs");

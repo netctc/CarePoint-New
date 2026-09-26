@@ -4,6 +4,8 @@ import { CurrentPrincipal, RequirePermissions } from "../../security/api-securit
 import { ClinicalModule } from "../clinical/clinical.module";
 import { QuestionnaireTriggersModule } from "../questionnaire-triggers/questionnaire-triggers.module";
 import { OrdersModule } from "../orders/orders.module";
+import { DoctorAllergyReconciliationController } from "./allergy-reconciliation.controller";
+import { AllergyReconciliationService } from "./allergy-reconciliation.service";
 import {
   ClinicalProfileService,
   type CreateClinicalProfileEntryInput,
@@ -189,8 +191,9 @@ class ProviderDataCorrectionController {
     PatientDataCorrectionController,
     DoctorClinicalProfileController,
     ProviderDataCorrectionController,
+    DoctorAllergyReconciliationController,
   ],
-  providers: [ClinicalProfileService, DataCorrectionService, MedicationReconciliationService],
-  exports: [ClinicalProfileService, DataCorrectionService, MedicationReconciliationService],
+  providers: [ClinicalProfileService, DataCorrectionService, MedicationReconciliationService, AllergyReconciliationService],
+  exports: [ClinicalProfileService, DataCorrectionService, MedicationReconciliationService, AllergyReconciliationService],
 })
 export class ClinicalProfileModule {}

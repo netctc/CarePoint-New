@@ -11,7 +11,7 @@ export type ClinicalProfileEntryKind =
 export type ClinicalProfileEntryStatus = "ACTIVE" | "RESOLVED" | "INACTIVE";
 
 export type ClinicalProfilePayload =
-  | { kind: "ALLERGY"; substance: string; reaction?: string; severity?: "MILD" | "MODERATE" | "SEVERE" | "UNKNOWN"; onsetDate?: string }
+  | { kind: "ALLERGY"; classification?: "ALLERGY" | "INTOLERANCE"; substance: string; reaction?: string; severity?: "MILD" | "MODERATE" | "SEVERE" | "UNKNOWN"; onsetDate?: string }
   | { kind: "CONDITION"; display: string; codeSystem?: string; code?: string; clinicalStatus?: "ACTIVE" | "RESOLVED" | "REMISSION" | "INACTIVE" | "UNKNOWN"; onsetDate?: string }
   | { kind: "PROCEDURE"; display: string; performedDate?: string; facility?: string }
   | { kind: "MEDICATION"; name: string; dose?: string; route?: string; frequency?: string; medicationStatus?: "ACTIVE" | "STOPPED" | "COMPLETED" | "UNKNOWN"; startedOn?: string; endedOn?: string }
@@ -53,9 +53,10 @@ export function normalizeClinicalProfilePayload(
   const merged = { ...base, ...raw, kind } as Record<string, unknown>;
 
   if (kind === "ALLERGY") {
-    rejectUnknown(raw, ["substance", "reaction", "severity", "onsetDate"]);
+    rejectUnknown(raw, ["classification", "substance", "reaction", "severity", "onsetDate"]);
     return compact({
       kind,
+      classification: optionalEnum(merged.classification ?? "ALLERGY", ["ALLERGY", "INTOLERANCE"], "classification"),
       substance: requiredText(merged.substance, "substance", 200),
       reaction: optionalText(merged.reaction, "reaction", 500),
       severity: optionalEnum(merged.severity, ["MILD", "MODERATE", "SEVERE", "UNKNOWN"], "severity"),
