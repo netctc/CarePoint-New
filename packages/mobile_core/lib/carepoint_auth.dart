@@ -139,6 +139,7 @@ class _CarePointLoginGateState extends State<CarePointLoginGate> {
   void initState() {
     super.initState();
     api = widget.api ?? CarePointApi(baseUrl: CarePointMobileReleaseConfig.resolveApiBase());
+    api.onSessionInvalidated = _handleSessionInvalidated;
     _restoreSession();
   }
 
@@ -146,7 +147,10 @@ class _CarePointLoginGateState extends State<CarePointLoginGate> {
     try {
       final restored = await api.restoreSession();
       if (restored != null && restored.role == widget.expectedRole) {
-        if (mounted) setState(() => session = restored);
+        if (mounted) {
+          setState(() => session = restored);
+          widget.sessionUiController?.bind(signOut);
+        }
       } else if (restored != null) {
         await api.logout();
       }
@@ -173,7 +177,10 @@ class _CarePointLoginGateState extends State<CarePointLoginGate> {
         await api.logout();
         throw CarePointApiException('This account belongs to ${next.role}, not ${widget.expectedRole}.');
       }
-      if (mounted) setState(() { session = next; challengeId = null; enrollmentSecret = null; });
+      if (mounted) {
+        setState(() { session = next; challengeId = null; enrollmentSecret = null; });
+        widget.sessionUiController?.bind(signOut);
+      }
     } on CarePointMfaRequired catch (value) {
       String? setupSecret;
       if (value.challengeId.startsWith('mfaenroll_')) {
@@ -200,8 +207,32 @@ class _CarePointLoginGateState extends State<CarePointLoginGate> {
   }
 
   Future<void> signOut() async {
-    await api.signOutCurrentSession();
-    if (mounted) setState(() { session = null; challengeId = null; enrollmentSecret = null; mfa.clear(); });
+    widget.sessionUiController?.clear();
+    try {
+      await api.signOutCurrentSession();
+    } finally {
+      _resetToLogin();
+    }
+  }
+
+  void _handleSessionInvalidated() {
+    widget.sessionUiController?.clear();
+    _resetToLogin();
+  }
+
+  void _resetToLogin() {
+    if (!mounted) return;
+    final navigator = Navigator.maybeOf(context);
+    if (navigator != null) {
+      navigator.popUntil((route) => route.isFirst);
+    }
+    setState(() {
+      session = null;
+      challengeId = null;
+      enrollmentSecret = null;
+      error = null;
+      mfa.clear();
+    });
   }
 
   void resetChallenge() {
