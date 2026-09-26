@@ -125,6 +125,7 @@ export class ReferralsService {
     this.assertSharePolicies(input.scopes);
     await this.assertTreatmentRelationship(referring.id, patient.id);
     const destination = await this.requireDestinationDoctor(input.destinationProviderId, input.specialtyCode);
+    await this.assertPatientConsent(patient.id, destination.id, input.scopes);
     await this.assertDocuments(patient.id, input.documentIds);
 
     const existing = await this.prisma.referral.findUnique({ where: { idempotencyKey: input.idempotencyKey } });
@@ -282,10 +283,16 @@ export class ReferralsService {
     if (action.action !== "CANCEL" && this.grantState(grant) !== "ACTIVE") {
       throw new ForbiddenException("Referral clinical share is no longer active.");
     }
+    if (action.action !== "CANCEL") {
+      await this.assertPatientConsent(referral.patientId, referral.destinationProviderId, this.jsonStringArray(grant.scopes));
+    }
     const target = this.targetStatus(referral.status, action.action);
     const now = new Date();
     const patient = await this.requirePatient(referral.patientId);
     const timestampData = this.transitionTimestamp(target, now);
+    const completionEnvelope = target === "COMPLETED"
+      ? await this.envelope.encrypt({ schemaVersion: 1, outcome: action.completionOutcome! })
+      : null;
     const updated = await this.prisma.$transaction(async (tx) => {
       const changed = await tx.referral.updateMany({
         where: { id: referral.id, status: referral.status, version: action.expectedVersion },
@@ -303,6 +310,19 @@ export class ReferralsService {
           reasonCode: action.reasonCode,
         },
       });
+      if (completionEnvelope) {
+        await tx.referralOutcome.create({
+          data: {
+            referralId: referral.id,
+            algorithm: completionEnvelope.algorithm,
+            keyId: completionEnvelope.keyId,
+            wrappedKey: completionEnvelope.wrappedKey,
+            iv: completionEnvelope.iv,
+            ciphertext: completionEnvelope.ciphertext,
+            createdByActorId: principal.accountId,
+          },
+        });
+      }
       await this.audit.writeInTransaction(tx, {
         actorId: principal.accountId,
         action: `REFERRAL_${target}`,
@@ -316,6 +336,7 @@ export class ReferralsService {
           destinationProviderId: referral.destinationProviderId,
           status: target,
           reasonCode: action.reasonCode,
+          completionOutcomeRecorded: Boolean(completionEnvelope),
         },
       });
       await this.notifications.enqueueAccountInTransaction(tx, {
@@ -414,8 +435,11 @@ export class ReferralsService {
     if (audience === "DESTINATION_PROVIDER" && grantState !== "ACTIVE") {
       throw new ForbiddenException("Referral clinical share is no longer active.");
     }
+    if (audience === "DESTINATION_PROVIDER") {
+      await this.assertPatientConsent(referral.patientId, referral.destinationProviderId, this.jsonStringArray(grant.scopes));
+    }
     const payload = await this.envelope.decrypt<{ schemaVersion: number; reason: string }>(this.referralEnvelope(referral));
-    const [referring, destination, events] = await Promise.all([
+    const [referring, destination, events, outcomeRow] = await Promise.all([
       this.prisma.provider.findUnique({ where: { id: referral.referringProviderId }, select: { displayName: true } }),
       this.prisma.provider.findUnique({ where: { id: referral.destinationProviderId }, select: { displayName: true } }),
       this.prisma.referralStatusEvent.findMany({
@@ -424,7 +448,11 @@ export class ReferralsService {
         orderBy: { createdAt: "asc" },
         take: 100,
       }),
+      this.prisma.referralOutcome.findUnique({ where: { referralId: referral.id } }),
     ]);
+    const outcome = outcomeRow
+      ? await this.envelope.decrypt<{ schemaVersion: number; outcome: string }>(this.outcomeEnvelope(outcomeRow))
+      : null;
     return {
       id: referral.id,
       patientId: referral.patientId,
@@ -435,6 +463,11 @@ export class ReferralsService {
       status: referral.status,
       version: referral.version,
       reason: payload.reason,
+      completionOutcome: outcome ? {
+        outcome: outcome.outcome,
+        recordedAt: outcomeRow!.createdAt,
+        recordedByActorId: outcomeRow!.createdByActorId,
+      } : null,
       share: {
         id: grant.id,
         state: grantState,
@@ -520,6 +553,27 @@ export class ReferralsService {
     if (!appointment) throw new ForbiddenException("A current treatment relationship is required for referral access.");
   }
 
+  private async assertPatientConsent(patientId: string, providerId: string, scopes: string[]) {
+    const now = new Date();
+    const rows = await this.prisma.consent.findMany({
+      where: {
+        patientId,
+        providerId,
+        purpose: "TREATMENT",
+        state: "GRANTED",
+        revokedAt: null,
+        scope: { in: scopes },
+        OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+      },
+      select: { scope: true },
+    });
+    const granted = new Set(rows.map((row) => row.scope.toUpperCase()));
+    const missing = scopes.filter((scope) => !granted.has(scope.toUpperCase()));
+    if (missing.length > 0) {
+      throw new ForbiddenException("Active patient consent for the referral recipient and requested scopes is required.");
+    }
+  }
+
   private async assertDocuments(patientId: string, documentIds: string[]) {
     if (documentIds.length === 0) return;
     const documents = await this.prisma.clinicalDocument.findMany({
@@ -593,6 +647,24 @@ export class ReferralsService {
       wrappedKey: referral.wrappedKey,
       iv: referral.iv,
       ciphertext: referral.ciphertext,
+    };
+  }
+
+  private outcomeEnvelope(outcome: {
+    algorithm: string;
+    keyId: string;
+    wrappedKey: string;
+    iv: string;
+    ciphertext: string;
+  }): EncryptedEnvelope {
+    if (outcome.algorithm !== "AES-256-GCM") throw new ConflictException("Unsupported referral outcome encryption algorithm.");
+    return {
+      version: 1,
+      algorithm: "AES-256-GCM",
+      keyId: outcome.keyId,
+      wrappedKey: outcome.wrappedKey,
+      iv: outcome.iv,
+      ciphertext: outcome.ciphertext,
     };
   }
 
