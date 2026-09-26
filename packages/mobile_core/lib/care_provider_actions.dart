@@ -12,6 +12,7 @@ import 'communications_workspace.dart';
 import 'professional_account_workspace.dart';
 import 'provider_offline_drafts.dart';
 import 'provider_work_queue.dart';
+import 'doctor_work_queue.dart';
 import 'transport_workspace.dart';
 import 'emergency_access.dart';
 
@@ -43,7 +44,9 @@ class CareProviderActions extends StatelessWidget {
       itemBuilder: (_) => ['workQueue', if (session.role == 'DOCTOR') 'emergencyAccess', if (allowedModalities.contains('HOME_VISIT')) 'offlineDrafts', 'schedule', 'waiting', 'availabilityDemand', 'finance', 'messages', if (transport) 'transport', 'account'].map((key) => PopupMenuItem(value: key, child: Text(t(key)))).toList(),
       onSelected: (key) {
         final Widget page = switch (key) {
-          'workQueue' => ProviderWorkQueuePage(session: session, locale: locale, accent: accent),
+          'workQueue' => session.role == 'DOCTOR'
+              ? DoctorPrioritizedWorkQueuePage(session: session, locale: locale, accent: accent)
+              : ProviderWorkQueuePage(session: session, locale: locale, accent: accent),
           'emergencyAccess' => EmergencyAccessPage(session: session, locale: locale),
           'offlineDrafts' => ProviderOfflineDraftsPage(session: session, locale: locale, accent: accent),
           'schedule' => CareProviderSchedule(session: session, locale: locale, allowedModalities: allowedModalities),
