@@ -27,6 +27,7 @@ export type ReferralActionInput = {
   action: ReferralAction;
   expectedVersion: number;
   reasonCode: string | null;
+  completionOutcome?: string;
 };
 
 const MAX_SHARE_SCOPES = 20;
@@ -58,6 +59,13 @@ export function normalizeReferralAction(input: Record<string, unknown>): Referra
   const reasonCode = optionalCode(input.reasonCode, "reasonCode");
   if ((action === "DECLINE" || action === "CANCEL") && !reasonCode) {
     throw new Error(`reasonCode is required for ${action}.`);
+  }
+  if (action === "COMPLETE") {
+    const completionOutcome = requiredText(input.completionOutcome, 1, 4000, "completionOutcome");
+    return { action, expectedVersion, reasonCode, completionOutcome };
+  }
+  if (input.completionOutcome !== undefined && input.completionOutcome !== null && input.completionOutcome !== "") {
+    throw new Error("completionOutcome is only allowed for COMPLETE.");
   }
   return { action, expectedVersion, reasonCode };
 }

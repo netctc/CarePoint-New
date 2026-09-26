@@ -19,10 +19,17 @@ const allergy = normalizeClinicalProfilePayload("ALLERGY", {
 });
 assert.deepEqual(allergy, {
   kind: "ALLERGY",
+  classification: "ALLERGY",
   substance: "Penicillin",
   reaction: "Rash",
   severity: "MODERATE",
 });
+
+const intolerance = normalizeClinicalProfilePayload("ALLERGY", {
+  classification: "intolerance",
+  substance: "Synthetic ingredient",
+});
+assert.equal(intolerance.classification, "INTOLERANCE");
 
 const condition = normalizeClinicalProfilePayload("CONDITION", {
   display: "Hypertension",
@@ -31,6 +38,18 @@ const condition = normalizeClinicalProfilePayload("CONDITION", {
   clinicalStatus: "active",
   onsetDate: "2024-02-01",
 });
+
+const linkedCondition = normalizeClinicalProfilePayload("CONDITION", {
+  display: "Hypertension",
+  clinicalStatus: "active",
+  encounterId: "enc-1",
+  documentIds: ["doc-1", "doc-1", "doc-2"],
+  carePlanIds: ["plan-1"],
+});
+assert.equal(linkedCondition.kind, "CONDITION");
+assert.equal(linkedCondition.encounterId, "enc-1");
+assert.deepEqual(linkedCondition.documentIds, ["doc-1", "doc-2"]);
+assert.deepEqual(linkedCondition.carePlanIds, ["plan-1"]);
 const updatedCondition = normalizeClinicalProfilePayload("CONDITION", {
   clinicalStatus: "resolved",
 }, condition);
@@ -52,8 +71,16 @@ assert.throws(
   /Unsupported clinical profile field/,
 );
 assert.throws(
+  () => normalizeClinicalProfilePayload("ALLERGY", { classification: "sensitivity", substance: "A" }),
+  /classification is invalid/,
+);
+assert.throws(
   () => normalizeClinicalProfilePayload("CONDITION", { display: "" }),
   /display is invalid/,
+);
+assert.throws(
+  () => normalizeClinicalProfilePayload("CONDITION", { display: "X", documentIds: ["bad id with spaces"] }),
+  /documentIds\[0\] is invalid/,
 );
 assert.throws(
   () => normalizeClinicalProfileStatus("deleted"),
@@ -68,3 +95,5 @@ await import("./v2-emergency-access-smoke.mjs");
 await import("./v2-patient-extended-clinical-profile-smoke.mjs");
 
 await import("./v2-medication-reconciliation-smoke.mjs");
+await import("./v2-allergy-reconciliation-smoke.mjs");
+await import("./v2-problem-list-smoke.mjs");

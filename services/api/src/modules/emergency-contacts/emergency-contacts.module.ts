@@ -7,6 +7,7 @@ import {
   Get,
   Header,
   Injectable,
+  InternalServerErrorException,
   Module,
   NotFoundException,
   Param,
@@ -14,9 +15,12 @@ import {
   Post,
 } from "@nestjs/common";
 import type { AuthPrincipal } from "@carepoint/identity";
+import type { EncryptedEnvelope } from "@carepoint/security";
 import { DatabaseAuditService } from "../../infrastructure/audit/audit.service";
 import { PrismaService } from "../../infrastructure/prisma/prisma.module";
 import { CurrentPrincipal, RequirePermissions } from "../../security/api-security.module";
+import { ClinicalModule } from "../clinical/clinical.module";
+import { ClinicalEnvelopeService } from "../clinical/clinical-envelope.service";
 
 interface CreateEmergencyContactInput {
   displayName: string;
@@ -29,11 +33,39 @@ interface UpdateEmergencyContactInput extends Partial<CreateEmergencyContactInpu
   expectedUpdatedAt: string;
 }
 
+type EmergencyContactPayload = {
+  schemaVersion: 1;
+  displayName: string;
+  relationship: string;
+  phone: string;
+};
+
+type EmergencyContactRow = {
+  id: string;
+  patientId: string;
+  displayName: string;
+  relationship: string;
+  phone: string;
+  algorithm: string | null;
+  keyId: string | null;
+  wrappedKey: string | null;
+  iv: string | null;
+  ciphertext: string | null;
+  priority: number;
+  status: string;
+  revokedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+const ENCRYPTED_SENTINEL = "__ENCRYPTED__";
+
 @Injectable()
 class EmergencyContactsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: DatabaseAuditService,
+    private readonly envelope: ClinicalEnvelopeService,
   ) {}
 
   async list(principal: AuthPrincipal) {
@@ -43,6 +75,23 @@ class EmergencyContactsService {
       orderBy: [{ priority: "asc" }, { createdAt: "asc" }],
       take: 10,
     });
+
+    const items: Array<{
+      id: string;
+      displayName: string;
+      relationship: string;
+      phone: string;
+      priority: number;
+      status: string;
+      revokedAt: string | null;
+      createdAt: string;
+      updatedAt: string;
+    }> = [];
+    for (const row of rows) {
+      const upgraded = await this.upgradeLegacyRow(row as EmergencyContactRow, principal.accountId);
+      items.push(this.present(upgraded.row, upgraded.payload));
+    }
+
     await this.audit.write({
       actorId: principal.accountId,
       action: "PATIENT_EMERGENCY_CONTACTS_VIEWED",
@@ -50,14 +99,15 @@ class EmergencyContactsService {
       objectId: patientId,
       purpose: "PATIENT_SELF_SERVICE",
       result: "SUCCESS",
-      metadata: { activeCount: rows.length },
+      metadata: { activeCount: items.length },
     });
-    return rows.map((row) => this.present(row));
+    return items;
   }
 
   async create(principal: AuthPrincipal, input: CreateEmergencyContactInput) {
     const patientId = await this.patientId(principal);
     const normalized = this.normalize(input);
+    const protectedFields = await this.encryptPayload(normalized);
     return this.prisma.$transaction(async (tx) => {
       const count = await tx.emergencyContact.count({ where: { patientId, status: "ACTIVE" } });
       if (count >= 10) throw new ConflictException("A patient can have at most 10 active emergency contacts.");
@@ -67,7 +117,14 @@ class EmergencyContactsService {
       });
       if (priorityOwner) throw new ConflictException("That emergency-contact priority is already in use.");
       const created = await tx.emergencyContact.create({
-        data: { patientId, ...normalized },
+        data: {
+          patientId,
+          displayName: ENCRYPTED_SENTINEL,
+          relationship: ENCRYPTED_SENTINEL,
+          phone: ENCRYPTED_SENTINEL,
+          priority: normalized.priority,
+          ...protectedFields,
+        },
       });
       await this.audit.writeInTransaction(tx, {
         actorId: principal.accountId,
@@ -76,9 +133,9 @@ class EmergencyContactsService {
         objectId: created.id,
         purpose: "PATIENT_SELF_SERVICE",
         result: "SUCCESS",
-        metadata: { priority: created.priority },
+        metadata: { priority: created.priority, protectedAtRest: true },
       });
-      return this.present(created);
+      return this.present(created as EmergencyContactRow, normalized);
     });
   }
 
@@ -86,54 +143,96 @@ class EmergencyContactsService {
     const patientId = await this.patientId(principal);
     const id = this.identifier(contactId);
     const expectedUpdatedAt = this.timestamp(input?.expectedUpdatedAt);
+    const current = await this.prisma.emergencyContact.findFirst({ where: { id, patientId, status: "ACTIVE" } });
+    if (!current) throw new NotFoundException("Emergency contact not found.");
+    if (current.updatedAt.getTime() !== expectedUpdatedAt.getTime()) {
+      throw new ConflictException("Emergency contact changed. Reload before saving.");
+    }
+
+    const currentPayload = await this.readPayload(current as EmergencyContactRow);
+    const normalized = this.normalize({
+      displayName: input.displayName ?? currentPayload.displayName,
+      relationship: input.relationship ?? currentPayload.relationship,
+      phone: input.phone ?? currentPayload.phone,
+      priority: input.priority ?? current.priority,
+    });
+    const changedFields = (["displayName", "relationship", "phone", "priority"] as const)
+      .filter((key) => key === "priority"
+        ? current.priority !== normalized.priority
+        : currentPayload[key] !== normalized[key]);
+
+    if (normalized.priority !== current.priority) {
+      const priorityOwner = await this.prisma.emergencyContact.findFirst({
+        where: { patientId, status: "ACTIVE", priority: normalized.priority, NOT: { id } },
+        select: { id: true },
+      });
+      if (priorityOwner) throw new ConflictException("That emergency-contact priority is already in use.");
+    }
+
+    const requiresProtection = !this.isEncrypted(current as EmergencyContactRow);
+    if (changedFields.length === 0 && !requiresProtection) {
+      return this.present(current as EmergencyContactRow, currentPayload);
+    }
+
+    const protectedFields = await this.encryptPayload(normalized);
     return this.prisma.$transaction(async (tx) => {
-      const current = await tx.emergencyContact.findFirst({ where: { id, patientId, status: "ACTIVE" } });
-      if (!current) throw new NotFoundException("Emergency contact not found.");
-      if (current.updatedAt.getTime() !== expectedUpdatedAt.getTime()) {
+      const fresh = await tx.emergencyContact.findFirst({ where: { id, patientId, status: "ACTIVE" } });
+      if (!fresh) throw new NotFoundException("Emergency contact not found.");
+      if (fresh.updatedAt.getTime() !== expectedUpdatedAt.getTime()) {
         throw new ConflictException("Emergency contact changed. Reload before saving.");
       }
-      const normalized = this.normalize({
-        displayName: input.displayName ?? current.displayName,
-        relationship: input.relationship ?? current.relationship,
-        phone: input.phone ?? current.phone,
-        priority: input.priority ?? current.priority,
-      });
-      if (normalized.priority !== current.priority) {
-        const priorityOwner = await tx.emergencyContact.findFirst({
-          where: { patientId, status: "ACTIVE", priority: normalized.priority, NOT: { id } },
-          select: { id: true },
-        });
-        if (priorityOwner) throw new ConflictException("That emergency-contact priority is already in use.");
-      }
-      const changedFields = (Object.keys(normalized) as (keyof typeof normalized)[])
-        .filter((key) => current[key] !== normalized[key]);
-      if (changedFields.length === 0) return this.present(current);
       const updated = await tx.emergencyContact.update({
         where: { id },
-        data: normalized,
+        data: {
+          displayName: ENCRYPTED_SENTINEL,
+          relationship: ENCRYPTED_SENTINEL,
+          phone: ENCRYPTED_SENTINEL,
+          priority: normalized.priority,
+          ...protectedFields,
+        },
       });
       await this.audit.writeInTransaction(tx, {
         actorId: principal.accountId,
-        action: "PATIENT_EMERGENCY_CONTACT_UPDATED",
+        action: changedFields.length > 0 ? "PATIENT_EMERGENCY_CONTACT_UPDATED" : "PATIENT_EMERGENCY_CONTACT_ENCRYPTED",
         objectType: "EMERGENCY_CONTACT",
         objectId: id,
         purpose: "PATIENT_SELF_SERVICE",
         result: "SUCCESS",
-        metadata: { changedFields, priority: updated.priority },
+        metadata: {
+          changedFields,
+          priority: updated.priority,
+          protectedAtRest: true,
+        },
       });
-      return this.present(updated);
+      return this.present(updated as EmergencyContactRow, normalized);
     });
   }
 
   async revoke(principal: AuthPrincipal, contactId: string) {
     const patientId = await this.patientId(principal);
     const id = this.identifier(contactId);
+    const current = await this.prisma.emergencyContact.findFirst({ where: { id, patientId, status: "ACTIVE" } });
+    if (!current) throw new NotFoundException("Emergency contact not found.");
+    const payload = await this.readPayload(current as EmergencyContactRow);
+    const protection = this.isEncrypted(current as EmergencyContactRow)
+      ? {}
+      : await this.encryptPayload(payload);
+
     return this.prisma.$transaction(async (tx) => {
-      const current = await tx.emergencyContact.findFirst({ where: { id, patientId, status: "ACTIVE" } });
-      if (!current) throw new NotFoundException("Emergency contact not found.");
+      const fresh = await tx.emergencyContact.findFirst({ where: { id, patientId, status: "ACTIVE" } });
+      if (!fresh) throw new NotFoundException("Emergency contact not found.");
       const revoked = await tx.emergencyContact.update({
         where: { id },
-        data: { status: "REVOKED", revokedAt: new Date() },
+        data: {
+          status: "REVOKED",
+          revokedAt: new Date(),
+          ...(this.isEncrypted(fresh as EmergencyContactRow) ? {} : {
+            displayName: ENCRYPTED_SENTINEL,
+            relationship: ENCRYPTED_SENTINEL,
+            phone: ENCRYPTED_SENTINEL,
+            ...protection,
+          }),
+        },
       });
       await this.audit.writeInTransaction(tx, {
         actorId: principal.accountId,
@@ -142,10 +241,112 @@ class EmergencyContactsService {
         objectId: id,
         purpose: "PATIENT_SELF_SERVICE",
         result: "SUCCESS",
-        metadata: { formerPriority: current.priority },
+        metadata: { formerPriority: current.priority, protectedAtRest: true },
       });
-      return this.present(revoked);
+      return this.present(revoked as EmergencyContactRow, payload);
     });
+  }
+
+  private async upgradeLegacyRow(row: EmergencyContactRow, actorId: string) {
+    if (this.isEncrypted(row)) {
+      return { row, payload: await this.readPayload(row) };
+    }
+    const normalized = this.normalize({
+      displayName: row.displayName,
+      relationship: row.relationship,
+      phone: row.phone,
+      priority: row.priority,
+    });
+    const protectedFields = await this.encryptPayload(normalized);
+    const migrated = await this.prisma.$transaction(async (tx) => {
+      const fresh = await tx.emergencyContact.findUnique({ where: { id: row.id } });
+      if (!fresh) throw new NotFoundException("Emergency contact not found.");
+      if (this.isEncrypted(fresh as EmergencyContactRow)) return fresh;
+      const updated = await tx.emergencyContact.update({
+        where: { id: row.id },
+        data: {
+          displayName: ENCRYPTED_SENTINEL,
+          relationship: ENCRYPTED_SENTINEL,
+          phone: ENCRYPTED_SENTINEL,
+          ...protectedFields,
+        },
+      });
+      await this.audit.writeInTransaction(tx, {
+        actorId,
+        action: "PATIENT_EMERGENCY_CONTACT_ENCRYPTED",
+        objectType: "EMERGENCY_CONTACT",
+        objectId: row.id,
+        purpose: "PRIVACY_MIGRATION",
+        result: "SUCCESS",
+        metadata: { protectedAtRest: true },
+      });
+      return updated;
+    });
+    return { row: migrated as EmergencyContactRow, payload: normalized };
+  }
+
+  private async encryptPayload(value: { displayName: string; relationship: string; phone: string }) {
+    const envelope = await this.envelope.encryptRecord({
+      schemaVersion: 1,
+      displayName: value.displayName,
+      relationship: value.relationship,
+      phone: value.phone,
+    });
+    return this.envelopeFields(envelope);
+  }
+
+  private envelopeFields(envelope: EncryptedEnvelope) {
+    return {
+      algorithm: envelope.algorithm,
+      keyId: envelope.keyId,
+      wrappedKey: envelope.wrappedKey,
+      iv: envelope.iv,
+      ciphertext: envelope.ciphertext,
+    };
+  }
+
+  private isEncrypted(row: EmergencyContactRow): boolean {
+    return Boolean(row.algorithm && row.keyId && row.wrappedKey && row.iv && row.ciphertext);
+  }
+
+  private async readPayload(row: EmergencyContactRow): Promise<EmergencyContactPayload> {
+    if (!this.isEncrypted(row)) {
+      const normalized = this.normalize({
+        displayName: row.displayName,
+        relationship: row.relationship,
+        phone: row.phone,
+        priority: row.priority,
+      });
+      return {
+        schemaVersion: 1,
+        displayName: normalized.displayName,
+        relationship: normalized.relationship,
+        phone: normalized.phone,
+      };
+    }
+    const payload = await this.envelope.decryptRecord<EmergencyContactPayload>({
+      version: 1,
+      algorithm: row.algorithm as "AES-256-GCM",
+      keyId: row.keyId!,
+      wrappedKey: row.wrappedKey!,
+      iv: row.iv!,
+      ciphertext: row.ciphertext!,
+    });
+    if (payload?.schemaVersion !== 1) {
+      throw new InternalServerErrorException("Emergency contact protected payload is invalid.");
+    }
+    const normalized = this.normalize({
+      displayName: payload.displayName,
+      relationship: payload.relationship,
+      phone: payload.phone,
+      priority: row.priority,
+    });
+    return {
+      schemaVersion: 1,
+      displayName: normalized.displayName,
+      relationship: normalized.relationship,
+      phone: normalized.phone,
+    };
   }
 
   private async patientId(principal: AuthPrincipal): Promise<string> {
@@ -210,22 +411,12 @@ class EmergencyContactsService {
     return value;
   }
 
-  private present(row: {
-    id: string;
-    displayName: string;
-    relationship: string;
-    phone: string;
-    priority: number;
-    status: string;
-    revokedAt: Date | null;
-    createdAt: Date;
-    updatedAt: Date;
-  }) {
+  private present(row: EmergencyContactRow, payload: { displayName: string; relationship: string; phone: string }) {
     return {
       id: row.id,
-      displayName: row.displayName,
-      relationship: row.relationship,
-      phone: row.phone,
+      displayName: payload.displayName,
+      relationship: payload.relationship,
+      phone: payload.phone,
       priority: row.priority,
       status: row.status,
       revokedAt: row.revokedAt?.toISOString() ?? null,
@@ -233,6 +424,7 @@ class EmergencyContactsService {
       updatedAt: row.updatedAt.toISOString(),
     };
   }
+
 }
 
 @RequirePermissions("PATIENT_MANAGE_EMERGENCY_CONTACTS")
@@ -270,6 +462,7 @@ class EmergencyContactsController {
 }
 
 @Module({
+  imports: [ClinicalModule],
   controllers: [EmergencyContactsController],
   providers: [EmergencyContactsService],
 })

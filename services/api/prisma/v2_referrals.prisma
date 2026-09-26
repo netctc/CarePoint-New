@@ -26,6 +26,20 @@ model Referral {
   @@index([destinationProviderId, status, createdAt])
 }
 
+model ReferralOutcome {
+  id               String   @id @default(uuid())
+  referralId       String   @unique
+  algorithm        String
+  keyId            String
+  wrappedKey       String
+  iv               String
+  ciphertext       String
+  createdByActorId String
+  createdAt        DateTime @default(now())
+
+  @@index([createdAt])
+}
+
 model ClinicalShareGrant {
   id                    String   @id @default(uuid())
   referralId            String   @unique
