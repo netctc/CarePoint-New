@@ -160,76 +160,83 @@ class _PatientShellState extends State<PatientShell> {
     Expanded(child: child),
   ]);
 
-  Widget healthTab() => Column(children: [
-    Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 0), child: SizedBox(width: double.infinity, child: FilledButton.tonalIcon(
-      key: const ValueKey('patient-access-needs-entry'), onPressed: openAccessNeeds, icon: const Icon(Icons.accessible_forward_outlined), label: Text(patientAccessNeedsText(widget.locale, 'open')),
-    ))),
-    Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
-      key: const ValueKey('patient-observation-stats-entry'), onPressed: openObservationStats, icon: const Icon(Icons.analytics_outlined), label: Text(patientObservationStatsText(widget.locale, 'title')),
-    ))),
-    Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
-      key: const ValueKey('patient-clinical-alerts-entry'), onPressed: openClinicalAlerts, icon: const Icon(Icons.notification_important_outlined), label: Text(patientClinicalAlertText(widget.locale, 'title')),
-    ))),
-    Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
-      key: const ValueKey('patient-symptom-journal-entry'), onPressed: openSymptoms, icon: const Icon(Icons.sick_outlined), label: Text(patientSymptomText(widget.locale, 'title')),
-    ))),
-    Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
-      key: const ValueKey('patient-social-history-entry'), onPressed: openSocialHistory, icon: const Icon(Icons.groups_2_outlined), label: Text(patientSocialHistoryText(widget.locale, 'title')),
-    ))),
-    PatientQuestionnaireStatusCard(session: widget.session, locale: widget.locale),
-    Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
-      key: const ValueKey('patient-questionnaire-requests-entry'), onPressed: openRequestedQuestionnaires, icon: const Icon(Icons.fact_check_outlined), label: Text(questionnaireRequestText(widget.locale, 'patientTitle')),
-    ))),
-    Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
-      key: const ValueKey('patient-medication-reconciliation-entry'), onPressed: openMedicationReconciliation, icon: const Icon(Icons.medication_liquid_outlined), label: Text(medicationReconciliationText(widget.locale, 'patientTitle')),
-    ))),
-    Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
-      key: const ValueKey('patient-extended-clinical-profile-entry'), onPressed: openExtendedClinicalProfile, icon: const Icon(Icons.health_and_safety_outlined), label: Text(patientExtendedClinicalProfileText(widget.locale, 'title')),
-    ))),
-    Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
-      key: const ValueKey('patient-emergency-card-entry'), onPressed: openEmergencyCard, icon: const Icon(Icons.emergency_outlined), label: Text(patientEmergencyCardText(widget.locale, 'title')),
-    ))),
-    Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
-      key: const ValueKey('patient-hospitalizations-entry'), onPressed: openHospitalizations, icon: const Icon(Icons.local_hospital_outlined), label: Text(patientClinicalHistoryText(widget.locale, 'hospitalizations')),
-    ))),
-    Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
-      key: const ValueKey('patient-immunizations-entry'), onPressed: openImmunizations, icon: const Icon(Icons.vaccines_outlined), label: Text(patientClinicalHistoryText(widget.locale, 'immunizations')),
-    ))),
-    Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
-      key: const ValueKey('patient-preventive-care-entry'), onPressed: openPreventiveCare, icon: const Icon(Icons.health_and_safety_outlined), label: Text(preventiveCareText(widget.locale, 'title')),
-    ))),
-    Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
-      key: const ValueKey('patient-education-entry'), onPressed: openEducation, icon: const Icon(Icons.school_outlined), label: Text(patientEducationText(widget.locale, 'patientTitle')),
-    ))),
-    Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
-      key: const ValueKey('patient-care-plans-entry'), onPressed: openCarePlans, icon: const Icon(Icons.assignment_turned_in_outlined), label: Text(patientCarePlanText(widget.locale, 'title')),
-    ))),
-    Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
-      key: const ValueKey('patient-refill-entry'), onPressed: openRefills, icon: const Icon(Icons.medication_liquid_outlined), label: Text(patientRefillText(widget.locale, 'title')),
-    ))),
-    Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
-      key: const ValueKey('patient-medication-reminders-entry'), onPressed: openMedicationReminders, icon: const Icon(Icons.alarm_outlined), label: Text(patientMedicationReminderText(widget.locale, 'title')),
-    ))),
-    Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
-      key: const ValueKey('patient-clinical-export-entry'), onPressed: openClinicalExport, icon: const Icon(Icons.ios_share_outlined), label: Text(patientClinicalExportText(widget.locale, 'title')),
-    ))),
-    Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
-      key: const ValueKey('patient-temporary-clinical-share-entry'), onPressed: openTemporaryClinicalShare, icon: const Icon(Icons.qr_code_2_outlined), label: Text(patientClinicalShareText(widget.locale, 'title')),
-    ))),
-    Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
-      key: const ValueKey('patient-home-exercise-entry'), onPressed: openHomeExercises, icon: const Icon(Icons.fitness_center_outlined), label: Text(homeExerciseText(widget.locale, 'title')),
-    ))),
-    Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
-      key: const ValueKey('patient-food-diary-entry'), onPressed: openFoodDiary, icon: const Icon(Icons.restaurant_outlined), label: Text(foodDiaryText(widget.locale, 'patientTitle')),
-    ))),
-    Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
-      key: const ValueKey('patient-nutrition-plan-entry'), onPressed: openNutritionPlan, icon: const Icon(Icons.restaurant_menu_outlined), label: Text(nutritionPlanText(widget.locale, 'patientTitle')),
-    ))),
-    Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
-      key: const ValueKey('patient-follow-up-entry'), onPressed: openFollowUps, icon: const Icon(Icons.event_repeat_outlined), label: Text(followUpText(widget.locale, 'title')),
-    ))),
-    Expanded(child: PatientClinicalTimelinePage(session: widget.session, locale: widget.locale)),
-  ]);
+  Widget healthTab() => PatientClinicalTimelinePage(
+    session: widget.session,
+    locale: widget.locale,
+    header: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 0), child: SizedBox(width: double.infinity, child: FilledButton.tonalIcon(
+          key: const ValueKey('patient-access-needs-entry'), onPressed: openAccessNeeds, icon: const Icon(Icons.accessible_forward_outlined), label: Text(patientAccessNeedsText(widget.locale, 'open')),
+        ))),
+        Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
+          key: const ValueKey('patient-observation-stats-entry'), onPressed: openObservationStats, icon: const Icon(Icons.analytics_outlined), label: Text(patientObservationStatsText(widget.locale, 'title')),
+        ))),
+        Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
+          key: const ValueKey('patient-clinical-alerts-entry'), onPressed: openClinicalAlerts, icon: const Icon(Icons.notification_important_outlined), label: Text(patientClinicalAlertText(widget.locale, 'title')),
+        ))),
+        Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
+          key: const ValueKey('patient-symptom-journal-entry'), onPressed: openSymptoms, icon: const Icon(Icons.sick_outlined), label: Text(patientSymptomText(widget.locale, 'title')),
+        ))),
+        Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
+          key: const ValueKey('patient-social-history-entry'), onPressed: openSocialHistory, icon: const Icon(Icons.groups_2_outlined), label: Text(patientSocialHistoryText(widget.locale, 'title')),
+        ))),
+        PatientQuestionnaireStatusCard(session: widget.session, locale: widget.locale),
+        Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
+          key: const ValueKey('patient-questionnaire-requests-entry'), onPressed: openRequestedQuestionnaires, icon: const Icon(Icons.fact_check_outlined), label: Text(questionnaireRequestText(widget.locale, 'patientTitle')),
+        ))),
+        Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
+          key: const ValueKey('patient-medication-reconciliation-entry'), onPressed: openMedicationReconciliation, icon: const Icon(Icons.medication_liquid_outlined), label: Text(medicationReconciliationText(widget.locale, 'patientTitle')),
+        ))),
+        Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
+          key: const ValueKey('patient-extended-clinical-profile-entry'), onPressed: openExtendedClinicalProfile, icon: const Icon(Icons.health_and_safety_outlined), label: Text(patientExtendedClinicalProfileText(widget.locale, 'title')),
+        ))),
+        Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
+          key: const ValueKey('patient-emergency-card-entry'), onPressed: openEmergencyCard, icon: const Icon(Icons.emergency_outlined), label: Text(patientEmergencyCardText(widget.locale, 'title')),
+        ))),
+        Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
+          key: const ValueKey('patient-hospitalizations-entry'), onPressed: openHospitalizations, icon: const Icon(Icons.local_hospital_outlined), label: Text(patientClinicalHistoryText(widget.locale, 'hospitalizations')),
+        ))),
+        Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
+          key: const ValueKey('patient-immunizations-entry'), onPressed: openImmunizations, icon: const Icon(Icons.vaccines_outlined), label: Text(patientClinicalHistoryText(widget.locale, 'immunizations')),
+        ))),
+        Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
+          key: const ValueKey('patient-preventive-care-entry'), onPressed: openPreventiveCare, icon: const Icon(Icons.health_and_safety_outlined), label: Text(preventiveCareText(widget.locale, 'title')),
+        ))),
+        Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
+          key: const ValueKey('patient-education-entry'), onPressed: openEducation, icon: const Icon(Icons.school_outlined), label: Text(patientEducationText(widget.locale, 'patientTitle')),
+        ))),
+        Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
+          key: const ValueKey('patient-care-plans-entry'), onPressed: openCarePlans, icon: const Icon(Icons.assignment_turned_in_outlined), label: Text(patientCarePlanText(widget.locale, 'title')),
+        ))),
+        Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
+          key: const ValueKey('patient-refill-entry'), onPressed: openRefills, icon: const Icon(Icons.medication_liquid_outlined), label: Text(patientRefillText(widget.locale, 'title')),
+        ))),
+        Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
+          key: const ValueKey('patient-medication-reminders-entry'), onPressed: openMedicationReminders, icon: const Icon(Icons.alarm_outlined), label: Text(patientMedicationReminderText(widget.locale, 'title')),
+        ))),
+        Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
+          key: const ValueKey('patient-clinical-export-entry'), onPressed: openClinicalExport, icon: const Icon(Icons.ios_share_outlined), label: Text(patientClinicalExportText(widget.locale, 'title')),
+        ))),
+        Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
+          key: const ValueKey('patient-temporary-clinical-share-entry'), onPressed: openTemporaryClinicalShare, icon: const Icon(Icons.qr_code_2_outlined), label: Text(patientClinicalShareText(widget.locale, 'title')),
+        ))),
+        Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
+          key: const ValueKey('patient-home-exercise-entry'), onPressed: openHomeExercises, icon: const Icon(Icons.fitness_center_outlined), label: Text(homeExerciseText(widget.locale, 'title')),
+        ))),
+        Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
+          key: const ValueKey('patient-food-diary-entry'), onPressed: openFoodDiary, icon: const Icon(Icons.restaurant_outlined), label: Text(foodDiaryText(widget.locale, 'patientTitle')),
+        ))),
+        Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
+          key: const ValueKey('patient-nutrition-plan-entry'), onPressed: openNutritionPlan, icon: const Icon(Icons.restaurant_menu_outlined), label: Text(nutritionPlanText(widget.locale, 'patientTitle')),
+        ))),
+        Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: SizedBox(width: double.infinity, child: OutlinedButton.icon(
+          key: const ValueKey('patient-follow-up-entry'), onPressed: openFollowUps, icon: const Icon(Icons.event_repeat_outlined), label: Text(followUpText(widget.locale, 'title')),
+        ))),
+      ],
+    ),
+  );
+
   Widget accountTab() => Column(children: [
     Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 0), child: SizedBox(width: double.infinity, child: FilledButton.tonalIcon(
       key: const ValueKey('patient-dependents-entry'), onPressed: openDependents, icon: const Icon(Icons.family_restroom), label: Text(patientDependentsText(widget.locale, 'title')),
