@@ -408,10 +408,10 @@ export class MedicationReconciliationService {
   }
 
   private normalizeItems(raw: SignedMedicationReconciliationInput) {
-    const source = Array.isArray(raw?.items)
+    const source: MedicationReconciliationItemInput[] | null = Array.isArray(raw?.items)
       ? raw.items
       : Array.isArray(raw?.entryIds)
-        ? raw.entryIds.map((statementEntryId) => ({
+        ? raw.entryIds.map((statementEntryId): MedicationReconciliationItemInput => ({
             statementEntryId,
             outcome: "MATCHED",
             resolutionStatus: "RESOLVED",
