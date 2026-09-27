@@ -77,15 +77,47 @@ class CarePointApi {
   Future<Map<String, dynamic>> registrationOptions() async =>
       _asMap(await _send('GET', '/iam/register/options', authenticated: false, retryAuth: false));
 
-  Future<CarePointSession> registerPatient({
-    required String email,
-    required String username,
-    required String password,
+  Future<Map<String, dynamic>> startRegistrationOtp({
+    required String kind,
     required String firstName,
     required String lastName,
+    required String phone,
+  }) async => _asMap(await _send(
+    'POST',
+    '/iam/register/otp/start',
+    authenticated: false,
+    retryAuth: false,
+    body: {
+      'kind': kind,
+      'firstName': firstName.trim(),
+      'lastName': lastName.trim(),
+      'phone': phone.trim(),
+    },
+  ));
+
+  Future<Map<String, dynamic>> verifyRegistrationOtp({
+    required String challengeId,
+    required String code,
+  }) async => _asMap(await _send(
+    'POST',
+    '/iam/register/otp/verify',
+    authenticated: false,
+    retryAuth: false,
+    body: {
+      'challengeId': challengeId,
+      'code': code.trim(),
+    },
+  ));
+
+  Future<CarePointSession> registerPatient({
+    required String challengeId,
+    required String registrationToken,
+    String? email,
+    required String username,
+    required String password,
     required String dateOfBirth,
     required String sex,
-    required String phone,
+    String? reference,
   }) async {
     final result = _asMap(await _send(
       'POST',
@@ -93,14 +125,14 @@ class CarePointApi {
       authenticated: false,
       retryAuth: false,
       body: {
-        'email': email.trim(),
+        'challengeId': challengeId,
+        'registrationToken': registrationToken,
+        if (email?.trim().isNotEmpty == true) 'email': email!.trim(),
         'username': username.trim(),
         'password': password,
-        'firstName': firstName.trim(),
-        'lastName': lastName.trim(),
         'dateOfBirth': dateOfBirth.trim(),
         'sex': sex.trim(),
-        'phone': phone.trim(),
+        if (reference?.trim().isNotEmpty == true) 'reference': reference!.trim(),
       },
     ));
     await _captureTokens(result);
@@ -108,15 +140,15 @@ class CarePointApi {
   }
 
   Future<CarePointSession> registerProfessional({
+    required String challengeId,
+    required String registrationToken,
     required String kind,
-    required String email,
+    String? email,
     required String username,
     required String password,
-    required String firstName,
-    required String lastName,
-    required String phone,
     String? specialtyId,
     String? providerCategoryId,
+    String? reference,
   }) async {
     final result = _asMap(await _send(
       'POST',
@@ -124,19 +156,22 @@ class CarePointApi {
       authenticated: false,
       retryAuth: false,
       body: {
+        'challengeId': challengeId,
+        'registrationToken': registrationToken,
         'kind': kind,
-        'email': email.trim(),
+        if (email?.trim().isNotEmpty == true) 'email': email!.trim(),
         'username': username.trim(),
         'password': password,
-        'firstName': firstName.trim(),
-        'lastName': lastName.trim(),
-        'phone': phone.trim(),
         if (specialtyId?.trim().isNotEmpty == true) 'specialtyId': specialtyId!.trim(),
         if (providerCategoryId?.trim().isNotEmpty == true) 'providerCategoryId': providerCategoryId!.trim(),
+        if (reference?.trim().isNotEmpty == true) 'reference': reference!.trim(),
       },
     ));
     if (result['requiresMfa'] == true) {
-      throw CarePointMfaRequired(result['challengeId'].toString(), result['expiresAt'].toString());
+      throw CarePointMfaRequired(
+        result['challengeId'].toString(),
+        result['expiresAt'].toString(),
+      );
     }
     await _captureTokens(result);
     return CarePointSession(account: await me(), api: this);
