@@ -242,17 +242,7 @@ class _CarePointSessionChromeState extends State<CarePointSessionChrome> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    final navigation =
-        widget.controller.hasSession ? widget.controller.navigation : null;
-    final bottomInset = MediaQuery.paddingOf(context).bottom;
-    final reservedBottom =
-        navigation == null ? 0.0 : 72.0 + bottomInset;
-    return Padding(
-      padding: EdgeInsets.only(bottom: reservedBottom),
-      child: widget.child,
-    );
-  }
+  Widget build(BuildContext context) => widget.child;
 }
 
 class _CarePointWebSafeBottomNavigation extends StatelessWidget {
