@@ -157,6 +157,21 @@ extension CarePointProviderOnboardingApi on CarePointApi {
   Future<Map<String, dynamic>> addProviderOnboardingCredential(String onboardingId, {required String type, String? number, String? issuer, String? validUntil, String? documentId}) async => _asMap(await _send('POST', '/onboarding/$onboardingId/credentials', body: {
     'type': type.trim(), if (number?.trim().isNotEmpty == true) 'number': number!.trim(), if (issuer?.trim().isNotEmpty == true) 'issuer': issuer!.trim(), if (validUntil?.trim().isNotEmpty == true) 'validUntil': validUntil!.trim(), if (documentId?.trim().isNotEmpty == true) 'documentId': documentId!.trim(),
   }));
+  Future<Map<String, dynamic>> uploadProviderOnboardingCredentialPdf(
+    String onboardingId,
+    String credentialId, {
+    required String fileName,
+    required List<int> bytes,
+  }) async => _asMap(await _send(
+    'POST',
+    '/onboarding/' + Uri.encodeComponent(onboardingId) + '/credentials/' + Uri.encodeComponent(credentialId) + '/documents',
+    body: {
+      'fileName': fileName,
+      'mediaType': 'application/pdf',
+      'contentBase64': base64Encode(bytes),
+    },
+  ));
+
   Future<Map<String, dynamic>> submitProviderOnboarding(String onboardingId) async => _asMap(await _send('POST', '/onboarding/$onboardingId/submit', body: const {}));
 }
 
