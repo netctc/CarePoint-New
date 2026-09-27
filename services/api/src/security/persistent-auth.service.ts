@@ -877,14 +877,18 @@ export class PersistentAuthService {
     const accountSid = process.env.TWILIO_ACCOUNT_SID?.trim();
     const authToken = process.env.TWILIO_AUTH_TOKEN?.trim();
     const from = process.env.TWILIO_FROM_NUMBER?.trim();
-    if (!accountSid || !authToken || !from) {
+    const messagingServiceSid =
+      process.env.TWILIO_MESSAGING_SERVICE_SID?.trim();
+    if (!accountSid || !authToken || (!from && !messagingServiceSid)) {
       throw new InternalServerErrorException(
-        "TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN and TWILIO_FROM_NUMBER are required for SMS registration OTP delivery.",
+        "TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN plus TWILIO_FROM_NUMBER or TWILIO_MESSAGING_SERVICE_SID are required for SMS registration OTP delivery.",
       );
     }
     const payload = new URLSearchParams({
       To: phone,
-      From: from,
+      ...(messagingServiceSid
+        ? { MessagingServiceSid: messagingServiceSid }
+        : { From: from! }),
       Body: `Your CarePoint registration code is ${otp}. It expires in 5 minutes.`,
     });
     let response: Response;
