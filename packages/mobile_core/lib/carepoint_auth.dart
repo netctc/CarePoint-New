@@ -5,6 +5,7 @@ import 'carepoint_localization.dart';
 import 'mfa_enrollment_api.dart';
 import 'mfa_setup_panel.dart';
 import 'mobile_release_config.dart';
+import 'registration_dialog.dart';
 
 typedef CarePointAuthenticatedBuilder = Widget Function(BuildContext context, CarePointSession session, VoidCallback signOut);
 
@@ -307,26 +308,86 @@ class _CarePointLoginGateState extends State<CarePointLoginGate> {
         widget.sessionUiController?.bind(signOut);
       }
     } on CarePointMfaRequired catch (value) {
-      String? setupSecret;
-      String? setupUri;
-      if (value.challengeId.startsWith('mfaenroll_')) {
-        try {
-          final setup = await api.beginRequiredMfaEnrollment(value.challengeId);
-          setupSecret = setup['secret'];
-          setupUri = setup['otpauthUri'];
-        } catch (setupError) {
-          if (mounted) setState(() => error = setupError.toString());
-        }
+      await _adoptMfaChallenge(value);
+    } catch (value) {
+      if (mounted) setState(() => error = value.toString());
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  Future<void> _adoptMfaChallenge(CarePointMfaRequired value) async {
+    String? setupSecret;
+    String? setupUri;
+    if (value.challengeId.startsWith('mfaenroll_')) {
+      try {
+        final setup = await api.beginRequiredMfaEnrollment(value.challengeId);
+        setupSecret = setup['secret'];
+        setupUri = setup['otpauthUri'];
+      } catch (setupError) {
+        if (mounted) setState(() => error = setupError.toString());
+      }
+    }
+    if (!mounted) return;
+    setState(() {
+      challengeId = value.challengeId;
+      enrollmentSecret = setupSecret;
+      enrollmentUri = setupUri;
+      password.clear();
+      mfa.clear();
+    });
+  }
+
+  Future<void> registerAccount() async {
+    try {
+      final data = await showCarePointRegistrationDialog(
+        context,
+        api: api,
+        locale: widget.locale,
+        expectedRole: widget.expectedRole,
+        accent: widget.accent,
+        dark: widget.dark,
+      );
+      if (data == null || !mounted) return;
+      setState(() {
+        busy = true;
+        error = null;
+      });
+
+      final next = widget.expectedRole == 'PATIENT'
+          ? await api.registerPatient(
+              email: data.email,
+              username: data.username,
+              password: data.password,
+              firstName: data.firstName,
+              lastName: data.lastName,
+              dateOfBirth: data.dateOfBirth!,
+              sex: data.sex!,
+              phone: data.phone,
+            )
+          : await api.registerProfessional(
+              kind: widget.expectedRole,
+              email: data.email,
+              username: data.username,
+              password: data.password,
+              firstName: data.firstName,
+              lastName: data.lastName,
+              phone: data.phone,
+              specialtyId: data.specialtyId,
+              providerCategoryId: data.providerCategoryId,
+            );
+      if (next.role != widget.expectedRole) {
+        await api.logout();
+        throw CarePointApiException(
+          'Registered account belongs to ${next.role}, not ${widget.expectedRole}.',
+        );
       }
       if (mounted) {
-        setState(() {
-          challengeId = value.challengeId;
-          enrollmentSecret = setupSecret;
-          enrollmentUri = setupUri;
-          password.clear();
-          mfa.clear();
-        });
+        setState(() => session = next);
+        widget.sessionUiController?.bind(signOut);
       }
+    } on CarePointMfaRequired catch (value) {
+      await _adoptMfaChallenge(value);
     } catch (value) {
       if (mounted) setState(() => error = value.toString());
     } finally {
@@ -405,7 +466,15 @@ class _CarePointLoginGateState extends State<CarePointLoginGate> {
                     Text(cpText(locale, 'auth.liveApi'), textAlign: TextAlign.center, style: const TextStyle(color: Color(0xFF64748B))),
                     const SizedBox(height: 24),
                     if (challengeId == null) ...[
-                      TextField(controller: email, keyboardType: TextInputType.emailAddress, autofillHints: const [AutofillHints.email], decoration: InputDecoration(labelText: cpText(locale, 'auth.email'), border: const OutlineInputBorder())),
+                      TextField(
+                        controller: email,
+                        keyboardType: TextInputType.text,
+                        autofillHints: const [AutofillHints.username],
+                        decoration: InputDecoration(
+                          labelText: _identityLabel(locale),
+                          border: const OutlineInputBorder(),
+                        ),
+                      ),
                       const SizedBox(height: 12),
                       TextField(controller: password, obscureText: true, autofillHints: const [AutofillHints.password], onSubmitted: (_) => submit(), decoration: InputDecoration(labelText: cpText(locale, 'auth.password'), border: const OutlineInputBorder())),
                     ] else ...[
@@ -430,6 +499,14 @@ class _CarePointLoginGateState extends State<CarePointLoginGate> {
                       style: FilledButton.styleFrom(backgroundColor: widget.accent, minimumSize: const Size.fromHeight(52)),
                       child: busy ? const SizedBox.square(dimension: 22, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : Text(challengeId == null ? cpText(locale, 'auth.signIn') : cpText(locale, 'auth.verify')),
                     ),
+                    if (challengeId == null) ...[
+                      const SizedBox(height: 8),
+                      OutlinedButton.icon(
+                        onPressed: busy ? null : registerAccount,
+                        icon: const Icon(Icons.person_add_alt_1_rounded),
+                        label: Text(_registerLabel(locale)),
+                      ),
+                    ],
                     if (challengeId != null) ...[
                       const SizedBox(height: 8),
                       TextButton(onPressed: busy ? null : resetChallenge, child: Text(_differentAccountLabel(locale))),
@@ -474,4 +551,19 @@ String _languageLabel(CarePointLocale locale) => switch (locale) {
   CarePointLocale.ar => 'اللغة',
   CarePointLocale.fr => 'Langue',
   CarePointLocale.es => 'Idioma',
+};
+
+
+String _identityLabel(CarePointLocale locale) => switch (locale) {
+  CarePointLocale.en => 'Email or username',
+  CarePointLocale.ar => 'البريد الإلكتروني أو اسم المستخدم',
+  CarePointLocale.fr => 'E-mail ou nom d’utilisateur',
+  CarePointLocale.es => 'Correo electrónico o nombre de usuario',
+};
+
+String _registerLabel(CarePointLocale locale) => switch (locale) {
+  CarePointLocale.en => 'Register',
+  CarePointLocale.ar => 'تسجيل',
+  CarePointLocale.fr => 'S’inscrire',
+  CarePointLocale.es => 'Registrarse',
 };
