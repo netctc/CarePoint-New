@@ -269,8 +269,29 @@ model OnboardingCredential {
   createdAt         DateTime              @default(now())
   updatedAt         DateTime              @updatedAt
   onboarding        ProviderOnboarding    @relation(fields: [onboardingId], references: [id], onDelete: Cascade)
+  documents         OnboardingCredentialDocument[]
 
   @@index([onboardingId, state])
+}
+
+model OnboardingCredentialDocument {
+  id                 String               @id @default(uuid())
+  credentialId       String
+  fileName           String
+  mediaType          String               @default("application/pdf")
+  byteLength         Int
+  contentDigest      String
+  storageProvider    String
+  objectKey          String               @unique
+  blobAlgorithm      String
+  blobKeyId          String
+  blobWrappedKey     String
+  blobIv             String
+  createdByAccountId String
+  createdAt          DateTime             @default(now())
+  credential         OnboardingCredential @relation(fields: [credentialId], references: [id], onDelete: Cascade)
+
+  @@index([credentialId, createdAt])
 }
 
 model MedicalSpecialty {
