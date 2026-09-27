@@ -33,7 +33,7 @@ jobs:
           grep -q '127.0.0.1:8280:80' ops/test-v2/compose.yaml
           grep -q '127.0.0.1:8281:80' ops/test-v2/compose.yaml
           grep -q '127.0.0.1:8282:80' ops/test-v2/compose.yaml
-          grep -q 'PR #420' ops/test-v2/README.md
+          grep -qi 'Synchronization' ops/test-v2/README.md
           grep -qi 'synthetic' ops/test-v2/README.md
           ! grep -Eq '0\.0\.0\.0:(5432|6379)' ops/test-v2/compose.yaml
       - name: Validate Nginx template placeholders
