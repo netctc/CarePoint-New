@@ -174,7 +174,9 @@ class AdminOperationsService {
           account: item.user
             ? {
                 id: item.user.id,
-                email: item.user.email,
+                email: item.user.email.endsWith("@noemail.carepoint.invalid")
+                  ? null
+                  : item.user.email,
                 username: item.user.username,
               }
             : null,
