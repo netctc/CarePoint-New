@@ -31,6 +31,7 @@ const ACCESS_TTL_MS = 15 * 60 * 1000;
 const REFRESH_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const MFA_CHALLENGE_TTL_MS = 5 * 60 * 1000;
 const REGISTRATION_OTP_TTL_MS = 5 * 60 * 1000;
+const REGISTRATION_COMPLETION_TTL_MS = 30 * 60 * 1000;
 const REGISTRATION_OTP_MAX_ATTEMPTS = 3;
 const LOCKOUT_TTL_MS = 15 * 60 * 1000;
 const MAX_FAILED_LOGINS = 5;
@@ -197,10 +198,14 @@ export class PersistentAuthService {
 
     const registrationToken = randomToken(48);
     const verifiedAt = new Date();
+    const completionExpiresAt = new Date(
+      verifiedAt.getTime() + REGISTRATION_COMPLETION_TTL_MS,
+    );
     await this.prisma.registrationOtpChallenge.update({
       where: { id: challenge.id },
       data: {
         verifiedAt,
+        expiresAt: completionExpiresAt,
         completionTokenHash: tokenHash(registrationToken),
       },
     });
@@ -215,7 +220,7 @@ export class PersistentAuthService {
     return {
       verified: true,
       registrationToken,
-      expiresAt: challenge.expiresAt.toISOString(),
+      expiresAt: completionExpiresAt.toISOString(),
       firstName: challenge.firstName,
       lastName: challenge.lastName,
       phone: challenge.phone,
@@ -947,7 +952,7 @@ export class PersistentAuthService {
   ): string {
     const provided = value?.trim();
     if (provided) return this.normalizeEmail(provided);
-    const safeId = challengeId.replace(/[^a-zA-Z0-9]/g, "").slice(-24);
+    const safeId = challengeId.replace(/[^a-zA-Z0-9]/g, "").slice(-16);
     return `${username}.${safeId}@noemail.carepoint.invalid`.toLowerCase();
   }
 
