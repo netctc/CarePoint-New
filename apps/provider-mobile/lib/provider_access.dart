@@ -412,13 +412,24 @@ class _OtherProviderAccessGateState extends State<OtherProviderAccessGate> {
         if (credentialId.isEmpty && pdfs.isNotEmpty) {
           throw const CarePointApiException('Credential id is missing after save.');
         }
-        for (final pdf in pdfs) {
-          await api.uploadProviderOnboardingCredentialPdf(
-            id,
-            credentialId,
-            fileName: pdf.name,
-            bytes: pdf.bytes,
-          );
+        try {
+          for (final pdf in pdfs) {
+            await api.uploadProviderOnboardingCredentialPdf(
+              id,
+              credentialId,
+              fileName: pdf.name,
+              bytes: pdf.bytes,
+            );
+          }
+        } catch (value) {
+          if (credentialId.isNotEmpty) {
+            try {
+              await api.removeProviderOnboardingCredential(id, credentialId);
+            } catch (_) {
+              // Preserve the original upload error; server audit/logs retain cleanup failure.
+            }
+          }
+          rethrow;
         }
       },
       success: _t('credentialAdded'),
