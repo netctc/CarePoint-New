@@ -641,10 +641,11 @@ export class PersistentAuthService {
     return normalized;
   }
 
-  private safeAccount(user: { id: string; email: string; role: string; status: string; failedLoginCount: number; lockedUntil: Date | null; createdAt: Date; updatedAt: Date }) {
+  private safeAccount(user: { id: string; email: string; username?: string | null; role: string; status: string; failedLoginCount: number; lockedUntil: Date | null; createdAt: Date; updatedAt: Date }) {
     return {
       id: user.id,
       email: user.email,
+      username: user.username ?? null,
       role: user.role,
       status: user.status,
       failedLoginCount: user.failedLoginCount,
