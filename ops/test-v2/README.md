@@ -155,3 +155,19 @@ A green test-lane workflow means the branch is structurally deployable; it does 
 ## Updating the candidate
 
 Do not automatically fast-forward `entorno-v2` from open PRs. Promote a new `v2/development` SHA only after its required checks are green and the merged SHA is recorded in the test manifest/report. Keep the previous working candidate available for rollback.
+
+
+## Registration OTP
+
+Self-registration uses a phone-verification gate before any account is created.
+
+- OTP length: 6 digits.
+- Validity: 5 minutes.
+- Maximum verification attempts: 3.
+- `REGISTRATION_OTP_DELIVERY_MODE=display` is intended only for non-production testing and returns the OTP to the registration view.
+- `REGISTRATION_OTP_DELIVERY_MODE=sms` sends the OTP through Twilio and never returns the code to the client.
+- Production refuses `display` mode.
+- `REGISTRATION_OTP_PEPPER` is required and must be an independent secret of at least 32 characters.
+- Twilio SMS mode requires `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, and either `TWILIO_FROM_NUMBER` or `TWILIO_MESSAGING_SERVICE_SID`.
+
+The first registration stage captures first name, last name and phone. After OTP verification, those values are locked and the second-stage form collects the remaining role-specific fields.
