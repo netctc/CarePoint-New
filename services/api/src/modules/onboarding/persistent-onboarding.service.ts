@@ -312,9 +312,12 @@ export class PersistentOnboardingService {
     });
     if (!document) throw new NotFoundException("Credential document not found.");
 
+    if (document.blobAlgorithm !== "AES-256-GCM") {
+      throw new ConflictException("Credential document encryption algorithm is unsupported.");
+    }
     const ciphertext = await this.documentStorage.get(document.objectKey);
     const envelope: EncryptedEnvelope = {
-      algorithm: document.blobAlgorithm,
+      algorithm: "AES-256-GCM",
       keyId: document.blobKeyId,
       wrappedKey: document.blobWrappedKey,
       iv: document.blobIv,
