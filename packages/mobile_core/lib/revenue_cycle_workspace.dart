@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'carepoint_api.dart';
+import 'carepoint_auth.dart';
 import 'carepoint_localization.dart';
 import 'provider_workspace.dart';
 import 'revenue_cycle_localization.dart';
@@ -81,6 +82,7 @@ class ProviderWorkspaceWithRevenueCycle extends StatelessWidget {
     required this.title,
     required this.accent,
     required this.onSignOut,
+    required this.sessionUiController,
     this.dark = false,
   });
   final CarePointSession session;
@@ -88,12 +90,21 @@ class ProviderWorkspaceWithRevenueCycle extends StatelessWidget {
   final String title;
   final Color accent;
   final VoidCallback onSignOut;
+  final CarePointSessionUiController sessionUiController;
   final bool dark;
 
   @override
   Widget build(BuildContext context) => Stack(
         children: [
-          ProviderWorkspace(session: session, locale: locale, title: title, accent: accent, onSignOut: onSignOut, dark: dark),
+          ProviderWorkspace(
+            session: session,
+            locale: locale,
+            title: title,
+            accent: accent,
+            onSignOut: onSignOut,
+            sessionUiController: sessionUiController,
+            dark: dark,
+          ),
           PositionedDirectional(
             end: 18,
             bottom: 92,
