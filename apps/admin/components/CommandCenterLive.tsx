@@ -25,7 +25,7 @@ type CommandCenterSnapshot = {
       kind: "DOCTOR" | "OTHER_PROVIDER";
       displayName: string;
       registeredAt: string;
-      account: { id: string; email: string; username: string | null } | null;
+      account: { id: string; email: string | null; username: string | null } | null;
     }>;
   };
   emergency: {
