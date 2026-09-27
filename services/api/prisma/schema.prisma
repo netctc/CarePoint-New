@@ -99,6 +99,7 @@ model User {
   id                  String               @id @default(uuid())
   email               String               @unique
   username            String?              @unique
+  registrationReference String?
   passwordHash        String
   role                UserRole
   status              AccountStatus        @default(ACTIVE)
@@ -112,6 +113,27 @@ model User {
   authChallenges      AuthChallenge[]
   mfaEnrollment       MfaEnrollment?
   providerOnboardings ProviderOnboarding[]
+}
+
+model RegistrationOtpChallenge {
+  id                  String    @id
+  kind                UserRole
+  firstName           String
+  lastName            String
+  phone               String
+  codeHash            String
+  attempts            Int       @default(0)
+  maxAttempts         Int       @default(3)
+  expiresAt           DateTime
+  verifiedAt          DateTime?
+  consumedAt          DateTime?
+  completionTokenHash String?
+  deliveryMode        String
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([phone, expiresAt])
+  @@index([expiresAt, verifiedAt, consumedAt])
 }
 
 model AuthSession {
