@@ -244,6 +244,47 @@ export class PersistentOnboardingService {
     }
   }
 
+  async removeCredential(
+    principal: AuthPrincipal,
+    onboardingId: string,
+    credentialId: string,
+  ) {
+    const onboarding = await this.requireOwnedOnboarding(principal, onboardingId);
+    if (onboarding.state !== "DRAFT" && onboarding.state !== "REQUEST_CHANGES") {
+      throw new ConflictException(
+        "Credentials cannot be removed while onboarding is under review or approved.",
+      );
+    }
+
+    const credential = await this.prisma.onboardingCredential.findFirst({
+      where: { id: credentialId, onboardingId },
+      include: { documents: true },
+    });
+    if (!credential) throw new NotFoundException("Credential not found.");
+
+    for (const document of credential.documents) {
+      await this.documentStorage.remove(document.objectKey);
+    }
+
+    await this.prisma.onboardingCredential.delete({
+      where: { id: credentialId },
+    });
+
+    await this.audit.write({
+      actorId: principal.accountId,
+      action: "ONBOARDING_CREDENTIAL_REMOVED",
+      objectType: "PROVIDER_CREDENTIAL",
+      objectId: credentialId,
+      result: "SUCCESS",
+      metadata: {
+        onboardingId,
+        removedDocumentCount: credential.documents.length,
+      },
+    });
+
+    return { id: credentialId, removed: true };
+  }
+
   async credentialDocumentContent(
     principal: AuthPrincipal,
     onboardingId: string,
