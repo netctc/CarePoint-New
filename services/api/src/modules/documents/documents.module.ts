@@ -211,6 +211,13 @@ class DiagnosticReportsController {
     PatientDocumentCentreService,
     PatientDocumentInboxService,
   ],
-  exports: [DocumentsService, DocumentStorageService, DocumentsImagingInteropService, DocumentsSystemExportService],
+  exports: [
+    DocumentsService,
+    DocumentStorageService,
+    DocumentsEnvelopeService,
+    DocumentMalwareScannerService,
+    DocumentsImagingInteropService,
+    DocumentsSystemExportService,
+  ],
 })
 export class DocumentsModule {}
