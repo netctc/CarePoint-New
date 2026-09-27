@@ -58,3 +58,10 @@ jobs:
             --build-arg CAREPOINT_BUILD_ENV=staging \
             --build-arg CAREPOINT_RELEASE_SHA=0123456789abcdef0123456789abcdef01234567 \
             .
+
+      - name: Validate registration OTP contract
+        run: |
+          grep -q 'REGISTRATION_OTP_DELIVERY_MODE:' ops/test-v2/compose.yaml
+          grep -q 'REGISTRATION_OTP_PEPPER:' ops/test-v2/compose.yaml
+          grep -q 'REGISTRATION_OTP_DELIVERY_MODE=display' ops/test-v2/variables.required.txt
+          grep -q 'TWILIO_ACCOUNT_SID' ops/test-v2/variables.required.txt
