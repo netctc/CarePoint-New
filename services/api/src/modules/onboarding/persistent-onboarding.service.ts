@@ -317,6 +317,7 @@ export class PersistentOnboardingService {
     }
     const ciphertext = await this.documentStorage.get(document.objectKey);
     const envelope: EncryptedEnvelope = {
+      version: 1,
       algorithm: "AES-256-GCM",
       keyId: document.blobKeyId,
       wrappedKey: document.blobWrappedKey,
