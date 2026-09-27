@@ -97,50 +97,81 @@ class CarePointSessionChrome extends StatelessWidget {
         animation: controller,
         builder: (context, _) {
           final navigation = controller.hasSession ? controller.navigation : null;
-          final bottomSpace = navigation == null ? 0.0 : 80.0;
+          final bottomInset = MediaQuery.paddingOf(context).bottom;
+          final bottomHeight = navigation == null ? 0.0 : 80.0 + bottomInset;
+          final topInset = MediaQuery.paddingOf(context).top;
+
           return Stack(
+            fit: StackFit.expand,
             children: [
               Positioned.fill(
                 child: Padding(
-                  padding: EdgeInsets.only(bottom: bottomSpace),
+                  padding: EdgeInsets.only(bottom: bottomHeight),
                   child: child,
                 ),
               ),
               PositionedDirectional(
-                top: 0,
-                end: 64,
-                child: SafeArea(
-                  bottom: false,
-                  child: SizedBox(
-                    height: kToolbarHeight,
-                    child: Material(
-                      color: Colors.transparent,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _CarePointLanguagePopup(
-                            locale: locale,
-                            onLocaleChanged: onLocaleChanged,
-                          ),
-                          if (controller.hasSession)
-                            TextButton.icon(
-                              onPressed: controller.signOut,
-                              icon: const Icon(Icons.logout_rounded),
-                              label: Text(cpText(locale, 'auth.signOut')),
-                            ),
-                        ],
+                top: topInset,
+                end: 8,
+                height: kToolbarHeight,
+                child: Material(
+                  type: MaterialType.transparency,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      PopupMenuButton<CarePointLocale>(
+                        tooltip: null,
+                        icon: const Icon(Icons.language_rounded),
+                        initialValue: locale,
+                        position: PopupMenuPosition.under,
+                        constraints: const BoxConstraints(
+                          minWidth: 180,
+                          maxWidth: 220,
+                        ),
+                        onSelected: onLocaleChanged,
+                        itemBuilder: (_) => CarePointLocale.values
+                            .map(
+                              (value) => PopupMenuItem<CarePointLocale>(
+                                value: value,
+                                height: 46,
+                                child: Row(
+                                  children: [
+                                    SizedBox(
+                                      width: 28,
+                                      child: value == locale
+                                          ? const Icon(
+                                              Icons.check_rounded,
+                                              size: 18,
+                                            )
+                                          : null,
+                                    ),
+                                    Expanded(child: Text(value.label)),
+                                  ],
+                                ),
+                              ),
+                            )
+                            .toList(growable: false),
                       ),
-                    ),
+                      if (controller.hasSession)
+                        TextButton.icon(
+                          onPressed: controller.signOut,
+                          icon: const Icon(Icons.logout_rounded),
+                          label: Text(cpText(locale, 'auth.signOut')),
+                        ),
+                    ],
                   ),
                 ),
               ),
               if (navigation != null)
-                Align(
-                  alignment: Alignment.bottomCenter,
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  height: bottomHeight,
                   child: Material(
                     elevation: 8,
-                    child: SafeArea(
-                      top: false,
+                    child: Padding(
+                      padding: EdgeInsets.only(bottom: bottomInset),
                       child: NavigationBar(
                         selectedIndex: navigation.selectedIndex,
                         onDestinationSelected: navigation.onSelected,
@@ -152,73 +183,6 @@ class CarePointSessionChrome extends StatelessWidget {
             ],
           );
         },
-      );
-}
-
-class _CarePointLanguagePopup extends StatefulWidget {
-  const _CarePointLanguagePopup({
-    required this.locale,
-    required this.onLocaleChanged,
-  });
-
-  final CarePointLocale locale;
-  final ValueChanged<CarePointLocale> onLocaleChanged;
-
-  @override
-  State<_CarePointLanguagePopup> createState() => _CarePointLanguagePopupState();
-}
-
-class _CarePointLanguagePopupState extends State<_CarePointLanguagePopup> {
-  final GlobalKey _buttonKey = GlobalKey();
-
-  Future<void> _open() async {
-    final buttonContext = _buttonKey.currentContext;
-    final overlay = Overlay.maybeOf(context)?.context.findRenderObject() as RenderBox?;
-    final box = buttonContext?.findRenderObject() as RenderBox?;
-    if (overlay == null || box == null) return;
-
-    final topLeft = box.localToGlobal(Offset.zero, ancestor: overlay);
-    final bottomRight = box.localToGlobal(
-      box.size.bottomRight(Offset.zero),
-      ancestor: overlay,
-    );
-    final selected = await showMenu<CarePointLocale>(
-      context: context,
-      position: RelativeRect.fromRect(
-        Rect.fromPoints(topLeft, bottomRight),
-        Offset.zero & overlay.size,
-      ),
-      constraints: const BoxConstraints(minWidth: 180, maxWidth: 220),
-      items: CarePointLocale.values
-          .map(
-            (value) => PopupMenuItem<CarePointLocale>(
-              value: value,
-              height: 46,
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: 28,
-                    child: value == widget.locale
-                        ? const Icon(Icons.check_rounded, size: 18)
-                        : null,
-                  ),
-                  Expanded(child: Text(value.label)),
-                ],
-              ),
-            ),
-          )
-          .toList(growable: false),
-    );
-    if (selected != null && selected != widget.locale && mounted) {
-      widget.onLocaleChanged(selected);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) => IconButton(
-        key: _buttonKey,
-        onPressed: _open,
-        icon: const Icon(Icons.language_rounded),
       );
 }
 
