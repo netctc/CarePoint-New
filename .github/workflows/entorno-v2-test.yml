@@ -62,6 +62,8 @@ jobs:
       MESSAGING_ENVELOPE_KEY_BASE64: dGVzdC10ZXN0LXRlc3QtdGVzdC10ZXN0LXRlc3Q=
       TELEHEALTH_ENVELOPE_KEY_BASE64: dGVzdC10ZXN0LXRlc3QtdGVzdC10ZXN0LXRlc3Q=
       TELEHEALTH_MOCK_SIGNING_SECRET: dGVzdC10ZXN0LXRlc3QtdGVzdC10ZXN0LXRlc3Q=
+      REGISTRATION_OTP_DELIVERY_MODE: display
+      REGISTRATION_OTP_PEPPER: test-registration-otp-pepper-0123456789abcdef
     steps:
       - uses: actions/checkout@v4
       - run: docker compose -f ops/test-v2/compose.yaml config >/dev/null
