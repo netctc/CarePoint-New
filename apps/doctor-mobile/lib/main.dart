@@ -43,6 +43,8 @@ class _DoctorAppState extends State<DoctorApp> {
         ),
         builder: (context, child) => CarePointSessionChrome(
           controller: sessionUi,
+          navigatorKey: navigatorKey,
+          navigatorObserver: navigatorObserver,
           locale: locale,
           dark: true,
           onLocaleChanged: (value) => setState(() => locale = value),
