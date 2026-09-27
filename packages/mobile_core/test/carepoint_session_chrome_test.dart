@@ -1,3 +1,5 @@
+import 'dart:ui' show PointerDeviceKind;
+
 import 'package:carepoint_mobile_core/carepoint_auth.dart';
 import 'package:carepoint_mobile_core/carepoint_localization.dart';
 import 'package:flutter/material.dart';
@@ -78,7 +80,14 @@ void main() {
       expect(find.text('Home'), findsOneWidget);
       expect(find.text('Records'), findsOneWidget);
 
-      await tester.tap(find.byIcon(Icons.language_rounded));
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      await mouse.moveTo(tester.getCenter(find.byIcon(Icons.language_rounded)));
+      await tester.pump();
+      expect(find.byType(ModalBarrier), findsNothing);
+
+      await mouse.down(tester.getCenter(find.byIcon(Icons.language_rounded)));
+      await mouse.up();
       await tester.pumpAndSettle();
       expect(find.text(CarePointLocale.es.label), findsOneWidget);
 
@@ -91,11 +100,17 @@ void main() {
       expect(find.text('Second page'), findsOneWidget);
       expect(find.text('Records'), findsOneWidget);
 
-      await tester.tap(find.text('Records'));
+      await mouse.moveTo(tester.getCenter(find.text('Records')));
+      await tester.pump();
+      expect(find.byType(ModalBarrier), findsNothing);
+
+      await mouse.down(tester.getCenter(find.text('Records')));
+      await mouse.up();
       await tester.pumpAndSettle();
       expect(selectedIndex, 1);
       expect(find.text('Second page'), findsNothing);
 
+      await mouse.removePointer();
       await tester.pumpWidget(const SizedBox.shrink());
       controller.dispose();
     },
