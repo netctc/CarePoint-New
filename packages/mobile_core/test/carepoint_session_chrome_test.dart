@@ -11,7 +11,6 @@ void main() {
     (tester) async {
       final controller = CarePointSessionUiController();
       final navigatorKey = GlobalKey<NavigatorState>();
-      final observer = CarePointSessionNavigatorObserver();
       var locale = CarePointLocale.en;
       var selectedIndex = 0;
 
@@ -41,11 +40,8 @@ void main() {
         StatefulBuilder(
           builder: (context, setState) => MaterialApp(
             navigatorKey: navigatorKey,
-            navigatorObservers: [observer],
             builder: (context, child) => CarePointSessionChrome(
               controller: controller,
-              navigatorKey: navigatorKey,
-              navigatorObserver: observer,
               locale: locale,
               onLocaleChanged: (value) {
                 setState(() => locale = value);
