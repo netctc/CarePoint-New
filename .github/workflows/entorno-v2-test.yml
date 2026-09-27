@@ -41,6 +41,22 @@ jobs:
         working-directory: apps/${{ matrix.app }}
         run: flutter build web --release --dart-define=CAREPOINT_API_BASE=https://api-test.example.com/api/v1 --dart-define=CAREPOINT_BUILD_ENV=staging --dart-define=CAREPOINT_RELEASE_SHA=0123456789abcdef0123456789abcdef01234567
 
+  mobile-chrome-regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.2
+          channel: stable
+          cache: true
+      - name: Resolve shared mobile dependencies
+        working-directory: packages/mobile_core
+        run: flutter pub get
+      - name: Test persistent menu interaction
+        working-directory: packages/mobile_core
+        run: flutter test test/carepoint_session_chrome_test.dart
+
   compose-config:
     runs-on: ubuntu-latest
     env:
