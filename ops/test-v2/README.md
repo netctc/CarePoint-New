@@ -162,8 +162,9 @@ Do not automatically fast-forward `entorno-v2` from open PRs. Promote a new `v2/
 Self-registration uses a phone-verification gate before any account is created.
 
 - OTP length: 6 digits.
-- Validity: 5 minutes.
+- OTP validity before verification: 5 minutes.
 - Maximum verification attempts: 3.
+- After successful OTP verification, the one-time registration completion token remains valid for 30 minutes.
 - `REGISTRATION_OTP_DELIVERY_MODE=display` is intended only for non-production testing and returns the OTP to the registration view.
 - `REGISTRATION_OTP_DELIVERY_MODE=sms` sends the OTP through Twilio and never returns the code to the client.
 - Production refuses `display` mode.
