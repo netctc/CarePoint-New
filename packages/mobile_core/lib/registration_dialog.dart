@@ -383,7 +383,7 @@ const _copy = <String, Map<String, String>>{
   'en': {
     'title': 'Create CarePoint account',
     'patientHint': 'Your patient account becomes active immediately after registration.',
-    'professionalHint': 'Your account is created now, but professional access remains pending until CarePoint validates your membership and credentials.',
+    'professionalHint': 'Your account is created now, but professional access remains pending. Contact the CarePoint administrator and provide the required membership and credential documents for validation.',
     'firstName': 'First name',
     'lastName': 'Last name',
     'phone': 'Contact phone',
@@ -413,7 +413,7 @@ const _copy = <String, Map<String, String>>{
   'es': {
     'title': 'Crear cuenta CarePoint',
     'patientHint': 'Tu cuenta de paciente quedará activa inmediatamente después del registro.',
-    'professionalHint': 'La cuenta se crea ahora, pero el acceso profesional quedará pendiente hasta que CarePoint valide la membresía y las credenciales.',
+    'professionalHint': 'La cuenta se crea ahora, pero el acceso profesional quedará pendiente. Contacta con el administrador de CarePoint y presenta la documentación de membresía y credenciales requerida para su validación.',
     'firstName': 'Nombre',
     'lastName': 'Apellidos',
     'phone': 'Teléfono de contacto',
@@ -443,7 +443,7 @@ const _copy = <String, Map<String, String>>{
   'fr': {
     'title': 'Créer un compte CarePoint',
     'patientHint': 'Votre compte patient devient actif immédiatement après l’inscription.',
-    'professionalHint': 'Le compte est créé maintenant, mais l’accès professionnel reste en attente de validation par CarePoint.',
+    'professionalHint': 'Le compte est créé maintenant, mais l’accès professionnel reste en attente. Contactez l’administrateur CarePoint et fournissez les documents d’adhésion et d’habilitation requis.',
     'firstName': 'Prénom',
     'lastName': 'Nom',
     'phone': 'Téléphone',
@@ -473,7 +473,7 @@ const _copy = <String, Map<String, String>>{
   'ar': {
     'title': 'إنشاء حساب CarePoint',
     'patientHint': 'سيصبح حساب المريض نشطاً مباشرة بعد التسجيل.',
-    'professionalHint': 'يتم إنشاء الحساب الآن، لكن الوصول المهني يبقى قيد المراجعة حتى تتحقق CarePoint من العضوية والاعتمادات.',
+    'professionalHint': 'يتم إنشاء الحساب الآن، لكن الوصول المهني يبقى قيد المراجعة. تواصل مع مسؤول CarePoint وقدّم مستندات العضوية والاعتمادات المطلوبة للتحقق.',
     'firstName': 'الاسم الأول',
     'lastName': 'اسم العائلة',
     'phone': 'هاتف التواصل',
