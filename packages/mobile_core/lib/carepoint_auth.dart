@@ -246,7 +246,7 @@ class _CarePointSessionChromeState extends State<CarePointSessionChrome> {
           mainAxisSize: MainAxisSize.min,
           children: [
             PopupMenuButton<CarePointLocale>(
-              tooltip: '',
+              tooltip: null,
               icon: const Icon(Icons.language_rounded),
               initialValue: widget.locale,
               position: PopupMenuPosition.under,
