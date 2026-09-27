@@ -17,8 +17,6 @@ class DoctorApp extends StatefulWidget {
 class _DoctorAppState extends State<DoctorApp> {
   CarePointLocale locale = CarePointLocale.en;
   final sessionUi = CarePointSessionUiController();
-  final navigatorKey = GlobalKey<NavigatorState>();
-  final navigatorObserver = CarePointSessionNavigatorObserver();
 
   @override
   void dispose() {
@@ -29,8 +27,6 @@ class _DoctorAppState extends State<DoctorApp> {
   @override
   Widget build(BuildContext context) => MaterialApp(
         debugShowCheckedModeBanner: false,
-    navigatorKey: navigatorKey,
-    navigatorObservers: [navigatorObserver],
         locale: locale.locale,
         theme: ThemeData(
           useMaterial3: true,
@@ -43,8 +39,6 @@ class _DoctorAppState extends State<DoctorApp> {
         ),
         builder: (context, child) => CarePointSessionChrome(
           controller: sessionUi,
-          navigatorKey: navigatorKey,
-          navigatorObserver: navigatorObserver,
           locale: locale,
           dark: true,
           onLocaleChanged: (value) => setState(() => locale = value),
