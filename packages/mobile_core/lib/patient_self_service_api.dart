@@ -172,6 +172,21 @@ extension CarePointProviderOnboardingApi on CarePointApi {
     },
   ));
 
+  Future<Map<String, dynamic>> providerOnboardingCredentialDocumentContent(
+    String onboardingId,
+    String credentialId,
+    String documentId,
+  ) async => _asMap(await _send(
+    'GET',
+    '/onboarding/' +
+        Uri.encodeComponent(onboardingId) +
+        '/credentials/' +
+        Uri.encodeComponent(credentialId) +
+        '/documents/' +
+        Uri.encodeComponent(documentId) +
+        '/content',
+  ));
+
   Future<Map<String, dynamic>> submitProviderOnboarding(String onboardingId) async => _asMap(await _send('POST', '/onboarding/$onboardingId/submit', body: const {}));
 }
 
