@@ -10,6 +10,7 @@ required_vars=(
   MFA_ENVELOPE_KEY_BASE64 CLINICAL_ENVELOPE_KEY_BASE64 ORDER_ENVELOPE_KEY_BASE64
   ORDER_SIGNING_SECRET_BASE64 DOCUMENT_ENVELOPE_KEY_BASE64 DOCUMENT_SIGNING_SECRET_BASE64
   MESSAGING_ENVELOPE_KEY_BASE64 TELEHEALTH_ENVELOPE_KEY_BASE64 TELEHEALTH_MOCK_SIGNING_SECRET
+  REGISTRATION_OTP_PEPPER
 )
 
 for name in "${required_vars[@]}"; do
@@ -22,6 +23,28 @@ done
 if [[ "$CAREPOINT_API_PUBLIC_BASE" != "https://${TEST_API_DOMAIN}/api/v1" ]]; then
   echo "ERROR: CAREPOINT_API_PUBLIC_BASE must equal https://${TEST_API_DOMAIN}/api/v1" >&2
   exit 2
+fi
+
+if [[ "${#REGISTRATION_OTP_PEPPER}" -lt 32 ]]; then
+  echo "ERROR: REGISTRATION_OTP_PEPPER must contain at least 32 characters" >&2
+  exit 2
+fi
+
+export REGISTRATION_OTP_DELIVERY_MODE="${REGISTRATION_OTP_DELIVERY_MODE:-display}"
+if [[ "$REGISTRATION_OTP_DELIVERY_MODE" != "display" && "$REGISTRATION_OTP_DELIVERY_MODE" != "sms" ]]; then
+  echo "ERROR: REGISTRATION_OTP_DELIVERY_MODE must be display or sms" >&2
+  exit 2
+fi
+
+if [[ "$REGISTRATION_OTP_DELIVERY_MODE" == "sms" ]]; then
+  if [[ -z "${TWILIO_ACCOUNT_SID:-}" || -z "${TWILIO_AUTH_TOKEN:-}" ]]; then
+    echo "ERROR: TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN are required in SMS mode" >&2
+    exit 2
+  fi
+  if [[ -z "${TWILIO_FROM_NUMBER:-}" && -z "${TWILIO_MESSAGING_SERVICE_SID:-}" ]]; then
+    echo "ERROR: set TWILIO_FROM_NUMBER or TWILIO_MESSAGING_SERVICE_SID in SMS mode" >&2
+    exit 2
+  fi
 fi
 
 if ! command -v docker >/dev/null 2>&1; then
