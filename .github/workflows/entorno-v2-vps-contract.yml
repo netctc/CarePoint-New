@@ -65,3 +65,9 @@ jobs:
           grep -q 'REGISTRATION_OTP_PEPPER:' ops/test-v2/compose.yaml
           grep -q 'REGISTRATION_OTP_DELIVERY_MODE=display' ops/test-v2/variables.required.txt
           grep -q 'TWILIO_ACCOUNT_SID' ops/test-v2/variables.required.txt
+
+      - name: Validate credential PDF proxy limit
+        run: |
+          grep -q 'client_max_body_size 12m;' ops/test-v2/nginx/carepoint-v2-http.conf.template
+          grep -q 'JSON_BODY_LIMIT_BYTES' ops/test-v2/compose.yaml
+          test -f services/api/prisma/migrations/20260927170500_onboarding_credential_documents/migration.sql
