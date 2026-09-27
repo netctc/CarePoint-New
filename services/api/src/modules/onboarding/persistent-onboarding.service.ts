@@ -1,8 +1,12 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
+import { randomUUID } from "node:crypto";
 import { canActOnAccount, canOwnOnboarding, roleHasPermission, type AuthPrincipal } from "@carepoint/identity";
 import { PrismaService } from "../../infrastructure/prisma/prisma.module";
 import { DatabaseAuditService } from "../../infrastructure/audit/audit.service";
 import { PersistentAuthService } from "../../security/persistent-auth.service";
+import { DocumentStorageService } from "../documents/document-storage.service";
+import { DocumentsEnvelopeService } from "../documents/documents-envelope.service";
+import { DocumentMalwareScannerService } from "../documents/document-malware-scanner.service";
 
 const OPEN_STATES = ["DRAFT", "PENDING_REVIEW", "REQUEST_CHANGES"] as const;
 
@@ -12,13 +16,31 @@ export class PersistentOnboardingService {
     private readonly prisma: PrismaService,
     private readonly audit: DatabaseAuditService,
     private readonly auth: PersistentAuthService,
+    private readonly documentStorage: DocumentStorageService,
+    private readonly documentEnvelope: DocumentsEnvelopeService,
+    private readonly documentScanner: DocumentMalwareScannerService,
   ) {}
 
   async list(principal: AuthPrincipal) {
     this.requireReviewPermission(principal);
     const records = await this.prisma.providerOnboarding.findMany({
       include: {
-        credentials: { orderBy: { createdAt: "asc" } },
+        credentials: {
+          orderBy: { createdAt: "asc" },
+          include: {
+            documents: {
+              orderBy: { createdAt: "asc" },
+              select: {
+                id: true,
+                fileName: true,
+                mediaType: true,
+                byteLength: true,
+                contentDigest: true,
+                createdAt: true,
+              },
+            },
+          },
+        },
         specialty: true,
         providerCategory: true,
         user: { select: { id: true, email: true, role: true, status: true } },
@@ -127,6 +149,98 @@ export class PersistentOnboardingService {
       metadata: { onboardingId, type: credential.type },
     });
     return credential;
+  }
+
+  async uploadCredentialDocument(
+    principal: AuthPrincipal,
+    onboardingId: string,
+    credentialId: string,
+    input: { fileName: string; mediaType?: string; contentBase64: string },
+  ) {
+    const onboarding = await this.requireOwnedOnboarding(principal, onboardingId);
+    if (onboarding.state !== "DRAFT" && onboarding.state !== "REQUEST_CHANGES") {
+      throw new ConflictException(
+        "Credential documents cannot be changed while onboarding is under review or approved.",
+      );
+    }
+
+    const credential = await this.prisma.onboardingCredential.findFirst({
+      where: { id: credentialId, onboardingId },
+      include: { documents: { select: { id: true } } },
+    });
+    if (!credential) throw new NotFoundException("Credential not found.");
+    if (credential.documents.length >= 10) {
+      throw new BadRequestException("A credential can contain at most 10 PDF documents.");
+    }
+
+    const fileName = input.fileName?.trim();
+    if (!fileName || fileName.length > 180 || !fileName.toLowerCase().endsWith(".pdf")) {
+      throw new BadRequestException("Credential document fileName must be a PDF name up to 180 characters.");
+    }
+    const mediaType = (input.mediaType?.trim().toLowerCase() || "application/pdf");
+    if (mediaType !== "application/pdf") {
+      throw new BadRequestException("Credential documents must use application/pdf.");
+    }
+
+    const compact = input.contentBase64?.replace(/\s+/g, "") ?? "";
+    if (
+      !compact ||
+      compact.length % 4 !== 0 ||
+      !/^[A-Za-z0-9+/]*={0,2}$/.test(compact)
+    ) {
+      throw new BadRequestException("Credential document contentBase64 must be valid base64.");
+    }
+    const bytes = Uint8Array.from(Buffer.from(compact, "base64"));
+    const scan = await this.documentScanner.assertClean(bytes, "application/pdf");
+    const encrypted = await this.documentEnvelope.encryptBytes(bytes);
+    const objectKey = `credentialing/${credentialId}/${randomUUID()}.cpenc`;
+
+    await this.documentStorage.put(objectKey, encrypted.ciphertext);
+    try {
+      const document = await this.prisma.onboardingCredentialDocument.create({
+        data: {
+          credentialId,
+          fileName,
+          mediaType,
+          byteLength: bytes.byteLength,
+          contentDigest: scan.contentDigest,
+          storageProvider: this.documentStorage.storageProviderName(),
+          objectKey,
+          blobAlgorithm: encrypted.envelope.algorithm,
+          blobKeyId: encrypted.envelope.keyId,
+          blobWrappedKey: encrypted.envelope.wrappedKey,
+          blobIv: encrypted.envelope.iv,
+          createdByAccountId: principal.accountId,
+        },
+        select: {
+          id: true,
+          fileName: true,
+          mediaType: true,
+          byteLength: true,
+          contentDigest: true,
+          createdAt: true,
+        },
+      });
+
+      await this.audit.write({
+        actorId: principal.accountId,
+        action: "ONBOARDING_CREDENTIAL_DOCUMENT_UPLOADED",
+        objectType: "PROVIDER_CREDENTIAL_DOCUMENT",
+        objectId: document.id,
+        result: "SUCCESS",
+        metadata: {
+          onboardingId,
+          credentialId,
+          mediaType,
+          byteLength: document.byteLength,
+          scanId: scan.scanId,
+        },
+      });
+      return document;
+    } catch (error) {
+      await this.documentStorage.remove(objectKey).catch(() => undefined);
+      throw error;
+    }
   }
 
   async submit(principal: AuthPrincipal, onboardingId: string) {
