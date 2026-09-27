@@ -1,4 +1,5 @@
 import 'package:carepoint_mobile_core/carepoint_api.dart';
+import 'package:carepoint_mobile_core/credential_pdf_picker.dart';
 import 'package:carepoint_mobile_core/carepoint_localization.dart';
 import 'package:carepoint_mobile_core/professional_account_workspace.dart';
 import 'package:flutter/material.dart';
@@ -260,6 +261,7 @@ class _OtherProviderAccessGateState extends State<OtherProviderAccessGate> {
                   if (item['issuer']?.toString().trim().isNotEmpty == true) '${_t('issuer')}: ${item['issuer']}',
                   if (item['validUntil'] != null) '${_t('validUntil')}: ${_date(item['validUntil'])}',
                   '${_t('reviewState')}: ${item['state'] ?? 'PENDING'}',
+                  if (_credentialDocumentsText(item) != null) _credentialDocumentsText(item)!,
                   if (item['reviewNote']?.toString().trim().isNotEmpty == true) '${_t('reviewNote')}: ${item['reviewNote']}',
                 ].join('\n')),
                 isThreeLine: true,
@@ -305,6 +307,7 @@ class _OtherProviderAccessGateState extends State<OtherProviderAccessGate> {
     final number = TextEditingController();
     final issuer = TextEditingController();
     final validUntil = TextEditingController();
+    var selectedPdfs = <CarePointCredentialPdf>[];
 
     final accepted = await showDialog<bool>(
       context: context,
@@ -328,6 +331,47 @@ class _OtherProviderAccessGateState extends State<OtherProviderAccessGate> {
               keyboardType: TextInputType.datetime,
               decoration: InputDecoration(labelText: _t('validUntilOptional'), hintText: 'YYYY-MM-DD', border: const OutlineInputBorder()),
             ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: () async {
+                try {
+                  final remaining = carePointCredentialPdfMaxFiles - selectedPdfs.length;
+                  if (remaining <= 0) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_t('pdfLimitReached'))));
+                    return;
+                  }
+                  final picked = await pickCarePointCredentialPdfs(maxFiles: remaining);
+                  if (picked.isNotEmpty) {
+                    setModalState(() => selectedPdfs = [...selectedPdfs, ...picked]);
+                  }
+                } catch (value) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value.toString())));
+                  }
+                }
+              },
+              icon: const Icon(Icons.picture_as_pdf_outlined),
+              label: Text(_t('attachPdfs')),
+            ),
+            const SizedBox(height: 6),
+            Text(_t('pdfUploadHint'), style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
+            if (selectedPdfs.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              ...selectedPdfs.asMap().entries.map((entry) => ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.picture_as_pdf_outlined),
+                title: Text(entry.value.name),
+                subtitle: Text(carePointCredentialPdfSizeLabel(entry.value.byteLength)),
+                trailing: IconButton(
+                  icon: const Icon(Icons.close_rounded),
+                  onPressed: () => setModalState(() {
+                    final next = [...selectedPdfs]..removeAt(entry.key);
+                    selectedPdfs = next;
+                  }),
+                ),
+              )),
+            ],
           ]),
         ),
         actions: [
@@ -344,16 +388,31 @@ class _OtherProviderAccessGateState extends State<OtherProviderAccessGate> {
     final valueNumber = number.text.trim();
     final valueIssuer = issuer.text.trim();
     final expiry = validUntil.text.trim();
+    final pdfs = List<CarePointCredentialPdf>.from(selectedPdfs);
     number.dispose(); issuer.dispose(); validUntil.dispose();
 
     await _run(
-      () => api.addProviderOnboardingCredential(
-        id,
-        type: type,
-        number: valueNumber.isEmpty ? null : valueNumber,
-        issuer: valueIssuer.isEmpty ? null : valueIssuer,
-        validUntil: expiry.isEmpty ? null : expiry,
-      ),
+      () async {
+        final credential = await api.addProviderOnboardingCredential(
+          id,
+          type: type,
+          number: valueNumber.isEmpty ? null : valueNumber,
+          issuer: valueIssuer.isEmpty ? null : valueIssuer,
+          validUntil: expiry.isEmpty ? null : expiry,
+        );
+        final credentialId = credential['id']?.toString() ?? '';
+        if (credentialId.isEmpty && pdfs.isNotEmpty) {
+          throw const CarePointApiException('Credential id is missing after save.');
+        }
+        for (final pdf in pdfs) {
+          await api.uploadProviderOnboardingCredentialPdf(
+            id,
+            credentialId,
+            fileName: pdf.name,
+            bytes: pdf.bytes,
+          );
+        }
+      },
       success: _t('credentialAdded'),
     );
   }
@@ -436,6 +495,17 @@ class _OtherProviderAccessGateState extends State<OtherProviderAccessGate> {
     return value?.trim().isNotEmpty == true ? value! : fallback;
   }
 
+  String? _credentialDocumentsText(Map<String, dynamic> item) {
+    final documents = _list(item['documents']);
+    if (documents.isEmpty) return null;
+    final names = documents
+        .map((document) => document['fileName']?.toString())
+        .whereType<String>()
+        .where((name) => name.trim().isNotEmpty)
+        .toList(growable: false);
+    return _t('pdfDocuments') + ': ' + (names.isEmpty ? documents.length.toString() : names.join(', '));
+  }
+
   String _credentialTypeLabel(String? type) {
     if (type == null || type.trim().isEmpty) return _t('credential');
     return type.split('-').map((part) => part.isEmpty ? part : '${part[0].toUpperCase()}${part.substring(1)}').join(' ');
@@ -485,7 +555,7 @@ const Map<String, Map<String, String>> _providerAccessText = {
     'accessStatus': 'Access status', 'providerStatus': 'Provider status', 'applicationStatus': 'Application status', 'notCreated': 'Not created', 'notStarted': 'Not started', 'submitted': 'Submitted', 'reviewed': 'Reviewed',
     'startApplication': 'Start provider application', 'startHint': 'Select the category that matches your regulated activity. Doctor onboarding remains separate.', 'category': 'Provider category', 'noCategories': 'No active Other Provider categories are available.', 'applicationStarted': 'Provider application started.',
     'professionalCategory': 'Professional category', 'family': 'Provider family', 'requiredCredentials': 'Required credentials', 'modalities': 'Enabled modalities', 'atLeastOneCredential': 'At least one credential', 'notApplicable': 'Not applicable',
-    'credentials': 'Credentials', 'credential': 'Credential', 'noCredentials': 'Add the required professional credentials before submitting.', 'addCredential': 'Add credential', 'credentialType': 'Credential type', 'credentialNumber': 'Credential number', 'credentialNumberOptional': 'Credential number (optional)', 'issuer': 'Issuer', 'issuerOptional': 'Issuer (optional)', 'validUntil': 'Valid until', 'validUntilOptional': 'Valid until (optional)', 'reviewState': 'Review state', 'reviewNote': 'Review note', 'credentialAdded': 'Credential added.', 'missingRequired': 'Missing required credentials',
+    'credentials': 'Credentials', 'credential': 'Credential', 'noCredentials': 'Add the required professional credentials before submitting.', 'addCredential': 'Add credential', 'credentialType': 'Credential type', 'credentialNumber': 'Credential number', 'credentialNumberOptional': 'Credential number (optional)', 'issuer': 'Issuer', 'issuerOptional': 'Issuer (optional)', 'validUntil': 'Valid until', 'validUntilOptional': 'Valid until (optional)', 'reviewState': 'Review state', 'reviewNote': 'Review note', 'credentialAdded': 'Credential added.', 'attachPdfs': 'Attach PDF documents (optional)', 'pdfUploadHint': 'Up to 10 PDF files, 8 MB each.', 'pdfLimitReached': 'The maximum of 10 PDF documents has been reached.', 'pdfDocuments': 'PDF documents', 'missingRequired': 'Missing required credentials',
     'submitReview': 'Submit for review', 'submitHint': 'After submission, credentials are locked until governance requests changes.', 'submittedSuccess': 'Application submitted for review.', 'pendingHint': 'Your application is under governance review. Operational workspace access remains locked until approval.',
     'suspendedHint': 'Your provider access is suspended. A new onboarding cannot override a suspension; contact CarePoint governance.', 'approvedNotActiveHint': 'The application is approved but provider activation is not complete. Refresh or contact support if this persists.',
     'cancel': 'Cancel', 'save': 'Save',
@@ -495,7 +565,7 @@ const Map<String, Map<String, String>> _providerAccessText = {
     'accessStatus': 'حالة الوصول', 'providerStatus': 'حالة مقدم الخدمة', 'applicationStatus': 'حالة الطلب', 'notCreated': 'غير منشأ', 'notStarted': 'لم يبدأ', 'submitted': 'تم الإرسال', 'reviewed': 'تمت المراجعة',
     'startApplication': 'بدء طلب مقدم خدمة', 'startHint': 'اختر الفئة المطابقة لنشاطك المنظم. يبقى اعتماد الأطباء في مسار منفصل.', 'category': 'فئة مقدم الخدمة', 'noCategories': 'لا توجد فئات نشطة لمقدمي الخدمات الآخرين.', 'applicationStarted': 'تم بدء الطلب.',
     'professionalCategory': 'الفئة المهنية', 'family': 'عائلة مقدم الخدمة', 'requiredCredentials': 'الاعتمادات المطلوبة', 'modalities': 'أنماط الخدمة المفعلة', 'atLeastOneCredential': 'اعتماد واحد على الأقل', 'notApplicable': 'غير مطبق',
-    'credentials': 'الاعتمادات', 'credential': 'اعتماد', 'noCredentials': 'أضف الاعتمادات المهنية المطلوبة قبل الإرسال.', 'addCredential': 'إضافة اعتماد', 'credentialType': 'نوع الاعتماد', 'credentialNumber': 'رقم الاعتماد', 'credentialNumberOptional': 'رقم الاعتماد (اختياري)', 'issuer': 'جهة الإصدار', 'issuerOptional': 'جهة الإصدار (اختياري)', 'validUntil': 'صالح حتى', 'validUntilOptional': 'صالح حتى (اختياري)', 'reviewState': 'حالة المراجعة', 'reviewNote': 'ملاحظة المراجعة', 'credentialAdded': 'تمت إضافة الاعتماد.', 'missingRequired': 'اعتمادات مطلوبة مفقودة',
+    'credentials': 'الاعتمادات', 'credential': 'اعتماد', 'noCredentials': 'أضف الاعتمادات المهنية المطلوبة قبل الإرسال.', 'addCredential': 'إضافة اعتماد', 'credentialType': 'نوع الاعتماد', 'credentialNumber': 'رقم الاعتماد', 'credentialNumberOptional': 'رقم الاعتماد (اختياري)', 'issuer': 'جهة الإصدار', 'issuerOptional': 'جهة الإصدار (اختياري)', 'validUntil': 'صالح حتى', 'validUntilOptional': 'صالح حتى (اختياري)', 'reviewState': 'حالة المراجعة', 'reviewNote': 'ملاحظة المراجعة', 'credentialAdded': 'تمت إضافة الاعتماد.', 'attachPdfs': 'إرفاق مستندات PDF (اختياري)', 'pdfUploadHint': 'حتى 10 ملفات PDF، بحد أقصى 8 ميغابايت لكل ملف.', 'pdfLimitReached': 'تم الوصول إلى الحد الأقصى وهو 10 مستندات PDF.', 'pdfDocuments': 'مستندات PDF', 'missingRequired': 'اعتمادات مطلوبة مفقودة',
     'submitReview': 'إرسال للمراجعة', 'submitHint': 'بعد الإرسال تُقفل الاعتمادات حتى تطلب الحوكمة تغييرات.', 'submittedSuccess': 'تم إرسال الطلب للمراجعة.', 'pendingHint': 'طلبك قيد مراجعة الحوكمة. يبقى الوصول التشغيلي مقفلاً حتى الموافقة.',
     'suspendedHint': 'وصول مقدم الخدمة موقوف. لا يمكن لطلب جديد تجاوز الإيقاف؛ تواصل مع حوكمة CarePoint.', 'approvedNotActiveHint': 'تمت الموافقة لكن التفعيل لم يكتمل. حدّث أو تواصل مع الدعم.',
     'cancel': 'إلغاء', 'save': 'حفظ',
@@ -505,7 +575,7 @@ const Map<String, Map<String, String>> _providerAccessText = {
     'accessStatus': 'État d’accès', 'providerStatus': 'Statut fournisseur', 'applicationStatus': 'Statut du dossier', 'notCreated': 'Non créé', 'notStarted': 'Non démarré', 'submitted': 'Soumis', 'reviewed': 'Révisé',
     'startApplication': 'Démarrer le dossier fournisseur', 'startHint': 'Choisissez la catégorie correspondant à votre activité réglementée. Le parcours médecin reste séparé.', 'category': 'Catégorie fournisseur', 'noCategories': 'Aucune catégorie active disponible.', 'applicationStarted': 'Dossier fournisseur démarré.',
     'professionalCategory': 'Catégorie professionnelle', 'family': 'Famille fournisseur', 'requiredCredentials': 'Justificatifs requis', 'modalities': 'Modalités activées', 'atLeastOneCredential': 'Au moins un justificatif', 'notApplicable': 'Non applicable',
-    'credentials': 'Justificatifs', 'credential': 'Justificatif', 'noCredentials': 'Ajoutez les justificatifs professionnels requis avant de soumettre.', 'addCredential': 'Ajouter un justificatif', 'credentialType': 'Type de justificatif', 'credentialNumber': 'Numéro', 'credentialNumberOptional': 'Numéro (facultatif)', 'issuer': 'Émetteur', 'issuerOptional': 'Émetteur (facultatif)', 'validUntil': 'Valide jusqu’au', 'validUntilOptional': 'Valide jusqu’au (facultatif)', 'reviewState': 'État de revue', 'reviewNote': 'Note de revue', 'credentialAdded': 'Justificatif ajouté.', 'missingRequired': 'Justificatifs requis manquants',
+    'credentials': 'Justificatifs', 'credential': 'Justificatif', 'noCredentials': 'Ajoutez les justificatifs professionnels requis avant de soumettre.', 'addCredential': 'Ajouter un justificatif', 'credentialType': 'Type de justificatif', 'credentialNumber': 'Numéro', 'credentialNumberOptional': 'Numéro (facultatif)', 'issuer': 'Émetteur', 'issuerOptional': 'Émetteur (facultatif)', 'validUntil': 'Valide jusqu’au', 'validUntilOptional': 'Valide jusqu’au (facultatif)', 'reviewState': 'État de revue', 'reviewNote': 'Note de revue', 'credentialAdded': 'Justificatif ajouté.', 'attachPdfs': 'Joindre des PDF (optionnel)', 'pdfUploadHint': 'Jusqu’à 10 fichiers PDF de 8 Mo chacun.', 'pdfLimitReached': 'La limite de 10 documents PDF est atteinte.', 'pdfDocuments': 'Documents PDF', 'missingRequired': 'Justificatifs requis manquants',
     'submitReview': 'Soumettre pour revue', 'submitHint': 'Après soumission, les justificatifs restent verrouillés jusqu’à une demande de modification.', 'submittedSuccess': 'Dossier soumis pour revue.', 'pendingHint': 'Votre dossier est en revue de gouvernance. L’accès opérationnel reste verrouillé jusqu’à approbation.',
     'suspendedHint': 'Votre accès fournisseur est suspendu. Un nouveau dossier ne peut pas contourner la suspension ; contactez la gouvernance CarePoint.', 'approvedNotActiveHint': 'Le dossier est approuvé mais l’activation n’est pas terminée. Actualisez ou contactez le support.',
     'cancel': 'Annuler', 'save': 'Enregistrer',
@@ -515,7 +585,7 @@ const Map<String, Map<String, String>> _providerAccessText = {
     'accessStatus': 'Estado de acceso', 'providerStatus': 'Estado del proveedor', 'applicationStatus': 'Estado de la solicitud', 'notCreated': 'No creado', 'notStarted': 'No iniciada', 'submitted': 'Enviada', 'reviewed': 'Revisada',
     'startApplication': 'Iniciar solicitud de proveedor', 'startHint': 'Selecciona la categoría que corresponde a tu actividad regulada. El onboarding de Doctor permanece separado.', 'category': 'Categoría de proveedor', 'noCategories': 'No hay categorías Other Provider activas.', 'applicationStarted': 'Solicitud de proveedor iniciada.',
     'professionalCategory': 'Categoría profesional', 'family': 'Familia de proveedor', 'requiredCredentials': 'Credenciales requeridas', 'modalities': 'Modalidades habilitadas', 'atLeastOneCredential': 'Al menos una credencial', 'notApplicable': 'No aplica',
-    'credentials': 'Credenciales', 'credential': 'Credencial', 'noCredentials': 'Añade las credenciales profesionales requeridas antes de enviar.', 'addCredential': 'Añadir credencial', 'credentialType': 'Tipo de credencial', 'credentialNumber': 'Número de credencial', 'credentialNumberOptional': 'Número de credencial (opcional)', 'issuer': 'Entidad emisora', 'issuerOptional': 'Entidad emisora (opcional)', 'validUntil': 'Válida hasta', 'validUntilOptional': 'Válida hasta (opcional)', 'reviewState': 'Estado de revisión', 'reviewNote': 'Nota de revisión', 'credentialAdded': 'Credencial añadida.', 'missingRequired': 'Credenciales requeridas pendientes',
+    'credentials': 'Credenciales', 'credential': 'Credencial', 'noCredentials': 'Añade las credenciales profesionales requeridas antes de enviar.', 'addCredential': 'Añadir credencial', 'credentialType': 'Tipo de credencial', 'credentialNumber': 'Número de credencial', 'credentialNumberOptional': 'Número de credencial (opcional)', 'issuer': 'Entidad emisora', 'issuerOptional': 'Entidad emisora (opcional)', 'validUntil': 'Válida hasta', 'validUntilOptional': 'Válida hasta (opcional)', 'reviewState': 'Estado de revisión', 'reviewNote': 'Nota de revisión', 'credentialAdded': 'Credencial añadida.', 'attachPdfs': 'Adjuntar documentos PDF (opcional)', 'pdfUploadHint': 'Hasta 10 PDF de 8 MB cada uno.', 'pdfLimitReached': 'Se ha alcanzado el máximo de 10 documentos PDF.', 'pdfDocuments': 'Documentos PDF', 'missingRequired': 'Credenciales requeridas pendientes',
     'submitReview': 'Enviar a revisión', 'submitHint': 'Después del envío, las credenciales quedan bloqueadas hasta que gobernanza solicite cambios.', 'submittedSuccess': 'Solicitud enviada a revisión.', 'pendingHint': 'Tu solicitud está en revisión de gobernanza. El acceso al workspace operativo permanece bloqueado hasta la aprobación.',
     'suspendedHint': 'Tu acceso como proveedor está suspendido. Una nueva solicitud no puede saltarse la suspensión; contacta con gobernanza CarePoint.', 'approvedNotActiveHint': 'La solicitud está aprobada pero la activación no ha terminado. Actualiza o contacta con soporte si persiste.',
     'cancel': 'Cancelar', 'save': 'Guardar',
