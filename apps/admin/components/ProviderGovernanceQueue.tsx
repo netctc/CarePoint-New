@@ -8,6 +8,15 @@ type ProviderKind = "DOCTOR" | "OTHER_PROVIDER";
 type OnboardingState = "DRAFT" | "PENDING_REVIEW" | "REQUEST_CHANGES" | "APPROVED" | "REJECTED";
 type CredentialState = "PENDING" | "VERIFIED" | "REJECTED";
 
+type CredentialDocument = {
+  id: string;
+  fileName: string;
+  mediaType: string;
+  byteLength: number;
+  contentDigest: string;
+  createdAt: string;
+};
+
 type Credential = {
   id: string;
   type: string;
@@ -19,6 +28,7 @@ type Credential = {
   reviewNote?: string | null;
   reviewedAt?: string | null;
   createdAt: string;
+  documents: CredentialDocument[];
 };
 
 type Onboarding = {
@@ -76,20 +86,23 @@ type Copy = {
   noteRequired: string;
   approveHint: string;
   rejectedHistory: string;
+  documents: string;
+  viewPdf: string;
+  documentOpenFailed: string;
 };
 
 const COPY: Record<Locale, Copy> = {
   en: {
-    reviewQueue: "Credential review queue", reviewQueueText: "Review submitted provider applications, verify evidence and make auditable activation decisions.", pending: "Pending review", changes: "Changes requested", approved: "Approved", credentialsPending: "Credentials pending", search: "Search by email, category, specialty or credential…", allStates: "All states", noCases: "No onboarding cases match the current filters.", submitted: "Submitted", updated: "Updated", account: "Account", providerState: "Provider state", credential: "Credential", credentialNumber: "Number", issuer: "Issuer", expires: "Expires", reviewState: "Review state", actions: "Actions", verify: "Verify", rejectCredential: "Reject credential", note: "Review note", notePlaceholder: "Reason, remediation request or decision context…", requestChanges: "Request changes", rejectApplication: "Reject application", approve: "Approve provider", openDetails: "Open review", closeDetails: "Close review", decisionLogged: "Governance actions are recorded in the CarePoint audit trail.", loading: "Loading governance queue…", refresh: "Refresh", retry: "Retry", actionFailed: "The governance action could not be completed.", noteRequired: "Enter a review note before this decision.", approveHint: "Approval is allowed only after every pending credential is reviewed and all required credential types have verified evidence.", rejectedHistory: "Rejected credentials remain in the immutable review history and do not erase later corrected evidence."
+    reviewQueue: "Credential review queue", reviewQueueText: "Review submitted provider applications, verify evidence and make auditable activation decisions.", pending: "Pending review", changes: "Changes requested", approved: "Approved", credentialsPending: "Credentials pending", search: "Search by email, category, specialty or credential…", allStates: "All states", noCases: "No onboarding cases match the current filters.", submitted: "Submitted", updated: "Updated", account: "Account", providerState: "Provider state", credential: "Credential", credentialNumber: "Number", issuer: "Issuer", expires: "Expires", reviewState: "Review state", actions: "Actions", verify: "Verify", rejectCredential: "Reject credential", note: "Review note", notePlaceholder: "Reason, remediation request or decision context…", requestChanges: "Request changes", rejectApplication: "Reject application", approve: "Approve provider", openDetails: "Open review", closeDetails: "Close review", decisionLogged: "Governance actions are recorded in the CarePoint audit trail.", loading: "Loading governance queue…", refresh: "Refresh", retry: "Retry", actionFailed: "The governance action could not be completed.", noteRequired: "Enter a review note before this decision.", approveHint: "Approval is allowed only after every pending credential is reviewed and all required credential types have verified evidence.", rejectedHistory: "Rejected credentials remain in the immutable review history and do not erase later corrected evidence.", documents: "Attached PDFs", viewPdf: "View PDF", documentOpenFailed: "The credential document could not be opened."
   },
   ar: {
-    reviewQueue: "قائمة مراجعة الاعتمادات", reviewQueueText: "راجع طلبات مقدمي الخدمة وتحقق من الأدلة واتخذ قرارات تفعيل قابلة للتدقيق.", pending: "قيد المراجعة", changes: "مطلوب تعديل", approved: "مقبول", credentialsPending: "اعتمادات معلقة", search: "بحث بالبريد أو الفئة أو التخصص أو الاعتماد…", allStates: "كل الحالات", noCases: "لا توجد طلبات مطابقة لعوامل التصفية الحالية.", submitted: "تم الإرسال", updated: "آخر تحديث", account: "الحساب", providerState: "حالة مقدم الخدمة", credential: "الاعتماد", credentialNumber: "الرقم", issuer: "الجهة المصدرة", expires: "الانتهاء", reviewState: "حالة المراجعة", actions: "الإجراءات", verify: "تحقق", rejectCredential: "رفض الاعتماد", note: "ملاحظة المراجعة", notePlaceholder: "سبب القرار أو التعديل المطلوب…", requestChanges: "طلب تعديلات", rejectApplication: "رفض الطلب", approve: "اعتماد مقدم الخدمة", openDetails: "فتح المراجعة", closeDetails: "إغلاق المراجعة", decisionLogged: "تسجل إجراءات الحوكمة في سجل تدقيق CarePoint.", loading: "جارٍ تحميل قائمة الحوكمة…", refresh: "تحديث", retry: "إعادة المحاولة", actionFailed: "تعذر إكمال إجراء الحوكمة.", noteRequired: "أدخل ملاحظة مراجعة قبل هذا القرار.", approveHint: "لا يمكن الاعتماد إلا بعد مراجعة كل الاعتمادات المعلقة والتحقق من جميع أنواع الاعتماد المطلوبة.", rejectedHistory: "تبقى الاعتمادات المرفوضة ضمن سجل المراجعة ولا تمحو الأدلة المصححة اللاحقة."
+    reviewQueue: "قائمة مراجعة الاعتمادات", reviewQueueText: "راجع طلبات مقدمي الخدمة وتحقق من الأدلة واتخذ قرارات تفعيل قابلة للتدقيق.", pending: "قيد المراجعة", changes: "مطلوب تعديل", approved: "مقبول", credentialsPending: "اعتمادات معلقة", search: "بحث بالبريد أو الفئة أو التخصص أو الاعتماد…", allStates: "كل الحالات", noCases: "لا توجد طلبات مطابقة لعوامل التصفية الحالية.", submitted: "تم الإرسال", updated: "آخر تحديث", account: "الحساب", providerState: "حالة مقدم الخدمة", credential: "الاعتماد", credentialNumber: "الرقم", issuer: "الجهة المصدرة", expires: "الانتهاء", reviewState: "حالة المراجعة", actions: "الإجراءات", verify: "تحقق", rejectCredential: "رفض الاعتماد", note: "ملاحظة المراجعة", notePlaceholder: "سبب القرار أو التعديل المطلوب…", requestChanges: "طلب تعديلات", rejectApplication: "رفض الطلب", approve: "اعتماد مقدم الخدمة", openDetails: "فتح المراجعة", closeDetails: "إغلاق المراجعة", decisionLogged: "تسجل إجراءات الحوكمة في سجل تدقيق CarePoint.", loading: "جارٍ تحميل قائمة الحوكمة…", refresh: "تحديث", retry: "إعادة المحاولة", actionFailed: "تعذر إكمال إجراء الحوكمة.", noteRequired: "أدخل ملاحظة مراجعة قبل هذا القرار.", approveHint: "لا يمكن الاعتماد إلا بعد مراجعة كل الاعتمادات المعلقة والتحقق من جميع أنواع الاعتماد المطلوبة.", rejectedHistory: "تبقى الاعتمادات المرفوضة ضمن سجل المراجعة ولا تمحو الأدلة المصححة اللاحقة.", documents: "ملفات PDF المرفقة", viewPdf: "عرض PDF", documentOpenFailed: "تعذر فتح مستند الاعتماد."
   },
   fr: {
-    reviewQueue: "File de contrôle des habilitations", reviewQueueText: "Examinez les dossiers soumis, vérifiez les justificatifs et prenez des décisions d’activation auditables.", pending: "En révision", changes: "Modifications demandées", approved: "Approuvé", credentialsPending: "Justificatifs en attente", search: "Rechercher par e-mail, catégorie, spécialité ou justificatif…", allStates: "Tous les statuts", noCases: "Aucun dossier ne correspond aux filtres actuels.", submitted: "Soumis", updated: "Mis à jour", account: "Compte", providerState: "Statut prestataire", credential: "Justificatif", credentialNumber: "Numéro", issuer: "Émetteur", expires: "Expiration", reviewState: "État de revue", actions: "Actions", verify: "Vérifier", rejectCredential: "Rejeter le justificatif", note: "Note de revue", notePlaceholder: "Motif, correction demandée ou contexte de décision…", requestChanges: "Demander des modifications", rejectApplication: "Rejeter le dossier", approve: "Approuver le prestataire", openDetails: "Ouvrir la revue", closeDetails: "Fermer la revue", decisionLogged: "Les actions de gouvernance sont enregistrées dans la piste d’audit CarePoint.", loading: "Chargement de la file de gouvernance…", refresh: "Actualiser", retry: "Réessayer", actionFailed: "L’action de gouvernance n’a pas pu être exécutée.", noteRequired: "Ajoutez une note de revue avant cette décision.", approveHint: "L’approbation exige que chaque justificatif en attente soit revu et que tous les types requis disposent d’une preuve vérifiée.", rejectedHistory: "Les justificatifs rejetés restent dans l’historique de revue et n’effacent pas les preuves corrigées ultérieures."
+    reviewQueue: "File de contrôle des habilitations", reviewQueueText: "Examinez les dossiers soumis, vérifiez les justificatifs et prenez des décisions d’activation auditables.", pending: "En révision", changes: "Modifications demandées", approved: "Approuvé", credentialsPending: "Justificatifs en attente", search: "Rechercher par e-mail, catégorie, spécialité ou justificatif…", allStates: "Tous les statuts", noCases: "Aucun dossier ne correspond aux filtres actuels.", submitted: "Soumis", updated: "Mis à jour", account: "Compte", providerState: "Statut prestataire", credential: "Justificatif", credentialNumber: "Numéro", issuer: "Émetteur", expires: "Expiration", reviewState: "État de revue", actions: "Actions", verify: "Vérifier", rejectCredential: "Rejeter le justificatif", note: "Note de revue", notePlaceholder: "Motif, correction demandée ou contexte de décision…", requestChanges: "Demander des modifications", rejectApplication: "Rejeter le dossier", approve: "Approuver le prestataire", openDetails: "Ouvrir la revue", closeDetails: "Fermer la revue", decisionLogged: "Les actions de gouvernance sont enregistrées dans la piste d’audit CarePoint.", loading: "Chargement de la file de gouvernance…", refresh: "Actualiser", retry: "Réessayer", actionFailed: "L’action de gouvernance n’a pas pu être exécutée.", noteRequired: "Ajoutez une note de revue avant cette décision.", approveHint: "L’approbation exige que chaque justificatif en attente soit revu et que tous les types requis disposent d’une preuve vérifiée.", rejectedHistory: "Les justificatifs rejetés restent dans l’historique de revue et n’effacent pas les preuves corrigées ultérieures.", documents: "PDF joints", viewPdf: "Voir le PDF", documentOpenFailed: "Le document d’habilitation n’a pas pu être ouvert."
   },
   es: {
-    reviewQueue: "Cola de revisión de credenciales", reviewQueueText: "Revisa solicitudes de proveedores, valida evidencias y toma decisiones de activación totalmente auditables.", pending: "Pendiente de revisión", changes: "Cambios solicitados", approved: "Aprobado", credentialsPending: "Credenciales pendientes", search: "Buscar por email, categoría, especialidad o credencial…", allStates: "Todos los estados", noCases: "No hay expedientes que coincidan con los filtros actuales.", submitted: "Enviado", updated: "Actualizado", account: "Cuenta", providerState: "Estado del proveedor", credential: "Credencial", credentialNumber: "Número", issuer: "Emisor", expires: "Caduca", reviewState: "Estado de revisión", actions: "Acciones", verify: "Verificar", rejectCredential: "Rechazar credencial", note: "Nota de revisión", notePlaceholder: "Motivo, corrección solicitada o contexto de la decisión…", requestChanges: "Solicitar cambios", rejectApplication: "Rechazar solicitud", approve: "Aprobar proveedor", openDetails: "Abrir revisión", closeDetails: "Cerrar revisión", decisionLogged: "Las acciones de gobernanza quedan registradas en la auditoría de CarePoint.", loading: "Cargando cola de gobernanza…", refresh: "Actualizar", retry: "Reintentar", actionFailed: "No se pudo completar la acción de gobernanza.", noteRequired: "Introduce una nota de revisión antes de esta decisión.", approveHint: "La aprobación sólo se permite cuando todas las credenciales pendientes han sido revisadas y cada tipo obligatorio dispone de evidencia verificada.", rejectedHistory: "Las credenciales rechazadas permanecen en el historial de revisión y no eliminan evidencias corregidas posteriores."
+    reviewQueue: "Cola de revisión de credenciales", reviewQueueText: "Revisa solicitudes de proveedores, valida evidencias y toma decisiones de activación totalmente auditables.", pending: "Pendiente de revisión", changes: "Cambios solicitados", approved: "Aprobado", credentialsPending: "Credenciales pendientes", search: "Buscar por email, categoría, especialidad o credencial…", allStates: "Todos los estados", noCases: "No hay expedientes que coincidan con los filtros actuales.", submitted: "Enviado", updated: "Actualizado", account: "Cuenta", providerState: "Estado del proveedor", credential: "Credencial", credentialNumber: "Número", issuer: "Emisor", expires: "Caduca", reviewState: "Estado de revisión", actions: "Acciones", verify: "Verificar", rejectCredential: "Rechazar credencial", note: "Nota de revisión", notePlaceholder: "Motivo, corrección solicitada o contexto de la decisión…", requestChanges: "Solicitar cambios", rejectApplication: "Rechazar solicitud", approve: "Aprobar proveedor", openDetails: "Abrir revisión", closeDetails: "Cerrar revisión", decisionLogged: "Las acciones de gobernanza quedan registradas en la auditoría de CarePoint.", loading: "Cargando cola de gobernanza…", refresh: "Actualizar", retry: "Reintentar", actionFailed: "No se pudo completar la acción de gobernanza.", noteRequired: "Introduce una nota de revisión antes de esta decisión.", approveHint: "La aprobación sólo se permite cuando todas las credenciales pendientes han sido revisadas y cada tipo obligatorio dispone de evidencia verificada.", rejectedHistory: "Las credenciales rechazadas permanecen en el historial de revisión y no eliminan evidencias corregidas posteriores.", documents: "PDF adjuntos", viewPdf: "Ver PDF", documentOpenFailed: "No se pudo abrir el documento de credencial."
   }
 };
 
@@ -138,7 +151,12 @@ export function ProviderGovernanceQueue({ kind }: { kind: ProviderKind }) {
         localLabel(row.specialty?.labels, locale),
         localLabel(row.providerCategory?.labels, locale),
         row.providerCategory?.family,
-        ...row.credentials.flatMap((credential) => [credential.type, credential.number, credential.issuer]),
+        ...row.credentials.flatMap((credential) => [
+          credential.type,
+          credential.number,
+          credential.issuer,
+          ...(credential.documents ?? []).map((document) => document.fileName),
+        ]),
       ].filter(Boolean).join(" ").toLowerCase();
       return haystack.includes(needle);
     });
@@ -150,6 +168,63 @@ export function ProviderGovernanceQueue({ kind }: { kind: ProviderKind }) {
     approved: rows.filter((row) => row.state === "APPROVED").length,
     credentialsPending: rows.reduce((count, row) => count + row.credentials.filter((credential) => credential.state === "PENDING").length, 0),
   }), [rows]);
+
+  async function openCredentialDocument(
+    row: Onboarding,
+    credential: Credential,
+    document: CredentialDocument,
+  ) {
+    setError("");
+    const preview = window.open("about:blank", "_blank");
+    try {
+      const params = new URLSearchParams({
+        onboardingId: row.id,
+        credentialId: credential.id,
+        documentId: document.id,
+      });
+      const response = await fetch(
+        "/api/admin/governance/onboarding/document?" + params.toString(),
+        { cache: "no-store" },
+      );
+      if (response.status === 401) {
+        preview?.close();
+        window.location.assign(
+          "/login?next=" + encodeURIComponent(window.location.pathname),
+        );
+        return;
+      }
+      const payload = await response.json().catch(() => ({})) as {
+        contentBase64?: string;
+        mediaType?: string;
+        fileName?: string;
+        message?: string;
+      };
+      if (!response.ok || !payload.contentBase64) {
+        throw new Error(payload.message || copy.documentOpenFailed);
+      }
+
+      const binary = window.atob(payload.contentBase64);
+      const bytes = new Uint8Array(binary.length);
+      for (let index = 0; index < binary.length; index += 1) {
+        bytes[index] = binary.charCodeAt(index);
+      }
+      const blob = new Blob([bytes], {
+        type: payload.mediaType || "application/pdf",
+      });
+      const url = URL.createObjectURL(blob);
+      if (preview) {
+        preview.location.href = url;
+      } else {
+        window.open(url, "_blank", "noopener,noreferrer");
+      }
+      window.setTimeout(() => URL.revokeObjectURL(url), 120000);
+    } catch (cause) {
+      preview?.close();
+      setError(
+        cause instanceof Error ? cause.message : copy.documentOpenFailed,
+      );
+    }
+  }
 
   async function act(row: Onboarding, action: GovernanceAction, credentialId?: string) {
     const note = (notes[row.id] || "").trim();
@@ -242,7 +317,25 @@ export function ProviderGovernanceQueue({ kind }: { kind: ProviderKind }) {
               {row.credentials.map((credential) => {
                 const key = `${row.id}:${credential.id}`;
                 return <div className={styles.credentialRow} key={credential.id}>
-                  <span><b>{credential.type}</b>{credential.documentId && <small>Doc: {credential.documentId}</small>}</span>
+                  <span>
+                    <b>{credential.type}</b>
+                    {credential.documentId && <small>Doc: {credential.documentId}</small>}
+                    {(credential.documents ?? []).length > 0 ? (
+                      <small>
+                        {copy.documents}:{" "}
+                        {(credential.documents ?? []).map((document, index) => (
+                          <button
+                            key={document.id}
+                            type="button"
+                            className={styles.documentLink}
+                            onClick={() => void openCredentialDocument(row, credential, document)}
+                          >
+                            {document.fileName || (copy.viewPdf + " " + (index + 1))}
+                          </button>
+                        ))}
+                      </small>
+                    ) : null}
+                  </span>
                   <span>{credential.number || "—"}</span>
                   <span>{credential.issuer || "—"}</span>
                   <span>{formatDate(credential.validUntil, locale)}</span>
