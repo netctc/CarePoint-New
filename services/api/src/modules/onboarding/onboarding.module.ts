@@ -69,6 +69,21 @@ class OnboardingController {
     );
   }
 
+  @Get(":onboardingId/credentials/:credentialId/documents/:documentId/content")
+  credentialDocumentContent(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Param("onboardingId") onboardingId: string,
+    @Param("credentialId") credentialId: string,
+    @Param("documentId") documentId: string,
+  ) {
+    return this.onboarding.credentialDocumentContent(
+      principal,
+      onboardingId,
+      credentialId,
+      documentId,
+    );
+  }
+
   @RequirePermissions("PROVIDER_SELF_ONBOARD")
   @Post(":onboardingId/submit")
   submit(@CurrentPrincipal() principal: AuthPrincipal, @Param("onboardingId") onboardingId: string) {
