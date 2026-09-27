@@ -172,6 +172,19 @@ extension CarePointProviderOnboardingApi on CarePointApi {
     },
   ));
 
+  Future<void> removeProviderOnboardingCredential(
+    String onboardingId,
+    String credentialId,
+  ) async {
+    await _send(
+      'DELETE',
+      '/onboarding/' +
+          Uri.encodeComponent(onboardingId) +
+          '/credentials/' +
+          Uri.encodeComponent(credentialId),
+    );
+  }
+
   Future<Map<String, dynamic>> providerOnboardingCredentialDocumentContent(
     String onboardingId,
     String credentialId,
