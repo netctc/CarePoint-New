@@ -6,26 +6,36 @@ import { CurrentPrincipal, Public, RequirePermissions } from "../../security/api
 import { PersistentAuthService } from "../../security/persistent-auth.service";
 import { carePointRuntimeFeatures } from "../../infrastructure/release/private-pilot-policy";
 
-interface PatientRegistrationBody {
-  email: string;
-  username: string;
-  password: string;
+interface RegistrationOtpStartBody {
+  kind: "PATIENT" | "DOCTOR" | "OTHER_PROVIDER";
   firstName: string;
   lastName: string;
-  dateOfBirth: string;
-  sex: string;
   phone: string;
 }
-interface ProfessionalRegistrationBody {
-  kind: "DOCTOR" | "OTHER_PROVIDER";
-  email: string;
+interface RegistrationOtpVerifyBody {
+  challengeId: string;
+  code: string;
+}
+interface PatientRegistrationBody {
+  challengeId: string;
+  registrationToken: string;
+  email?: string;
   username: string;
   password: string;
-  firstName: string;
-  lastName: string;
-  phone: string;
+  dateOfBirth: string;
+  sex: string;
+  reference?: string;
+}
+interface ProfessionalRegistrationBody {
+  challengeId: string;
+  registrationToken: string;
+  kind: "DOCTOR" | "OTHER_PROVIDER";
+  email?: string;
+  username: string;
+  password: string;
   specialtyId?: string;
   providerCategoryId?: string;
+  reference?: string;
 }
 interface ManagedAccountBody { email: string; password: string; role: IdentityRole; }
 interface LoginBody { email: string; password: string; }
@@ -63,14 +73,80 @@ class IamController {
   }
 
   @Public()
+  @Post("register/otp/start")
+  async startRegistrationOtp(
+    @Req() request: RequestIdentity,
+    @Body() body: RegistrationOtpStartBody,
+  ) {
+    if (
+      body.kind === "PATIENT" &&
+      !carePointRuntimeFeatures(process.env).patientSelfRegistration
+    ) {
+      throw new NotFoundException("Patient self-registration is not available.");
+    }
+    const phone = body.phone?.trim() || "missing";
+    await Promise.all([
+      this.rateLimits.assertAllowed({
+        namespace: "iam:register-otp:ip",
+        identity: this.clientIp(request),
+        limit: 50,
+        windowSeconds: 3600,
+      }),
+      this.rateLimits.assertAllowed({
+        namespace: "iam:register-otp:phone",
+        identity: phone,
+        limit: 5,
+        windowSeconds: 3600,
+      }),
+    ]);
+    return this.auth.startRegistrationOtp(body);
+  }
+
+  @Public()
+  @Post("register/otp/verify")
+  async verifyRegistrationOtp(
+    @Req() request: RequestIdentity,
+    @Body() body: RegistrationOtpVerifyBody,
+  ) {
+    await Promise.all([
+      this.rateLimits.assertAllowed({
+        namespace: "iam:register-otp-verify:ip",
+        identity: this.clientIp(request),
+        limit: 100,
+        windowSeconds: 300,
+      }),
+      this.rateLimits.assertAllowed({
+        namespace: "iam:register-otp-verify:challenge",
+        identity: body.challengeId || "missing",
+        limit: 6,
+        windowSeconds: 600,
+      }),
+    ]);
+    return this.auth.verifyRegistrationOtp(body.challengeId, body.code);
+  }
+
+  @Public()
   @Post("register/patient")
-  async registerPatient(@Req() request: RequestIdentity, @Body() body: PatientRegistrationBody) {
+  async registerPatient(
+    @Req() request: RequestIdentity,
+    @Body() body: PatientRegistrationBody,
+  ) {
     if (!carePointRuntimeFeatures(process.env).patientSelfRegistration) {
       throw new NotFoundException("Patient self-registration is not available.");
     }
     await Promise.all([
-      this.rateLimits.assertAllowed({ namespace: "iam:register:ip", identity: this.clientIp(request), limit: 200, windowSeconds: 3600 }),
-      this.rateLimits.assertAllowed({ namespace: "iam:register:account", identity: body.email?.trim().toLowerCase() || "missing", limit: 3, windowSeconds: 3600 }),
+      this.rateLimits.assertAllowed({
+        namespace: "iam:register:ip",
+        identity: this.clientIp(request),
+        limit: 100,
+        windowSeconds: 3600,
+      }),
+      this.rateLimits.assertAllowed({
+        namespace: "iam:register:challenge",
+        identity: body.challengeId || "missing",
+        limit: 3,
+        windowSeconds: 3600,
+      }),
     ]);
     const result = await this.auth.registerPatient(body);
     await this.captureSessionContext(result.sessionId, request);
@@ -79,13 +155,28 @@ class IamController {
 
   @Public()
   @Post("register/professional")
-  async registerProfessional(@Req() request: RequestIdentity, @Body() body: ProfessionalRegistrationBody) {
+  async registerProfessional(
+    @Req() request: RequestIdentity,
+    @Body() body: ProfessionalRegistrationBody,
+  ) {
     await Promise.all([
-      this.rateLimits.assertAllowed({ namespace: "iam:register-professional:ip", identity: this.clientIp(request), limit: 100, windowSeconds: 3600 }),
-      this.rateLimits.assertAllowed({ namespace: "iam:register-professional:account", identity: body.email?.trim().toLowerCase() || "missing", limit: 3, windowSeconds: 3600 }),
+      this.rateLimits.assertAllowed({
+        namespace: "iam:register-professional:ip",
+        identity: this.clientIp(request),
+        limit: 100,
+        windowSeconds: 3600,
+      }),
+      this.rateLimits.assertAllowed({
+        namespace: "iam:register-professional:challenge",
+        identity: body.challengeId || "missing",
+        limit: 3,
+        windowSeconds: 3600,
+      }),
     ]);
     const result = await this.auth.registerProfessional(body);
-    if ("sessionId" in result) await this.captureSessionContext(result.sessionId, request);
+    if ("sessionId" in result) {
+      await this.captureSessionContext(result.sessionId, request);
+    }
     return result;
   }
 
