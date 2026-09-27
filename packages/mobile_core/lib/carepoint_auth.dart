@@ -76,11 +76,44 @@ class CarePointSessionUiController extends ChangeNotifier {
   void signOut() => _signOut?.call();
 }
 
+class CarePointSessionNavigatorObserver extends NavigatorObserver {
+  VoidCallback? onPageRouteChanged;
+
+  void _notifyIfPage(Route<dynamic>? route) {
+    if (route is PageRoute<dynamic>) onPageRouteChanged?.call();
+  }
+
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    super.didPush(route, previousRoute);
+    _notifyIfPage(route);
+  }
+
+  @override
+  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    super.didPop(route, previousRoute);
+    _notifyIfPage(previousRoute);
+  }
+
+  @override
+  void didRemove(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    super.didRemove(route, previousRoute);
+    _notifyIfPage(previousRoute);
+  }
+
+  @override
+  void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) {
+    super.didReplace(newRoute: newRoute, oldRoute: oldRoute);
+    _notifyIfPage(newRoute);
+  }
+}
+
 class CarePointSessionChrome extends StatefulWidget {
   const CarePointSessionChrome({
     super.key,
     required this.controller,
     required this.navigatorKey,
+    required this.navigatorObserver,
     required this.locale,
     required this.onLocaleChanged,
     required this.child,
@@ -89,6 +122,7 @@ class CarePointSessionChrome extends StatefulWidget {
 
   final CarePointSessionUiController controller;
   final GlobalKey<NavigatorState> navigatorKey;
+  final CarePointSessionNavigatorObserver navigatorObserver;
   final CarePointLocale locale;
   final ValueChanged<CarePointLocale> onLocaleChanged;
   final Widget child;
@@ -107,6 +141,7 @@ class _CarePointSessionChromeState extends State<CarePointSessionChrome> {
   void initState() {
     super.initState();
     widget.controller.addListener(_handleControllerChanged);
+    widget.navigatorObserver.onPageRouteChanged = _scheduleBringToFront;
     _scheduleOverlaySync();
   }
 
@@ -116,6 +151,12 @@ class _CarePointSessionChromeState extends State<CarePointSessionChrome> {
     if (oldWidget.controller != widget.controller) {
       oldWidget.controller.removeListener(_handleControllerChanged);
       widget.controller.addListener(_handleControllerChanged);
+    }
+    if (oldWidget.navigatorObserver != widget.navigatorObserver) {
+      if (oldWidget.navigatorObserver.onPageRouteChanged == _scheduleBringToFront) {
+        oldWidget.navigatorObserver.onPageRouteChanged = null;
+      }
+      widget.navigatorObserver.onPageRouteChanged = _scheduleBringToFront;
     }
     if (oldWidget.navigatorKey != widget.navigatorKey) {
       _removeEntries();
@@ -128,6 +169,9 @@ class _CarePointSessionChromeState extends State<CarePointSessionChrome> {
   @override
   void dispose() {
     widget.controller.removeListener(_handleControllerChanged);
+    if (widget.navigatorObserver.onPageRouteChanged == _scheduleBringToFront) {
+      widget.navigatorObserver.onPageRouteChanged = null;
+    }
     _removeEntries();
     super.dispose();
   }
@@ -155,6 +199,23 @@ class _CarePointSessionChromeState extends State<CarePointSessionChrome> {
       _bottomEntry ??= OverlayEntry(builder: _buildBottomOverlay);
       if (!_topEntry!.mounted) overlay.insert(_topEntry!);
       if (!_bottomEntry!.mounted) overlay.insert(_bottomEntry!);
+      _markEntriesNeedsBuild();
+    });
+  }
+
+  void _scheduleBringToFront() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final overlay = widget.navigatorKey.currentState?.overlay;
+      final top = _topEntry;
+      final bottom = _bottomEntry;
+      if (overlay == null || top == null || bottom == null) {
+        _scheduleOverlaySync();
+        return;
+      }
+      if (top.mounted && bottom.mounted) {
+        overlay.rearrange([top, bottom]);
+      }
       _markEntriesNeedsBuild();
     });
   }
