@@ -53,17 +53,19 @@ void main() {
             home: Scaffold(
               appBar: AppBar(title: const Text('CarePoint')),
               body: Center(
-                child: FilledButton(
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => const Scaffold(
-                          body: Center(child: Text('Second page')),
+                child: Builder(
+                  builder: (pageContext) => FilledButton(
+                    onPressed: () {
+                      Navigator.of(pageContext).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const Scaffold(
+                            body: Center(child: Text('Second page')),
+                          ),
                         ),
-                      ),
-                    );
-                  },
-                  child: const Text('Push page'),
+                      );
+                    },
+                    child: const Text('Push page'),
+                  ),
                 ),
               ),
             ),
@@ -94,6 +96,7 @@ void main() {
       expect(selectedIndex, 1);
       expect(find.text('Second page'), findsNothing);
 
+      await tester.pumpWidget(const SizedBox.shrink());
       controller.dispose();
     },
   );
