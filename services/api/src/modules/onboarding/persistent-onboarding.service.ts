@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
+import type { EncryptedEnvelope } from "@carepoint/security";
 import { canActOnAccount, canOwnOnboarding, roleHasPermission, type AuthPrincipal } from "@carepoint/identity";
 import { PrismaService } from "../../infrastructure/prisma/prisma.module";
 import { DatabaseAuditService } from "../../infrastructure/audit/audit.service";
@@ -241,6 +242,73 @@ export class PersistentOnboardingService {
       await this.documentStorage.remove(objectKey).catch(() => undefined);
       throw error;
     }
+  }
+
+  async credentialDocumentContent(
+    principal: AuthPrincipal,
+    onboardingId: string,
+    credentialId: string,
+    documentId: string,
+  ) {
+    const onboarding = await this.prisma.providerOnboarding.findUnique({
+      where: { id: onboardingId },
+      select: { id: true, userId: true },
+    });
+    if (!onboarding) throw new NotFoundException("Onboarding not found.");
+
+    const owner = canOwnOnboarding(principal, onboarding.userId);
+    const reviewer = roleHasPermission(principal.role, "PROVIDER_REVIEW");
+    if (!owner && !reviewer) {
+      throw new ForbiddenException("Credential document access denied.");
+    }
+
+    const document = await this.prisma.onboardingCredentialDocument.findFirst({
+      where: {
+        id: documentId,
+        credentialId,
+        credential: { onboardingId },
+      },
+    });
+    if (!document) throw new NotFoundException("Credential document not found.");
+
+    const ciphertext = await this.documentStorage.get(document.objectKey);
+    const envelope: EncryptedEnvelope = {
+      algorithm: document.blobAlgorithm,
+      keyId: document.blobKeyId,
+      wrappedKey: document.blobWrappedKey,
+      iv: document.blobIv,
+      ciphertext,
+    };
+    const bytes = await this.documentEnvelope.decryptBytes(envelope);
+    const digest = createHash("sha256").update(bytes).digest("hex");
+    if (digest !== document.contentDigest) {
+      throw new ConflictException("Credential document integrity check failed.");
+    }
+
+    await this.audit.write({
+      actorId: principal.accountId,
+      action: "ONBOARDING_CREDENTIAL_DOCUMENT_READ",
+      objectType: "PROVIDER_CREDENTIAL_DOCUMENT",
+      objectId: document.id,
+      purpose: reviewer ? "CREDENTIAL_REVIEW" : "PROVIDER_SELF_ONBOARD",
+      result: "SUCCESS",
+      metadata: {
+        onboardingId,
+        credentialId,
+        byteLength: bytes.byteLength,
+      },
+    });
+
+    return {
+      id: document.id,
+      credentialId,
+      fileName: document.fileName,
+      mediaType: document.mediaType,
+      byteLength: document.byteLength,
+      contentDigest: document.contentDigest,
+      createdAt: document.createdAt,
+      contentBase64: Buffer.from(bytes).toString("base64"),
+    };
   }
 
   async submit(principal: AuthPrincipal, onboardingId: string) {
