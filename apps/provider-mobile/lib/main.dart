@@ -22,8 +22,6 @@ class ProviderApp extends StatefulWidget {
 class _ProviderAppState extends State<ProviderApp> {
   CarePointLocale locale = CarePointLocale.en;
   final sessionUi = CarePointSessionUiController();
-  final navigatorKey = GlobalKey<NavigatorState>();
-  final navigatorObserver = CarePointSessionNavigatorObserver();
 
   @override
   void dispose() {
@@ -34,14 +32,10 @@ class _ProviderAppState extends State<ProviderApp> {
   @override
   Widget build(BuildContext context) => MaterialApp(
     debugShowCheckedModeBanner: false,
-    navigatorKey: navigatorKey,
-    navigatorObservers: [navigatorObserver],
     locale: locale.locale,
     theme: ThemeData(useMaterial3: true, colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF10B981))),
     builder: (context, child) => CarePointSessionChrome(
       controller: sessionUi,
-      navigatorKey: navigatorKey,
-      navigatorObserver: navigatorObserver,
       locale: locale,
       onLocaleChanged: (value) => setState(() => locale = value),
       child: child ?? const SizedBox.shrink(),
