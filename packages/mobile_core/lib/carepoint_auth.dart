@@ -76,44 +76,10 @@ class CarePointSessionUiController extends ChangeNotifier {
   void signOut() => _signOut?.call();
 }
 
-class CarePointSessionNavigatorObserver extends NavigatorObserver {
-  VoidCallback? onPageRouteChanged;
-
-  void _notifyIfPage(Route<dynamic>? route) {
-    if (route is PageRoute<dynamic>) onPageRouteChanged?.call();
-  }
-
-  @override
-  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
-    super.didPush(route, previousRoute);
-    _notifyIfPage(route);
-  }
-
-  @override
-  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
-    super.didPop(route, previousRoute);
-    _notifyIfPage(previousRoute);
-  }
-
-  @override
-  void didRemove(Route<dynamic> route, Route<dynamic>? previousRoute) {
-    super.didRemove(route, previousRoute);
-    _notifyIfPage(previousRoute);
-  }
-
-  @override
-  void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) {
-    super.didReplace(newRoute: newRoute, oldRoute: oldRoute);
-    _notifyIfPage(newRoute);
-  }
-}
-
 class CarePointSessionChrome extends StatefulWidget {
   const CarePointSessionChrome({
     super.key,
     required this.controller,
-    required this.navigatorKey,
-    required this.navigatorObserver,
     required this.locale,
     required this.onLocaleChanged,
     required this.child,
@@ -121,8 +87,6 @@ class CarePointSessionChrome extends StatefulWidget {
   });
 
   final CarePointSessionUiController controller;
-  final GlobalKey<NavigatorState> navigatorKey;
-  final CarePointSessionNavigatorObserver navigatorObserver;
   final CarePointLocale locale;
   final ValueChanged<CarePointLocale> onLocaleChanged;
   final Widget child;
@@ -133,177 +97,138 @@ class CarePointSessionChrome extends StatefulWidget {
 }
 
 class _CarePointSessionChromeState extends State<CarePointSessionChrome> {
-  OverlayEntry? _topEntry;
-  OverlayEntry? _bottomEntry;
-  bool _overlaySyncScheduled = false;
+  bool languageOpen = false;
 
   @override
-  void initState() {
-    super.initState();
-    widget.controller.addListener(_handleControllerChanged);
-    widget.navigatorObserver.onPageRouteChanged = _scheduleBringToFront;
-    _scheduleOverlaySync();
-  }
+  Widget build(BuildContext context) => AnimatedBuilder(
+        animation: widget.controller,
+        builder: (context, _) {
+          final navigation =
+              widget.controller.hasSession ? widget.controller.navigation : null;
+          final topInset = MediaQuery.paddingOf(context).top;
 
-  @override
-  void didUpdateWidget(covariant CarePointSessionChrome oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.controller != widget.controller) {
-      oldWidget.controller.removeListener(_handleControllerChanged);
-      widget.controller.addListener(_handleControllerChanged);
-    }
-    if (oldWidget.navigatorObserver != widget.navigatorObserver) {
-      if (oldWidget.navigatorObserver.onPageRouteChanged == _scheduleBringToFront) {
-        oldWidget.navigatorObserver.onPageRouteChanged = null;
-      }
-      widget.navigatorObserver.onPageRouteChanged = _scheduleBringToFront;
-    }
-    if (oldWidget.navigatorKey != widget.navigatorKey) {
-      _removeEntries();
-      _scheduleOverlaySync();
-    } else {
-      _markEntriesNeedsBuild();
-    }
-  }
-
-  @override
-  void dispose() {
-    widget.controller.removeListener(_handleControllerChanged);
-    if (widget.navigatorObserver.onPageRouteChanged == _scheduleBringToFront) {
-      widget.navigatorObserver.onPageRouteChanged = null;
-    }
-    _removeEntries();
-    super.dispose();
-  }
-
-  void _handleControllerChanged() {
-    _markEntriesNeedsBuild();
-    if (_topEntry == null || _bottomEntry == null) {
-      _scheduleOverlaySync();
-    }
-    if (mounted) setState(() {});
-  }
-
-  void _scheduleOverlaySync() {
-    if (_overlaySyncScheduled) return;
-    _overlaySyncScheduled = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _overlaySyncScheduled = false;
-      if (!mounted) return;
-      final overlay = widget.navigatorKey.currentState?.overlay;
-      if (overlay == null) {
-        _scheduleOverlaySync();
-        return;
-      }
-      _topEntry ??= OverlayEntry(builder: _buildTopOverlay);
-      _bottomEntry ??= OverlayEntry(builder: _buildBottomOverlay);
-      if (!_topEntry!.mounted) overlay.insert(_topEntry!);
-      if (!_bottomEntry!.mounted) overlay.insert(_bottomEntry!);
-      _markEntriesNeedsBuild();
-    });
-  }
-
-  void _scheduleBringToFront() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final overlay = widget.navigatorKey.currentState?.overlay;
-      final top = _topEntry;
-      final bottom = _bottomEntry;
-      if (overlay == null || top == null || bottom == null) {
-        _scheduleOverlaySync();
-        return;
-      }
-      if (top.mounted && bottom.mounted) {
-        overlay.rearrange([top, bottom]);
-      }
-      _markEntriesNeedsBuild();
-    });
-  }
-
-  void _markEntriesNeedsBuild() {
-    _topEntry?.markNeedsBuild();
-    _bottomEntry?.markNeedsBuild();
-  }
-
-  void _removeEntries() {
-    _topEntry?.remove();
-    _topEntry?.dispose();
-    _topEntry = null;
-    _bottomEntry?.remove();
-    _bottomEntry?.dispose();
-    _bottomEntry = null;
-  }
-
-  Widget _buildTopOverlay(BuildContext context) {
-    final topInset = MediaQuery.paddingOf(context).top;
-    return PositionedDirectional(
-      top: topInset,
-      end: 8,
-      height: kToolbarHeight,
-      child: Material(
-        type: MaterialType.transparency,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            PopupMenuButton<CarePointLocale>(
-              tooltip: null,
-              icon: const Icon(Icons.language_rounded),
-              initialValue: widget.locale,
-              position: PopupMenuPosition.under,
-              constraints: const BoxConstraints(
-                minWidth: 180,
-                maxWidth: 220,
-              ),
-              onSelected: widget.onLocaleChanged,
-              itemBuilder: (_) => CarePointLocale.values
-                  .map(
-                    (value) => PopupMenuItem<CarePointLocale>(
-                      value: value,
-                      height: 46,
-                      child: Row(
-                        children: [
-                          SizedBox(
-                            width: 28,
-                            child: value == widget.locale
-                                ? const Icon(Icons.check_rounded, size: 18)
-                                : null,
+          return Scaffold(
+            backgroundColor: Colors.transparent,
+            body: Stack(
+              fit: StackFit.expand,
+              clipBehavior: Clip.none,
+              children: [
+                Positioned.fill(child: widget.child),
+                PositionedDirectional(
+                  top: topInset + 4,
+                  end: 8,
+                  child: Material(
+                    color: Colors.transparent,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            IconButton(
+                              onPressed: () => setState(
+                                () => languageOpen = !languageOpen,
+                              ),
+                              icon: const Icon(Icons.language_rounded),
+                            ),
+                            if (languageOpen)
+                              Material(
+                                elevation: 8,
+                                borderRadius: BorderRadius.circular(12),
+                                color: Theme.of(context).colorScheme.surface,
+                                child: ConstrainedBox(
+                                  constraints: const BoxConstraints(
+                                    minWidth: 180,
+                                    maxWidth: 220,
+                                  ),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: CarePointLocale.values
+                                        .map(
+                                          (value) => _CarePointLanguageChoice(
+                                            value: value,
+                                            selected: value == widget.locale,
+                                            onSelected: () {
+                                              setState(
+                                                () => languageOpen = false,
+                                              );
+                                              if (value != widget.locale) {
+                                                widget.onLocaleChanged(value);
+                                              }
+                                            },
+                                          ),
+                                        )
+                                        .toList(growable: false),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                        if (widget.controller.hasSession)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: TextButton.icon(
+                              onPressed: widget.controller.signOut,
+                              icon: const Icon(Icons.logout_rounded),
+                              label: Text(
+                                cpText(widget.locale, 'auth.signOut'),
+                              ),
+                            ),
                           ),
-                          Expanded(child: Text(value.label)),
-                        ],
-                      ),
+                      ],
                     ),
-                  )
-                  .toList(growable: false),
+                  ),
+                ),
+              ],
             ),
-            if (widget.controller.hasSession)
-              TextButton.icon(
-                onPressed: widget.controller.signOut,
-                icon: const Icon(Icons.logout_rounded),
-                label: Text(cpText(widget.locale, 'auth.signOut')),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
+            bottomNavigationBar: navigation == null
+                ? null
+                : _CarePointWebSafeBottomNavigation(
+                    navigation: navigation,
+                  ),
+          );
+        },
+      );
+}
 
-  Widget _buildBottomOverlay(BuildContext context) {
-    final navigation =
-        widget.controller.hasSession ? widget.controller.navigation : null;
-    if (navigation == null) return const SizedBox.shrink();
+class _CarePointLanguageChoice extends StatelessWidget {
+  const _CarePointLanguageChoice({
+    required this.value,
+    required this.selected,
+    required this.onSelected,
+  });
 
-    return Positioned(
-      left: 0,
-      right: 0,
-      bottom: 0,
-      child: _CarePointWebSafeBottomNavigation(
-        navigation: navigation,
-      ),
-    );
-  }
+  final CarePointLocale value;
+  final bool selected;
+  final VoidCallback onSelected;
 
   @override
-  Widget build(BuildContext context) => widget.child;
+  Widget build(BuildContext context) => MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onSelected,
+          child: SizedBox(
+            height: 46,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 28,
+                    child: selected
+                        ? const Icon(Icons.check_rounded, size: 18)
+                        : null,
+                  ),
+                  Expanded(child: Text(value.label)),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
 }
 
 class _CarePointWebSafeBottomNavigation extends StatelessWidget {
@@ -371,13 +296,11 @@ class _CarePointWebSafeDestination extends StatelessWidget {
       button: true,
       selected: selected,
       label: destination.label,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
           onTap: onTap,
-          hoverColor: Colors.transparent,
-          highlightColor: Colors.transparent,
-          splashColor: color.withValues(alpha: .10),
           child: Center(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
