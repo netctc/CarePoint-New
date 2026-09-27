@@ -24,6 +24,19 @@ Infrastructure secrets
 TEST_POSTGRES_PASSWORD=<URL-safe random secret; recommended: openssl rand -hex 24>
 TEST_REDIS_PASSWORD=<URL-safe random secret; recommended: openssl rand -hex 24>
 
+Registration OTP
+----------------
+REGISTRATION_OTP_DELIVERY_MODE=display
+REGISTRATION_OTP_PEPPER=<independent random secret; minimum 32 characters>
+
+# Production/SMS mode:
+# REGISTRATION_OTP_DELIVERY_MODE=sms
+# TWILIO_ACCOUNT_SID=<Twilio Account SID>
+# TWILIO_AUTH_TOKEN=<Twilio Auth Token>
+# Set one sender option:
+# TWILIO_FROM_NUMBER=<E.164 Twilio sender>
+# TWILIO_MESSAGING_SERVICE_SID=<Twilio Messaging Service SID>
+
 Local test-only crypto material (all values must be independent)
 ----------------------------------------------------------------
 MFA_ENVELOPE_KEY_BASE64=<openssl rand -base64 32>
