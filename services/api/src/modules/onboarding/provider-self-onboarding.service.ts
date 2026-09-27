@@ -87,6 +87,17 @@ export class ProviderSelfOnboardingService {
               reviewedAt: true,
               createdAt: true,
               updatedAt: true,
+              documents: {
+                orderBy: { createdAt: "asc" },
+                select: {
+                  id: true,
+                  fileName: true,
+                  mediaType: true,
+                  byteLength: true,
+                  contentDigest: true,
+                  createdAt: true,
+                },
+              },
             },
           },
           specialty: {
