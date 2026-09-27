@@ -6,7 +6,27 @@ import { CurrentPrincipal, Public, RequirePermissions } from "../../security/api
 import { PersistentAuthService } from "../../security/persistent-auth.service";
 import { carePointRuntimeFeatures } from "../../infrastructure/release/private-pilot-policy";
 
-interface PatientRegistrationBody { email: string; password: string; firstName: string; lastName: string; phone?: string; }
+interface PatientRegistrationBody {
+  email: string;
+  username: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  dateOfBirth: string;
+  sex: string;
+  phone: string;
+}
+interface ProfessionalRegistrationBody {
+  kind: "DOCTOR" | "OTHER_PROVIDER";
+  email: string;
+  username: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  specialtyId?: string;
+  providerCategoryId?: string;
+}
 interface ManagedAccountBody { email: string; password: string; role: IdentityRole; }
 interface LoginBody { email: string; password: string; }
 interface ChangePasswordBody { currentPassword: string; newPassword: string; }
@@ -25,6 +45,24 @@ class IamController {
   ) {}
 
   @Public()
+  @Get("register/options")
+  async registrationOptions() {
+    const [specialties, providerCategories] = await Promise.all([
+      this.prisma.medicalSpecialty.findMany({
+        where: { active: true },
+        orderBy: { code: "asc" },
+        select: { id: true, code: true, labels: true },
+      }),
+      this.prisma.providerCategory.findMany({
+        where: { active: true },
+        orderBy: { slug: "asc" },
+        select: { id: true, slug: true, labels: true, family: true },
+      }),
+    ]);
+    return { specialties, providerCategories };
+  }
+
+  @Public()
   @Post("register/patient")
   async registerPatient(@Req() request: RequestIdentity, @Body() body: PatientRegistrationBody) {
     if (!carePointRuntimeFeatures(process.env).patientSelfRegistration) {
@@ -34,7 +72,21 @@ class IamController {
       this.rateLimits.assertAllowed({ namespace: "iam:register:ip", identity: this.clientIp(request), limit: 200, windowSeconds: 3600 }),
       this.rateLimits.assertAllowed({ namespace: "iam:register:account", identity: body.email?.trim().toLowerCase() || "missing", limit: 3, windowSeconds: 3600 }),
     ]);
-    return this.auth.registerPatient(body);
+    const result = await this.auth.registerPatient(body);
+    await this.captureSessionContext(result.sessionId, request);
+    return result;
+  }
+
+  @Public()
+  @Post("register/professional")
+  async registerProfessional(@Req() request: RequestIdentity, @Body() body: ProfessionalRegistrationBody) {
+    await Promise.all([
+      this.rateLimits.assertAllowed({ namespace: "iam:register-professional:ip", identity: this.clientIp(request), limit: 100, windowSeconds: 3600 }),
+      this.rateLimits.assertAllowed({ namespace: "iam:register-professional:account", identity: body.email?.trim().toLowerCase() || "missing", limit: 3, windowSeconds: 3600 }),
+    ]);
+    const result = await this.auth.registerProfessional(body);
+    if ("sessionId" in result) await this.captureSessionContext(result.sessionId, request);
+    return result;
   }
 
   @Public()
