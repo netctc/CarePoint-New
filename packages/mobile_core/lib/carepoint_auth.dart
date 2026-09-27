@@ -8,20 +8,68 @@ import 'mobile_release_config.dart';
 
 typedef CarePointAuthenticatedBuilder = Widget Function(BuildContext context, CarePointSession session, VoidCallback signOut);
 
+class CarePointPersistentNavigation {
+  const CarePointPersistentNavigation({
+    required this.selectedIndex,
+    required this.destinations,
+    required this.onSelected,
+  });
+
+  final int selectedIndex;
+  final List<NavigationDestination> destinations;
+  final ValueChanged<int> onSelected;
+
+  CarePointPersistentNavigation copyWith({int? selectedIndex}) =>
+      CarePointPersistentNavigation(
+        selectedIndex: selectedIndex ?? this.selectedIndex,
+        destinations: destinations,
+        onSelected: onSelected,
+      );
+}
+
 class CarePointSessionUiController extends ChangeNotifier {
   VoidCallback? _signOut;
+  CarePointPersistentNavigation? _navigation;
 
   bool get hasSession => _signOut != null;
+  CarePointPersistentNavigation? get navigation => _navigation;
 
   void bind(VoidCallback signOut) {
     _signOut = signOut;
     notifyListeners();
   }
 
-  void clear() {
-    if (_signOut == null) return;
-    _signOut = null;
+  void bindNavigation({
+    required int selectedIndex,
+    required List<NavigationDestination> destinations,
+    required ValueChanged<int> onSelected,
+  }) {
+    _navigation = CarePointPersistentNavigation(
+      selectedIndex: selectedIndex,
+      destinations: List<NavigationDestination>.unmodifiable(destinations),
+      onSelected: onSelected,
+    );
     notifyListeners();
+  }
+
+  void updateNavigationIndex(int selectedIndex) {
+    final current = _navigation;
+    if (current == null || current.selectedIndex == selectedIndex) return;
+    _navigation = current.copyWith(selectedIndex: selectedIndex);
+    notifyListeners();
+  }
+
+  void clearNavigation() {
+    if (_navigation == null) return;
+    _navigation = null;
+    notifyListeners();
+  }
+
+  void clear() {
+    final changed = _signOut != null || _navigation != null;
+    _signOut = null;
+    _navigation = null;
+    if (changed) notifyListeners();
   }
 
   void signOut() => _signOut?.call();
@@ -46,55 +94,78 @@ class CarePointSessionChrome extends StatelessWidget {
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
         animation: controller,
-        builder: (context, _) => Column(
-          children: [
-            Material(
-              color: dark ? const Color(0xFF0B1220) : Theme.of(context).colorScheme.surface,
-              elevation: 1,
-              child: SafeArea(
-                bottom: false,
-                child: SizedBox(
-                  height: 48,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      PopupMenuButton<CarePointLocale>(
-                        tooltip: _languageLabel(locale),
-                        icon: const Icon(Icons.language_rounded),
-                        initialValue: locale,
-                        onSelected: onLocaleChanged,
-                        itemBuilder: (_) => CarePointLocale.values
-                            .map(
-                              (value) => PopupMenuItem(
-                                value: value,
-                                child: Row(
-                                  children: [
-                                    if (value == locale) const Icon(Icons.check, size: 18),
-                                    if (value == locale) const SizedBox(width: 8),
-                                    Text(value.label),
-                                  ],
-                                ),
-                              ),
-                            )
-                            .toList(growable: false),
+        builder: (context, _) {
+          final navigation = controller.hasSession ? controller.navigation : null;
+          final bottomSpace = navigation == null ? 0.0 : 80.0;
+          return Stack(
+            children: [
+              Positioned.fill(
+                child: Padding(
+                  padding: EdgeInsets.only(bottom: bottomSpace),
+                  child: child,
+                ),
+              ),
+              PositionedDirectional(
+                top: 0,
+                end: 64,
+                child: SafeArea(
+                  bottom: false,
+                  child: SizedBox(
+                    height: kToolbarHeight,
+                    child: Material(
+                      color: Colors.transparent,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          MenuAnchor(
+                            menuChildren: CarePointLocale.values
+                                .map(
+                                  (value) => MenuItemButton(
+                                    onPressed: () => onLocaleChanged(value),
+                                    leadingIcon: value == locale
+                                        ? const Icon(Icons.check_rounded, size: 18)
+                                        : const SizedBox(width: 18),
+                                    child: Text(value.label),
+                                  ),
+                                )
+                                .toList(growable: false),
+                            builder: (context, menuController, child) => IconButton(
+                              onPressed: () => menuController.isOpen
+                                  ? menuController.close()
+                                  : menuController.open(),
+                              icon: const Icon(Icons.language_rounded),
+                            ),
+                          ),
+                          if (controller.hasSession)
+                            TextButton.icon(
+                              onPressed: controller.signOut,
+                              icon: const Icon(Icons.logout_rounded),
+                              label: Text(cpText(locale, 'auth.signOut')),
+                            ),
+                        ],
                       ),
-                      if (controller.hasSession) ...[
-                        const SizedBox(width: 4),
-                        TextButton.icon(
-                          onPressed: controller.signOut,
-                          icon: const Icon(Icons.logout_rounded),
-                          label: Text(cpText(locale, 'auth.signOut')),
-                        ),
-                      ],
-                      const SizedBox(width: 8),
-                    ],
+                    ),
                   ),
                 ),
               ),
-            ),
-            Expanded(child: child),
-          ],
-        ),
+              if (navigation != null)
+                Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Material(
+                    elevation: 8,
+                    child: SafeArea(
+                      top: false,
+                      child: NavigationBar(
+                        selectedIndex: navigation.selectedIndex,
+                        onDestinationSelected: navigation.onSelected,
+                        destinations: navigation.destinations,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          );
+        },
       );
 }
 
