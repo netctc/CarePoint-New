@@ -98,6 +98,7 @@ enum EmergencyAmbulanceStatus {
 model User {
   id                  String               @id @default(uuid())
   email               String               @unique
+  username            String?              @unique
   passwordHash        String
   role                UserRole
   status              AccountStatus        @default(ACTIVE)
@@ -165,6 +166,8 @@ model PatientProfile {
   userId            String                      @unique
   firstName         String
   lastName          String
+  dateOfBirth       DateTime?                   @db.Date
+  sex               String?
   phone             String?
   createdAt         DateTime                    @default(now())
   updatedAt         DateTime                    @updatedAt
@@ -189,6 +192,7 @@ model Provider {
   class                     ProviderClass
   displayName               String
   legalName                 String?
+  contactPhone              String?
   status                    ProviderStatus              @default(DRAFT)
   createdAt                 DateTime                    @default(now())
   updatedAt                 DateTime                    @updatedAt
