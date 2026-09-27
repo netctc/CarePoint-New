@@ -79,16 +79,17 @@ class _CarePointPatientAppState extends State<CarePointPatientApp> {
         expectedRole: 'PATIENT',
         title: 'CarePoint Patient',
         sessionUiController: sessionUi,
-        builder: (_, session, signOut) => PatientShell(session: session, locale: locale, onSignOut: signOut),
+        builder: (_, session, signOut) => PatientShell(session: session, locale: locale, onSignOut: signOut, sessionUiController: sessionUi),
       ),
     ),
   );
 }
 class PatientShell extends StatefulWidget {
-  const PatientShell({super.key, required this.session, required this.locale, required this.onSignOut});
+  const PatientShell({super.key, required this.session, required this.locale, required this.onSignOut, required this.sessionUiController});
   final CarePointSession session;
   final CarePointLocale locale;
   final VoidCallback onSignOut;
+  final CarePointSessionUiController sessionUiController;
   @override
   State<PatientShell> createState() => _PatientShellState();
 }
@@ -100,6 +101,47 @@ class _PatientShellState extends State<PatientShell> {
   void initState() {
     super.initState();
     _loadPatientContext();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _syncPersistentNavigation());
+  }
+
+  @override
+  void didUpdateWidget(covariant PatientShell oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.locale != widget.locale ||
+        oldWidget.sessionUiController != widget.sessionUiController) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _syncPersistentNavigation());
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.sessionUiController.clearNavigation();
+    super.dispose();
+  }
+
+  void _syncPersistentNavigation() {
+    if (!mounted) return;
+    widget.sessionUiController.bindNavigation(
+      selectedIndex: tab,
+      onSelected: _selectMainTab,
+      destinations: [
+        NavigationDestination(icon: const Icon(Icons.search), label: journeyText(widget.locale, 'search')),
+        NavigationDestination(icon: const Icon(Icons.event_note), label: journeyText(widget.locale, 'visits')),
+        NavigationDestination(icon: const Icon(Icons.health_and_safety_outlined), label: clinicalText(widget.locale, 'healthRecord')),
+        NavigationDestination(icon: const Icon(Icons.account_balance_wallet_outlined), label: financeText(widget.locale, 'finance')),
+        NavigationDestination(icon: const Icon(Icons.manage_accounts_outlined), label: journeyText(widget.locale, 'account')),
+      ],
+    );
+  }
+
+  void _selectMainTab(int value) {
+    if (!mounted) return;
+    Navigator.of(context).popUntil((route) => route.isFirst);
+    setState(() {
+      tab = value;
+      if (value == 1) visitsVersion++;
+    });
+    widget.sessionUiController.updateNavigationIndex(value);
   }
 
   Future<void> _loadPatientContext() async {
@@ -112,7 +154,7 @@ class _PatientShellState extends State<PatientShell> {
   }
   Future<void> openAvailability({String? requestId}) async {
     final booked = await Navigator.push<bool>(context, MaterialPageRoute(builder: (_) => CareAvailabilityCentrePage(session: widget.session, locale: widget.locale, focusRequestId: requestId)));
-    if (mounted && booked == true) setState(() { visitsVersion++; tab = 1; });
+    if (mounted && booked == true) _selectMainTab(1);
   }
   Future<void> openProfile() async { await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => PatientProfilePage(session: widget.session, locale: widget.locale))); }
   Future<void> openConsents() async { await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => PatientConsentLifecyclePage(session: widget.session, locale: widget.locale))); }
@@ -237,6 +279,67 @@ class _PatientShellState extends State<PatientShell> {
     ),
   );
 
+  Widget _homeQuickActions() => LayoutBuilder(
+    builder: (context, constraints) {
+      const spacing = 10.0;
+      final width = constraints.maxWidth;
+      final columns = width >= 1100
+          ? 5
+          : width >= 680
+              ? 3
+              : width >= 340
+                  ? 2
+                  : 1;
+      final itemWidth = (width - (columns - 1) * spacing) / columns;
+      Widget item(Widget child) => SizedBox(width: itemWidth, child: child);
+
+      return Wrap(
+        spacing: spacing,
+        runSpacing: spacing,
+        children: [
+          item(FilledButton.icon(
+            onPressed: () => openEmergencyAmbulanceFlow(
+              context,
+              session: widget.session,
+              locale: widget.locale,
+            ),
+            icon: const Icon(Icons.emergency_share_outlined),
+            label: Text(cpText(widget.locale, 'patient.emergencyAction')),
+          )),
+          item(OutlinedButton.icon(
+            onPressed: () => Navigator.push<void>(
+              context,
+              MaterialPageRoute(
+                builder: (_) => Directionality(
+                  textDirection: widget.locale.textDirection,
+                  child: PatientMedicalTransportPage(
+                    session: widget.session,
+                    locale: widget.locale,
+                  ),
+                ),
+              ),
+            ),
+            icon: const Icon(Icons.local_shipping_outlined),
+            label: Text(transportText(widget.locale, 'schedule')),
+          )),
+          item(PatientNotificationCentreEntryButton(
+            session: widget.session,
+            locale: widget.locale,
+          )),
+          item(PatientMessagesEntryButton(
+            session: widget.session,
+            locale: widget.locale,
+          )),
+          item(AvailabilityAlertEntryButton(
+            session: widget.session,
+            locale: widget.locale,
+            onOpen: (requestId) => openAvailability(requestId: requestId),
+          )),
+        ],
+      );
+    },
+  );
+
   Widget accountTab() => Column(children: [
     Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 0), child: SizedBox(width: double.infinity, child: FilledButton.tonalIcon(
       key: const ValueKey('patient-dependents-entry'), onPressed: openDependents, icon: const Icon(Icons.family_restroom), label: Text(patientDependentsText(widget.locale, 'title')),
@@ -268,26 +371,31 @@ class _PatientShellState extends State<PatientShell> {
       ],
     ),
     body: IndexedStack(index: tab, children: [
-      _withPatientContext(CareDiscoveryPage(session: widget.session, locale: widget.locale, onBooked: () => setState(() { visitsVersion++; tab = 1; }), header: Padding(padding: const EdgeInsets.only(bottom: 20), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        FilledButton.icon(onPressed: () => openEmergencyAmbulanceFlow(context, session: widget.session, locale: widget.locale), icon: const Icon(Icons.emergency_share_outlined), label: Text(cpText(widget.locale, 'patient.emergencyAction'))),
-        Text(cpText(widget.locale, 'patient.emergencyHint')),
-        PatientActiveEmergencyEntryButton(session: widget.session, locale: widget.locale),
-        OutlinedButton.icon(onPressed: () => Navigator.push<void>(context, MaterialPageRoute(builder: (_) => Directionality(textDirection: widget.locale.textDirection, child: PatientMedicalTransportPage(session: widget.session, locale: widget.locale)))), icon: const Icon(Icons.local_shipping_outlined), label: Text(transportText(widget.locale, 'schedule'))),
-        PatientNotificationCentreEntryButton(session: widget.session, locale: widget.locale),
-        PatientMessagesEntryButton(session: widget.session, locale: widget.locale),
-        AvailabilityAlertEntryButton(session: widget.session, locale: widget.locale, onOpen: (requestId) => openAvailability(requestId: requestId)),
-      ])))),
+      _withPatientContext(CareDiscoveryPage(
+        session: widget.session,
+        locale: widget.locale,
+        onBooked: () => _selectMainTab(1),
+        header: Padding(
+          padding: const EdgeInsets.only(bottom: 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(cpText(widget.locale, 'patient.emergencyHint')),
+              const SizedBox(height: 8),
+              PatientActiveEmergencyEntryButton(
+                session: widget.session,
+                locale: widget.locale,
+              ),
+              const SizedBox(height: 8),
+              _homeQuickActions(),
+            ],
+          ),
+        ),
+      )),
       _withPatientContext(CareVisitsPage(key: ValueKey(visitsVersion), session: widget.session, locale: widget.locale)),
       _withPatientContext(healthTab()),
       _withPatientContext(PatientFinancialWorkspace(key: ValueKey('finance-$visitsVersion'), session: widget.session, locale: widget.locale)),
       _withPatientContext(accountTab()),
-    ]),
-    bottomNavigationBar: NavigationBar(selectedIndex: tab, onDestinationSelected: (v) => setState(() { tab = v; if (v == 1) visitsVersion++; }), destinations: [
-      NavigationDestination(icon: const Icon(Icons.search), label: journeyText(widget.locale, 'search')),
-      NavigationDestination(icon: const Icon(Icons.event_note), label: journeyText(widget.locale, 'visits')),
-      NavigationDestination(icon: const Icon(Icons.health_and_safety_outlined), label: clinicalText(widget.locale, 'healthRecord')),
-      NavigationDestination(icon: const Icon(Icons.account_balance_wallet_outlined), label: financeText(widget.locale, 'finance')),
-      NavigationDestination(icon: const Icon(Icons.manage_accounts_outlined), label: journeyText(widget.locale, 'account')),
     ]),
   );
 }
