@@ -82,9 +82,14 @@ void main() {
 
       final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
       await mouse.addPointer(location: Offset.zero);
+      final languageBarrierCount =
+          find.byType(ModalBarrier).evaluate().length;
       await mouse.moveTo(tester.getCenter(find.byIcon(Icons.language_rounded)));
       await tester.pump();
-      expect(find.byType(ModalBarrier), findsNothing);
+      expect(
+        find.byType(ModalBarrier).evaluate().length,
+        languageBarrierCount,
+      );
 
       await mouse.down(tester.getCenter(find.byIcon(Icons.language_rounded)));
       await mouse.up();
@@ -100,9 +105,14 @@ void main() {
       expect(find.text('Second page'), findsOneWidget);
       expect(find.text('Records'), findsOneWidget);
 
+      final bottomBarrierCount =
+          find.byType(ModalBarrier).evaluate().length;
       await mouse.moveTo(tester.getCenter(find.text('Records')));
       await tester.pump();
-      expect(find.byType(ModalBarrier), findsNothing);
+      expect(
+        find.byType(ModalBarrier).evaluate().length,
+        bottomBarrierCount,
+      );
 
       await mouse.down(tester.getCenter(find.text('Records')));
       await mouse.up();
