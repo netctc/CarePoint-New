@@ -5,7 +5,7 @@ import 'carepoint_localization.dart';
 import 'mfa_enrollment_api.dart';
 import 'mfa_setup_panel.dart';
 import 'mobile_release_config.dart';
-import 'registration_dialog.dart';
+import 'registration_flow.dart';
 
 typedef CarePointAuthenticatedBuilder = Widget Function(BuildContext context, CarePointSession session, VoidCallback signOut);
 
@@ -340,7 +340,7 @@ class _CarePointLoginGateState extends State<CarePointLoginGate> {
 
   Future<void> registerAccount() async {
     try {
-      final data = await showCarePointRegistrationDialog(
+      final result = await showCarePointRegistrationFlow(
         context,
         api: api,
         locale: widget.locale,
@@ -348,50 +348,26 @@ class _CarePointLoginGateState extends State<CarePointLoginGate> {
         accent: widget.accent,
         dark: widget.dark,
       );
-      if (data == null || !mounted) return;
-      setState(() {
-        busy = true;
-        error = null;
-      });
+      if (result == null || !mounted) return;
 
-      final next = widget.expectedRole == 'PATIENT'
-          ? await api.registerPatient(
-              email: data.email,
-              username: data.username,
-              password: data.password,
-              firstName: data.firstName,
-              lastName: data.lastName,
-              dateOfBirth: data.dateOfBirth!,
-              sex: data.sex!,
-              phone: data.phone,
-            )
-          : await api.registerProfessional(
-              kind: widget.expectedRole,
-              email: data.email,
-              username: data.username,
-              password: data.password,
-              firstName: data.firstName,
-              lastName: data.lastName,
-              phone: data.phone,
-              specialtyId: data.specialtyId,
-              providerCategoryId: data.providerCategoryId,
-            );
+      final mfaChallenge = result.mfaChallenge;
+      if (mfaChallenge != null) {
+        await _adoptMfaChallenge(mfaChallenge);
+        return;
+      }
+
+      final next = result.session;
+      if (next == null) return;
       if (next.role != widget.expectedRole) {
         await api.logout();
         throw CarePointApiException(
           'Registered account belongs to ${next.role}, not ${widget.expectedRole}.',
         );
       }
-      if (mounted) {
-        setState(() => session = next);
-        widget.sessionUiController?.bind(signOut);
-      }
-    } on CarePointMfaRequired catch (value) {
-      await _adoptMfaChallenge(value);
+      setState(() => session = next);
+      widget.sessionUiController?.bind(signOut);
     } catch (value) {
       if (mounted) setState(() => error = value.toString());
-    } finally {
-      if (mounted) setState(() => busy = false);
     }
   }
 
