@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Module, Param, Post } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Module, Param, Post } from "@nestjs/common";
 import type { AuthPrincipal } from "@carepoint/identity";
 import { CurrentPrincipal, RequirePermissions } from "../../security/api-security.module";
 import { DocumentsModule } from "../documents/documents.module";
@@ -66,6 +66,20 @@ class OnboardingController {
       onboardingId,
       credentialId,
       body,
+    );
+  }
+
+  @RequirePermissions("PROVIDER_SELF_ONBOARD")
+  @Delete(":onboardingId/credentials/:credentialId")
+  removeCredential(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Param("onboardingId") onboardingId: string,
+    @Param("credentialId") credentialId: string,
+  ) {
+    return this.onboarding.removeCredential(
+      principal,
+      onboardingId,
+      credentialId,
     );
   }
 
