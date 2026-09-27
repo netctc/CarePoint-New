@@ -29,6 +29,11 @@ Registration OTP
 REGISTRATION_OTP_DELIVERY_MODE=display
 REGISTRATION_OTP_PEPPER=<independent random secret; minimum 32 characters>
 
+# JSON body limit used by encrypted credential PDF uploads.
+# 12 MiB accommodates one base64-encoded PDF up to the 8 MiB document limit.
+JSON_BODY_LIMIT_BYTES=12582912
+FORM_BODY_LIMIT_BYTES=131072
+
 # Production/SMS mode:
 # REGISTRATION_OTP_DELIVERY_MODE=sms
 # TWILIO_ACCOUNT_SID=<Twilio Account SID>
