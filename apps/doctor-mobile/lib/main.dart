@@ -73,6 +73,7 @@ class _DoctorAppState extends State<DoctorApp> {
                   accent: const Color(0xFF22D3EE),
                   dark: true,
                   onSignOut: signOut,
+                  sessionUiController: sessionUi,
                 ),
               ),
             ),
