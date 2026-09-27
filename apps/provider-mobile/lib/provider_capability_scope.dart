@@ -1,4 +1,5 @@
 import 'package:carepoint_mobile_core/carepoint_api.dart';
+import 'package:carepoint_mobile_core/carepoint_auth.dart';
 import 'package:carepoint_mobile_core/carepoint_localization.dart';
 import 'package:carepoint_mobile_core/provider_workspace.dart';
 import 'package:carepoint_mobile_core/revenue_cycle_localization.dart';
@@ -117,6 +118,7 @@ class CapabilityAwareProviderWorkspaceWithRevenueCycle extends StatelessWidget {
     required this.onSignOut,
     required this.allowedServiceModalities,
     required this.clinicalOrderCapabilities,
+    required this.sessionUiController,
     this.dark = false,
   });
 
@@ -127,6 +129,7 @@ class CapabilityAwareProviderWorkspaceWithRevenueCycle extends StatelessWidget {
   final VoidCallback onSignOut;
   final Set<String> allowedServiceModalities;
   final Set<String> clinicalOrderCapabilities;
+  final CarePointSessionUiController sessionUiController;
   final bool dark;
 
   @override
@@ -138,6 +141,7 @@ class CapabilityAwareProviderWorkspaceWithRevenueCycle extends StatelessWidget {
             title: title,
             accent: accent,
             onSignOut: onSignOut,
+            sessionUiController: sessionUiController,
             dark: dark,
             allowedServiceModalities: allowedServiceModalities,
             clinicalOrderCapabilities: clinicalOrderCapabilities,
