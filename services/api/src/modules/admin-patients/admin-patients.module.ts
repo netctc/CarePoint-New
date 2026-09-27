@@ -46,6 +46,7 @@ class AdminPatientsService {
           OR: [
             { firstName: { contains: q, mode: "insensitive" } },
             { lastName: { contains: q, mode: "insensitive" } },
+            { phone: { contains: q, mode: "insensitive" } },
             { user: { email: { contains: q, mode: "insensitive" } } },
           ],
         } : {}),
