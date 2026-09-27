@@ -52,26 +52,134 @@ export class PersistentAuthService {
     private readonly mfaEnvelope: MfaEnvelopeService,
   ) {}
 
-  async registerPatient(input: { email: string; password: string; firstName: string; lastName: string; phone?: string }) {
+  async registerPatient(input: {
+    email: string;
+    username: string;
+    password: string;
+    firstName: string;
+    lastName: string;
+    dateOfBirth: string;
+    sex: string;
+    phone: string;
+  }): Promise<SessionTokens> {
     const email = this.normalizeEmail(input.email);
-    if (!input.firstName?.trim() || !input.lastName?.trim()) throw new BadRequestException("firstName and lastName are required.");
-    await this.ensureEmailAvailable(email);
+    const username = this.normalizeUsername(input.username);
+    const firstName = input.firstName?.trim();
+    const lastName = input.lastName?.trim();
+    const phone = input.phone?.trim();
+    const dateOfBirth = this.registrationDate(input.dateOfBirth);
+    const sex = this.registrationSex(input.sex);
+    this.assertRegistrationPassword(input.password);
+    if (!firstName || !lastName) throw new BadRequestException("firstName and lastName are required.");
+    if (!phone) throw new BadRequestException("A contact phone number is required.");
+    await Promise.all([
+      this.ensureEmailAvailable(email),
+      this.ensureUsernameAvailable(username),
+    ]);
+
     const user = await this.prisma.user.create({
       data: {
         email,
+        username,
         passwordHash: await hashPasswordAsync(input.password),
         role: "PATIENT",
         patientProfile: {
           create: {
-            firstName: input.firstName.trim(),
-            lastName: input.lastName.trim(),
-            phone: input.phone?.trim() || null,
+            firstName,
+            lastName,
+            dateOfBirth,
+            sex,
+            phone,
           },
         },
       },
     });
-    await this.audit.write({ action: "PATIENT_ACCOUNT_REGISTERED", objectType: "ACCOUNT", objectId: user.id, result: "SUCCESS" });
-    return this.safeAccount(user);
+    await this.audit.write({
+      actorId: user.id,
+      action: "PATIENT_SELF_REGISTERED",
+      objectType: "ACCOUNT",
+      objectId: user.id,
+      result: "SUCCESS",
+    });
+    return this.issueSession(user.id, false);
+  }
+
+  async registerProfessional(input: {
+    kind: "DOCTOR" | "OTHER_PROVIDER";
+    email: string;
+    username: string;
+    password: string;
+    firstName: string;
+    lastName: string;
+    phone: string;
+    specialtyId?: string;
+    providerCategoryId?: string;
+  }): Promise<SessionTokens | MfaChallengeResult> {
+    const email = this.normalizeEmail(input.email);
+    const username = this.normalizeUsername(input.username);
+    const firstName = input.firstName?.trim();
+    const lastName = input.lastName?.trim();
+    const phone = input.phone?.trim();
+    this.assertRegistrationPassword(input.password);
+    if (!firstName || !lastName) throw new BadRequestException("firstName and lastName are required.");
+    if (!phone) throw new BadRequestException("A contact phone number is required.");
+    await Promise.all([
+      this.ensureEmailAvailable(email),
+      this.ensureUsernameAvailable(username),
+    ]);
+
+    if (input.kind === "DOCTOR") {
+      if (!input.specialtyId?.trim()) throw new BadRequestException("A medical specialty is required.");
+      const specialty = await this.prisma.medicalSpecialty.findUnique({ where: { id: input.specialtyId.trim() } });
+      if (!specialty?.active) throw new BadRequestException("An active medical specialty is required.");
+    } else {
+      if (!input.providerCategoryId?.trim()) throw new BadRequestException("A provider category is required.");
+      const category = await this.prisma.providerCategory.findUnique({ where: { id: input.providerCategoryId.trim() } });
+      if (!category?.active) throw new BadRequestException("An active provider category is required.");
+    }
+
+    const displayName = `${firstName} ${lastName}`;
+    const result = await this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          email,
+          username,
+          passwordHash: await hashPasswordAsync(input.password),
+          role: input.kind,
+        },
+      });
+      await tx.provider.create({
+        data: {
+          userId: user.id,
+          class: input.kind,
+          displayName,
+          legalName: displayName,
+          contactPhone: phone,
+          status: "PENDING_REVIEW",
+        },
+      });
+      const onboarding = await tx.providerOnboarding.create({
+        data: {
+          userId: user.id,
+          kind: input.kind,
+          ...(input.kind === "DOCTOR"
+            ? { specialtyId: input.specialtyId!.trim() }
+            : { providerCategoryId: input.providerCategoryId!.trim() }),
+        },
+      });
+      return { user, onboarding };
+    });
+
+    await this.audit.write({
+      actorId: result.user.id,
+      action: input.kind === "DOCTOR" ? "DOCTOR_SELF_REGISTERED" : "OTHER_PROVIDER_SELF_REGISTERED",
+      objectType: "PROVIDER_ONBOARDING",
+      objectId: result.onboarding.id,
+      result: "SUCCESS",
+      metadata: { kind: input.kind },
+    });
+
+    return this.login(email, input.password);
   }
 
   async createManagedAccount(actorId: string, input: { email: string; password: string; role: IdentityRole }) {
@@ -150,9 +258,12 @@ export class PersistentAuthService {
     return this.safeAccount(user);
   }
 
-  async login(emailInput: string, password: string): Promise<SessionTokens | MfaChallengeResult> {
-    const email = this.normalizeEmail(emailInput);
-    const user = await this.prisma.user.findUnique({ where: { email }, include: { mfaEnrollment: true } });
+  async login(identityInput: string, password: string): Promise<SessionTokens | MfaChallengeResult> {
+    const identity = identityInput?.trim().toLowerCase();
+    if (!identity) throw new BadRequestException("Email or username is required.");
+    const user = identity.includes("@")
+      ? await this.prisma.user.findUnique({ where: { email: this.normalizeEmail(identity) }, include: { mfaEnrollment: true } })
+      : await this.prisma.user.findUnique({ where: { username: this.normalizeUsername(identity) }, include: { mfaEnrollment: true } });
     if (!user) throw new UnauthorizedException("Invalid credentials.");
     if (user.status !== "ACTIVE") throw new UnauthorizedException("Account is not active.");
     if (user.lockedUntil && user.lockedUntil.getTime() > Date.now()) throw new UnauthorizedException("Account temporarily locked.");
@@ -492,7 +603,42 @@ export class PersistentAuthService {
   }
 
   private async ensureEmailAvailable(email: string): Promise<void> {
-    if (await this.prisma.user.findUnique({ where: { email }, select: { id: true } })) throw new ConflictException("Account already exists.");
+    if (await this.prisma.user.findUnique({ where: { email }, select: { id: true } })) throw new ConflictException("An account with this email already exists.");
+  }
+
+  private normalizeUsername(value: string): string {
+    const username = value?.trim().toLowerCase();
+    if (!username || !/^[a-z0-9._-]{3,40}$/.test(username)) {
+      throw new BadRequestException("Username must contain 3 to 40 letters, numbers, dots, underscores or hyphens.");
+    }
+    return username;
+  }
+
+  private async ensureUsernameAvailable(username: string): Promise<void> {
+    if (await this.prisma.user.findUnique({ where: { username }, select: { id: true } })) {
+      throw new ConflictException("This username is already in use.");
+    }
+  }
+
+  private assertRegistrationPassword(password: string): void {
+    if (!password || password.length < 12 || password.length > 128) {
+      throw new BadRequestException("Password must contain between 12 and 128 characters.");
+    }
+  }
+
+  private registrationDate(value: string): Date {
+    const raw = value?.trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) throw new BadRequestException("dateOfBirth must use YYYY-MM-DD.");
+    const date = new Date(`${raw}T00:00:00.000Z`);
+    if (!Number.isFinite(date.getTime()) || date.getTime() > Date.now()) throw new BadRequestException("A valid date of birth is required.");
+    return date;
+  }
+
+  private registrationSex(value: string): string {
+    const normalized = value?.trim().toUpperCase();
+    const allowed = new Set(["FEMALE", "MALE", "INTERSEX", "OTHER", "PREFER_NOT_TO_SAY"]);
+    if (!allowed.has(normalized)) throw new BadRequestException("A supported sex value is required.");
+    return normalized;
   }
 
   private safeAccount(user: { id: string; email: string; role: string; status: string; failedLoginCount: number; lockedUntil: Date | null; createdAt: Date; updatedAt: Date }) {
