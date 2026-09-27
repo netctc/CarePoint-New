@@ -52,6 +52,8 @@ class AdminOperationsService {
       activeDoctors,
       activeOtherProviders,
       onboardingGroups,
+      pendingRegistrationCount,
+      pendingRegistrations,
       emergencyActive,
       emergencyQueue,
       transportGroups,
@@ -72,6 +74,21 @@ class AdminOperationsService {
         by: ["kind", "state"],
         where: { state: { in: [...REVIEW_ONBOARDING_STATES] } },
         _count: { _all: true },
+      }),
+      this.prisma.provider.count({
+        where: { status: "PENDING_REVIEW" },
+      }),
+      this.prisma.provider.findMany({
+        where: { status: "PENDING_REVIEW" },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        take: 8,
+        select: {
+          id: true,
+          class: true,
+          displayName: true,
+          createdAt: true,
+          user: { select: { id: true, email: true, username: true } },
+        },
       }),
       this.prisma.emergencyAmbulanceRequest.count({ where: { status: { in: [...ACTIVE_EMERGENCY_STATUSES] } } }),
       this.prisma.emergencyAmbulanceRequest.findMany({
@@ -146,6 +163,22 @@ class AdminOperationsService {
       governance: {
         doctors: this.onboardingSummary(onboardingGroups, "DOCTOR"),
         otherProviders: this.onboardingSummary(onboardingGroups, "OTHER_PROVIDER"),
+      },
+      registrations: {
+        pending: pendingRegistrationCount,
+        items: pendingRegistrations.map((item) => ({
+          providerId: item.id,
+          kind: item.class,
+          displayName: item.displayName,
+          registeredAt: item.createdAt.toISOString(),
+          account: item.user
+            ? {
+                id: item.user.id,
+                email: item.user.email,
+                username: item.user.username,
+              }
+            : null,
+        })),
       },
       emergency: {
         active: emergencyActive,
