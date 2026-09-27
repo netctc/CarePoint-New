@@ -18,6 +18,7 @@ class _DoctorAppState extends State<DoctorApp> {
   CarePointLocale locale = CarePointLocale.en;
   final sessionUi = CarePointSessionUiController();
   final navigatorKey = GlobalKey<NavigatorState>();
+  final navigatorObserver = CarePointSessionNavigatorObserver();
 
   @override
   void dispose() {
@@ -29,6 +30,7 @@ class _DoctorAppState extends State<DoctorApp> {
   Widget build(BuildContext context) => MaterialApp(
         debugShowCheckedModeBanner: false,
     navigatorKey: navigatorKey,
+    navigatorObservers: [navigatorObserver],
         locale: locale.locale,
         theme: ThemeData(
           useMaterial3: true,
