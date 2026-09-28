@@ -68,10 +68,21 @@ export class PersistentOnboardingService {
     const result = await this.prisma.$transaction(async (tx) => {
       const existingProvider = await tx.provider.findUnique({ where: { userId: principal.accountId } });
       if (existingProvider && existingProvider.class !== "DOCTOR") throw new ConflictException("Provider domain mismatch.");
-      if (existingProvider) {
-        await tx.provider.update({ where: { id: existingProvider.id }, data: { status: "DRAFT" } });
-      } else {
-        await tx.provider.create({ data: { userId: principal.accountId, class: "DOCTOR", displayName: user.email, status: "DRAFT" } });
+      const provider = existingProvider
+        ? await tx.provider.update({ where: { id: existingProvider.id }, data: { status: "DRAFT" } })
+        : await tx.provider.create({ data: { userId: principal.accountId, class: "DOCTOR", displayName: user.email, status: "DRAFT" } });
+      if (!existingProvider || existingProvider.status !== "DRAFT") {
+        await tx.providerGovernanceHistory.create({
+          data: {
+            providerId: provider.id,
+            domain: "PROVIDER",
+            targetId: provider.id,
+            fromStatus: existingProvider?.status ?? null,
+            toStatus: "DRAFT",
+            reason: "Doctor onboarding started.",
+            actorId: principal.accountId,
+          },
+        });
       }
       return tx.providerOnboarding.create({
         data: { userId: principal.accountId, kind: "DOCTOR", specialtyId },
@@ -100,10 +111,21 @@ export class PersistentOnboardingService {
     const result = await this.prisma.$transaction(async (tx) => {
       const existingProvider = await tx.provider.findUnique({ where: { userId: principal.accountId } });
       if (existingProvider && existingProvider.class !== "OTHER_PROVIDER") throw new ConflictException("Provider domain mismatch.");
-      if (existingProvider) {
-        await tx.provider.update({ where: { id: existingProvider.id }, data: { status: "DRAFT" } });
-      } else {
-        await tx.provider.create({ data: { userId: principal.accountId, class: "OTHER_PROVIDER", displayName: user.email, status: "DRAFT" } });
+      const provider = existingProvider
+        ? await tx.provider.update({ where: { id: existingProvider.id }, data: { status: "DRAFT" } })
+        : await tx.provider.create({ data: { userId: principal.accountId, class: "OTHER_PROVIDER", displayName: user.email, status: "DRAFT" } });
+      if (!existingProvider || existingProvider.status !== "DRAFT") {
+        await tx.providerGovernanceHistory.create({
+          data: {
+            providerId: provider.id,
+            domain: "PROVIDER",
+            targetId: provider.id,
+            fromStatus: existingProvider?.status ?? null,
+            toStatus: "DRAFT",
+            reason: "Other Provider onboarding started.",
+            actorId: principal.accountId,
+          },
+        });
       }
       return tx.providerOnboarding.create({
         data: { userId: principal.accountId, kind: "OTHER_PROVIDER", providerCategoryId },
