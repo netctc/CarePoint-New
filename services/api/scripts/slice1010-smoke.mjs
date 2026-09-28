@@ -47,9 +47,19 @@ async function json(path, { method = "GET", body } = {}) {
   return result.payload;
 }
 
+let registrationSequence = 0;
+
 async function registerPatient(label) {
+  registrationSequence += 1;
   const email = `bulk-${label.toLowerCase()}-${suffix}@carepoint.test`;
-  await json("/iam/register/patient", { method: "POST", body: { email, password, firstName: label, lastName: "Bulk Export" } });
+  const phone = `+966597${String(registrationSequence).padStart(6, "0")}`;
+  const otp = await json("/iam/register/otp/start", { method: "POST", body: { kind: "PATIENT", firstName: label, lastName: "Bulk Export", phone } });
+  const verified = await json("/iam/register/otp/verify", { method: "POST", body: { challengeId: otp.challengeId, code: otp.testOtp } });
+  const username = email.split("@")[0].replace(/[^a-z0-9._-]/gi, "-").toLowerCase().slice(0, 40);
+  await json("/iam/register/patient", {
+    method: "POST",
+    body: { challengeId: otp.challengeId, registrationToken: verified.registrationToken, email, username, password, dateOfBirth: "1990-01-15", sex: "PREFER_NOT_TO_SAY" },
+  });
   const login = await json("/iam/login", { method: "POST", body: { email, password } });
   const patient = await prisma.patientProfile.findFirstOrThrow({ where: { user: { email } } });
   return { email, patient, accessToken: login.accessToken };
