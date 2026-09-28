@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/AppShell";
+import { AdminPagination, paginateItems, clampPage } from "@/components/AdminPagination";
 import { useI18n, type Locale } from "@/lib/i18n";
 
 type EvidenceStatus = "PENDING_REVIEW" | "VERIFIED" | "REJECTED";
@@ -209,11 +210,12 @@ export default function DependentReviewPage() {
   const [message, setMessage] = useState("");
   const [relationReasons, setRelationReasons] = useState<Record<string, string>>({});
   const [evidenceReasons, setEvidenceReasons] = useState<Record<string, string>>({});
+  const [page,setPage]=useState(1); const [pageSize,setPageSize]=useState(10);
 
   const load = useCallback(async () => {
     try {
       const next = await adminApi("review") as Queue;
-      setData(next);
+      setData(next);setPage(current=>clampPage(current,next.items?.length??0,pageSize));
       setMessage("");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : c.failed);
@@ -323,7 +325,7 @@ export default function DependentReviewPage() {
       {message ? <div style={box}>{message}</div> : null}
       {queueCount === 0 ? <div style={box}>{c.empty}</div> : null}
 
-      {(data?.items ?? []).map((relation) => {
+      {paginateItems(data?.items ?? [],page,pageSize).map((relation) => {
         const validEvidence = relation.evidence.filter((item) =>
           item.status === "VERIFIED" &&
           (!item.expiresAt || new Date(item.expiresAt).getTime() > Date.now()),
@@ -427,6 +429,7 @@ export default function DependentReviewPage() {
           </div>
         </section>;
       })}
+      <AdminPagination page={page} pageSize={pageSize} total={queueCount} onPageChange={setPage} onPageSizeChange={(size)=>{setPageSize(size);setPage(1);}}/>
     </div>
   </AppShell>;
 }
