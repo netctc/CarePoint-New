@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { hashPasswordAsync } from "@carepoint/identity";
 
 const prisma = new PrismaClient();
 const apiBase = process.env.CAREPOINT_API_URL || "http://127.0.0.1:4000/api/v1";
@@ -35,8 +36,15 @@ async function cleanup(){
 
 try{
   await cleanup();
-  const registration=await api("/iam/register/patient",{method:"POST",body:JSON.stringify({email:targetEmail,password:targetPassword,firstName:"B7",lastName:"Security"})});
-  assert(registration.response.status===201||registration.response.status===200,`B7 patient registration failed: ${registration.text}`);
+  await prisma.user.create({
+    data:{
+      email:targetEmail,
+      username:"b7-security-patient",
+      passwordHash:await hashPasswordAsync(targetPassword),
+      role:"PATIENT",
+      patientProfile:{create:{firstName:"B7",lastName:"Security",dateOfBirth:new Date("1990-01-15T00:00:00.000Z"),sex:"PREFER_NOT_TO_SAY"}},
+    },
+  });
 
   const login1=await api("/iam/login",{method:"POST",headers:{"user-agent":rawUserAgent},body:JSON.stringify({email:targetEmail,password:targetPassword})});
   const login2=await api("/iam/login",{method:"POST",headers:{"user-agent":"Mozilla/5.0 (iPhone) AppleWebKit Safari/605.1"},body:JSON.stringify({email:targetEmail,password:targetPassword})});
