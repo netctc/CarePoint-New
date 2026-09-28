@@ -926,14 +926,70 @@ class AdminPatientsController {
     @CurrentPrincipal() principal: AuthPrincipal,
     @Query("q") q?: string,
     @Query("status") status?: string,
+    @Query("page") page?: string,
+    @Query("pageSize") pageSize?: string,
     @Query("limit") limit?: string,
   ) {
-    return this.patients.list(principal, { q, status, limit });
+    return this.patients.list(principal, { q, status, page, pageSize, limit });
+  }
+
+  @Post()
+  create(@CurrentPrincipal() principal: AuthPrincipal, @Body() body: JsonObject) {
+    return this.patients.create(principal, body ?? {});
   }
 
   @Get(":patientId")
   detail(@CurrentPrincipal() principal: AuthPrincipal, @Param("patientId") patientId: string) {
     return this.patients.detail(principal, patientId);
+  }
+
+  @Patch(":patientId")
+  update(@CurrentPrincipal() principal: AuthPrincipal, @Param("patientId") patientId: string, @Body() body: JsonObject) {
+    return this.patients.update(principal, patientId, body ?? {});
+  }
+
+  @Patch(":patientId/status")
+  status(@CurrentPrincipal() principal: AuthPrincipal, @Param("patientId") patientId: string, @Body() body: JsonObject) {
+    return this.patients.changeStatus(principal, patientId, body ?? {});
+  }
+
+  @Post(":patientId/access-reset")
+  resetAccess(@CurrentPrincipal() principal: AuthPrincipal, @Param("patientId") patientId: string, @Body() body: JsonObject) {
+    return this.patients.resetAccess(principal, patientId, body ?? {});
+  }
+
+  @Post(":patientId/logout")
+  forceLogout(@CurrentPrincipal() principal: AuthPrincipal, @Param("patientId") patientId: string) {
+    return this.patients.forceLogout(principal, patientId);
+  }
+
+  @Get(":patientId/history")
+  history(@CurrentPrincipal() principal: AuthPrincipal, @Param("patientId") patientId: string) {
+    return this.patients.history(principal, patientId);
+  }
+
+  @Get(":patientId/duplicates")
+  duplicates(@CurrentPrincipal() principal: AuthPrincipal, @Param("patientId") patientId: string) {
+    return this.patients.duplicates(principal, patientId);
+  }
+
+  @Post(":patientId/contact-changes")
+  requestContactChange(@CurrentPrincipal() principal: AuthPrincipal, @Param("patientId") patientId: string, @Body() body: JsonObject) {
+    return this.patients.requestContactChange(principal, patientId, body ?? {});
+  }
+
+  @Post(":patientId/contact-changes/:changeId/verify")
+  verifyContactChange(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Param("patientId") patientId: string,
+    @Param("changeId") changeId: string,
+  ) {
+    return this.patients.verifyContactChange(principal, patientId, changeId);
+  }
+
+  @Get(":patientId/export")
+  exportAdministrative(@CurrentPrincipal() principal: AuthPrincipal, @Param("patientId") patientId: string) {
+    return this.patients.exportAdministrative(principal, patientId);
   }
 }
 
