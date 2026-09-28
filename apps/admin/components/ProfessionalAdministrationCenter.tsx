@@ -144,8 +144,8 @@ export function ProfessionalAdministrationCenter({kind}:{kind:ProviderKind}) {
 
       <hr style={{border:0,borderTop:"1px solid #e2e8f0",margin:"18px 0"}}/>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))",gap:14}}>
-        <div><h3>{t.account} status</h3><select value={accountStatus} onChange={e=>setAccountStatus(e.target.value)}>{ACCOUNT_STATUSES.map(s=><option key={s}>{s}</option>)}</select></div>
-        <div><h3>{t.provider} status</h3><select value={providerStatus} onChange={e=>setProviderStatus(e.target.value)}>{PROVIDER_STATUSES.map(s=><option key={s}>{s}</option>)}</select></div>
+        <label><span>{t.account} status</span><select value={accountStatus} onChange={e=>setAccountStatus(e.target.value)}>{ACCOUNT_STATUSES.map(s=><option key={s}>{s}</option>)}</select></label>
+        <label><span>{t.provider} status</span><select value={providerStatus} onChange={e=>setProviderStatus(e.target.value)}>{PROVIDER_STATUSES.map(s=><option key={s}>{s}</option>)}</select></label>
         <label>{t.reason}<input value={reason} onChange={e=>setReason(e.target.value)} placeholder={t.reason}/></label>
       </div>
       <div style={{display:"flex",gap:8,marginTop:10,flexWrap:"wrap"}}>
@@ -163,8 +163,8 @@ export function ProfessionalAdministrationCenter({kind}:{kind:ProviderKind}) {
             <div><strong>{credential.type}</strong> · {credential.number||"—"} · {credential.issuer||"—"}<br/><small>{t.from}: {date(credential.validFrom)} · {t.until}: {date(credential.validUntil)} · {credential.daysRemaining??"—"}d</small></div>
             <Badge value={credential.effectiveStatus??credential.status}/>
           </div>
-          <div style={{display:"flex",gap:8,marginTop:10,flexWrap:"wrap",alignItems:"center"}}>
-            <select defaultValue={credential.status==="VERIFIED"?"VALID":credential.status} id={"cred-status-"+credential.id}>{CREDENTIAL_STATUSES.map(s=><option key={s}>{s}</option>)}</select>
+          <div style={{display:"flex",gap:8,marginTop:10,flexWrap:"wrap",alignItems:"flex-end"}}>
+            <label style={{minWidth:180}}><span>{t.status}</span><select defaultValue={credential.status==="VERIFIED"?"VALID":credential.status} id={"cred-status-"+credential.id}>{CREDENTIAL_STATUSES.map(s=><option key={s}>{s}</option>)}</select></label>
             <button className="secondary-button" onClick={()=>{const el=document.getElementById("cred-status-"+credential.id) as HTMLSelectElement|null;void mutate("/api/admin/provider-administration/"+detail.id+"/credentials/"+credential.id+"/status","PATCH",{status:el?.value||credential.status,reason:reason||"Administrative credential review"});}}>{t.apply} · {t.status}</button>
             <button className="secondary-button" onClick={()=>void renew(credential)}>{t.renew}</button>
             <label className="secondary-button" style={{cursor:"pointer"}}>{t.upload}<input hidden type="file" accept="application/pdf,.pdf" multiple onChange={e=>void upload(credential,e.target.files)}/></label>
