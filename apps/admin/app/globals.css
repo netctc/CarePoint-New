@@ -75,3 +75,15 @@
 @media(max-width:780px){
   .admin-form-grid,.admin-form-grid--wide{grid-template-columns:1fr}
 }
+
+
+/* Shared Admin list pagination */
+.admin-pagination{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin-top:14px;padding-top:12px;border-top:1px solid rgba(148,163,184,.22)}
+.admin-pagination-summary{font-size:12px;color:#64748b}
+.admin-pagination-size{display:flex!important;flex-direction:row!important;align-items:center!important;gap:8px!important;font-size:12px!important;font-weight:650!important}
+.admin-pagination-size select{width:auto!important;min-width:76px!important;min-height:36px!important;padding:7px 9px!important}
+.admin-pagination-nav{display:flex;align-items:center;gap:8px}
+.admin-pagination-nav span{font-size:12px;color:#475569;min-width:92px;text-align:center}
+.admin-pagination-nav button{border:1px solid #cbd5e1;background:#fff;color:#334155;border-radius:9px;padding:7px 10px;font-weight:700;cursor:pointer}
+.admin-pagination-nav button:disabled{opacity:.45;cursor:not-allowed}
+@media(max-width:720px){.admin-pagination{align-items:stretch;flex-direction:column}.admin-pagination-nav{justify-content:space-between}}
