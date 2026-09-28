@@ -275,15 +275,15 @@ export function ProviderGovernanceQueue({ kind }: { kind: ProviderKind }) {
     </div>
 
     <div className={styles.filters}>
-      <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={copy.search} aria-label={copy.search} />
-      <select value={state} onChange={(event) => setState(event.target.value as OnboardingState | "ALL")}>
+      <label className="admin-form-field"><span>{copy.search}</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={copy.search} aria-label={copy.search} /></label>
+      <label className="admin-form-field"><span>{copy.reviewState}</span><select value={state} onChange={(event) => setState(event.target.value as OnboardingState | "ALL")}>
         <option value="ALL">{copy.allStates}</option>
         <option value="PENDING_REVIEW">{stateLabel("PENDING_REVIEW", copy)}</option>
         <option value="REQUEST_CHANGES">{stateLabel("REQUEST_CHANGES", copy)}</option>
         <option value="APPROVED">{stateLabel("APPROVED", copy)}</option>
         <option value="REJECTED">{stateLabel("REJECTED", copy)}</option>
         <option value="DRAFT">DRAFT</option>
-      </select>
+      </select></label>
     </div>
 
     {error && <div className={styles.error} role="alert">{error} <button onClick={() => setError("")}>×</button></div>}
