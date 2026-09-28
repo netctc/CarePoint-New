@@ -30,7 +30,7 @@ assert.match(providerAdmin,/archivedOnboardingEvidenceRetained/);
 
 assert.match(queue,/credential\.state === "VERIFIED" \? "VERIFIED"/);
 assert.doesNotMatch(queue,/<option value="APPROVED"/);
-assert.match(professional,/deleteCredentialDocument/);
+assert.match(professional,/async function deleteDocument/);
 assert.match(professional,/AdminPagination/);
 
 assert.match(security,/const pageSize=10/);
