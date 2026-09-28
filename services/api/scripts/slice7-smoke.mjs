@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { registerTestPatient } from './support/register-test-patient.mjs';
 
 const base = process.env.CAREPOINT_API_URL || 'http://127.0.0.1:4000/api/v1';
 const prisma = new PrismaClient();
@@ -25,8 +26,7 @@ async function login(email, password) {
   return result.accessToken;
 }
 async function ensurePatient(email, password) {
-  const created = await raw('/iam/register/patient', { method: 'POST', body: { email, password, firstName: 'Slice 7', lastName: 'Patient' } });
-  if (created.status !== 201 && created.status !== 409) throw new Error(`Unable to prepare Slice 7 patient: HTTP ${created.status} ${JSON.stringify(created.payload)}`);
+  await registerTestPatient({ base, email, password, firstName: 'Slice 7', lastName: 'Patient' });
 }
 async function ensureDoctorAccount(adminToken, email, password) {
   const created = await raw('/iam/accounts', { method: 'POST', token: adminToken, body: { email, password, role: 'DOCTOR' } });
