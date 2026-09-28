@@ -28,6 +28,7 @@ export function BreakGlassReview(){
   const [status,setStatus]=useState<"PENDING"|"REVIEWED">("PENDING");
   const [items,setItems]=useState<Grant[]>([]); const [loading,setLoading]=useState(true); const [error,setError]=useState("");
   const [drafts,setDrafts]=useState<Record<string,Draft>>({}); const [busy,setBusy]=useState("");
+  const [page,setPage]=useState(1); const [pageSize,setPageSize]=useState(10);
   const load=useCallback(async()=>{setLoading(true);setError("");try{const r=await fetch(`/api/admin/break-glass?status=${status}`,{cache:"no-store"});const p=await r.json();if(!r.ok)throw new Error(p?.message||`HTTP ${r.status}`);const next=Array.isArray(p?.items)?p.items:[];setItems(next);setPage(v=>clampPage(v,next.length,pageSize));}catch(e){setError(e instanceof Error?e.message:c.failed);}finally{setLoading(false);}},[status,c.failed]);
   useEffect(()=>{void load();},[load]);
 
