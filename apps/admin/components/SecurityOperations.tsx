@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useI18n, type Locale } from "@/lib/i18n";
+import { AdminPagination, paginateItems, clampPage } from "@/components/AdminPagination";
 import styles from "./SecurityOperations.module.css";
 
 type Severity = "INFO" | "MEDIUM" | "HIGH" | "CRITICAL";
@@ -156,6 +157,10 @@ export function SecurityOperations() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [sessionPage,setSessionPage]=useState(1);
+  const [lockedPage,setLockedPage]=useState(1);
+  const [eventPage,setEventPage]=useState(1);
+  const pageSize=10;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -163,7 +168,11 @@ export function SecurityOperations() {
     try {
       const response = await fetch("/api/admin/security/workspace", { cache: "no-store" });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      setWorkspace(await response.json() as SecurityWorkspace);
+      const next=await response.json() as SecurityWorkspace;
+      setWorkspace(next);
+      setSessionPage((page)=>clampPage(page,next.queues.sessions.length,pageSize));
+      setLockedPage((page)=>clampPage(page,next.queues.lockedAccounts.length,pageSize));
+      setEventPage((page)=>clampPage(page,next.queues.securityEvents.length,pageSize));
     } catch {
       setError(c.failed);
     } finally {
@@ -223,7 +232,7 @@ export function SecurityOperations() {
     <section className={styles.panel}>
       <div className={styles.heading}><div><span>{c.eyebrow}</span><h3>{c.sessions}</h3><p>{c.sessionsText}</p></div><small>{c.refreshed}: {formatDate(workspace.generatedAt, locale)}</small></div>
       <div className={styles.sessionGrid}>
-        {workspace.queues.sessions.length ? workspace.queues.sessions.map((session) => {
+        {workspace.queues.sessions.length ? paginateItems(workspace.queues.sessions,sessionPage,pageSize).map((session) => {
           const key = `REVOKE_SESSION:${session.sessionId}`;
           const allKey = `REVOKE_ACCOUNT_SESSIONS:${session.sessionId}`;
           return <article className={styles.sessionCard} key={session.sessionId}>
@@ -246,28 +255,31 @@ export function SecurityOperations() {
           </article>;
         }) : <p className={styles.empty}>{c.noSessions}</p>}
       </div>
+      <AdminPagination page={sessionPage} pageSize={pageSize} total={workspace.queues.sessions.length} onPageChange={setSessionPage}/>
     </section>
 
     <section className={styles.twoColumn}>
       <div className={styles.panel}>
         <div className={styles.heading}><div><span>{c.eyebrow}</span><h3>{c.lockedQueue}</h3><p>{c.lockedText}</p></div></div>
         <div className={styles.compactList}>
-          {workspace.queues.lockedAccounts.length ? workspace.queues.lockedAccounts.map((account) => <div key={account.accountRef}>
+          {workspace.queues.lockedAccounts.length ? paginateItems(workspace.queues.lockedAccounts,lockedPage,pageSize).map((account) => <div key={account.accountRef}>
             <div><strong>{account.accountRef}</strong><span>{account.role} · {account.status}</span></div>
             <div><b>{c.lockedUntil}</b><span>{account.lockedUntil ? formatDate(account.lockedUntil, locale) : "—"}</span><small>{c.denied}: {account.deniedEvents24h}</small></div>
           </div>) : <p className={styles.empty}>{c.noLocked}</p>}
         </div>
+        <AdminPagination page={lockedPage} pageSize={pageSize} total={workspace.queues.lockedAccounts.length} onPageChange={setLockedPage}/>
       </div>
 
       <div className={styles.panel}>
         <div className={styles.heading}><div><span>{c.eyebrow}</span><h3>{c.events}</h3><p>{c.eventsText}</p></div></div>
         <div className={styles.eventList}>
-          {workspace.queues.securityEvents.length ? workspace.queues.securityEvents.map((event) => <div key={`${event.eventRef}-${event.occurredAt}`}>
+          {workspace.queues.securityEvents.length ? paginateItems(workspace.queues.securityEvents,eventPage,pageSize).map((event) => <div key={`${event.eventRef}-${event.occurredAt}`}>
             <SeverityBadge severity={event.severity} copy={c}/>
             <div><strong>{event.action}</strong><span>{event.eventRef} · {event.result}</span><small>{c.actor}: {event.actorRef ?? "SYSTEM"}{event.actorRole ? ` · ${event.actorRole}` : ""}</small><small>{c.target}: {event.targetRef ?? event.objectType}</small></div>
             <time>{formatDate(event.occurredAt, locale)}</time>
           </div>) : <p className={styles.empty}>{c.noEvents}</p>}
         </div>
+        <AdminPagination page={eventPage} pageSize={pageSize} total={workspace.queues.securityEvents.length} onPageChange={setEventPage}/>
       </div>
     </section>
   </div>;
