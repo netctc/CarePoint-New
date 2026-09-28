@@ -7,12 +7,12 @@ const schema=read("prisma/schema.prisma");
 const onboarding=read("src/modules/onboarding/persistent-onboarding.service.ts");
 const providerAdmin=read("src/modules/admin-provider-administration/admin-provider-administration.module.ts");
 const patients=read("src/modules/admin-patients/admin-patients.module.ts");
-const queue=read("../../admin/components/ProviderGovernanceQueue.tsx");
-const professional=read("../../admin/components/ProfessionalAdministrationCenter.tsx");
-const security=read("../../admin/components/SecurityOperations.tsx");
-const patientDirectory=read("../../admin/components/AdminPatientDirectory.tsx");
-const patientDetail=read("../../admin/components/AdminPatientDetail.tsx");
-const pagination=read("../../admin/components/AdminPagination.tsx");
+const queue=read("../../apps/admin/components/ProviderGovernanceQueue.tsx");
+const professional=read("../../apps/admin/components/ProfessionalAdministrationCenter.tsx");
+const security=read("../../apps/admin/components/SecurityOperations.tsx");
+const patientDirectory=read("../../apps/admin/components/AdminPatientDirectory.tsx");
+const patientDetail=read("../../apps/admin/components/AdminPatientDetail.tsx");
+const pagination=read("../../apps/admin/components/AdminPagination.tsx");
 
 assert.match(schema,/sourceOnboardingCredentialId\s+String\?\s+@unique/);
 assert.match(schema,/sourceOnboardingDocumentId\s+String\?\s+@unique/);
