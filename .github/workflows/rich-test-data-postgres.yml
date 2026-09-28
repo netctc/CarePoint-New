@@ -26,6 +26,7 @@ jobs:
     env:
       NODE_ENV: test
       DATABASE_URL: postgresql://carepoint:carepoint@127.0.0.1:5432/carepoint_rich_test?schema=public
+      PSQL_DATABASE_URL: postgresql://carepoint:carepoint@127.0.0.1:5432/carepoint_rich_test
       CAREPOINT_RICH_TEST_DATA_CONFIRM: RESET_AND_CREATE_RICH_SYNTHETIC_DATA
       CAREPOINT_TEST_FIXTURE_PASSWORD: CarePoint-Rich-Test#2026
       CAREPOINT_TEST_FIXTURE_EMAIL_DOMAIN: carepoint.test
@@ -60,19 +61,19 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          patients=$(psql "$DATABASE_URL" -Atqc 'select count(*) from "PatientProfile"')
-          doctors=$(psql "$DATABASE_URL" -Atqc 'select count(*) from "Provider" where "class" = '\''DOCTOR'\''')
-          providers=$(psql "$DATABASE_URL" -Atqc 'select count(*) from "Provider" where "class" = '\''OTHER_PROVIDER'\''')
-          specialties=$(psql "$DATABASE_URL" -Atqc 'select count(*) from "MedicalSpecialty"')
-          categories=$(psql "$DATABASE_URL" -Atqc 'select count(*) from "ProviderCategory"')
-          metrics=$(psql "$DATABASE_URL" -Atqc 'select count(*) from "ObservationType"')
-          observations=$(psql "$DATABASE_URL" -Atqc 'select count(*) from "Observation"')
-          past_appointments=$(psql "$DATABASE_URL" -Atqc 'select count(*) from "Appointment" where "startsAt" < now()')
-          future_appointments=$(psql "$DATABASE_URL" -Atqc 'select count(*) from "Appointment" where "startsAt" > now()')
-          slots=$(psql "$DATABASE_URL" -Atqc 'select count(*) from "AvailabilitySlot" where "startsAt" > now()')
-          pending_onboarding=$(psql "$DATABASE_URL" -Atqc 'select count(*) from "ProviderOnboarding" where "state" in ('\''PENDING_REVIEW'\'', '\''REQUEST_CHANGES'\'')')
-          transport=$(psql "$DATABASE_URL" -Atqc 'select count(*) from "MedicalTransportRequest"')
-          emergency=$(psql "$DATABASE_URL" -Atqc 'select count(*) from "EmergencyAmbulanceRequest"')
+          patients=$(psql "$PSQL_DATABASE_URL" -Atqc 'select count(*) from "PatientProfile"')
+          doctors=$(psql "$PSQL_DATABASE_URL" -Atqc 'select count(*) from "Provider" where "class" = '\''DOCTOR'\''')
+          providers=$(psql "$PSQL_DATABASE_URL" -Atqc 'select count(*) from "Provider" where "class" = '\''OTHER_PROVIDER'\''')
+          specialties=$(psql "$PSQL_DATABASE_URL" -Atqc 'select count(*) from "MedicalSpecialty"')
+          categories=$(psql "$PSQL_DATABASE_URL" -Atqc 'select count(*) from "ProviderCategory"')
+          metrics=$(psql "$PSQL_DATABASE_URL" -Atqc 'select count(*) from "ObservationType"')
+          observations=$(psql "$PSQL_DATABASE_URL" -Atqc 'select count(*) from "Observation"')
+          past_appointments=$(psql "$PSQL_DATABASE_URL" -Atqc 'select count(*) from "Appointment" where "startsAt" < now()')
+          future_appointments=$(psql "$PSQL_DATABASE_URL" -Atqc 'select count(*) from "Appointment" where "startsAt" > now()')
+          slots=$(psql "$PSQL_DATABASE_URL" -Atqc 'select count(*) from "AvailabilitySlot" where "startsAt" > now()')
+          pending_onboarding=$(psql "$PSQL_DATABASE_URL" -Atqc 'select count(*) from "ProviderOnboarding" where "state" in ('\''PENDING_REVIEW'\'', '\''REQUEST_CHANGES'\'')')
+          transport=$(psql "$PSQL_DATABASE_URL" -Atqc 'select count(*) from "MedicalTransportRequest"')
+          emergency=$(psql "$PSQL_DATABASE_URL" -Atqc 'select count(*) from "EmergencyAmbulanceRequest"')
           printf 'patients=%s doctors=%s providers=%s specialties=%s categories=%s metrics=%s observations=%s past=%s future=%s slots=%s pending=%s transport=%s emergency=%s\n' \
             "$patients" "$doctors" "$providers" "$specialties" "$categories" "$metrics" "$observations" "$past_appointments" "$future_appointments" "$slots" "$pending_onboarding" "$transport" "$emergency"
           test "$patients" -ge 50
@@ -90,4 +91,4 @@ jobs:
           test "$emergency" -ge 10
       - name: Verify representative login naming
         run: |
-          psql "$DATABASE_URL" -Atqc 'select "username" from "User" where "username" in ('\''pac001'\'', '\''dr001.CAR'\'', '\''dr001.DER'\'', '\''pr001.NUT'\'', '\''pr001.PSI'\'') order by "username"'
+          psql "$PSQL_DATABASE_URL" -Atqc 'select "username" from "User" where "username" in ('\''pac001'\'', '\''dr001.CAR'\'', '\''dr001.DER'\'', '\''pr001.NUT'\'', '\''pr001.PSI'\'') order by "username"'
