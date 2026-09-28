@@ -25,6 +25,7 @@ jobs:
           bash -n ops/test-v2/scripts/verify-public.sh
           bash -n ops/test-v2/scripts/load-test-fixtures.sh
           bash -n ops/test-v2/scripts/use-nipio-domains.sh
+          bash -n ops/test-v2/scripts/ensure-api-upload-limit.sh
       - name: Enforce synthetic lane boundaries
         run: |
           test -z "$(find ops/test-v2 -type f -name '.env*' -print)"
@@ -68,8 +69,10 @@ jobs:
 
       - name: Validate credential PDF deployment contract
         run: |
-          grep -q 'client_max_body_size 12m;' ops/test-v2/nginx/carepoint-v2-http.conf.template
+          test "$(grep -c 'client_max_body_size 12m;' ops/test-v2/nginx/carepoint-v2-http.conf.template)" -ge 2
           grep -q 'JSON_BODY_LIMIT_BYTES' ops/test-v2/compose.yaml
+          grep -q 'CAREPOINT_API_MAX_RESPONSE_BYTES: "12582912"' ops/test-v2/compose.yaml
+          grep -q 'TEST_ADMIN_DOMAIN' ops/test-v2/scripts/ensure-api-upload-limit.sh
           grep -q 'storage-init:' ops/test-v2/compose.yaml
           grep -q 'chown -R 1000:1000 /documents /bulk-export' ops/test-v2/compose.yaml
           grep -q 'migrate:' ops/test-v2/compose.yaml
