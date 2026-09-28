@@ -930,7 +930,13 @@ class AdminPatientsController {
     @Query("pageSize") pageSize?: string,
     @Query("limit") limit?: string,
   ) {
-    return this.patients.list(principal, { q, status, page, pageSize, limit });
+    return this.patients.list(principal, {
+      ...(q !== undefined ? { q } : {}),
+      ...(status !== undefined ? { status } : {}),
+      ...(page !== undefined ? { page } : {}),
+      ...(pageSize !== undefined ? { pageSize } : {}),
+      ...(limit !== undefined ? { limit } : {}),
+    });
   }
 
   @Post()
