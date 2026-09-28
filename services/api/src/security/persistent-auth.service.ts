@@ -928,8 +928,13 @@ export class PersistentAuthService {
     registrationToken: string,
     expectedKind: "PATIENT" | "DOCTOR" | "OTHER_PROVIDER",
   ) {
+    const normalizedChallengeId = challengeId?.trim();
+    const normalizedRegistrationToken = registrationToken?.trim();
+    if (!normalizedChallengeId || !normalizedRegistrationToken) {
+      throw new UnauthorizedException("Verified registration challenge is invalid or expired.");
+    }
     const challenge = await this.prisma.registrationOtpChallenge.findUnique({
-      where: { id: challengeId },
+      where: { id: normalizedChallengeId },
     });
     if (
       !challenge ||
@@ -938,7 +943,7 @@ export class PersistentAuthService {
       challenge.consumedAt ||
       challenge.expiresAt.getTime() <= Date.now() ||
       !challenge.completionTokenHash ||
-      challenge.completionTokenHash !== tokenHash(registrationToken)
+      challenge.completionTokenHash !== tokenHash(normalizedRegistrationToken)
     ) {
       throw new UnauthorizedException("Verified registration challenge is invalid or expired.");
     }
