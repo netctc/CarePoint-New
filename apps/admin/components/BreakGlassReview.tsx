@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useI18n, type Locale } from "@/lib/i18n";
+import { AdminPagination, paginateItems, clampPage } from "@/components/AdminPagination";
 import styles from "./BreakGlassReview.module.css";
 
 type Grant = {
@@ -27,7 +28,7 @@ export function BreakGlassReview(){
   const [status,setStatus]=useState<"PENDING"|"REVIEWED">("PENDING");
   const [items,setItems]=useState<Grant[]>([]); const [loading,setLoading]=useState(true); const [error,setError]=useState("");
   const [drafts,setDrafts]=useState<Record<string,Draft>>({}); const [busy,setBusy]=useState("");
-  const load=useCallback(async()=>{setLoading(true);setError("");try{const r=await fetch(`/api/admin/break-glass?status=${status}`,{cache:"no-store"});const p=await r.json();if(!r.ok)throw new Error(p?.message||`HTTP ${r.status}`);setItems(Array.isArray(p?.items)?p.items:[]);}catch(e){setError(e instanceof Error?e.message:c.failed);}finally{setLoading(false);}},[status,c.failed]);
+  const load=useCallback(async()=>{setLoading(true);setError("");try{const r=await fetch(`/api/admin/break-glass?status=${status}`,{cache:"no-store"});const p=await r.json();if(!r.ok)throw new Error(p?.message||`HTTP ${r.status}`);const next=Array.isArray(p?.items)?p.items:[];setItems(next);setPage(v=>clampPage(v,next.length,pageSize));}catch(e){setError(e instanceof Error?e.message:c.failed);}finally{setLoading(false);}},[status,c.failed]);
   useEffect(()=>{void load();},[load]);
 
   function draft(id:string):Draft{return drafts[id]??{outcome:"APPROPRIATE",reasonCode:"POLICY_CONFORMANT"};}
@@ -37,7 +38,7 @@ export function BreakGlassReview(){
     <section className={styles.hero}><div><h2>Break-glass · ADM-094</h2><p>{c.intro}</p></div><button onClick={()=>void load()} disabled={loading}>{c.refresh}</button></section>
     <div className={styles.tabs}><button className={status==="PENDING"?styles.active:""} onClick={()=>setStatus("PENDING")}>{c.pending}</button><button className={status==="REVIEWED"?styles.active:""} onClick={()=>setStatus("REVIEWED")}>{c.reviewed}</button></div>
     {error?<div className={styles.error}>{error}</div>:null}
-    {loading?<div>{c.loading}</div>:items.length===0?<div className={styles.empty}>{c.empty}</div>:<section className={styles.grid}>{items.map(g=>{const d=draft(g.id);return <article className={styles.card} key={g.id}>
+    {loading?<div>{c.loading}</div>:items.length===0?<div className={styles.empty}>{c.empty}</div>:<section className={styles.grid}>{paginateItems(items,page,pageSize).map(g=>{const d=draft(g.id);return <article className={styles.card} key={g.id}>
       <div className={styles.top}><div><strong>{g.id}</strong><small>{g.reviewStatus} · {g.reasonCode}</small></div><span className={styles.status}>{g.status}</span></div>
       <div className={styles.facts}><span><b>{c.patient}</b>{g.patientId}</span><span><b>{c.provider}</b>{g.providerId}</span><span><b>{c.scope}</b>{g.scope}</span><span><b>{c.ttl}</b>{g.ttlMinutes} min</span><span><b>{c.granted}</b>{dt(g.grantedAt)}</span><span><b>{c.expires}</b>{dt(g.expiresAt)}</span></div>
       <div className={styles.usage}><b>{c.usage}</b>{g.accessSummary?.accessed?<><span>{g.accessSummary.usageCount} {c.usedTimes}</span><small>{c.lastUsed}: {dt(g.accessSummary.lastUsedAt)}</small></>:<span>{c.neverUsed}</span>}</div>
@@ -47,5 +48,6 @@ export function BreakGlassReview(){
         <button onClick={()=>void review(g.id)} disabled={busy!==""}>{busy===g.id?"…":c.review}</button>
       </div>:<div>{g.reviewOutcome??"REVIEWED"} · {dt(g.reviewedAt)}</div>}
     </article>;})}</section>}
+    <AdminPagination page={page} pageSize={pageSize} total={items.length} onPageChange={setPage} onPageSizeChange={(size)=>{setPageSize(size);setPage(1);}}/>
   </div>;
 }
