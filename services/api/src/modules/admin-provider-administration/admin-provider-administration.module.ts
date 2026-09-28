@@ -54,32 +54,49 @@ class AdminProviderAdministrationService {
     private readonly documentScanner: DocumentMalwareScannerService,
   ) {}
 
-  async directory(principal: AuthPrincipal, providerClass?: string, query?: string) {
+  async directory(principal: AuthPrincipal, providerClass?: string, query?: string, pageRaw?: string, pageSizeRaw?: string) {
     const normalizedClass = providerClass === "DOCTOR" || providerClass === "OTHER_PROVIDER" ? providerClass : undefined;
-    const providers = await this.prisma.provider.findMany({
-      ...(normalizedClass ? { where: { class: normalizedClass } } : {}),
-      include: {
-        user: { select: { id: true, email: true, status: true, createdAt: true, updatedAt: true } },
-        doctorProfile: { include: { specialties: { include: { specialty: true } } } },
-        otherProviderProfile: { include: { category: true } },
-        credentials: { orderBy: { createdAt: "desc" }, include: { documents: { select: { id: true } }, verifications: { orderBy: { createdAt: "desc" }, take: 1 } } },
-      },
-      orderBy: [{ displayName: "asc" }, { createdAt: "desc" }],
-    });
-    const warningDays = await this.warningDays();
-    const needle = query?.trim().toLowerCase() ?? "";
-    const items = providers
-      .filter((provider) => !needle || [
-        provider.displayName,
-        provider.legalName,
-        provider.contactPhone,
-        provider.user?.email,
-        provider.doctorProfile?.licenseNumber,
-        provider.otherProviderProfile?.category?.slug,
-        ...provider.credentials.flatMap((credential) => [credential.type, credential.number, credential.issuer]),
-      ].filter(Boolean).join(" ").toLowerCase().includes(needle))
-      .map((provider) => this.presentProvider(provider, warningDays));
-
+    const page = this.page(pageRaw);
+    const pageSize = this.pageSize(pageSizeRaw);
+    const needle = query?.trim() ?? "";
+    if (needle.length > 120) throw new BadRequestException("q exceeds 120 characters.");
+    const where: Prisma.ProviderWhereInput = {
+      ...(normalizedClass ? { class: normalizedClass } : {}),
+      ...(needle ? {
+        OR: [
+          { displayName: { contains: needle, mode: "insensitive" } },
+          { legalName: { contains: needle, mode: "insensitive" } },
+          { contactPhone: { contains: needle, mode: "insensitive" } },
+          { user: { email: { contains: needle, mode: "insensitive" } } },
+          { doctorProfile: { licenseNumber: { contains: needle, mode: "insensitive" } } },
+          { otherProviderProfile: { category: { slug: { contains: needle, mode: "insensitive" } } } },
+          { credentials: { some: {
+            OR: [
+              { type: { contains: needle, mode: "insensitive" } },
+              { number: { contains: needle, mode: "insensitive" } },
+              { issuer: { contains: needle, mode: "insensitive" } },
+            ],
+          } } },
+        ],
+      } : {}),
+    };
+    const [total, providers, warningDays] = await Promise.all([
+      this.prisma.provider.count({ where }),
+      this.prisma.provider.findMany({
+        where,
+        include: {
+          user: { select: { id: true, email: true, status: true, createdAt: true, updatedAt: true } },
+          doctorProfile: { include: { specialties: { include: { specialty: true } } } },
+          otherProviderProfile: { include: { category: true } },
+          credentials: { orderBy: { createdAt: "desc" }, include: { documents: { select: { id: true } }, verifications: { orderBy: { createdAt: "desc" }, take: 1 } } },
+        },
+        orderBy: [{ displayName: "asc" }, { createdAt: "desc" }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      this.warningDays(),
+    ]);
+    const items = providers.map((provider) => this.presentProvider(provider, warningDays));
     await this.audit.write({
       actorId: principal.accountId,
       action: "ADMIN_PROVIDER_DIRECTORY_READ",
@@ -87,10 +104,11 @@ class AdminProviderAdministrationService {
       objectId: normalizedClass ?? "ALL",
       purpose: "PROVIDER_ADMINISTRATION",
       result: "SUCCESS",
-      metadata: { providerClass: normalizedClass ?? "ALL", resultCount: items.length, queryApplied: Boolean(needle) },
+      metadata: { providerClass: normalizedClass ?? "ALL", resultCount: items.length, total, queryApplied: Boolean(needle), page, pageSize },
     });
-    return { generatedAt: new Date().toISOString(), warningDays, items };
+    return { generatedAt: new Date().toISOString(), warningDays, total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)), items };
   }
+
 
   async detail(principal: AuthPrincipal, providerId: string) {
     const provider = await this.requireProvider(providerId, true);
@@ -466,6 +484,20 @@ class AdminProviderAdministrationService {
     return "VALID";
   }
 
+  private page(value?: string): number {
+    if (!value) return 1;
+    const parsed = Number(value);
+    if (!Number.isInteger(parsed) || parsed < 1 || parsed > 1_000_000) throw new BadRequestException("page must be a positive integer.");
+    return parsed;
+  }
+
+  private pageSize(value?: string): number {
+    if (!value) return 10;
+    const parsed = Number(value);
+    if (!Number.isInteger(parsed) || ![10, 25, 50, 100].includes(parsed)) throw new BadRequestException("pageSize must be one of 10, 25, 50 or 100.");
+    return parsed;
+  }
+
   private requiredStatus(value: string | undefined, allowed: Set<string>, domain: string): string {
     const normalized = value?.trim().toUpperCase() ?? "";
     if (!allowed.has(normalized)) throw new BadRequestException(`Invalid ${domain} status.`);
@@ -501,8 +533,14 @@ class AdminProviderAdministrationController {
 
   @Get()
   @Header("Cache-Control", "no-store")
-  directory(@CurrentPrincipal() principal: AuthPrincipal, @Query("class") providerClass?: string, @Query("q") query?: string) {
-    return this.providers.directory(principal, providerClass, query);
+  directory(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Query("class") providerClass?: string,
+    @Query("q") query?: string,
+    @Query("page") page?: string,
+    @Query("pageSize") pageSize?: string,
+  ) {
+    return this.providers.directory(principal, providerClass, query, page, pageSize);
   }
 
   @Get(":providerId")
