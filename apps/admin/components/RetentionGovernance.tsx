@@ -140,10 +140,11 @@ export function RetentionGovernance() {
       <div className={styles.field}><label>{t.action}</label><select className={styles.select} value={policyForm.action} onChange={(e)=>setPolicyForm({...policyForm,action:e.target.value})}>{actions.map((value)=><option key={value}>{value}</option>)}</select></div>
       <button className={styles.button} disabled={busy}>{t.create}</button>
     </form></section>
-    <div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>{t.code}</th><th>{t.domain}</th><th>{t.jurisdiction}</th><th>{t.current}</th><th>{t.days}</th><th>{t.action}</th><th /></tr></thead><tbody>{policies.length===0?<tr><td className={styles.empty} colSpan={7}>{t.empty}</td></tr>:policies.map((policy)=>{const latest=policy.versions?.[0];return <tr key={policy.id}><td>{policy.code}</td><td>{policy.domain}</td><td>{policy.jurisdiction}</td><td>{policy.currentVersion}</td><td>{latest?.retentionDays ?? "—"}</td><td>{latest?.action ?? "—"}</td><td><div className={styles.toolbar}>
+    <div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>{t.code}</th><th>{t.domain}</th><th>{t.jurisdiction}</th><th>{t.current}</th><th>{t.days}</th><th>{t.action}</th><th /></tr></thead><tbody>{policies.length===0?<tr><td className={styles.empty} colSpan={7}>{t.empty}</td></tr>:paginateItems(policies,policyPage,policyPageSize).map((policy)=>{const latest=policy.versions?.[0];return <tr key={policy.id}><td>{policy.code}</td><td>{policy.domain}</td><td>{policy.jurisdiction}</td><td>{policy.currentVersion}</td><td>{latest?.retentionDays ?? "—"}</td><td>{latest?.action ?? "—"}</td><td><div className={styles.toolbar}>
   <button className={styles.buttonSecondary} disabled={busy||!latest} onClick={()=>void publish(policy)}>{t.publish}</button>
   <button className={styles.buttonSecondary} disabled={busy||!latest||latest.action==="PROTECT_ONLY"} onClick={()=>void dryRun(policy)}>{t.preview}</button>
 </div></td></tr>})}</tbody></table></div>
+    <AdminPagination page={policyPage} pageSize={policyPageSize} total={policies.length} onPageChange={setPolicyPage} onPageSizeChange={(size)=>{setPolicyPageSize(size);setPolicyPage(1);}}/>
     <section className={styles.card}><strong>{t.createHold}</strong><form className={styles.form} onSubmit={createHold}>
       <div className={styles.field}><label>{t.domain}</label><select className={styles.select} value={holdForm.domain} onChange={(e)=>setHoldForm({...holdForm,domain:e.target.value})}>{holdDomains.map((value)=><option key={value}>{value}</option>)}</select></div>
       <div className={styles.field}><label>{t.jurisdiction}</label><input className={styles.input} required value={holdForm.jurisdiction} onChange={(e)=>setHoldForm({...holdForm,jurisdiction:e.target.value.toUpperCase()})}/></div>
@@ -152,19 +153,21 @@ export function RetentionGovernance() {
       <div className={styles.field}><label>{t.reason}</label><input className={styles.input} required value={holdForm.reasonCode} onChange={(e)=>setHoldForm({...holdForm,reasonCode:e.target.value.toUpperCase()})}/></div>
       <button className={styles.button} disabled={busy}>{t.create}</button>
     </form></section>
-    <div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>{t.domain}</th><th>{t.jurisdiction}</th><th>{t.scope}</th><th>{t.subjectId}</th><th>{t.reason}</th><th>{t.status}</th><th /></tr></thead><tbody>{holds.length===0?<tr><td className={styles.empty} colSpan={7}>{t.empty}</td></tr>:holds.map((hold)=><tr key={hold.id}><td>{hold.domain}</td><td>{hold.jurisdiction}</td><td>{hold.subjectType}</td><td>{hold.subjectId ?? "—"}</td><td>{hold.reasonCode}</td><td><span className={styles.status}>{hold.releasedAt?"RELEASED":"ACTIVE"}</span></td><td>{!hold.releasedAt?<button className={styles.buttonSecondary} disabled={busy} onClick={()=>void release(hold)}>{t.release}</button>:null}</td></tr>)}</tbody></table></div>
+    <div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>{t.domain}</th><th>{t.jurisdiction}</th><th>{t.scope}</th><th>{t.subjectId}</th><th>{t.reason}</th><th>{t.status}</th><th /></tr></thead><tbody>{holds.length===0?<tr><td className={styles.empty} colSpan={7}>{t.empty}</td></tr>:paginateItems(holds,holdPage,holdPageSize).map((hold)=><tr key={hold.id}><td>{hold.domain}</td><td>{hold.jurisdiction}</td><td>{hold.subjectType}</td><td>{hold.subjectId ?? "—"}</td><td>{hold.reasonCode}</td><td><span className={styles.status}>{hold.releasedAt?"RELEASED":"ACTIVE"}</span></td><td>{!hold.releasedAt?<button className={styles.buttonSecondary} disabled={busy} onClick={()=>void release(hold)}>{t.release}</button>:null}</td></tr>)}</tbody></table></div>
+    <AdminPagination page={holdPage} pageSize={holdPageSize} total={holds.length} onPageChange={setHoldPage} onPageSizeChange={(size)=>{setHoldPageSize(size);setHoldPage(1);}}/>
     <section className={styles.card}>
       <strong>{t.jobs}</strong>
       <div className={styles.tableWrap}><table className={styles.table}><thead><tr>
         <th>{t.domain}</th><th>{t.action}</th><th>{t.status}</th><th>{t.candidates}</th><th>{t.blocked}</th><th>{t.applied}</th><th>{t.digest}</th><th />
       </tr></thead><tbody>
-        {jobs.length===0?<tr><td className={styles.empty} colSpan={8}>{t.empty}</td></tr>:jobs.map(job=><tr key={job.id}>
+        {jobs.length===0?<tr><td className={styles.empty} colSpan={8}>{t.empty}</td></tr>:paginateItems(jobs,jobPage,jobPageSize).map(job=><tr key={job.id}>
           <td>{job.domain}</td><td>{job.action}</td><td><span className={styles.status}>{job.status}</span></td>
           <td>{job.candidateCount}</td><td>{job.blockedCount}</td><td>{job.appliedCount}</td>
           <td><code title={job.planDigest}>{job.planDigest.slice(0,12)}…</code></td>
           <td>{job.status==="PREVIEWED"?<button className={styles.button} disabled={busy} onClick={()=>void execute(job)}>{t.execute}</button>:null}</td>
         </tr>)}
       </tbody></table></div>
+      <AdminPagination page={jobPage} pageSize={jobPageSize} total={jobs.length} onPageChange={setJobPage} onPageSizeChange={(size)=>{setJobPageSize(size);setJobPage(1);}}/>
     </section>
     <button className={styles.buttonSecondary} type="button" onClick={()=>void load()} disabled={busy}>{t.refresh}</button>
   </div>;
