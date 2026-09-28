@@ -145,7 +145,7 @@ async function main() {
 
   const doctorProvider = await prisma.provider.findUniqueOrThrow({ where: { userId: doctor.accountId } });
   const doctorCredential = await prisma.providerCredential.findFirstOrThrow({
-    where: { providerId: doctorProvider.id, type: "medical-license", status: "VERIFIED" },
+    where: { providerId: doctorProvider.id, type: "medical-license", status: "VALID" },
     orderBy: { createdAt: "desc" },
   });
   await prisma.providerCredential.update({ where: { id: doctorCredential.id }, data: { validUntil: new Date("2000-01-01T00:00:00.000Z") } });
@@ -184,7 +184,7 @@ async function main() {
   await createClinicService(other.token, "other-before-expiry");
   const otherProvider = await prisma.provider.findUniqueOrThrow({ where: { userId: other.accountId } });
   const otherCredential = await prisma.providerCredential.findFirstOrThrow({
-    where: { providerId: otherProvider.id, type: credentialType, status: "VERIFIED" },
+    where: { providerId: otherProvider.id, type: credentialType, status: "VALID" },
     orderBy: { createdAt: "desc" },
   });
   await prisma.providerCredential.update({ where: { id: otherCredential.id }, data: { validUntil: new Date("2000-01-01T00:00:00.000Z") } });
