@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { useI18n, type Locale } from "@/lib/i18n";
@@ -18,10 +19,10 @@ const FAMILIES = ["NON_DOCTOR_HEALTHCARE", "MEDICAL_TRANSPORT_GROUND", "MEDICAL_
 const EMPTY_LABELS: Labels = { en: "", ar: "", fr: "", es: "" };
 
 const text = {
-  en: { title:"Master Data Maintenance", eyebrow:"ADMIN · GOVERNED MASTER DATA", intro:"Govern current catalogs with audited create, edit, activate and deactivate operations.", specialties:"Medical specialties", providers:"Provider types", add:"Add", edit:"Edit", save:"Save", cancel:"Cancel", deactivate:"Deactivate", reactivate:"Reactivate", code:"Code", slug:"Slug", family:"Family", required:"Required credentials", labels:"Labels", parent:"Parent specialty", active:"Active", usage:"Usage", loading:"Loading master data…", noRows:"No records.", confirmDeactivate:"Deactivate this catalog item? Existing historical references will remain.", saved:"Saved.", taxonomy:"Capability & form taxonomy" },
-  es: { title:"Mantenimiento de Datos Maestros", eyebrow:"ADMIN · DATOS MAESTROS GOBERNADOS", intro:"Gobernar los catálogos actuales con alta, edición, activación y desactivación auditadas.", specialties:"Especialidades médicas", providers:"Tipos de proveedor", add:"Añadir", edit:"Editar", save:"Guardar", cancel:"Cancelar", deactivate:"Desactivar", reactivate:"Reactivar", code:"Código", slug:"Slug", family:"Familia", required:"Credenciales obligatorias", labels:"Etiquetas", parent:"Especialidad padre", active:"Activo", usage:"Uso", loading:"Cargando datos maestros…", noRows:"Sin registros.", confirmDeactivate:"¿Desactivar este elemento? Las referencias históricas existentes se conservarán.", saved:"Guardado.", taxonomy:"Taxonomía de capacidades y formularios" },
-  fr: { title:"Maintenance des données de référence", eyebrow:"ADMIN · DONNÉES DE RÉFÉRENCE GOUVERNÉES", intro:"Gérer les catalogues avec création, modification, activation et désactivation auditées.", specialties:"Spécialités médicales", providers:"Types de prestataire", add:"Ajouter", edit:"Modifier", save:"Enregistrer", cancel:"Annuler", deactivate:"Désactiver", reactivate:"Réactiver", code:"Code", slug:"Slug", family:"Famille", required:"Justificatifs requis", labels:"Libellés", parent:"Spécialité parente", active:"Actif", usage:"Utilisation", loading:"Chargement…", noRows:"Aucun enregistrement.", confirmDeactivate:"Désactiver cet élément ? Les références historiques seront conservées.", saved:"Enregistré.", taxonomy:"Taxonomie capacités et formulaires" },
-  ar: { title:"صيانة البيانات الرئيسية", eyebrow:"الإدارة · بيانات رئيسية محكومة", intro:"إدارة الكتالوجات الحالية بعمليات إنشاء وتعديل وتفعيل وتعطيل مدققة.", specialties:"التخصصات الطبية", providers:"أنواع مقدمي الخدمة", add:"إضافة", edit:"تعديل", save:"حفظ", cancel:"إلغاء", deactivate:"تعطيل", reactivate:"إعادة التفعيل", code:"الرمز", slug:"المعرّف", family:"الفئة", required:"الاعتمادات المطلوبة", labels:"التسميات", parent:"التخصص الأب", active:"نشط", usage:"الاستخدام", loading:"جارٍ التحميل…", noRows:"لا توجد سجلات.", confirmDeactivate:"تعطيل هذا العنصر؟ ستبقى المراجع التاريخية محفوظة.", saved:"تم الحفظ.", taxonomy:"تصنيف القدرات والنماذج" },
+  en: { title:"Master Data Maintenance", eyebrow:"ADMIN · GOVERNED MASTER DATA", intro:"Govern current catalogs with audited create, edit, activate and deactivate operations.", specialties:"Medical specialties", providers:"Provider types", add:"Add", edit:"Edit", save:"Save", cancel:"Cancel", deactivate:"Deactivate", reactivate:"Reactivate", code:"Code", slug:"Slug", family:"Family", required:"Required credentials", labels:"Labels", parent:"Parent specialty", active:"Active", usage:"Usage", loading:"Loading master data…", noRows:"No records.", confirmDeactivate:"Deactivate this catalog item? Existing historical references will remain.", saved:"Saved.", taxonomy:"Capability & form taxonomy", related:"Other governed catalogs", medication:"Medication catalog", education:"Patient education", questionnaires:"Questionnaire builder", devices:"Medical devices", profileSchema:"Clinical profile schema", metrics:"Clinical metrics & units", alerts:"Clinical alert policies" },
+  es: { title:"Mantenimiento de Datos Maestros", eyebrow:"ADMIN · DATOS MAESTROS GOBERNADOS", intro:"Gobernar los catálogos actuales con alta, edición, activación y desactivación auditadas.", specialties:"Especialidades médicas", providers:"Tipos de proveedor", add:"Añadir", edit:"Editar", save:"Guardar", cancel:"Cancelar", deactivate:"Desactivar", reactivate:"Reactivar", code:"Código", slug:"Slug", family:"Familia", required:"Credenciales obligatorias", labels:"Etiquetas", parent:"Especialidad padre", active:"Activo", usage:"Uso", loading:"Cargando datos maestros…", noRows:"Sin registros.", confirmDeactivate:"¿Desactivar este elemento? Las referencias históricas existentes se conservarán.", saved:"Guardado.", taxonomy:"Taxonomía de capacidades y formularios", related:"Otros catálogos gobernados", medication:"Catálogo de medicamentos", education:"Educación del paciente", questionnaires:"Constructor de cuestionarios", devices:"Dispositivos médicos", profileSchema:"Esquema del perfil clínico", metrics:"Métricas y unidades clínicas", alerts:"Políticas de alertas clínicas" },
+  fr: { title:"Maintenance des données de référence", eyebrow:"ADMIN · DONNÉES DE RÉFÉRENCE GOUVERNÉES", intro:"Gérer les catalogues avec création, modification, activation et désactivation auditées.", specialties:"Spécialités médicales", providers:"Types de prestataire", add:"Ajouter", edit:"Modifier", save:"Enregistrer", cancel:"Annuler", deactivate:"Désactiver", reactivate:"Réactiver", code:"Code", slug:"Slug", family:"Famille", required:"Justificatifs requis", labels:"Libellés", parent:"Spécialité parente", active:"Actif", usage:"Utilisation", loading:"Chargement…", noRows:"Aucun enregistrement.", confirmDeactivate:"Désactiver cet élément ? Les références historiques seront conservées.", saved:"Enregistré.", taxonomy:"Taxonomie capacités et formulaires", related:"Autres catalogues gouvernés", medication:"Catalogue des médicaments", education:"Éducation du patient", questionnaires:"Créateur de questionnaires", devices:"Dispositifs médicaux", profileSchema:"Schéma du profil clinique", metrics:"Métriques et unités cliniques", alerts:"Politiques d’alertes cliniques" },
+  ar: { title:"صيانة البيانات الرئيسية", eyebrow:"الإدارة · بيانات رئيسية محكومة", intro:"إدارة الكتالوجات الحالية بعمليات إنشاء وتعديل وتفعيل وتعطيل مدققة.", specialties:"التخصصات الطبية", providers:"أنواع مقدمي الخدمة", add:"إضافة", edit:"تعديل", save:"حفظ", cancel:"إلغاء", deactivate:"تعطيل", reactivate:"إعادة التفعيل", code:"الرمز", slug:"المعرّف", family:"الفئة", required:"الاعتمادات المطلوبة", labels:"التسميات", parent:"التخصص الأب", active:"نشط", usage:"الاستخدام", loading:"جارٍ التحميل…", noRows:"لا توجد سجلات.", confirmDeactivate:"تعطيل هذا العنصر؟ ستبقى المراجع التاريخية محفوظة.", saved:"تم الحفظ.", taxonomy:"تصنيف القدرات والنماذج", related:"كتالوجات محكومة أخرى", medication:"كتالوج الأدوية", education:"تثقيف المريض", questionnaires:"منشئ الاستبيانات", devices:"الأجهزة الطبية", profileSchema:"مخطط الملف السريري", metrics:"المقاييس والوحدات السريرية", alerts:"سياسات التنبيهات السريرية" },
 } satisfies Record<Locale, Record<string, string>>;
 
 export default function MasterDataPage() {
@@ -112,6 +113,21 @@ export default function MasterDataPage() {
     <section className="notice-card">
       <div><span>{t.intro}</span><p>{message}</p></div>
       <a className="secondary-button" href="/providers/taxonomy">{t.taxonomy}</a>
+    </section>
+    <section style={{background:"#fff",border:"1px solid #dbe4ee",borderRadius:16,padding:18,marginTop:18}}>
+      <h2 style={{marginTop:0}}>{t.related}</h2>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(190px,1fr))",gap:10}}>
+        {[
+          ["/providers/taxonomy", t.taxonomy],
+          ["/medication-catalog", t.medication],
+          ["/patient-education", t.education],
+          ["/questionnaires", t.questionnaires],
+          ["/devices", t.devices],
+          ["/clinical-config/profile-schema", t.profileSchema],
+          ["/clinical-config/observations", t.metrics],
+          ["/clinical-config/alert-policies", t.alerts],
+        ].map(([href,label])=><Link key={href} className="secondary-button" href={href}>{label}</Link>)}
+      </div>
     </section>
     <div style={{display:"flex",gap:8,margin:"18px 0"}}>
       <button className={tab==="specialties"?"primary-button":"secondary-button"} onClick={()=>setTab("specialties")}>{t.specialties}</button>
