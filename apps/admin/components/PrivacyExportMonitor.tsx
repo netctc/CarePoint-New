@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useI18n } from "@/lib/i18n";
+import { AdminPagination, paginateItems, clampPage } from "@/components/AdminPagination";
 import styles from "./PrivacyOperations.module.css";
 
 type ExportItem = {
@@ -47,6 +48,7 @@ export function PrivacyExportMonitor() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [boundary, setBoundary] = useState<ExportResponse["privacyBoundary"]>();
+  const [page,setPage]=useState(1); const [pageSize,setPageSize]=useState(10);
 
   const load = useCallback(async () => {
     setLoading(true);
