@@ -6,7 +6,7 @@
     "dev": "next dev -p 3000",
     "build": "next build",
     "start": "next start -p 3000",
-    "test": "npm run v2:admin-form-layout && npm run c16:admin-backend-egress && npm run v2:b6-governance && npm run v2:b6-operations && npm run v2:break-glass-review && npm run v2:provider-taxonomy && npm run v2:clinical-governance-ui && npm run v2:admin-rpm-care-plan && npm run v2:questionnaire-builder && npm run v2:questionnaire-triggers && npm run v2:devices",
+    "test": "npm run c16:admin-backend-egress && npm run v2:admin-form-layout && npm run v2:b6-governance && npm run v2:b6-operations && npm run v2:break-glass-review && npm run v2:provider-taxonomy && npm run v2:clinical-governance-ui && npm run v2:admin-rpm-care-plan && npm run v2:questionnaire-builder && npm run v2:questionnaire-triggers && npm run v2:devices",
     "c16:admin-backend-egress": "node scripts/c16-admin-backend-egress-smoke.mjs",
     "typecheck": "tsc --noEmit",
     "v2:b6-governance": "node scripts/v2-b6-governance-smoke.mjs",
