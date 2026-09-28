@@ -230,6 +230,7 @@ model Provider {
   providerFormResponses     ProviderCategoryFormResponse[]
   providerWorkflowEvents    ProviderWorkflowEvent[]
   temporaryClinicalShares   TemporaryClinicalShare[]
+  governanceHistory          ProviderGovernanceHistory[]
 }
 
 model ProviderOnboarding {
@@ -349,19 +350,72 @@ model OtherProviderProfile {
 }
 
 model ProviderCredential {
+  id                      String   @id @default(uuid())
+  providerId              String
+  type                    String
+  issuer                  String?
+  number                  String?
+  validFrom               DateTime?
+  validUntil              DateTime?
+  status                  String
+  documentId              String?
+  renewedFromCredentialId String?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+  provider                Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  documents               ProviderCredentialDocument[]
+  verifications           ProviderCredentialVerification[]
+
+  @@index([providerId, type, status])
+  @@index([renewedFromCredentialId])
+}
+
+model ProviderCredentialDocument {
+  id                 String             @id @default(uuid())
+  credentialId       String
+  fileName           String
+  mediaType          String             @default("application/pdf")
+  byteLength         Int
+  contentDigest      String
+  storageProvider    String
+  objectKey          String             @unique
+  blobAlgorithm      String
+  blobKeyId          String
+  blobWrappedKey     String
+  blobIv             String
+  createdByAccountId String
+  createdAt          DateTime           @default(now())
+  credential         ProviderCredential @relation(fields: [credentialId], references: [id], onDelete: Cascade)
+
+  @@index([credentialId, createdAt])
+}
+
+model ProviderCredentialVerification {
+  id           String             @id @default(uuid())
+  credentialId String
+  status       String
+  note         String?
+  actorId      String
+  createdAt    DateTime           @default(now())
+  credential   ProviderCredential @relation(fields: [credentialId], references: [id], onDelete: Cascade)
+
+  @@index([credentialId, createdAt])
+}
+
+model ProviderGovernanceHistory {
   id         String   @id @default(uuid())
   providerId String
-  type       String
-  issuer     String?
-  number     String?
-  validFrom  DateTime?
-  validUntil DateTime?
-  status     String
-  documentId String?
+  domain     String
+  targetId   String?
+  fromStatus String?
+  toStatus   String
+  reason     String?
+  actorId    String
+  metadata   Json?
   createdAt  DateTime @default(now())
   provider   Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
 
-  @@index([providerId, type, status])
+  @@index([providerId, domain, createdAt])
 }
 
 model Service {
