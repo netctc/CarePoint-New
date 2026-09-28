@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   Header,
   Injectable,
@@ -347,6 +348,39 @@ class AdminProviderAdministrationService {
     return { ...document, contentBase64: Buffer.from(bytes).toString("base64") };
   }
 
+  async deleteCredentialDocument(principal: AuthPrincipal, providerId: string, credentialId: string, documentId: string) {
+    await this.requireCredential(providerId, credentialId);
+    const document = await this.prisma.providerCredentialDocument.findFirst({
+      where: { id: documentId, credentialId },
+    });
+    if (!document) throw new NotFoundException("Credential document not found.");
+
+    const sourceDocument = document.sourceOnboardingDocumentId
+      ? await this.prisma.onboardingCredentialDocument.findUnique({ where: { id: document.sourceOnboardingDocumentId } })
+      : await this.prisma.onboardingCredentialDocument.findUnique({ where: { objectKey: document.objectKey } });
+
+    await this.prisma.providerCredentialDocument.delete({ where: { id: document.id } });
+    if (!sourceDocument) {
+      await this.documentStorage.remove(document.objectKey).catch(() => undefined);
+    }
+
+    await this.audit.write({
+      actorId: principal.accountId,
+      action: "ADMIN_PROVIDER_CREDENTIAL_DOCUMENT_DELETED",
+      objectType: "PROVIDER_CREDENTIAL_DOCUMENT",
+      objectId: document.id,
+      purpose: "PROVIDER_ADMINISTRATION",
+      result: "SUCCESS",
+      metadata: {
+        providerId,
+        credentialId,
+        fileName: document.fileName,
+        archivedOnboardingEvidenceRetained: Boolean(sourceDocument),
+      },
+    });
+    return { id: document.id, deleted: true, archivedOnboardingEvidenceRetained: Boolean(sourceDocument) };
+  }
+
   private async requireProvider(providerId: string, full = false): Promise<any> {
     const provider = await this.prisma.provider.findUnique({
       where: { id: providerId },
@@ -510,6 +544,16 @@ class AdminProviderAdministrationController {
   @Post(":providerId/credentials/:credentialId/documents")
   uploadCredentialDocument(@CurrentPrincipal() principal: AuthPrincipal, @Param("providerId") providerId: string, @Param("credentialId") credentialId: string, @Body() body: CredentialDocumentInput) {
     return this.providers.uploadCredentialDocument(principal, providerId, credentialId, body ?? {});
+  }
+
+  @Delete(":providerId/credentials/:credentialId/documents/:documentId")
+  deleteCredentialDocument(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Param("providerId") providerId: string,
+    @Param("credentialId") credentialId: string,
+    @Param("documentId") documentId: string,
+  ) {
+    return this.providers.deleteCredentialDocument(principal, providerId, credentialId, documentId);
   }
 
   @Get(":providerId/credentials/:credentialId/documents/:documentId/content")
