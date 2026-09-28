@@ -80,3 +80,48 @@ ALTER TABLE "ProviderGovernanceHistory"
   ADD CONSTRAINT "ProviderGovernanceHistory_providerId_fkey"
   FOREIGN KEY ("providerId") REFERENCES "Provider"("id")
   ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- Establish non-destructive governance baselines for records that predate this center.
+INSERT INTO "ProviderCredentialVerification" (
+  "id", "credentialId", "status", "note", "actorId", "createdAt"
+)
+SELECT
+  gen_random_uuid()::text,
+  credential."id",
+  credential."status",
+  'Baseline imported from pre-administration credential state.',
+  'system:migration:20260928052000',
+  credential."createdAt"
+FROM "ProviderCredential" credential;
+
+INSERT INTO "ProviderGovernanceHistory" (
+  "id", "providerId", "domain", "targetId", "fromStatus", "toStatus", "reason", "actorId", "createdAt"
+)
+SELECT
+  gen_random_uuid()::text,
+  provider."id",
+  'PROVIDER',
+  provider."id",
+  NULL,
+  provider."status"::text,
+  'Baseline imported from current provider state.',
+  'system:migration:20260928052000',
+  provider."createdAt"
+FROM "Provider" provider;
+
+INSERT INTO "ProviderGovernanceHistory" (
+  "id", "providerId", "domain", "targetId", "fromStatus", "toStatus", "reason", "actorId", "createdAt"
+)
+SELECT
+  gen_random_uuid()::text,
+  provider."id",
+  'ACCOUNT',
+  provider."userId",
+  NULL,
+  app_user."status"::text,
+  'Baseline imported from current account state.',
+  'system:migration:20260928052000',
+  app_user."createdAt"
+FROM "Provider" provider
+JOIN "User" app_user ON app_user."id" = provider."userId"
+WHERE provider."userId" IS NOT NULL;
