@@ -109,6 +109,8 @@ export default function QuestionnairesPage() {
   const [dueIfNoResponse,setDueIfNoResponse] = useState(true);
   const [repeatDays,setRepeatDays] = useState("");
   const [askHealthChanged,setAskHealthChanged] = useState(true);
+  const [definitionPage,setDefinitionPage]=useState(1); const [definitionPageSize,setDefinitionPageSize]=useState(10);
+  const [versionPage,setVersionPage]=useState(1); const [versionPageSize,setVersionPageSize]=useState(10);
 
   const selected = useMemo(() => items.find((item) => item.id === selectedId) ?? null,[items,selectedId]);
 
