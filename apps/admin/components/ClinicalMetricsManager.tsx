@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useI18n, type Locale } from "@/lib/i18n";
+import { AdminPagination, paginateItems } from "@/components/AdminPagination";
 import styles from "./ClinicalMetricsManager.module.css";
 
 type Labels = { en?: string; ar?: string; fr?: string; es?: string };
@@ -65,6 +66,9 @@ export function ClinicalMetricsManager() {
   const [catalog,setCatalog]=useState<Catalog>({units:[],conversions:[],metrics:[]});
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState("");
+  const [unitPage,setUnitPage]=useState(1); const [unitPageSize,setUnitPageSize]=useState(10);
+  const [conversionPage,setConversionPage]=useState(1); const [conversionPageSize,setConversionPageSize]=useState(10);
+  const [metricPage,setMetricPage]=useState(1); const [metricPageSize,setMetricPageSize]=useState(10);
 
   const [unitCode,setUnitCode]=useState(""); const [dimension,setDimension]=useState("");
   const [unitEn,setUnitEn]=useState(""); const [unitAr,setUnitAr]=useState(""); const [unitFr,setUnitFr]=useState(""); const [unitEs,setUnitEs]=useState("");
@@ -151,9 +155,10 @@ export function ClinicalMetricsManager() {
         </div>
         <button className={styles.primary} disabled={busy} onClick={()=>void createUnit()}>{t.createUnit}</button>
         <div className={styles.list}>
-          {catalog.units.map(item=><div className={styles.row} key={item.code}><strong>{item.code}</strong><span>{local(item.labels,locale,item.code)}</span><small>{item.dimension}</small></div>)}
+          {paginateItems(catalog.units,unitPage,unitPageSize).map(item=><div className={styles.row} key={item.code}><strong>{item.code}</strong><span>{local(item.labels,locale,item.code)}</span><small>{item.dimension}</small></div>)}
           {!catalog.units.length?<div className={styles.empty}>{t.noUnits}</div>:null}
         </div>
+        <AdminPagination page={unitPage} pageSize={unitPageSize} total={catalog.units.length} onPageChange={setUnitPage} onPageSizeChange={(size)=>{setUnitPageSize(size);setUnitPage(1);}}/>
       </section>
 
       <section className={styles.card}>
@@ -166,8 +171,9 @@ export function ClinicalMetricsManager() {
         </div>
         <button className={styles.primary} disabled={busy||!fromUnit||!toUnit} onClick={()=>void createConversion()}>{t.createConversion}</button>
         <div className={styles.list}>
-          {conversions.map(item=><div className={styles.row} key={item.id}><strong>{item.fromUnitCode} → {item.toUnitCode}</strong><span>× {item.multiplier} + {item.offset}</span><small>v{item.version}</small></div>)}
+          {paginateItems(conversions,conversionPage,conversionPageSize).map(item=><div className={styles.row} key={item.id}><strong>{item.fromUnitCode} → {item.toUnitCode}</strong><span>× {item.multiplier} + {item.offset}</span><small>v{item.version}</small></div>)}
         </div>
+        <AdminPagination page={conversionPage} pageSize={conversionPageSize} total={conversions.length} onPageChange={setConversionPage} onPageSizeChange={(size)=>{setConversionPageSize(size);setConversionPage(1);}}/>
       </section>
     </div>
 
@@ -183,7 +189,7 @@ export function ClinicalMetricsManager() {
       </div>
       <button className={styles.primary} disabled={busy} onClick={()=>void createMetric()}>{t.createMetric}</button>
       <div className={styles.metricGrid}>
-        {catalog.metrics.map(metric=><article className={styles.metric} key={metric.id}>
+        {paginateItems(catalog.metrics,metricPage,metricPageSize).map(metric=><article className={styles.metric} key={metric.id}>
           <div className={styles.metricHead}><div><strong>{local(metric.labels,locale,metric.code)}</strong><small>{metric.code} · {metric.category}</small></div><span>{metric.active?"ACTIVE":"INACTIVE"}</span></div>
           <div className={styles.versions}>{metric.versions.slice(0,5).map(version=><div className={styles.version} key={version.id}>
             <div><strong>v{version.version}</strong> · {version.status}</div>
@@ -193,6 +199,7 @@ export function ClinicalMetricsManager() {
         </article>)}
         {!catalog.metrics.length?<div className={styles.empty}>{t.noMetrics}</div>:null}
       </div>
+      <AdminPagination page={metricPage} pageSize={metricPageSize} total={catalog.metrics.length} onPageChange={setMetricPage} onPageSizeChange={(size)=>{setMetricPageSize(size);setMetricPage(1);}}/>
     </section>
 
     <section className={styles.card}>
