@@ -206,6 +206,22 @@ model PatientProfile {
   providerFormResponses ProviderCategoryFormResponse[]
   providerWorkflowEvents ProviderWorkflowEvent[]
   temporaryClinicalShares TemporaryClinicalShare[]
+  administrativeContactChanges PatientAdministrativeContactChange[]
+}
+
+model PatientAdministrativeContactChange {
+  id                 String         @id @default(uuid())
+  patientId          String
+  kind               String
+  requestedValue     String
+  status             String         @default("PENDING")
+  requestedByActorId String
+  verifiedByActorId  String?
+  requestedAt        DateTime       @default(now())
+  verifiedAt         DateTime?
+  patient            PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId, status, requestedAt])
 }
 
 model Provider {
