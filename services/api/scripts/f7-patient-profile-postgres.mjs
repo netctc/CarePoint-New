@@ -27,14 +27,35 @@ async function json(path, options = {}) {
 }
 
 async function registerAndLogin(suffix, firstName, lastName, phone) {
-  const email = `f7-${suffix}-${Date.now()}-${Math.random().toString(16).slice(2)}@carepoint.test`;
+  const unique = `${Date.now().toString(36)}-${Math.random().toString(16).slice(2, 8)}`;
+  const email = `f7-${suffix}-${unique}@carepoint.test`;
+  const username = `f7-${suffix}-${unique}`.slice(0, 40);
   const password = "CarePoint-F7#2026";
-  const account = await json("/iam/register/patient", {
+  const otp = await json("/iam/register/otp/start", {
     method: "POST",
-    body: { email, password, firstName, lastName, phone },
+    body: { kind: "PATIENT", firstName, lastName, phone },
+  });
+  assert.equal(otp.deliveryMode, "display", "test registration OTP must use display delivery");
+  assert.match(otp.testOtp || "", /^\\d{6}$/);
+  const verified = await json("/iam/register/otp/verify", {
+    method: "POST",
+    body: { challengeId: otp.challengeId, code: otp.testOtp },
+  });
+  await json("/iam/register/patient", {
+    method: "POST",
+    body: {
+      challengeId: otp.challengeId,
+      registrationToken: verified.registrationToken,
+      email,
+      username,
+      password,
+      dateOfBirth: "1990-01-15",
+      sex: "PREFER_NOT_TO_SAY",
+    },
   });
   const session = await json("/iam/login", { method: "POST", body: { email, password } });
   assert.ok(session.accessToken, "patient login must return access token");
+  const account = await json("/iam/accounts/me", { token: session.accessToken });
   return { account, token: session.accessToken };
 }
 
@@ -46,7 +67,7 @@ try {
   const initialB = await json("/iam/patient-profile", { token: patientB.token });
   assert.equal(initialA.firstName, "F7");
   assert.equal(initialA.lastName, "Owner");
-  assert.equal(initialA.phone, "+961 70 111 111");
+  assert.equal(initialA.phone, "+96170111111");
   assert.match(initialA.updatedAt, /^\d{4}-\d{2}-\d{2}T/);
   assert.equal(initialB.lastName, "Other");
 

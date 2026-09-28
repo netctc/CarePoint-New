@@ -145,7 +145,7 @@ jobs:
               username: 'patient-ci',
               password: 'CarePoint-Patient#2026',
               dateOfBirth: '1990-01-15',
-              sex: 'UNSPECIFIED',
+              sex: 'PREFER_NOT_TO_SAY',
             }),
           });
           if (!registered.accessToken) throw new Error('registration did not return an access token');
