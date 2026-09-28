@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/AppShell";
+import { AdminPagination, paginateItems, clampPage } from "@/components/AdminPagination";
 import { useI18n, type Locale } from "@/lib/i18n";
 
 type State="CURRENT"|"EXPIRING"|"EXPIRED"|"MISSING";
@@ -42,7 +43,8 @@ export default function CredentialExpirationsPage(){
    <button className="secondary-button" disabled={busy} onClick={()=>void load()}>{c.refresh}</button>
   </div></div>
   <div style={{...box,overflow:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",minWidth:850}}><thead><tr>{[c.provider,c.kind,c.credential,c.state,c.expiry,c.days,c.blocked].map(h=><th key={h} style={{textAlign:"start",padding:9,borderBottom:"1px solid #e2e8f0"}}>{h}</th>)}</tr></thead><tbody>
-   {(data?.items??[]).map(item=><tr key={item.providerId+":"+item.credentialType}><td style={{padding:9,borderBottom:"1px solid #e2e8f0"}}><strong>{item.providerDisplayName}</strong><small style={{display:"block",color:"#64748b"}}>{item.providerId}</small></td><td>{item.providerClass}</td><td>{item.credentialType}</td><td>{c[item.state]}</td><td>{item.validUntil?new Date(item.validUntil).toLocaleDateString():"—"}</td><td>{item.daysRemaining??"—"}</td><td>{item.operationallyBlocked?c.yes:c.no}</td></tr>)}
+   {paginateItems(data?.items??[],page,pageSize).map(item=><tr key={item.providerId+":"+item.credentialType}><td style={{padding:9,borderBottom:"1px solid #e2e8f0"}}><strong>{item.providerDisplayName}</strong><small style={{display:"block",color:"#64748b"}}>{item.providerId}</small></td><td>{item.providerClass}</td><td>{item.credentialType}</td><td>{c[item.state]}</td><td>{item.validUntil?new Date(item.validUntil).toLocaleDateString():"—"}</td><td>{item.daysRemaining??"—"}</td><td>{item.operationallyBlocked?c.yes:c.no}</td></tr>)}
   </tbody></table></div>
+  <AdminPagination page={page} pageSize={pageSize} total={data?.items?.length??0} onPageChange={setPage} onPageSizeChange={(size)=>{setPageSize(size);setPage(1);}}/>
  </div></AppShell>;
 }
