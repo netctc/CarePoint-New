@@ -1,6 +1,6 @@
 import { BadRequestException, Body, Controller, Delete, Get, Injectable, Module, Param, Patch, Post } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
-import { OtherProviderFamilies, type LocalizedText, type OtherProviderFamily } from "@carepoint/contracts";
+import { type LocalizedText } from "@carepoint/contracts";
 import type { AuthPrincipal } from "@carepoint/identity";
 import { CurrentPrincipal, RequirePermissions } from "../../security/api-security.module";
 import { PrismaService } from "../../infrastructure/prisma/prisma.module";
@@ -11,7 +11,7 @@ type SpecialtyInput = { code?: string; labels?: LocalizedText; parentId?: string
 type CategoryInput = {
   slug?: string;
   labels?: LocalizedText;
-  family?: OtherProviderFamily;
+  family?: string;
   requiredCredentialTypes?: string[];
   active?: boolean;
 };
@@ -151,11 +151,13 @@ class AdminMasterDataService {
     return result;
   }
 
-  private family(value: unknown): OtherProviderFamily {
-    if (typeof value !== "string" || !(OtherProviderFamilies as readonly string[]).includes(value)) {
-      throw new BadRequestException("Invalid Other Provider family.");
+  private family(value: unknown): string {
+    if (typeof value !== "string") throw new BadRequestException("Provider family is required.");
+    const family = value.trim().toUpperCase();
+    if (!/^[A-Z][A-Z0-9_]{1,79}$/.test(family)) {
+      throw new BadRequestException("Provider family must contain 2-80 uppercase letters, numbers or underscores.");
     }
-    return value as OtherProviderFamily;
+    return family;
   }
 
   private credentialTypes(values: unknown): string[] {
