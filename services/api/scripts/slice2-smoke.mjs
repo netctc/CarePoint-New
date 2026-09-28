@@ -1,3 +1,7 @@
+import { PrismaClient } from "@prisma/client";
+import { hashPasswordAsync } from "@carepoint/identity";
+
+const prisma = new PrismaClient();
 const base = process.env.CAREPOINT_API_URL || "http://127.0.0.1:4000/api/v1";
 
 async function raw(path, { method = "GET", token, body } = {}) {
@@ -28,11 +32,16 @@ async function login(email, password) {
 
 let registrationSequence = 0;
 async function registerPatient(email, password, firstName) {
-  registrationSequence += 1;
-  const otp = await request("/iam/register/otp/start", { method: "POST", body: { kind: "PATIENT", firstName, lastName: "Booking CI", phone: `+966581${String(registrationSequence).padStart(6,"0")}` } });
-  const verified = await request("/iam/register/otp/verify", { method: "POST", body: { challengeId: otp.challengeId, code: otp.testOtp } });
   const username = email.split("@")[0].replace(/[^a-z0-9._-]/gi,"-").toLowerCase().slice(0,40);
-  await request("/iam/register/patient", { method: "POST", body: { challengeId: otp.challengeId, registrationToken: verified.registrationToken, email, username, password, dateOfBirth: "1990-01-15", sex: "PREFER_NOT_TO_SAY" } });
+  await prisma.user.create({
+    data:{
+      email,
+      username,
+      passwordHash:await hashPasswordAsync(password),
+      role:"PATIENT",
+      patientProfile:{create:{firstName,lastName:"Booking CI",dateOfBirth:new Date("1990-01-15T00:00:00.000Z"),sex:"PREFER_NOT_TO_SAY"}},
+    },
+  });
   return login(email, password);
 }
 
