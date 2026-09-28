@@ -12,7 +12,7 @@ import {
   Post,
   Query,
 } from "@nestjs/common";
-import type { AuthPrincipal } from "@carepoint/identity";
+import { hashPasswordAsync, randomToken, type AuthPrincipal } from "@carepoint/identity";
 import { Prisma, type AccountStatus, type ClinicalProfileSchema } from "@prisma/client";
 import { DatabaseAuditService } from "../../infrastructure/audit/audit.service";
 import { PrismaService } from "../../infrastructure/prisma/prisma.module";
@@ -35,42 +35,48 @@ class AdminPatientsService {
     private readonly audit: DatabaseAuditService,
   ) {}
 
-  async list(principal: AuthPrincipal, input: { q?: string | undefined; status?: string | undefined; limit?: string | undefined }) {
+  async list(principal: AuthPrincipal, input: { q?: string; status?: string; page?: string; pageSize?: string; limit?: string }) {
     const q = this.optionalQuery(input.q);
     const status = this.optionalAccountStatus(input.status);
-    const limit = this.limit(input.limit);
+    const page = this.page(input.page);
+    const pageSize = this.pageSize(input.pageSize ?? input.limit);
     const now = new Date();
-    const patients = await this.prisma.patientProfile.findMany({
-      where: {
-        ...(q ? {
-          OR: [
-            { firstName: { contains: q, mode: "insensitive" } },
-            { lastName: { contains: q, mode: "insensitive" } },
-            { phone: { contains: q, mode: "insensitive" } },
-            { user: { email: { contains: q, mode: "insensitive" } } },
-          ],
-        } : {}),
-        ...(status ? { user: { status } } : {}),
-      },
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        createdAt: true,
-        updatedAt: true,
-        user: {
-          select: {
-            id: true,
-            email: true,
-            status: true,
-            lockedUntil: true,
-            mfaEnrollment: { select: { enabledAt: true } },
+    const where: Prisma.PatientProfileWhereInput = {
+      ...(q ? {
+        OR: [
+          { firstName: { contains: q, mode: "insensitive" } },
+          { lastName: { contains: q, mode: "insensitive" } },
+          { phone: { contains: q, mode: "insensitive" } },
+          { user: { email: { contains: q, mode: "insensitive" } } },
+        ],
+      } : {}),
+      ...(status ? { user: { status } } : {}),
+    };
+    const [total, patients] = await Promise.all([
+      this.prisma.patientProfile.count({ where }),
+      this.prisma.patientProfile.findMany({
+        where,
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          createdAt: true,
+          updatedAt: true,
+          user: {
+            select: {
+              id: true,
+              email: true,
+              status: true,
+              lockedUntil: true,
+              mfaEnrollment: { select: { enabledAt: true } },
+            },
           },
         },
-      },
-      orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
-      take: limit,
-    });
+        orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+    ]);
     const patientIds = patients.map((item) => item.id);
     const [consents, coverages, dependents, emergencies, transports] = patientIds.length === 0
       ? [[], [], [], [], []]
@@ -110,12 +116,8 @@ class AdminPatientsService {
       id: patient.id,
       displayName: this.displayName(patient.firstName, patient.lastName),
       accountStatus: patient.user.status,
-      identity: {
-        emailMasked: this.maskEmail(patient.user.email),
-      },
-      verification: {
-        mfaEnabled: patient.user.mfaEnrollment?.enabledAt != null,
-      },
+      identity: { emailMasked: this.maskEmail(patient.user.email) },
+      verification: { mfaEnabled: patient.user.mfaEnrollment?.enabledAt != null },
       operationalFlags: {
         temporarilyLocked: patient.user.lockedUntil != null && patient.user.lockedUntil.getTime() > now.getTime(),
         hasActiveConsent: (consentCounts.get(patient.id) ?? 0) > 0,
@@ -134,44 +136,327 @@ class AdminPatientsService {
       objectId: null,
       purpose: "ADMINISTRATION",
       result: "SUCCESS",
-      metadata: { itemCount: items.length, filtered: Boolean(q || status), limit },
+      metadata: { itemCount: items.length, total, filtered: Boolean(q || status), page, pageSize },
     });
     return {
       privacyBoundary: "ADMINISTRATIVE_ONLY" as const,
       clinicalDataIncluded: false,
       itemCount: items.length,
+      total,
+      page,
+      pageSize,
+      totalPages: Math.max(1, Math.ceil(total / pageSize)),
       items,
     };
   }
 
-  async detail(principal: AuthPrincipal, patientIdRaw: string) {
-    const patientId = this.identifier(patientIdRaw, "patientId");
-    const patient = await this.prisma.patientProfile.findUnique({
-      where: { id: patientId },
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        phone: true,
-        createdAt: true,
-        updatedAt: true,
-        user: {
-          select: {
-            id: true,
-            email: true,
-            status: true,
-            failedLoginCount: true,
-            lockedUntil: true,
-            createdAt: true,
-            updatedAt: true,
-            mfaEnrollment: { select: { enabledAt: true } },
-          },
-        },
+  async create(principal: AuthPrincipal, input: JsonObject) {
+    const firstName = this.requiredText(input.firstName, "firstName", 100);
+    const lastName = this.requiredText(input.lastName, "lastName", 100);
+    const email = this.email(input.email);
+    const phone = this.optionalText(input.phone, 40);
+    const dateOfBirth = this.optionalDate(input.dateOfBirth, "dateOfBirth");
+    const sex = this.optionalText(input.sex, 40);
+    const status = this.optionalAccountStatus(typeof input.status === "string" ? input.status : undefined) ?? "ACTIVE";
+    const suppliedPassword = this.optionalText(input.temporaryPassword, 256);
+    if (suppliedPassword && suppliedPassword.length < 12) throw new BadRequestException("temporaryPassword must contain at least 12 characters.");
+    const temporaryPassword = suppliedPassword ?? this.generatedPassword();
+    const exists = await this.prisma.user.findUnique({ where: { email } });
+    if (exists) throw new ConflictException("An account with this email already exists.");
+
+    const user = await this.prisma.user.create({
+      data: {
+        email,
+        passwordHash: await hashPasswordAsync(temporaryPassword),
+        role: "PATIENT",
+        status,
+        patientProfile: { create: { firstName, lastName, phone, dateOfBirth, sex } },
       },
+      select: { id: true, email: true, status: true, patientProfile: { select: { id: true } } },
     });
-    if (!patient) throw new NotFoundException("Patient not found.");
+    await this.audit.write({
+      actorId: principal.accountId,
+      action: "ADMIN_PATIENT_CREATED",
+      objectType: "PATIENT",
+      objectId: user.patientProfile!.id,
+      purpose: "ADMINISTRATION",
+      result: "SUCCESS",
+      metadata: { accountId: user.id, status: user.status },
+    });
+    return {
+      privacyBoundary: "ADMINISTRATIVE_ONLY" as const,
+      clinicalDataIncluded: false,
+      patientId: user.patientProfile!.id,
+      accountId: user.id,
+      email: user.email,
+      status: user.status,
+      temporaryPassword: suppliedPassword ? undefined : temporaryPassword,
+    };
+  }
+
+  async update(principal: AuthPrincipal, patientIdRaw: string, input: JsonObject) {
+    const patient = await this.requirePatient(patientIdRaw);
+    const data: Prisma.PatientProfileUpdateInput = {};
+    if (input.firstName !== undefined) data.firstName = this.requiredText(input.firstName, "firstName", 100);
+    if (input.lastName !== undefined) data.lastName = this.requiredText(input.lastName, "lastName", 100);
+    if (input.dateOfBirth !== undefined) data.dateOfBirth = this.optionalDate(input.dateOfBirth, "dateOfBirth");
+    if (input.sex !== undefined) data.sex = this.optionalText(input.sex, 40);
+    if (Object.keys(data).length === 0) throw new BadRequestException("No administrative patient fields were supplied.");
+    const updated = await this.prisma.patientProfile.update({
+      where: { id: patient.id },
+      data,
+      select: { id: true, firstName: true, lastName: true, dateOfBirth: true, sex: true, updatedAt: true },
+    });
+    await this.audit.write({
+      actorId: principal.accountId,
+      action: "ADMIN_PATIENT_PROFILE_UPDATED",
+      objectType: "PATIENT",
+      objectId: patient.id,
+      purpose: "ADMINISTRATION",
+      result: "SUCCESS",
+      metadata: { fields: Object.keys(data) },
+    });
+    return { privacyBoundary: "ADMINISTRATIVE_ONLY" as const, clinicalDataIncluded: false, patient: updated };
+  }
+
+  async changeStatus(principal: AuthPrincipal, patientIdRaw: string, input: JsonObject) {
+    const patient = await this.requirePatient(patientIdRaw);
+    const status = this.optionalAccountStatus(typeof input.status === "string" ? input.status : undefined);
+    if (!status) throw new BadRequestException("status is required.");
+    const reason = this.requiredReason(input.reason);
+    const previous = patient.user.status;
+    if (previous === status) return { patientId: patient.id, accountId: patient.user.id, status };
     const now = new Date();
-    const [consents, coverages, asDependent, asGuardian, emergencyCount, transportCount, deniedEvents] = await Promise.all([
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user.update({ where: { id: patient.user.id }, data: { status } });
+      if (status !== "ACTIVE") {
+        await tx.authSession.updateMany({ where: { userId: patient.user.id, revokedAt: null }, data: { revokedAt: now } });
+      }
+    });
+    await this.audit.write({
+      actorId: principal.accountId,
+      action: "ADMIN_PATIENT_ACCOUNT_STATUS_CHANGED",
+      objectType: "PATIENT",
+      objectId: patient.id,
+      purpose: "ADMINISTRATION",
+      result: "SUCCESS",
+      metadata: { accountId: patient.user.id, fromStatus: previous, toStatus: status, reason },
+    });
+    return { patientId: patient.id, accountId: patient.user.id, status };
+  }
+
+  async resetAccess(principal: AuthPrincipal, patientIdRaw: string, input: JsonObject) {
+    const patient = await this.requirePatient(patientIdRaw);
+    const resetPassword = input.resetPassword === true;
+    const resetMfa = input.resetMfa === true;
+    const temporaryPassword = resetPassword ? this.generatedPassword() : null;
+    const now = new Date();
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: patient.user.id },
+        data: {
+          failedLoginCount: 0,
+          lockedUntil: null,
+          ...(temporaryPassword ? { passwordHash: await hashPasswordAsync(temporaryPassword) } : {}),
+        },
+      });
+      await tx.authSession.updateMany({ where: { userId: patient.user.id, revokedAt: null }, data: { revokedAt: now } });
+      await tx.authChallenge.updateMany({ where: { userId: patient.user.id, consumedAt: null }, data: { consumedAt: now } });
+      if (resetMfa) await tx.mfaEnrollment.deleteMany({ where: { userId: patient.user.id } });
+    });
+    await this.audit.write({
+      actorId: principal.accountId,
+      action: "ADMIN_PATIENT_ACCESS_RESET",
+      objectType: "PATIENT",
+      objectId: patient.id,
+      purpose: "ADMINISTRATION",
+      result: "SUCCESS",
+      metadata: { accountId: patient.user.id, passwordReset: resetPassword, mfaReset: resetMfa, sessionsRevoked: true },
+    });
+    return {
+      patientId: patient.id,
+      accountId: patient.user.id,
+      unlocked: true,
+      sessionsRevoked: true,
+      passwordReset: resetPassword,
+      mfaReset: resetMfa,
+      ...(temporaryPassword ? { temporaryPassword } : {}),
+    };
+  }
+
+  async forceLogout(principal: AuthPrincipal, patientIdRaw: string) {
+    const patient = await this.requirePatient(patientIdRaw);
+    const result = await this.prisma.authSession.updateMany({
+      where: { userId: patient.user.id, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    await this.audit.write({
+      actorId: principal.accountId,
+      action: "ADMIN_PATIENT_FORCE_LOGOUT",
+      objectType: "PATIENT",
+      objectId: patient.id,
+      purpose: "ADMINISTRATION",
+      result: "SUCCESS",
+      metadata: { accountId: patient.user.id, revokedSessions: result.count },
+    });
+    return { patientId: patient.id, revokedSessions: result.count };
+  }
+
+  async history(principal: AuthPrincipal, patientIdRaw: string) {
+    const patient = await this.requirePatient(patientIdRaw);
+    const items = await this.prisma.auditEvent.findMany({
+      where: {
+        objectId: { in: [patient.id, patient.user.id] },
+        OR: [
+          { action: { startsWith: "ADMIN_PATIENT_" } },
+          { action: { in: ["ALL_SESSIONS_REVOKED", "ACCOUNT_SUSPENDED", "MFA_ENABLED"] } },
+        ],
+      },
+      select: { id: true, action: true, objectType: true, objectId: true, purpose: true, result: true, occurredAt: true },
+      orderBy: { occurredAt: "desc" },
+      take: 200,
+    });
+    await this.audit.write({
+      actorId: principal.accountId,
+      action: "ADMIN_PATIENT_HISTORY_READ",
+      objectType: "PATIENT",
+      objectId: patient.id,
+      purpose: "ADMINISTRATION",
+      result: "SUCCESS",
+      metadata: { itemCount: items.length },
+    });
+    return { privacyBoundary: "ADMINISTRATIVE_ONLY" as const, clinicalDataIncluded: false, items };
+  }
+
+  async duplicates(principal: AuthPrincipal, patientIdRaw: string) {
+    const patient = await this.requirePatient(patientIdRaw);
+    const candidates = await this.prisma.patientProfile.findMany({
+      where: {
+        id: { not: patient.id },
+        OR: [
+          { user: { email: { equals: patient.user.email, mode: "insensitive" } } },
+          ...(patient.phone ? [{ phone: patient.phone }] : []),
+          { firstName: { equals: patient.firstName, mode: "insensitive" }, lastName: { equals: patient.lastName, mode: "insensitive" } },
+          ...(patient.dateOfBirth ? [{ dateOfBirth: patient.dateOfBirth }] : []),
+        ],
+      },
+      select: { id: true, firstName: true, lastName: true, phone: true, dateOfBirth: true, user: { select: { email: true, status: true } } },
+      take: 50,
+    });
+    const items = candidates.map((candidate) => {
+      const reasons: string[] = [];
+      let score = 0;
+      if (candidate.user.email.toLowerCase() === patient.user.email.toLowerCase()) { reasons.push("EMAIL_MATCH"); score += 4; }
+      if (patient.phone && candidate.phone === patient.phone) { reasons.push("PHONE_MATCH"); score += 3; }
+      if (candidate.firstName.toLowerCase() === patient.firstName.toLowerCase() && candidate.lastName.toLowerCase() === patient.lastName.toLowerCase()) { reasons.push("NAME_MATCH"); score += 2; }
+      if (patient.dateOfBirth && candidate.dateOfBirth?.getTime() === patient.dateOfBirth.getTime()) { reasons.push("DATE_OF_BIRTH_MATCH"); score += 2; }
+      return {
+        patientId: candidate.id,
+        displayName: this.displayName(candidate.firstName, candidate.lastName),
+        accountStatus: candidate.user.status,
+        emailMasked: this.maskEmail(candidate.user.email),
+        phoneMasked: this.maskPhone(candidate.phone),
+        score,
+        reasons,
+      };
+    }).filter((item) => item.score > 0).sort((a, b) => b.score - a.score);
+    await this.audit.write({
+      actorId: principal.accountId,
+      action: "ADMIN_PATIENT_DUPLICATE_CHECKED",
+      objectType: "PATIENT",
+      objectId: patient.id,
+      purpose: "ADMINISTRATION",
+      result: "SUCCESS",
+      metadata: { candidateCount: items.length },
+    });
+    return { privacyBoundary: "ADMINISTRATIVE_ONLY" as const, clinicalDataIncluded: false, items };
+  }
+
+  async requestContactChange(principal: AuthPrincipal, patientIdRaw: string, input: JsonObject) {
+    const patient = await this.requirePatient(patientIdRaw);
+    const kind = typeof input.kind === "string" ? input.kind.trim().toUpperCase() : "";
+    if (kind !== "EMAIL" && kind !== "PHONE") throw new BadRequestException("kind must be EMAIL or PHONE.");
+    const requestedValue = kind === "EMAIL" ? this.email(input.value) : this.requiredText(input.value, "value", 40);
+    if (kind === "EMAIL") {
+      const existing = await this.prisma.user.findUnique({ where: { email: requestedValue } });
+      if (existing && existing.id !== patient.user.id) throw new ConflictException("An account with this email already exists.");
+    }
+    const change = await this.prisma.$transaction(async (tx) => {
+      await tx.patientAdministrativeContactChange.updateMany({
+        where: { patientId: patient.id, kind, status: "PENDING" },
+        data: { status: "CANCELLED" },
+      });
+      return tx.patientAdministrativeContactChange.create({
+        data: { patientId: patient.id, kind, requestedValue, requestedByActorId: principal.accountId },
+      });
+    });
+    await this.audit.write({
+      actorId: principal.accountId,
+      action: "ADMIN_PATIENT_CONTACT_CHANGE_REQUESTED",
+      objectType: "PATIENT",
+      objectId: patient.id,
+      purpose: "ADMINISTRATION",
+      result: "SUCCESS",
+      metadata: { contactChangeId: change.id, kind, verificationMethod: "ADMIN_CONFIRMED_OUT_OF_BAND" },
+    });
+    return { id: change.id, kind, requestedValue, status: change.status, verificationRequired: true, verificationMethod: "ADMIN_CONFIRMED_OUT_OF_BAND" };
+  }
+
+  async verifyContactChange(principal: AuthPrincipal, patientIdRaw: string, changeIdRaw: string) {
+    const patient = await this.requirePatient(patientIdRaw);
+    const changeId = this.identifier(changeIdRaw, "changeId");
+    const change = await this.prisma.patientAdministrativeContactChange.findFirst({
+      where: { id: changeId, patientId: patient.id, status: "PENDING" },
+    });
+    if (!change) throw new NotFoundException("Pending contact change not found.");
+    if (change.kind === "EMAIL") {
+      const existing = await this.prisma.user.findUnique({ where: { email: change.requestedValue } });
+      if (existing && existing.id !== patient.user.id) throw new ConflictException("An account with this email already exists.");
+    }
+    await this.prisma.$transaction(async (tx) => {
+      if (change.kind === "EMAIL") {
+        await tx.user.update({ where: { id: patient.user.id }, data: { email: change.requestedValue } });
+      } else {
+        await tx.patientProfile.update({ where: { id: patient.id }, data: { phone: change.requestedValue } });
+      }
+      await tx.patientAdministrativeContactChange.update({
+        where: { id: change.id },
+        data: { status: "VERIFIED", verifiedByActorId: principal.accountId, verifiedAt: new Date() },
+      });
+    });
+    await this.audit.write({
+      actorId: principal.accountId,
+      action: "ADMIN_PATIENT_CONTACT_CHANGE_VERIFIED",
+      objectType: "PATIENT",
+      objectId: patient.id,
+      purpose: "ADMINISTRATION",
+      result: "SUCCESS",
+      metadata: { contactChangeId: change.id, kind: change.kind },
+    });
+    return { id: change.id, kind: change.kind, requestedValue: change.requestedValue, status: "VERIFIED" };
+  }
+
+  async exportAdministrative(principal: AuthPrincipal, patientIdRaw: string) {
+    const detail = await this.detail(principal, patientIdRaw);
+    const history = await this.history(principal, patientIdRaw);
+    return {
+      exportType: "CAREPOINT_PATIENT_ADMINISTRATIVE_RECORD",
+      generatedAt: new Date().toISOString(),
+      privacyBoundary: "ADMINISTRATIVE_ONLY" as const,
+      clinicalDataIncluded: false,
+      patient: detail.patient,
+      dependents: detail.dependents,
+      insurance: detail.insurance,
+      incidents: detail.incidents,
+      history: history.items,
+    };
+  }
+
+  async detail(principal: AuthPrincipal, patientIdRaw: string) {
+    const patient = await this.requirePatient(patientIdRaw);
+    const patientId = patient.id;
+    const now = new Date();
+    const [consents, coverages, asDependent, asGuardian, emergencyCount, transportCount, deniedEvents, contactChanges] = await Promise.all([
       this.prisma.consent.findMany({
         where: { patientId },
         select: { id: true, providerId: true, scope: true, version: true, purpose: true, state: true, grantedAt: true, revokedAt: true, expiresAt: true },
@@ -208,6 +493,12 @@ class AdminPatientsService {
         orderBy: { occurredAt: "desc" },
         take: 20,
       }),
+      this.prisma.patientAdministrativeContactChange.findMany({
+        where: { patientId },
+        select: { id: true, kind: true, requestedValue: true, status: true, requestedAt: true, verifiedAt: true },
+        orderBy: { requestedAt: "desc" },
+        take: 50,
+      }),
     ]);
     await this.audit.write({
       actorId: principal.accountId,
@@ -216,11 +507,7 @@ class AdminPatientsService {
       objectId: patient.id,
       purpose: "ADMINISTRATION",
       result: "SUCCESS",
-      metadata: {
-        consentCount: consents.length,
-        coverageCount: coverages.length,
-        dependentRelationCount: asDependent.length + asGuardian.length,
-      },
+      metadata: { consentCount: consents.length, coverageCount: coverages.length, dependentRelationCount: asDependent.length + asGuardian.length },
     });
     return {
       privacyBoundary: "ADMINISTRATIVE_ONLY" as const,
@@ -230,10 +517,9 @@ class AdminPatientsService {
         displayName: this.displayName(patient.firstName, patient.lastName),
         firstName: patient.firstName,
         lastName: patient.lastName,
-        contact: {
-          email: patient.user.email,
-          phone: patient.phone,
-        },
+        dateOfBirth: patient.dateOfBirth,
+        sex: patient.sex,
+        contact: { email: patient.user.email, phone: patient.phone },
         account: {
           id: patient.user.id,
           status: patient.user.status,
@@ -246,21 +532,30 @@ class AdminPatientsService {
         createdAt: patient.createdAt,
         updatedAt: patient.updatedAt,
       },
-      dependents: {
-        asDependent,
-        asGuardian,
-      },
-      consents: consents.map((row) => ({
-        ...row,
-        effectiveState: row.state === "GRANTED" && row.expiresAt && row.expiresAt.getTime() <= now.getTime() ? "EXPIRED" : row.state,
-      })),
+      contactChanges,
+      dependents: { asDependent, asGuardian },
+      consents: consents.map((row) => ({ ...row, effectiveState: row.state === "GRANTED" && row.expiresAt && row.expiresAt.getTime() <= now.getTime() ? "EXPIRED" : row.state })),
       insurance: coverages,
-      incidents: {
-        activeEmergencyCount: emergencyCount,
-        activeTransportCount: transportCount,
-        deniedSecurityEventsLast30Days: deniedEvents,
-      },
+      incidents: { activeEmergencyCount: emergencyCount, activeTransportCount: transportCount, deniedSecurityEventsLast30Days: deniedEvents },
     };
+  }
+
+  private async requirePatient(patientIdRaw: string) {
+    const patientId = this.identifier(patientIdRaw, "patientId");
+    const patient = await this.prisma.patientProfile.findUnique({
+      where: { id: patientId },
+      select: {
+        id: true, firstName: true, lastName: true, phone: true, dateOfBirth: true, sex: true, createdAt: true, updatedAt: true,
+        user: {
+          select: {
+            id: true, email: true, status: true, failedLoginCount: true, lockedUntil: true, createdAt: true, updatedAt: true,
+            mfaEnrollment: { select: { enabledAt: true } },
+          },
+        },
+      },
+    });
+    if (!patient) throw new NotFoundException("Patient not found.");
+    return patient;
   }
 
   private optionalQuery(value?: string): string | null {
@@ -278,10 +573,17 @@ class AdminPatientsService {
     return normalized;
   }
 
-  private limit(value?: string): number {
-    if (!value) return 50;
+  private page(value?: string): number {
+    if (!value) return 1;
     const parsed = Number(value);
-    if (!Number.isInteger(parsed) || parsed < 1 || parsed > MAX_PATIENTS) throw new BadRequestException(`limit must be between 1 and ${MAX_PATIENTS}.`);
+    if (!Number.isInteger(parsed) || parsed < 1 || parsed > 1_000_000) throw new BadRequestException("page must be a positive integer.");
+    return parsed;
+  }
+
+  private pageSize(value?: string): number {
+    if (!value) return 10;
+    const parsed = Number(value);
+    if (!Number.isInteger(parsed) || ![10,25,50,100].includes(parsed)) throw new BadRequestException("pageSize must be one of 10, 25, 50 or 100.");
     return parsed;
   }
 
@@ -295,11 +597,52 @@ class AdminPatientsService {
     return `${firstName.trim()} ${lastName.trim()}`.trim();
   }
 
+  private email(value: unknown): string {
+    if (typeof value !== "string") throw new BadRequestException("email is required.");
+    const email = value.trim().toLowerCase();
+    if (email.length > 320 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new BadRequestException("email is invalid.");
+    return email;
+  }
+
+  private requiredText(value: unknown, field: string, max: number): string {
+    if (typeof value !== "string" || !value.trim() || value.trim().length > max) throw new BadRequestException(`${field} is required and must be at most ${max} characters.`);
+    return value.trim();
+  }
+
+  private optionalText(value: unknown, max: number): string | null {
+    if (value === undefined || value === null || value === "") return null;
+    if (typeof value !== "string" || value.trim().length > max) throw new BadRequestException(`Value must be at most ${max} characters.`);
+    return value.trim() || null;
+  }
+
+  private optionalDate(value: unknown, field: string): Date | null {
+    if (value === undefined || value === null || value === "") return null;
+    if (typeof value !== "string") throw new BadRequestException(`${field} must be an ISO date.`);
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) throw new BadRequestException(`${field} must be an ISO date.`);
+    return date;
+  }
+
+  private requiredReason(value: unknown): string {
+    if (typeof value !== "string" || value.trim().length < 3 || value.trim().length > 1000) throw new BadRequestException("A reason between 3 and 1000 characters is required.");
+    return value.trim();
+  }
+
+  private generatedPassword(): string {
+    return `Cp!${randomToken(18)}aA1`;
+  }
+
   private maskEmail(email: string): string {
     const [local = "", domain = ""] = email.split("@");
     if (!domain) return "***";
     const visible = local.slice(0, Math.min(2, local.length));
     return `${visible}${"*".repeat(Math.max(3, local.length - visible.length))}@${domain}`;
+  }
+
+  private maskPhone(phone: string | null): string | null {
+    if (!phone) return null;
+    const visible = phone.slice(-4);
+    return `***${visible}`;
   }
 }
 
@@ -583,14 +926,76 @@ class AdminPatientsController {
     @CurrentPrincipal() principal: AuthPrincipal,
     @Query("q") q?: string,
     @Query("status") status?: string,
+    @Query("page") page?: string,
+    @Query("pageSize") pageSize?: string,
     @Query("limit") limit?: string,
   ) {
-    return this.patients.list(principal, { q, status, limit });
+    return this.patients.list(principal, {
+      ...(q !== undefined ? { q } : {}),
+      ...(status !== undefined ? { status } : {}),
+      ...(page !== undefined ? { page } : {}),
+      ...(pageSize !== undefined ? { pageSize } : {}),
+      ...(limit !== undefined ? { limit } : {}),
+    });
+  }
+
+  @Post()
+  create(@CurrentPrincipal() principal: AuthPrincipal, @Body() body: JsonObject) {
+    return this.patients.create(principal, body ?? {});
   }
 
   @Get(":patientId")
   detail(@CurrentPrincipal() principal: AuthPrincipal, @Param("patientId") patientId: string) {
     return this.patients.detail(principal, patientId);
+  }
+
+  @Patch(":patientId")
+  update(@CurrentPrincipal() principal: AuthPrincipal, @Param("patientId") patientId: string, @Body() body: JsonObject) {
+    return this.patients.update(principal, patientId, body ?? {});
+  }
+
+  @Patch(":patientId/status")
+  status(@CurrentPrincipal() principal: AuthPrincipal, @Param("patientId") patientId: string, @Body() body: JsonObject) {
+    return this.patients.changeStatus(principal, patientId, body ?? {});
+  }
+
+  @Post(":patientId/access-reset")
+  resetAccess(@CurrentPrincipal() principal: AuthPrincipal, @Param("patientId") patientId: string, @Body() body: JsonObject) {
+    return this.patients.resetAccess(principal, patientId, body ?? {});
+  }
+
+  @Post(":patientId/logout")
+  forceLogout(@CurrentPrincipal() principal: AuthPrincipal, @Param("patientId") patientId: string) {
+    return this.patients.forceLogout(principal, patientId);
+  }
+
+  @Get(":patientId/history")
+  history(@CurrentPrincipal() principal: AuthPrincipal, @Param("patientId") patientId: string) {
+    return this.patients.history(principal, patientId);
+  }
+
+  @Get(":patientId/duplicates")
+  duplicates(@CurrentPrincipal() principal: AuthPrincipal, @Param("patientId") patientId: string) {
+    return this.patients.duplicates(principal, patientId);
+  }
+
+  @Post(":patientId/contact-changes")
+  requestContactChange(@CurrentPrincipal() principal: AuthPrincipal, @Param("patientId") patientId: string, @Body() body: JsonObject) {
+    return this.patients.requestContactChange(principal, patientId, body ?? {});
+  }
+
+  @Post(":patientId/contact-changes/:changeId/verify")
+  verifyContactChange(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Param("patientId") patientId: string,
+    @Param("changeId") changeId: string,
+  ) {
+    return this.patients.verifyContactChange(principal, patientId, changeId);
+  }
+
+  @Get(":patientId/export")
+  exportAdministrative(@CurrentPrincipal() principal: AuthPrincipal, @Param("patientId") patientId: string) {
+    return this.patients.exportAdministrative(principal, patientId);
   }
 }
 

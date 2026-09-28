@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useI18n, type Locale } from "@/lib/i18n";
+import { AdminPagination, paginateItems, clampPage } from "@/components/AdminPagination";
 import styles from "./ProviderGovernanceQueue.module.css";
 
 type ProviderKind = "DOCTOR" | "OTHER_PROVIDER";
@@ -117,6 +118,8 @@ export function ProviderGovernanceQueue({ kind }: { kind: ProviderKind }) {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [working, setWorking] = useState("");
+  const [page,setPage]=useState(1);
+  const [pageSize,setPageSize]=useState(10);
 
   async function load() {
     setLoading(true);
@@ -129,7 +132,9 @@ export function ProviderGovernanceQueue({ kind }: { kind: ProviderKind }) {
       }
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || !Array.isArray(payload)) throw new Error(messageOf(payload, copy.actionFailed));
-      setRows((payload as Onboarding[]).filter((item) => item.kind === kind));
+      const next=(payload as Onboarding[]).filter((item) => item.kind === kind);
+      setRows(next);
+      setPage((value)=>clampPage(value,next.length,pageSize));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : copy.actionFailed);
     } finally {
@@ -165,7 +170,6 @@ export function ProviderGovernanceQueue({ kind }: { kind: ProviderKind }) {
   const metrics = useMemo(() => ({
     pending: rows.filter((row) => row.state === "PENDING_REVIEW").length,
     changes: rows.filter((row) => row.state === "REQUEST_CHANGES").length,
-    approved: rows.filter((row) => row.state === "APPROVED").length,
     credentialsPending: rows.reduce((count, row) => count + row.credentials.filter((credential) => credential.state === "PENDING").length, 0),
   }), [rows]);
 
@@ -250,7 +254,7 @@ export function ProviderGovernanceQueue({ kind }: { kind: ProviderKind }) {
       if (!response.ok) throw new Error(messageOf(payload, copy.actionFailed));
       setNotes((current) => ({ ...current, [row.id]: "" }));
       await load();
-      setExpanded(row.id);
+      setExpanded(action === "approve" || action === "reject" ? null : row.id);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : copy.actionFailed);
       setExpanded(row.id);
@@ -270,7 +274,6 @@ export function ProviderGovernanceQueue({ kind }: { kind: ProviderKind }) {
     <div className={styles.metrics}>
       <Metric label={copy.pending} value={metrics.pending} />
       <Metric label={copy.changes} value={metrics.changes} />
-      <Metric label={copy.approved} value={metrics.approved} />
       <Metric label={copy.credentialsPending} value={metrics.credentialsPending} />
     </div>
 
@@ -280,9 +283,7 @@ export function ProviderGovernanceQueue({ kind }: { kind: ProviderKind }) {
         <option value="ALL">{copy.allStates}</option>
         <option value="PENDING_REVIEW">{stateLabel("PENDING_REVIEW", copy)}</option>
         <option value="REQUEST_CHANGES">{stateLabel("REQUEST_CHANGES", copy)}</option>
-        <option value="APPROVED">{stateLabel("APPROVED", copy)}</option>
-        <option value="REJECTED">{stateLabel("REJECTED", copy)}</option>
-        <option value="DRAFT">DRAFT</option>
+
       </select></label>
     </div>
 
@@ -290,7 +291,7 @@ export function ProviderGovernanceQueue({ kind }: { kind: ProviderKind }) {
 
     <div className={styles.queue}>
       {filtered.length === 0 && <div className={styles.empty}>{copy.noCases}</div>}
-      {filtered.map((row) => {
+      {paginateItems(filtered,page,pageSize).map((row) => {
         const isOpen = expanded === row.id;
         const pendingCredentials = row.credentials.filter((credential) => credential.state === "PENDING").length;
         return <article className={styles.case} key={row.id}>
@@ -344,7 +345,7 @@ export function ProviderGovernanceQueue({ kind }: { kind: ProviderKind }) {
                     {row.state === "PENDING_REVIEW" && credential.state === "PENDING" ? <>
                       <button disabled={Boolean(working)} onClick={() => void act(row, "credential-verify", credential.id)}>{working === key ? "…" : copy.verify}</button>
                       <button className={styles.dangerLink} disabled={Boolean(working)} onClick={() => void act(row, "credential-reject", credential.id)}>{copy.rejectCredential}</button>
-                    </> : <span>—</span>}
+                    </> : <span>{credential.state === "VERIFIED" ? "VERIFIED" : credential.state === "REJECTED" ? "REJECTED" : "—"}</span>}
                   </span>
                 </div>;
               })}
@@ -365,6 +366,7 @@ export function ProviderGovernanceQueue({ kind }: { kind: ProviderKind }) {
         </article>;
       })}
     </div>
+    <AdminPagination page={page} pageSize={pageSize} total={filtered.length} onPageChange={setPage} onPageSizeChange={(size)=>{setPageSize(size);setPage(1);}}/>
   </section>;
 }
 

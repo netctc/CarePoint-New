@@ -25,6 +25,11 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   if (body instanceof NextResponse) return body;
   return forwardAdminJson(request, path, { method: "PATCH", body, requireSameOrigin: true });
 }
+export async function DELETE(request: NextRequest, context: RouteContext) {
+  const path = await backendPath(context);
+  if (!path) return invalid("Invalid provider administration route.");
+  return forwardAdminJson(request, path, { method: "DELETE", requireSameOrigin: true });
+}
 async function backendPath(context: RouteContext): Promise<string | null> {
   const { segments } = await context.params;
   if (!segments.length || segments.length > 8 || !segments.every((segment) => SAFE.test(segment))) return null;

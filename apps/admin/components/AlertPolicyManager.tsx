@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useI18n, type Locale } from "@/lib/i18n";
+import { AdminPagination, paginateItems } from "@/components/AdminPagination";
 import styles from "./AlertPolicyManager.module.css";
 
 type Labels={en?:string;ar?:string;fr?:string;es?:string};
@@ -36,6 +37,7 @@ export function AlertPolicyManager(){
   const {locale}=useI18n();const t=copy[locale];
   const [policies,setPolicies]=useState<Policy[]>([]);const [metrics,setMetrics]=useState<Metric[]>([]);
   const [selectedId,setSelectedId]=useState("");const [busy,setBusy]=useState(false);const [error,setError]=useState("");
+  const [page,setPage]=useState(1); const [pageSize,setPageSize]=useState(10);
   const [code,setCode]=useState("");const [en,setEn]=useState("");const [ar,setAr]=useState("");const [fr,setFr]=useState("");const [es,setEs]=useState("");
   const [metricCodes,setMetricCodes]=useState<Set<string>>(new Set());
   const [severities,setSeverities]=useState<Set<string>>(new Set(["WARNING","CRITICAL"]));
@@ -121,11 +123,12 @@ export function AlertPolicyManager(){
         </div>
         <button className={styles.primary} disabled={busy||!code.trim()||!en.trim()} onClick={()=>void createPolicy()}>{t.create}</button>
         <div className={styles.policyList}>
-          {policies.map(policy=><button key={policy.id} className={selectedId===policy.id?styles.selected:styles.policy} onClick={()=>setSelectedId(policy.id)}>
+          {paginateItems(policies,page,pageSize).map(policy=><button key={policy.id} className={selectedId===policy.id?styles.selected:styles.policy} onClick={()=>setSelectedId(policy.id)}>
             <strong>{label(policy.labels,locale,policy.code)}</strong><small>{policy.code} · {policy.versions.length} {t.versions}</small>
           </button>)}
           {!policies.length?<div className={styles.empty}>{t.empty}</div>:null}
         </div>
+        <AdminPagination page={page} pageSize={pageSize} total={policies.length} onPageChange={setPage} onPageSizeChange={(size)=>{setPageSize(size);setPage(1);}}/>
       </section>
 
       <section className={styles.card}>

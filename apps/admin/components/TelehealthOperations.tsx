@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useI18n, type Locale } from "@/lib/i18n";
+import { AdminPagination, paginateItems, clampPage } from "@/components/AdminPagination";
 import styles from "./TelehealthOperations.module.css";
 
 type Severity = "INFO" | "MEDIUM" | "HIGH" | "CRITICAL";
@@ -75,6 +76,8 @@ export function TelehealthOperations() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [reasons, setReasons] = useState<Record<string, Reason>>({});
+  const [page,setPage]=useState(1);
+  const [pageSize,setPageSize]=useState(10);
   const labels = useMemo(() => reasonLabels(c), [c]);
 
   const load = useCallback(async () => {
@@ -84,7 +87,9 @@ export function TelehealthOperations() {
       const response = await fetch("/api/admin/telehealth/workspace", { cache: "no-store" });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(typeof payload.message === "string" ? payload.message : `HTTP ${response.status}`);
-      setWorkspace(payload as Workspace);
+      const next=payload as Workspace;
+      setWorkspace(next);
+      setPage((current)=>clampPage(current,next.queue.length,pageSize));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : c.failed);
     } finally {
@@ -137,7 +142,7 @@ export function TelehealthOperations() {
     <section className={styles.panel}>
       <header><div><h3>{c.queue}</h3><p>{c.queueText}</p></div><small>{formatDate(workspace.window.from, locale)} → {formatDate(workspace.window.to, locale)}</small></header>
       {workspace.queue.length === 0 ? <div className={styles.empty}>{c.noItems}</div> : <div className={styles.list}>
-        {workspace.queue.map((item) => {
+        {paginateItems(workspace.queue,page,pageSize).map((item) => {
           const key = item.sessionId ?? item.appointmentId;
           const terminationReason = item.sessionId ? (reasons[item.sessionId] ?? "OPERATIONS") : "OPERATIONS";
           return <article className={styles.card} key={key} data-severity={item.severity}>
@@ -161,6 +166,7 @@ export function TelehealthOperations() {
           </article>;
         })}
       </div>}
+      <AdminPagination page={page} pageSize={pageSize} total={workspace.queue.length} onPageChange={setPage} onPageSizeChange={(size)=>{setPageSize(size);setPage(1);}}/>
     </section>
   </div>;
 }

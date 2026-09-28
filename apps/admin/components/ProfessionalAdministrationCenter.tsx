@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useI18n, type Locale } from "@/lib/i18n";
+import { AdminPagination, clampPage } from "@/components/AdminPagination";
 
 type ProviderKind = "DOCTOR" | "OTHER_PROVIDER";
 type Credential = {
@@ -23,15 +24,16 @@ const PROVIDER_STATUSES=["DRAFT","PENDING_REVIEW","ACTIVE","SUSPENDED","REJECTED
 const CREDENTIAL_STATUSES=["PENDING","VALID","REJECTED","REVOKED"];
 
 const copy={
- en:{center:"Doctor / Provider Administration Center",intro:"Account access, provider operability and credential validity are governed independently.",search:"Search professionals, license, issuer or email",total:"Professionals",active:"Operational",blocked:"Blocked",expiring:"Expiring soon",open:"Manage",account:"Account",provider:"Provider",credential:"Credential",profile:"Administrative profile",display:"Display name",legal:"Legal name",phone:"Phone",save:"Save profile",reason:"Reason for change",apply:"Apply",licenses:"Licenses & authorizations",type:"Type",number:"Number",issuer:"Issuer",from:"Valid from",until:"Valid until",status:"Status",documents:"Documents",renew:"Renew",verification:"Verification history",history:"Status history",newCredential:"Add license / credential",add:"Add credential",upload:"Attach PDF",missing:"Missing required",blockedWhy:"Operational block",none:"None",loading:"Loading administration center…",refresh:"Refresh",uploadLimit:"PDF only, max 8 MB each; multiple documents are retained per credential.",renewUntil:"New expiry date (YYYY-MM-DD)",renewNote:"Renewal note",view:"View",saved:"Saved.",failed:"Operation failed."},
- es:{center:"Centro de Administración de Médicos / Proveedores",intro:"El acceso de cuenta, la capacidad operativa del proveedor y la validez de credenciales se gobiernan por separado.",search:"Buscar profesional, licencia, emisor o email",total:"Profesionales",active:"Operativos",blocked:"Bloqueados",expiring:"Próximos a vencer",open:"Gestionar",account:"Cuenta",provider:"Proveedor",credential:"Credencial",profile:"Perfil administrativo",display:"Nombre visible",legal:"Nombre legal",phone:"Teléfono",save:"Guardar perfil",reason:"Motivo del cambio",apply:"Aplicar",licenses:"Licencias y autorizaciones",type:"Tipo",number:"Número",issuer:"Emisor",from:"Válida desde",until:"Válida hasta",status:"Estado",documents:"Documentos",renew:"Renovar",verification:"Historial de verificaciones",history:"Historial de estados",newCredential:"Añadir licencia / credencial",add:"Añadir credencial",upload:"Adjuntar PDF",missing:"Obligatorias ausentes",blockedWhy:"Bloqueo operacional",none:"Ninguno",loading:"Cargando centro administrativo…",refresh:"Actualizar",uploadLimit:"Solo PDF, máximo 8 MB por archivo; se conservan múltiples documentos por credencial.",renewUntil:"Nueva fecha de vencimiento (YYYY-MM-DD)",renewNote:"Nota de renovación",view:"Ver",saved:"Guardado.",failed:"No se pudo completar la operación."},
- fr:{center:"Centre d’administration Médecins / Prestataires",intro:"L’accès au compte, l’état opérationnel du prestataire et la validité des justificatifs sont gouvernés séparément.",search:"Rechercher professionnel, licence, émetteur ou e-mail",total:"Professionnels",active:"Opérationnels",blocked:"Bloqués",expiring:"Expiration proche",open:"Gérer",account:"Compte",provider:"Prestataire",credential:"Justificatif",profile:"Profil administratif",display:"Nom affiché",legal:"Nom légal",phone:"Téléphone",save:"Enregistrer",reason:"Motif du changement",apply:"Appliquer",licenses:"Licences et autorisations",type:"Type",number:"Numéro",issuer:"Émetteur",from:"Valide depuis",until:"Valide jusqu’au",status:"Statut",documents:"Documents",renew:"Renouveler",verification:"Historique de vérification",history:"Historique des statuts",newCredential:"Ajouter licence / justificatif",add:"Ajouter",upload:"Joindre PDF",missing:"Justificatifs manquants",blockedWhy:"Blocage opérationnel",none:"Aucun",loading:"Chargement…",refresh:"Actualiser",uploadLimit:"PDF uniquement, 8 Mo max par fichier; plusieurs documents sont conservés.",renewUntil:"Nouvelle expiration (AAAA-MM-JJ)",renewNote:"Note de renouvellement",view:"Voir",saved:"Enregistré.",failed:"Échec de l’opération."},
- ar:{center:"مركز إدارة الأطباء ومقدمي الخدمة",intro:"يتم فصل حوكمة حالة الحساب وحالة مقدم الخدمة وصلاحية الاعتماد.",search:"بحث بالاسم أو الترخيص أو الجهة أو البريد",total:"المهنيون",active:"قابلون للعمل",blocked:"محظورون",expiring:"قريب الانتهاء",open:"إدارة",account:"الحساب",provider:"مقدم الخدمة",credential:"الاعتماد",profile:"الملف الإداري",display:"الاسم الظاهر",legal:"الاسم القانوني",phone:"الهاتف",save:"حفظ",reason:"سبب التغيير",apply:"تطبيق",licenses:"التراخيص والاعتمادات",type:"النوع",number:"الرقم",issuer:"الجهة",from:"صالح من",until:"صالح حتى",status:"الحالة",documents:"المستندات",renew:"تجديد",verification:"سجل التحقق",history:"سجل الحالات",newCredential:"إضافة ترخيص / اعتماد",add:"إضافة",upload:"إرفاق PDF",missing:"الاعتمادات الناقصة",blockedWhy:"الحظر التشغيلي",none:"لا يوجد",loading:"جارٍ التحميل…",refresh:"تحديث",uploadLimit:"PDF فقط بحد أقصى 8 ميغابايت لكل ملف مع الاحتفاظ بعدة مستندات لكل اعتماد.",renewUntil:"تاريخ الانتهاء الجديد",renewNote:"ملاحظة التجديد",view:"عرض",saved:"تم الحفظ.",failed:"تعذر إتمام العملية."}
+ en:{center:"Doctor / Provider Administration Center",intro:"Account access, provider operability and credential validity are governed independently.",search:"Search professionals, license, issuer or email",total:"Professionals",active:"Operational",blocked:"Blocked",expiring:"Expiring soon",open:"Manage",account:"Account",provider:"Provider",credential:"Credential",profile:"Administrative profile",display:"Display name",legal:"Legal name",phone:"Phone",save:"Save profile",reason:"Reason for change",apply:"Apply",licenses:"Licenses & authorizations",type:"Type",number:"Number",issuer:"Issuer",from:"Valid from",until:"Valid until",status:"Status",documents:"Documents",renew:"Renew",verification:"Verification history",history:"Status history",newCredential:"Add license / credential",add:"Add credential",upload:"Attach PDF",missing:"Missing required",blockedWhy:"Operational block",none:"None",loading:"Loading administration center…",refresh:"Refresh",uploadLimit:"PDF only, max 8 MB each; multiple documents are retained per credential.",renewUntil:"New expiry date (YYYY-MM-DD)",renewNote:"Renewal note",view:"View",saved:"Saved.",failed:"Operation failed.",deleteDocument:"Delete",confirmDeleteDocument:"Remove this document from the professional profile?"},
+ es:{center:"Centro de Administración de Médicos / Proveedores",intro:"El acceso de cuenta, la capacidad operativa del proveedor y la validez de credenciales se gobiernan por separado.",search:"Buscar profesional, licencia, emisor o email",total:"Profesionales",active:"Operativos",blocked:"Bloqueados",expiring:"Próximos a vencer",open:"Gestionar",account:"Cuenta",provider:"Proveedor",credential:"Credencial",profile:"Perfil administrativo",display:"Nombre visible",legal:"Nombre legal",phone:"Teléfono",save:"Guardar perfil",reason:"Motivo del cambio",apply:"Aplicar",licenses:"Licencias y autorizaciones",type:"Tipo",number:"Número",issuer:"Emisor",from:"Válida desde",until:"Válida hasta",status:"Estado",documents:"Documentos",renew:"Renovar",verification:"Historial de verificaciones",history:"Historial de estados",newCredential:"Añadir licencia / credencial",add:"Añadir credencial",upload:"Adjuntar PDF",missing:"Obligatorias ausentes",blockedWhy:"Bloqueo operacional",none:"Ninguno",loading:"Cargando centro administrativo…",refresh:"Actualizar",uploadLimit:"Solo PDF, máximo 8 MB por archivo; se conservan múltiples documentos por credencial.",renewUntil:"Nueva fecha de vencimiento (YYYY-MM-DD)",renewNote:"Nota de renovación",view:"Ver",saved:"Guardado.",failed:"No se pudo completar la operación.",deleteDocument:"Eliminar",confirmDeleteDocument:"¿Eliminar este documento del perfil profesional?"},
+ fr:{center:"Centre d’administration Médecins / Prestataires",intro:"L’accès au compte, l’état opérationnel du prestataire et la validité des justificatifs sont gouvernés séparément.",search:"Rechercher professionnel, licence, émetteur ou e-mail",total:"Professionnels",active:"Opérationnels",blocked:"Bloqués",expiring:"Expiration proche",open:"Gérer",account:"Compte",provider:"Prestataire",credential:"Justificatif",profile:"Profil administratif",display:"Nom affiché",legal:"Nom légal",phone:"Téléphone",save:"Enregistrer",reason:"Motif du changement",apply:"Appliquer",licenses:"Licences et autorisations",type:"Type",number:"Numéro",issuer:"Émetteur",from:"Valide depuis",until:"Valide jusqu’au",status:"Statut",documents:"Documents",renew:"Renouveler",verification:"Historique de vérification",history:"Historique des statuts",newCredential:"Ajouter licence / justificatif",add:"Ajouter",upload:"Joindre PDF",missing:"Justificatifs manquants",blockedWhy:"Blocage opérationnel",none:"Aucun",loading:"Chargement…",refresh:"Actualiser",uploadLimit:"PDF uniquement, 8 Mo max par fichier; plusieurs documents sont conservés.",renewUntil:"Nouvelle expiration (AAAA-MM-JJ)",renewNote:"Note de renouvellement",view:"Voir",saved:"Enregistré.",failed:"Échec de l’opération.",deleteDocument:"Supprimer",confirmDeleteDocument:"Supprimer ce document du profil professionnel ?"},
+ ar:{center:"مركز إدارة الأطباء ومقدمي الخدمة",intro:"يتم فصل حوكمة حالة الحساب وحالة مقدم الخدمة وصلاحية الاعتماد.",search:"بحث بالاسم أو الترخيص أو الجهة أو البريد",total:"المهنيون",active:"قابلون للعمل",blocked:"محظورون",expiring:"قريب الانتهاء",open:"إدارة",account:"الحساب",provider:"مقدم الخدمة",credential:"الاعتماد",profile:"الملف الإداري",display:"الاسم الظاهر",legal:"الاسم القانوني",phone:"الهاتف",save:"حفظ",reason:"سبب التغيير",apply:"تطبيق",licenses:"التراخيص والاعتمادات",type:"النوع",number:"الرقم",issuer:"الجهة",from:"صالح من",until:"صالح حتى",status:"الحالة",documents:"المستندات",renew:"تجديد",verification:"سجل التحقق",history:"سجل الحالات",newCredential:"إضافة ترخيص / اعتماد",add:"إضافة",upload:"إرفاق PDF",missing:"الاعتمادات الناقصة",blockedWhy:"الحظر التشغيلي",none:"لا يوجد",loading:"جارٍ التحميل…",refresh:"تحديث",uploadLimit:"PDF فقط بحد أقصى 8 ميغابايت لكل ملف مع الاحتفاظ بعدة مستندات لكل اعتماد.",renewUntil:"تاريخ الانتهاء الجديد",renewNote:"ملاحظة التجديد",view:"عرض",saved:"تم الحفظ.",failed:"تعذر إتمام العملية.",deleteDocument:"حذف",confirmDeleteDocument:"إزالة هذا المستند من الملف المهني؟"}
 } satisfies Record<Locale,Record<string,string>>;
 
 export function ProfessionalAdministrationCenter({kind}:{kind:ProviderKind}) {
   const {locale}=useI18n(); const t=copy[locale];
   const [rows,setRows]=useState<Provider[]>([]); const [query,setQuery]=useState(""); const [busy,setBusy]=useState(true);
+  const [page,setPage]=useState(1); const [pageSize,setPageSize]=useState(10); const [total,setTotal]=useState(0);
   const [message,setMessage]=useState(""); const [selectedId,setSelectedId]=useState(""); const [detail,setDetail]=useState<Provider|null>(null);
   const [profile,setProfile]=useState({displayName:"",legalName:"",contactPhone:""});
   const [accountStatus,setAccountStatus]=useState("ACTIVE"); const [providerStatus,setProviderStatus]=useState("ACTIVE"); const [reason,setReason]=useState("");
@@ -44,16 +46,17 @@ export function ProfessionalAdministrationCenter({kind}:{kind:ProviderKind}) {
     if(!response.ok) throw new Error(typeof body?.message==="string"?body.message:t.failed);
     return body;
   }
-  async function load(){
+  async function load(targetPage=page,targetPageSize=pageSize){
     setBusy(true); setMessage("");
     try{
-      const params=new URLSearchParams({class:kind}); if(query.trim())params.set("q",query.trim());
+      const params=new URLSearchParams({class:kind,page:String(targetPage),pageSize:String(targetPageSize)}); if(query.trim())params.set("q",query.trim());
       const body=await request("/api/admin/provider-administration?"+params.toString());
-      setRows(Array.isArray(body?.items)?body.items:[]);
-      if(selectedId && !(body?.items??[]).some((item:any)=>item.id===selectedId)){setSelectedId("");setDetail(null);}
+      const nextRows=Array.isArray(body?.items)?body.items:[];
+      const nextTotal=Number(body?.total??nextRows.length);
+      setRows(nextRows);setTotal(nextTotal);setPage(clampPage(targetPage,nextTotal,targetPageSize));
     }catch(e){setMessage(String(e));}finally{setBusy(false);}
   }
-  useEffect(()=>{void load();},[kind]);
+  useEffect(()=>{setPage(1);void load(1,pageSize);},[kind]);
   async function open(id:string){
     try{
       const body=await request("/api/admin/provider-administration/"+encodeURIComponent(id));
@@ -68,11 +71,11 @@ export function ProfessionalAdministrationCenter({kind}:{kind:ProviderKind}) {
     catch(e){setMessage(String(e));}
   }
   const metrics=useMemo(()=>({
-    total:rows.length,
+    total,
     active:rows.filter(r=>!r.operationallyBlocked).length,
     blocked:rows.filter(r=>r.operationallyBlocked).length,
     expiring:rows.reduce((n,r)=>n+r.credentials.filter(c=>c.effectiveStatus==="EXPIRING_SOON").length,0),
-  }),[rows]);
+  }),[rows,total]);
 
   async function upload(credential:Credential,files:FileList|null){
     if(!detail||!files)return;
@@ -89,6 +92,14 @@ export function ProfessionalAdministrationCenter({kind}:{kind:ProviderKind}) {
     if(!validUntil)return;
     const note=window.prompt(t.renewNote,"Administrative renewal")?.trim()||"Administrative renewal";
     await mutate("/api/admin/provider-administration/"+detail.id+"/credentials/"+credential.id+"/renew","POST",{validUntil,note});
+  }
+  async function deleteDocument(credential:Credential,documentId:string){
+    if(!detail||!window.confirm(t.confirmDeleteDocument))return;
+    setMessage("");
+    try{
+      await request("/api/admin/provider-administration/"+detail.id+"/credentials/"+credential.id+"/documents/"+documentId,{method:"DELETE"});
+      setMessage(t.saved);await open(detail.id);await load(page,pageSize);
+    }catch(e){setMessage(String(e));}
   }
   async function viewDocument(credential:Credential,documentId:string){
     if(!detail)return;
@@ -113,7 +124,7 @@ export function ProfessionalAdministrationCenter({kind}:{kind:ProviderKind}) {
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,minmax(110px,1fr))",gap:10}}>
         <Metric label={t.total} value={metrics.total}/><Metric label={t.active} value={metrics.active}/><Metric label={t.blocked} value={metrics.blocked}/><Metric label={t.expiring} value={metrics.expiring}/>
       </div>
-      <form onSubmit={e=>{e.preventDefault();void load();}} className="admin-form-grid" style={{marginTop:14,alignItems:"end"}}>
+      <form onSubmit={e=>{e.preventDefault();setPage(1);void load(1,pageSize);}} className="admin-form-grid" style={{marginTop:14,alignItems:"end"}}>
         <label><span>{t.search}</span><input value={query} onChange={e=>setQuery(e.target.value)} placeholder={t.search}/></label><div className="admin-form-actions" style={{marginTop:0}}><button className="primary-button">{t.refresh}</button></div>
       </form>
       {message&&<p style={{marginBottom:0}}>{message}</p>}
@@ -131,6 +142,7 @@ export function ProfessionalAdministrationCenter({kind}:{kind:ProviderKind}) {
           <td style={{padding:"12px 8px"}}><button className="secondary-button" onClick={()=>void open(row.id)}>{t.open}</button></td>
         </tr>)}</tbody>
       </table>
+      <AdminPagination page={page} pageSize={pageSize} total={total} onPageChange={(next)=>{setPage(next);void load(next,pageSize);}} onPageSizeChange={(size)=>{setPageSize(size);setPage(1);void load(1,size);}}/>
     </section>}
 
     {detail&&<section style={{...card,border:"2px solid #cbd5e1"}}>
@@ -169,7 +181,7 @@ export function ProfessionalAdministrationCenter({kind}:{kind:ProviderKind}) {
             <button className="secondary-button" onClick={()=>void renew(credential)}>{t.renew}</button>
             <label className="secondary-button" style={{cursor:"pointer"}}>{t.upload}<input hidden type="file" accept="application/pdf,.pdf" multiple onChange={e=>void upload(credential,e.target.files)}/></label>
           </div>
-          {(credential.documents??[]).length>0&&<div style={{marginTop:8}}><b>{t.documents}: </b>{credential.documents!.map(doc=><button key={doc.id} style={{marginInlineEnd:6}} className="secondary-button" onClick={()=>void viewDocument(credential,doc.id)}>{t.view} · {doc.fileName}</button>)}</div>}
+          {(credential.documents??[]).length>0&&<div style={{marginTop:8}}><b>{t.documents}: </b>{credential.documents!.map(doc=><span key={doc.id} style={{display:"inline-flex",gap:4,marginInlineEnd:6}}><button className="secondary-button" onClick={()=>void viewDocument(credential,doc.id)}>{t.view} · {doc.fileName}</button><button className="secondary-button" onClick={()=>void deleteDocument(credential,doc.id)}>{t.deleteDocument}</button></span>)}</div>}
           {(credential.verifications??[]).length>0&&<details style={{marginTop:8}}><summary>{t.verification} ({credential.verifications!.length})</summary><ul>{credential.verifications!.map(v=><li key={v.id}>{dateTime(v.createdAt)} · <b>{v.status}</b>{v.note?" · "+v.note:""}</li>)}</ul></details>}
         </article>)}
       </div>
