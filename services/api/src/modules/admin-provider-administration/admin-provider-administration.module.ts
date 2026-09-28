@@ -56,7 +56,7 @@ class AdminProviderAdministrationService {
   async directory(principal: AuthPrincipal, providerClass?: string, query?: string) {
     const normalizedClass = providerClass === "DOCTOR" || providerClass === "OTHER_PROVIDER" ? providerClass : undefined;
     const providers = await this.prisma.provider.findMany({
-      where: normalizedClass ? { class: normalizedClass } : undefined,
+      ...(normalizedClass ? { where: { class: normalizedClass } } : {}),
       include: {
         user: { select: { id: true, email: true, status: true, createdAt: true, updatedAt: true } },
         doctorProfile: { include: { specialties: { include: { specialty: true } } } },
@@ -371,7 +371,7 @@ class AdminProviderAdministrationService {
   private async requireCredential(providerId: string, credentialId: string, full = false): Promise<any> {
     const credential = await this.prisma.providerCredential.findFirst({
       where: { id: credentialId, providerId },
-      include: full ? { documents: { orderBy: { createdAt: "asc" } }, verifications: { orderBy: { createdAt: "desc" } } } : undefined,
+      ...(full ? { include: { documents: { orderBy: { createdAt: "asc" as const } }, verifications: { orderBy: { createdAt: "desc" as const } } } } : {}),
     });
     if (!credential) throw new NotFoundException("Provider credential not found.");
     return credential;
