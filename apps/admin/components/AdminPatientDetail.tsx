@@ -76,7 +76,7 @@ export function AdminPatientDetail({ patientId }: { patientId: string }) {
     <div className={styles.headerRow}><div><strong>{p.displayName}</strong><div className={styles.muted}>{p.id}</div></div><div className={styles.actions}><button className={styles.ghost} onClick={()=>void exportAdministrative()}>{t.export}</button><Link className={styles.ghost} href="/patients">{pg(locale,"back")}</Link></div></div>
 
     <section className={styles.card} style={{marginBottom:16}}>
-      <h3>{t.admin} · ADM-PAT-002 / 003</h3>
+      <h3>{t.admin} · ADM-PAT-002 / ADM-PAT-003</h3>
       <div className="admin-form-grid admin-form-grid--wide">
         <label><span>{t.first}</span><input value={profile.firstName} onChange={e=>setProfile({...profile,firstName:e.target.value})}/></label>
         <label><span>{t.last}</span><input value={profile.lastName} onChange={e=>setProfile({...profile,lastName:e.target.value})}/></label>
@@ -89,7 +89,7 @@ export function AdminPatientDetail({ patientId }: { patientId: string }) {
     </section>
 
     <section className={styles.card} style={{marginBottom:16}}>
-      <h3>ADM-PAT-004 / 005 / 007</h3>
+      <h3>ADM-PAT-004 / ADM-PAT-005 / ADM-PAT-007</h3>
       <div className={styles.row}><span>Email</span><strong>{p.contact.email}</strong></div>
       <div className={styles.row}><span>Phone</span><strong>{p.contact.phone||"—"}</strong></div>
       <div className={styles.row}><span>{pg(locale,"mfa")}</span><strong>{p.account.mfaEnabled?"ON":"OFF"}</strong></div>
