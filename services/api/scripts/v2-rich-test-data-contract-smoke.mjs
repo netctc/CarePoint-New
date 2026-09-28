@@ -23,7 +23,8 @@ for(const value of [
   "MeasurementUnit","UnitConversion","ObservationType","ObservationTypeVersion",
   "PatientHealthProfile","Hospitalization","Immunization","MedicalTransportRequest",
 ]){
-  assert.ok(rich.includes(value)||rich.toLowerCase().includes(value.charAt(0).toLowerCase()+value.slice(1)),value+" coverage is missing.");
+  const delegate=value.charAt(0).toLowerCase()+value.slice(1);
+  assert.ok(rich.includes(value)||rich.includes("prisma."+delegate),value+" coverage is missing.");
 }
 
 assert.match(rich,/pac\$\{pad3\(index\)\}/);
@@ -41,7 +42,7 @@ assert.match(rich,/createTransportData/);
 assert.match(rich,/mode=i%3===0\?"AIR":"GROUND"/);
 assert.match(rich,/ClinicalEnvelopeService/);
 assert.match(rich,/envelope\.encryptRecord/);
-assert.match(rich,/clinicalData/);
+assert.match(rich,/createClinicalData/);
 assert.match(rich,/futureAvailabilitySlots/);
 
 assert.match(healthUi,/Directionality\\\(\\s\*textDirection:/);
