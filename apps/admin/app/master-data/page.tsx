@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/AppShell";
+import { AdminPagination, paginateItems } from "@/components/AdminPagination";
 import { useI18n, type Locale } from "@/lib/i18n";
 
 type Labels = { en: string; ar: string; fr: string; es: string };
@@ -167,10 +168,11 @@ export default function MasterDataPage() {
 }
 
 function CatalogTable({ rows, locale, kind, onEdit, onToggle, t }: any) {
+  const [page,setPage]=useState(1); const [pageSize,setPageSize]=useState(10);
   return <section style={{background:"#fff",border:"1px solid #dbe4ee",borderRadius:16,padding:18,overflowX:"auto"}}>
     {rows.length===0 ? <p>{t.noRows}</p> : <table style={{width:"100%",borderCollapse:"collapse"}}>
       <thead><tr><th align="left">{kind==="specialties"?t.code:t.slug}</th><th align="left">{t.labels}</th><th align="left">{t.active}</th><th align="left">{t.usage}</th><th/></tr></thead>
-      <tbody>{rows.map((item:any)=><tr key={item.id} style={{borderTop:"1px solid #e2e8f0"}}>
+      <tbody>{paginateItems(rows,page,pageSize).map((item:any)=><tr key={item.id} style={{borderTop:"1px solid #e2e8f0"}}>
         <td style={{padding:"12px 8px"}}><strong>{item.code ?? item.slug}</strong>{item.family&&<><br/><small>{item.family}</small></>}</td>
         <td style={{padding:"12px 8px"}}>{label(item.labels,locale)}</td>
         <td style={{padding:"12px 8px"}}><span style={{fontWeight:700}}>{item.active?"✓":"—"}</span></td>
@@ -178,6 +180,7 @@ function CatalogTable({ rows, locale, kind, onEdit, onToggle, t }: any) {
         <td style={{padding:"12px 8px",whiteSpace:"nowrap"}}><button className="secondary-button" onClick={()=>onEdit(item)}>{t.edit}</button>{" "}<button className="secondary-button" onClick={()=>void onToggle(kind,item.id,item.active)}>{item.active?t.deactivate:t.reactivate}</button></td>
       </tr>)}</tbody>
     </table>}
+    <AdminPagination page={page} pageSize={pageSize} total={rows.length} onPageChange={setPage} onPageSizeChange={(size)=>{setPageSize(size);setPage(1);}}/>
   </section>;
 }
 function normalizeLabels(raw:any): Labels {
