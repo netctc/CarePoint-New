@@ -113,8 +113,8 @@ export function ProfessionalAdministrationCenter({kind}:{kind:ProviderKind}) {
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,minmax(110px,1fr))",gap:10}}>
         <Metric label={t.total} value={metrics.total}/><Metric label={t.active} value={metrics.active}/><Metric label={t.blocked} value={metrics.blocked}/><Metric label={t.expiring} value={metrics.expiring}/>
       </div>
-      <form onSubmit={e=>{e.preventDefault();void load();}} style={{display:"flex",gap:8,marginTop:14}}>
-        <input style={{flex:1}} value={query} onChange={e=>setQuery(e.target.value)} placeholder={t.search}/><button className="primary-button">{t.refresh}</button>
+      <form onSubmit={e=>{e.preventDefault();void load();}} className="admin-form-grid" style={{marginTop:14,alignItems:"end"}}>
+        <label><span>{t.search}</span><input value={query} onChange={e=>setQuery(e.target.value)} placeholder={t.search}/></label><div className="admin-form-actions" style={{marginTop:0}}><button className="primary-button">{t.refresh}</button></div>
       </form>
       {message&&<p style={{marginBottom:0}}>{message}</p>}
     </section>
