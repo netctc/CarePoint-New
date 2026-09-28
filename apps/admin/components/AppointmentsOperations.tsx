@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useI18n, type Locale } from "@/lib/i18n";
+import { AdminPagination, paginateItems, clampPage } from "@/components/AdminPagination";
 import styles from "./AppointmentsOperations.module.css";
 
 type AppointmentStatus = "REQUESTED" | "CONFIRMED" | "CANCELLED" | "COMPLETED" | "NO_SHOW";
@@ -72,6 +73,8 @@ export function AppointmentsOperations() {
   const [mutating, setMutating] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [page,setPage]=useState(1);
+  const [pageSize,setPageSize]=useState(10);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -88,6 +91,7 @@ export function AppointmentsOperations() {
       if (!response.ok) throw new Error(typeof payload?.message === "string" ? payload.message : c.unavailable);
       const next = payload as AppointmentSnapshot;
       setSnapshot(next);
+      setPage((current)=>clampPage(current,next.items.length,pageSize));
       setError(null);
       setSelectedId((current) => current && next.items.some((item) => item.appointmentId === current) ? current : next.items[0]?.appointmentId ?? null);
     } catch (reason) {
@@ -198,9 +202,10 @@ export function AppointmentsOperations() {
       <article className={styles.listPanel}>
         {!snapshot && loading ? <div className={styles.empty}>{c.refreshing}</div> : null}
         {snapshot?.items.length === 0 ? <div className={styles.empty}>{c.noAppointments}</div> : null}
-        {snapshot?.items.map((item) => <button className={item.appointmentId === selectedId ? styles.rowActive : styles.row} key={item.appointmentId} onClick={() => setSelectedId(item.appointmentId)}>
+        {paginateItems(snapshot?.items ?? [],page,pageSize).map((item) => <button className={item.appointmentId === selectedId ? styles.rowActive : styles.row} key={item.appointmentId} onClick={() => setSelectedId(item.appointmentId)}>
           <time>{formatTime(item.startsAt, locale)}</time><i className={styles.dot}/><div><strong>{item.provider.displayName}</strong><span>{item.service.name} · {modalityLabel(item.modality, c)}</span></div><em data-status={item.status}>{statusLabel(item.status, c)}</em>
         </button>)}
+        <AdminPagination page={page} pageSize={pageSize} total={snapshot?.items.length ?? 0} onPageChange={setPage} onPageSizeChange={(size)=>{setPageSize(size);setPage(1);}}/>
       </article>
 
       <aside className={styles.detailPanel}>
