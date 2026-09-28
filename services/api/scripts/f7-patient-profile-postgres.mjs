@@ -36,7 +36,7 @@ async function registerAndLogin(suffix, firstName, lastName, phone) {
     body: { kind: "PATIENT", firstName, lastName, phone },
   });
   assert.equal(otp.deliveryMode, "display", "test registration OTP must use display delivery");
-  assert.match(otp.testOtp || "", /^\\d{6}$/);
+  assert.match(otp.testOtp || "", /^\d{6}$/);
   const verified = await json("/iam/register/otp/verify", {
     method: "POST",
     body: { challengeId: otp.challengeId, code: otp.testOtp },
