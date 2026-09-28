@@ -245,8 +245,9 @@ try {
 
   const finalQueue = await webJson("/api/admin/governance/onboarding", {}, jar);
   assert(finalQueue.response.ok && Array.isArray(finalQueue.payload), "Final B2 queue could not be loaded.");
-  assert(finalQueue.payload.some((item) => item.id === doctorOnboarding.id && item.state === "APPROVED" && item.provider?.status === "ACTIVE"), "Final queue did not reflect approved doctor state.");
-  assert(finalQueue.payload.some((item) => item.id === otherOnboarding.id && item.state === "REJECTED" && item.provider?.status === "REJECTED"), "Final queue did not reflect rejected other-provider state.");
+  assert(!finalQueue.payload.some((item) => item.id === doctorOnboarding.id), "Approved doctor onboarding must leave the active review queue.");
+  assert(!finalQueue.payload.some((item) => item.id === otherOnboarding.id), "Rejected provider onboarding must leave the active review queue.");
+  assert(finalQueue.payload.every((item) => item.state === "PENDING_REVIEW" || item.state === "REQUEST_CHANGES"), "Review queue returned a terminal onboarding state.");
   assertNoBearerMaterial(finalQueue.payload, "Final B2 review queue");
 
   const doctorsPage = await web("/doctors", {}, jar);
@@ -262,6 +263,7 @@ try {
     credentialCorrectionHistory: true,
     requestChanges: true,
     terminalRejection: true,
+    terminalCasesLeaveReviewQueue: true,
     rejectionRevokesSessions: true,
     verifiedCredentialPromotion: true,
     auditableDecisions: true,
