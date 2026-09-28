@@ -2,6 +2,7 @@
 
 import { FormEvent, useMemo, useState } from "react";
 import { AppShell } from "@/components/AppShell";
+import { AdminPagination, paginateItems, clampPage } from "@/components/AdminPagination";
 import { useI18n, type Locale } from "@/lib/i18n";
 
 type Domain = "ALL" | "CLINICAL_PROFILE" | "OBSERVATION" | "QUESTIONNAIRE";
@@ -58,6 +59,7 @@ export default function ClinicalProvenancePage(){
   const [data,setData]=useState<Response|null>(null);
   const [busy,setBusy]=useState(false);
   const [message,setMessage]=useState("");
+  const [page,setPage]=useState(1); const [pageSize,setPageSize]=useState(10);
 
   const formatter=useMemo(()=>new Intl.DateTimeFormat(locale,{dateStyle:"medium",timeStyle:"short"}),[locale]);
   const date=(value:string|null)=>{if(!value)return "—";const parsed=new Date(value);return Number.isFinite(parsed.getTime())?formatter.format(parsed):"—";};
@@ -101,7 +103,7 @@ export default function ClinicalProvenancePage(){
         <div style={{marginBottom:10}}><strong>{data.patientId}</strong> · {domainLabel(data.domain)} · {data.items.length}</div>
         {data.items.length===0?<div>{c.empty}</div>:<table style={{width:"100%",borderCollapse:"collapse",minWidth:1180}}>
           <thead><tr>{[c.resource,c.version,c.status,c.source,c.actor,c.verification,c.verifiedBy,c.revisions,c.effective,c.recorded].map(h=><th key={h} style={{textAlign:"start",padding:8,borderBottom:"1px solid #e2e8f0"}}>{h}</th>)}</tr></thead>
-          <tbody>{data.items.map(item=><tr key={item.domain+":"+item.id}>
+          <tbody>{paginateItems(data.items,page,pageSize).map(item=><tr key={item.domain+":"+item.id}>
             <td style={{padding:8,borderBottom:"1px solid #e2e8f0"}}><strong>{item.resourceCode}</strong><small style={{display:"block",color:"#64748b"}}>{domainLabel(item.domain)} · {item.resourceType}<br/>{item.id}</small></td>
             <td>{item.resourceVersion}{item.schemaVersion!=null?<small style={{display:"block"}}>schema v{item.schemaVersion}</small>:null}</td>
             <td>{item.resourceStatus??"—"}</td>
@@ -114,6 +116,7 @@ export default function ClinicalProvenancePage(){
             <td>{date(item.recordedAt)}</td>
           </tr>)}</tbody>
         </table>}
+        <AdminPagination page={page} pageSize={pageSize} total={data.items.length} onPageChange={setPage} onPageSizeChange={(size)=>{setPageSize(size);setPage(1);}}/>
       </div>:null}
     </div>
   </AppShell>;
