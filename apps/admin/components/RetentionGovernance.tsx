@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useI18n } from "@/lib/i18n";
+import { AdminPagination, paginateItems } from "@/components/AdminPagination";
 import styles from "./PrivacyOperations.module.css";
 
 type PolicyVersion = { version:number; retentionDays:number; action:string; createdAt?:string };
@@ -43,6 +44,9 @@ export function RetentionGovernance() {
   const [busy,setBusy] = useState(false);
   const [policyForm,setPolicyForm] = useState({ code:"", domain:"CLINICAL_DOCUMENT", jurisdiction:"SA", retentionDays:"3650", action:"SOFT_REMOVE" });
   const [holdForm,setHoldForm] = useState({ domain:"CLINICAL_DOCUMENT", jurisdiction:"SA", subjectType:"GLOBAL", subjectId:"", reasonCode:"LEGAL_REQUIREMENT" });
+  const [policyPage,setPolicyPage]=useState(1); const [policyPageSize,setPolicyPageSize]=useState(10);
+  const [holdPage,setHoldPage]=useState(1); const [holdPageSize,setHoldPageSize]=useState(10);
+  const [jobPage,setJobPage]=useState(1); const [jobPageSize,setJobPageSize]=useState(10);
 
   const load = useCallback(async()=>{
     setError(null);
