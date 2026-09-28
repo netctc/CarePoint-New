@@ -18,6 +18,33 @@ async function api(path, options = {}) {
   if (result.status < 200 || result.status >= 300) throw new Error(`${options.method || 'GET'} ${path} -> ${result.status} ${JSON.stringify(result.payload)}`);
   return result.payload;
 }
+async function registerPatientFixture({ email, username, password, firstName, lastName, phone }) {
+  const otp = await api('/iam/register/otp/start', {
+    method: 'POST',
+    body: { kind: 'PATIENT', firstName, lastName, phone },
+  });
+  if (!otp.challengeId || !otp.testOtp || otp.deliveryMode !== 'display') {
+    throw new Error('WEB-05 test registration OTP was not issued.');
+  }
+  const verified = await api('/iam/register/otp/verify', {
+    method: 'POST',
+    body: { challengeId: otp.challengeId, code: otp.testOtp },
+  });
+  if (!verified.registrationToken) throw new Error('WEB-05 registration OTP verification did not return a token.');
+  return api('/iam/register/patient', {
+    method: 'POST',
+    body: {
+      challengeId: otp.challengeId,
+      registrationToken: verified.registrationToken,
+      email,
+      username,
+      password,
+      dateOfBirth: '1990-01-15',
+      sex: 'UNSPECIFIED',
+    },
+  });
+}
+
 async function fixtureMfaSecret(email) {
   const user = await prisma.user.findUnique({ where: { email }, include: { mfaEnrollment: true } });
   const enrollment = user?.mfaEnrollment;
@@ -96,7 +123,14 @@ async function main() {
 
   let second = await prisma.user.findUnique({ where: { email: 'patient-web05-unrelated@carepoint.test' }, include: { patientProfile: true } });
   if (!second) {
-    await api('/iam/register/patient', { method: 'POST', body: { email: 'patient-web05-unrelated@carepoint.test', password: 'CarePoint-Web05-Patient#2026', firstName: 'Unrelated', lastName: 'Patient' } });
+    await registerPatientFixture({
+      email: 'patient-web05-unrelated@carepoint.test',
+      username: 'patient-web05-unrelated',
+      password: 'CarePoint-Web05-Patient#2026',
+      firstName: 'Unrelated',
+      lastName: 'Patient',
+      phone: '+966555000005',
+    });
     second = await prisma.user.findUnique({ where: { email: 'patient-web05-unrelated@carepoint.test' }, include: { patientProfile: true } });
   }
   if (!second?.patientProfile?.id) throw new Error('WEB-05 unrelated-patient fixture is missing.');
