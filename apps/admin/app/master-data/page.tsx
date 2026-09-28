@@ -117,7 +117,7 @@ export default function MasterDataPage() {
     <section style={{background:"#fff",border:"1px solid #dbe4ee",borderRadius:16,padding:18,marginTop:18}}>
       <h2 style={{marginTop:0}}>{t.related}</h2>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(190px,1fr))",gap:10}}>
-        {[
+        {([
           ["/providers/taxonomy", t.taxonomy],
           ["/medication-catalog", t.medication],
           ["/patient-education", t.education],
@@ -126,7 +126,7 @@ export default function MasterDataPage() {
           ["/clinical-config/profile-schema", t.profileSchema],
           ["/clinical-config/observations", t.metrics],
           ["/clinical-config/alert-policies", t.alerts],
-        ].map(([href,label])=><Link key={href} className="secondary-button" href={href}>{label}</Link>)}
+        ] as const).map(([href,label])=><Link key={href} className="secondary-button" href={href}>{label}</Link>)}
       </div>
     </section>
     <div style={{display:"flex",gap:8,margin:"18px 0"}}>
