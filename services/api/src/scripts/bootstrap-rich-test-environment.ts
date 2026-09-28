@@ -60,6 +60,7 @@ type PatientFixture = {
   id: string;
   userId: string;
   username: string;
+  phone: string;
   dateOfBirth: string;
   sex: string;
   baselineWeightKg: number;
@@ -359,6 +360,7 @@ async function createPatients(config:FixtureConfig):Promise<PatientFixture[]>{
     const sex=index%2===0?"FEMALE":"MALE";
     const heightCm=145+(index%48);
     const baselineWeightKg=Math.round((48+(index%55)+(index%4)*0.3)*10)/10;
+    const phone=`+96655${String(1000000+index).slice(-7)}`;
     const profile=await prisma.patientProfile.create({
       data:{
         userId:user.id,
@@ -366,11 +368,11 @@ async function createPatients(config:FixtureConfig):Promise<PatientFixture[]>{
         lastName:LAST_NAMES[Math.floor((index-1)/FIRST_NAMES.length)%LAST_NAMES.length]!,
         dateOfBirth:dob.toDate(),
         sex,
-        phone:`+96655${String(1000000+index).slice(-7)}`,
+        phone,
         createdAt,
       },
     });
-    patients.push({id:profile.id,userId:user.id,username,dateOfBirth:isoDate(dob),sex,baselineWeightKg,heightCm});
+    patients.push({id:profile.id,userId:user.id,username,phone,dateOfBirth:isoDate(dob),sex,baselineWeightKg,heightCm});
   }
   return patients;
 }
@@ -819,7 +821,7 @@ async function createTransportData(patients:PatientFixture[],transport:{ground:s
         destinationLatitude:24.7236+(i%10)*0.001,
         destinationLongitude:46.6853+(i%10)*0.001,
         destinationAddress:`Synthetic Destination ${i+1}, Riyadh`,
-        callbackPhone:patient.username,
+        callbackPhone:patient.phone,
         assignedProviderId,
         etaMinutes:assignedProviderId?20+(i%25):null,
         clientRequestId:`rich-transport-${i+1}`,
