@@ -212,7 +212,7 @@ try {
   assert(approvedDoctor.credentials.some((item) => item.id === oldDoctorCredential.id && item.state === "REJECTED"), "Rejected credential history was not preserved after correction.");
   assert(approvedDoctor.credentials.some((item) => item.id === correctedCredential.id && item.state === "VERIFIED"), "Corrected credential was not preserved as verified evidence.");
   assert(activeDoctorProvider.doctorProfile?.licenseNumber === "B2-MED-CORRECTED", "Doctor profile did not use the latest verified medical license.");
-  assert(activeDoctorProvider.credentials.some((item) => item.number === "B2-MED-CORRECTED" && item.status === "VERIFIED"), "Verified onboarding evidence was not promoted to the operational Provider credential register.");
+  assert(activeDoctorProvider.credentials.some((item) => item.number === "B2-MED-CORRECTED" && item.status === "VALID"), "Verified onboarding evidence was not promoted to the operational Provider credential register.");
 
   const requestOtherChanges = await webJson("/api/admin/governance/onboarding/action", {
     method: "POST",
