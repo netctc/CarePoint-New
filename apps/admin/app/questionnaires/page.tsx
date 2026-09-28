@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/AppShell";
+import { AdminPagination, paginateItems } from "@/components/AdminPagination";
 import { useI18n, type Locale } from "@/lib/i18n";
 
 type Labels = { en?: string; ar?: string; fr?: string; es?: string };
@@ -239,12 +240,13 @@ export default function QuestionnairesPage() {
       <aside style={{...box,...grid,alignContent:"start"}}>
         <h3>{t.definitions}</h3>
         {items.length===0 && <p>{t.empty}</p>}
-        {items.map((item)=><button
+        {paginateItems(items,definitionPage,definitionPageSize).map((item)=><button
           key={item.id}
           className={item.id===selectedId?"primary-button":"secondary-button"}
           onClick={()=>setSelectedId(item.id)}
           style={{textAlign:"start"}}
         >{(item.labels?.[locale] || item.labels?.en || item.code) as string}<br/><small>{item.code}</small></button>)}
+        <AdminPagination page={definitionPage} pageSize={definitionPageSize} total={items.length} onPageChange={setDefinitionPage} onPageSizeChange={(size)=>{setDefinitionPageSize(size);setDefinitionPage(1);}}/>
       </aside>
 
       <div style={grid}>
@@ -303,13 +305,14 @@ export default function QuestionnairesPage() {
           <section style={box}>
             <h2>{t.versions}</h2>
             {sortedVersions.length===0 && <p>{t.noVersion}</p>}
-            {sortedVersions.map((version)=><div key={version.id} style={{display:"flex",justifyContent:"space-between",gap:12,padding:"12px 0",borderTop:"1px solid #e2e8f0"}}>
+            {paginateItems(sortedVersions,versionPage,versionPageSize).map((version)=><div key={version.id} style={{display:"flex",justifyContent:"space-between",gap:12,padding:"12px 0",borderTop:"1px solid #e2e8f0"}}>
               <div>
                 <strong>v{version.version}</strong> · <span>{version.status}</span>
                 <br/><small>{version.activatedAt ? "Activated "+new Date(version.activatedAt).toLocaleString(locale) : version.createdAt ? new Date(version.createdAt).toLocaleString(locale) : ""}</small>
               </div>
               {version.status==="DRAFT" && <button className="primary-button" onClick={()=>void activate(version.version)}>{t.activate}</button>}
             </div>)}
+            <AdminPagination page={versionPage} pageSize={versionPageSize} total={sortedVersions.length} onPageChange={setVersionPage} onPageSizeChange={(size)=>{setVersionPageSize(size);setVersionPage(1);}}/>
           </section>
         </>}
       </div>
