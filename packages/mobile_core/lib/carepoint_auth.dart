@@ -612,20 +612,6 @@ class _CarePointLoginGateState extends State<CarePointLoginGate> {
   }
 }
 
-String _enrollmentPrompt(CarePointLocale locale) => switch (locale) {
-  CarePointLocale.en => 'Multi-factor authentication is required for provider access. Add the setup key to your authenticator app, then enter the generated 6-digit code.',
-  CarePointLocale.ar => 'التحقق متعدد العوامل مطلوب لوصول مقدم الخدمة. أضف مفتاح الإعداد إلى تطبيق المصادقة ثم أدخل الرمز المكون من 6 أرقام.',
-  CarePointLocale.fr => 'L’authentification multifacteur est obligatoire pour l’accès prestataire. Ajoutez la clé à votre application d’authentification puis saisissez le code à 6 chiffres.',
-  CarePointLocale.es => 'La autenticación multifactor es obligatoria para el acceso del proveedor. Añade la clave a tu aplicación de autenticación e introduce el código de 6 dígitos.',
-};
-
-String _setupKeyLabel(CarePointLocale locale) => switch (locale) {
-  CarePointLocale.en => 'Authenticator setup key',
-  CarePointLocale.ar => 'مفتاح إعداد تطبيق المصادقة',
-  CarePointLocale.fr => 'Clé de configuration de l’authentificateur',
-  CarePointLocale.es => 'Clave de configuración del autenticador',
-};
-
 String _differentAccountLabel(CarePointLocale locale) => switch (locale) {
   CarePointLocale.en => 'Use a different account',
   CarePointLocale.ar => 'استخدام حساب مختلف',
@@ -633,13 +619,6 @@ String _differentAccountLabel(CarePointLocale locale) => switch (locale) {
   CarePointLocale.es => 'Usar otra cuenta',
 };
 
-
-String _languageLabel(CarePointLocale locale) => switch (locale) {
-  CarePointLocale.en => 'Language',
-  CarePointLocale.ar => 'اللغة',
-  CarePointLocale.fr => 'Langue',
-  CarePointLocale.es => 'Idioma',
-};
 
 
 String _identityLabel(CarePointLocale locale) => switch (locale) {
