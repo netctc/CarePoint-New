@@ -43,7 +43,7 @@ async function ensurePatient(email, password, firstName) {
     method: "POST",
     body: { challengeId: otp.challengeId, code: otp.testOtp },
   });
-  const username = "release1-context-patient";
+  const username = email.split("@")[0].replace(/[^a-z0-9._-]/gi, "-").toLowerCase();
   await request("/iam/register/patient", {
     method: "POST",
     body: { challengeId: otp.challengeId, registrationToken: verified.registrationToken, email, username, password, dateOfBirth: "1990-01-15", sex: "PREFER_NOT_TO_SAY" },
