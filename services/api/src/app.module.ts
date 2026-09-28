@@ -8,6 +8,7 @@ import { ApiSecurityModule } from "./security/api-security.module";
 import { AccessNeedsModule } from "./modules/access-needs/access-needs.module";
 import { AdminAnalyticsModule } from "./modules/admin-analytics/admin-analytics.module";
 import { AdminProviderAdministrationModule } from "./modules/admin-provider-administration/admin-provider-administration.module";
+import { AdminMasterDataModule } from "./modules/admin-master-data/admin-master-data.module";
 import { AdminB6OperationsModule } from "./modules/admin-b6-operations/admin-b6-operations.module";
 import { AdminQuestionnaireComplianceModule } from "./modules/admin-questionnaire-compliance/admin-questionnaire-compliance.module";
 import { AdminFinanceModule } from "./modules/admin-finance/admin-finance.module";
@@ -115,6 +116,7 @@ const isolatedSyntheticPilot = isolatedSyntheticPrivatePilotActive(process.env);
     AccessNeedsModule,
     AdminAnalyticsModule,
     AdminProviderAdministrationModule,
+    AdminMasterDataModule,
     AdminB6OperationsModule,
     AdminQuestionnaireComplianceModule,
     ...(runtimeFeatures.payments ? [AdminFinanceModule] : []),
