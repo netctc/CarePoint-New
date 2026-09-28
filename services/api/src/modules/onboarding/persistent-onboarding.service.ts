@@ -68,10 +68,21 @@ export class PersistentOnboardingService {
     const result = await this.prisma.$transaction(async (tx) => {
       const existingProvider = await tx.provider.findUnique({ where: { userId: principal.accountId } });
       if (existingProvider && existingProvider.class !== "DOCTOR") throw new ConflictException("Provider domain mismatch.");
-      if (existingProvider) {
-        await tx.provider.update({ where: { id: existingProvider.id }, data: { status: "DRAFT" } });
-      } else {
-        await tx.provider.create({ data: { userId: principal.accountId, class: "DOCTOR", displayName: user.email, status: "DRAFT" } });
+      const provider = existingProvider
+        ? await tx.provider.update({ where: { id: existingProvider.id }, data: { status: "DRAFT" } })
+        : await tx.provider.create({ data: { userId: principal.accountId, class: "DOCTOR", displayName: user.email, status: "DRAFT" } });
+      if (!existingProvider || existingProvider.status !== "DRAFT") {
+        await tx.providerGovernanceHistory.create({
+          data: {
+            providerId: provider.id,
+            domain: "PROVIDER",
+            targetId: provider.id,
+            fromStatus: existingProvider?.status ?? null,
+            toStatus: "DRAFT",
+            reason: "Doctor onboarding started.",
+            actorId: principal.accountId,
+          },
+        });
       }
       return tx.providerOnboarding.create({
         data: { userId: principal.accountId, kind: "DOCTOR", specialtyId },
@@ -100,10 +111,21 @@ export class PersistentOnboardingService {
     const result = await this.prisma.$transaction(async (tx) => {
       const existingProvider = await tx.provider.findUnique({ where: { userId: principal.accountId } });
       if (existingProvider && existingProvider.class !== "OTHER_PROVIDER") throw new ConflictException("Provider domain mismatch.");
-      if (existingProvider) {
-        await tx.provider.update({ where: { id: existingProvider.id }, data: { status: "DRAFT" } });
-      } else {
-        await tx.provider.create({ data: { userId: principal.accountId, class: "OTHER_PROVIDER", displayName: user.email, status: "DRAFT" } });
+      const provider = existingProvider
+        ? await tx.provider.update({ where: { id: existingProvider.id }, data: { status: "DRAFT" } })
+        : await tx.provider.create({ data: { userId: principal.accountId, class: "OTHER_PROVIDER", displayName: user.email, status: "DRAFT" } });
+      if (!existingProvider || existingProvider.status !== "DRAFT") {
+        await tx.providerGovernanceHistory.create({
+          data: {
+            providerId: provider.id,
+            domain: "PROVIDER",
+            targetId: provider.id,
+            fromStatus: existingProvider?.status ?? null,
+            toStatus: "DRAFT",
+            reason: "Other Provider onboarding started.",
+            actorId: principal.accountId,
+          },
+        });
       }
       return tx.providerOnboarding.create({
         data: { userId: principal.accountId, kind: "OTHER_PROVIDER", providerCategoryId },
@@ -428,7 +450,22 @@ export class PersistentOnboardingService {
           },
         });
         const provider = await tx.provider.findUnique({ where: { userId: record.userId } });
-        if (provider) await tx.provider.update({ where: { id: provider.id }, data: { status: "DRAFT" } });
+        if (provider) {
+          await tx.provider.update({ where: { id: provider.id }, data: { status: "DRAFT" } });
+          if (provider.status !== "DRAFT") {
+            await tx.providerGovernanceHistory.create({
+              data: {
+                providerId: provider.id,
+                domain: "PROVIDER",
+                targetId: provider.id,
+                fromStatus: provider.status,
+                toStatus: "DRAFT",
+                reason: note?.trim() || "Credential rejected during onboarding review.",
+                actorId: principal.accountId,
+              },
+            });
+          }
+        }
       }
       return reviewed;
     });
@@ -454,7 +491,22 @@ export class PersistentOnboardingService {
 
     const result = await this.prisma.$transaction(async (tx) => {
       const provider = await tx.provider.findUnique({ where: { userId: record.userId } });
-      if (provider) await tx.provider.update({ where: { id: provider.id }, data: { status: "DRAFT" } });
+      if (provider) {
+        await tx.provider.update({ where: { id: provider.id }, data: { status: "DRAFT" } });
+        if (provider.status !== "DRAFT") {
+          await tx.providerGovernanceHistory.create({
+            data: {
+              providerId: provider.id,
+              domain: "PROVIDER",
+              targetId: provider.id,
+              fromStatus: provider.status,
+              toStatus: "DRAFT",
+              reason: reviewNote,
+              actorId: principal.accountId,
+            },
+          });
+        }
+      }
       return tx.providerOnboarding.update({
         where: { id: onboardingId },
         data: {
@@ -490,7 +542,22 @@ export class PersistentOnboardingService {
 
     const result = await this.prisma.$transaction(async (tx) => {
       const provider = await tx.provider.findUnique({ where: { userId: record.userId } });
-      if (provider) await tx.provider.update({ where: { id: provider.id }, data: { status: "REJECTED" } });
+      if (provider) {
+        await tx.provider.update({ where: { id: provider.id }, data: { status: "REJECTED" } });
+        if (provider.status !== "REJECTED") {
+          await tx.providerGovernanceHistory.create({
+            data: {
+              providerId: provider.id,
+              domain: "PROVIDER",
+              targetId: provider.id,
+              fromStatus: provider.status,
+              toStatus: "REJECTED",
+              reason: reviewNote,
+              actorId: principal.accountId,
+            },
+          });
+        }
+      }
       return tx.providerOnboarding.update({
         where: { id: onboardingId },
         data: {
@@ -519,7 +586,7 @@ export class PersistentOnboardingService {
     this.requireReviewPermission(principal);
     const record = await this.prisma.providerOnboarding.findUnique({
       where: { id: onboardingId },
-      include: { credentials: true, providerCategory: true, specialty: true, user: true },
+      include: { credentials: { include: { documents: true } }, providerCategory: true, specialty: true, user: true },
     });
     if (!record) throw new NotFoundException("Onboarding not found.");
     if (record.state !== "PENDING_REVIEW") throw new ConflictException("Onboarding must be pending review before approval.");
@@ -573,34 +640,85 @@ export class PersistentOnboardingService {
           : credential.number
             ? await tx.providerCredential.findFirst({ where: { providerId: provider.id, type: credential.type, number: credential.number } })
             : null;
-        if (existing) {
-          await tx.providerCredential.update({
-            where: { id: existing.id },
-            data: {
-              type: credential.type,
-              issuer: credential.issuer,
-              number: credential.number,
-              validUntil: credential.validUntil,
-              documentId: credential.documentId,
-              status: "VERIFIED",
-            },
-          });
-        } else {
-          await tx.providerCredential.create({
-            data: {
-              providerId: provider.id,
-              type: credential.type,
-              issuer: credential.issuer,
-              number: credential.number,
-              validUntil: credential.validUntil,
-              documentId: credential.documentId,
-              status: "VERIFIED",
-            },
-          });
+        const promoted = existing
+          ? await tx.providerCredential.update({
+              where: { id: existing.id },
+              data: {
+                type: credential.type,
+                issuer: credential.issuer,
+                number: credential.number,
+                validUntil: credential.validUntil,
+                documentId: credential.documentId,
+                status: "VALID",
+                verifications: {
+                  create: { status: "VALID", note: "Verified during onboarding approval.", actorId: principal.accountId },
+                },
+              },
+            })
+          : await tx.providerCredential.create({
+              data: {
+                providerId: provider.id,
+                type: credential.type,
+                issuer: credential.issuer,
+                number: credential.number,
+                validUntil: credential.validUntil,
+                documentId: credential.documentId,
+                status: "VALID",
+                verifications: {
+                  create: { status: "VALID", note: "Verified during onboarding approval.", actorId: principal.accountId },
+                },
+              },
+            });
+
+        for (const document of credential.documents) {
+          const existingDocument = await tx.providerCredentialDocument.findUnique({ where: { objectKey: document.objectKey } });
+          if (!existingDocument) {
+            await tx.providerCredentialDocument.create({
+              data: {
+                credentialId: promoted.id,
+                fileName: document.fileName,
+                mediaType: document.mediaType,
+                byteLength: document.byteLength,
+                contentDigest: document.contentDigest,
+                storageProvider: document.storageProvider,
+                objectKey: document.objectKey,
+                blobAlgorithm: document.blobAlgorithm,
+                blobKeyId: document.blobKeyId,
+                blobWrappedKey: document.blobWrappedKey,
+                blobIv: document.blobIv,
+                createdByAccountId: document.createdByAccountId,
+                createdAt: document.createdAt,
+              },
+            });
+          }
         }
+
+        await tx.providerGovernanceHistory.create({
+          data: {
+            providerId: provider.id,
+            domain: "CREDENTIAL",
+            targetId: promoted.id,
+            fromStatus: existing?.status ?? null,
+            toStatus: "VALID",
+            reason: "Verified during onboarding approval.",
+            actorId: principal.accountId,
+            metadata: { onboardingCredentialId: credential.id, credentialType: credential.type },
+          },
+        });
       }
 
       await tx.provider.update({ where: { id: provider.id }, data: { status: "ACTIVE" } });
+      await tx.providerGovernanceHistory.create({
+        data: {
+          providerId: provider.id,
+          domain: "PROVIDER",
+          targetId: provider.id,
+          fromStatus: provider.status,
+          toStatus: "ACTIVE",
+          reason: "Provider onboarding approved.",
+          actorId: principal.accountId,
+        },
+      });
       return tx.providerOnboarding.update({
         where: { id: onboardingId },
         data: { state: "APPROVED", reviewedAt: new Date(), reviewerActorId: principal.accountId, reviewNote: null },
@@ -633,7 +751,22 @@ export class PersistentOnboardingService {
     this.requireReviewPermission(principal);
     const provider = await this.prisma.provider.findUnique({ where: { userId: accountId } });
     if (!provider) throw new NotFoundException("Provider profile not found.");
-    await this.prisma.provider.update({ where: { id: provider.id }, data: { status: "SUSPENDED" } });
+    await this.prisma.$transaction(async (tx) => {
+      await tx.provider.update({ where: { id: provider.id }, data: { status: "SUSPENDED" } });
+      if (provider.status !== "SUSPENDED") {
+        await tx.providerGovernanceHistory.create({
+          data: {
+            providerId: provider.id,
+            domain: "PROVIDER",
+            targetId: provider.id,
+            fromStatus: provider.status,
+            toStatus: "SUSPENDED",
+            reason: "Provider suspended by governance reviewer.",
+            actorId: principal.accountId,
+          },
+        });
+      }
+    });
     await this.auth.revokeAll(principal, accountId);
     await this.audit.write({
       actorId: principal.accountId,

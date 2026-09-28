@@ -50,7 +50,7 @@ export class ProviderOperationalCredentialService {
     const requiredTypes = principal.role === "DOCTOR"
       ? ["medical-license"]
       : jsonStringArray(provider.otherProviderProfile?.category?.requiredCredentialTypes);
-    const verified = provider.credentials.filter((credential) => credential.status === "VERIFIED");
+    const verified = provider.credentials.filter((credential) => credential.status === "VALID" || credential.status === "VERIFIED");
 
     // Legacy smoke fixtures created ACTIVE providers directly in the database before the
     // Release 1 credential-governance gate existed. Keep that zero-credential compatibility
