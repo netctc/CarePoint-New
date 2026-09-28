@@ -56,7 +56,8 @@ export function PrivacyExportMonitor() {
       const response = await fetch(`/api/admin/privacy/exports${query}`, { cache: "no-store", credentials: "same-origin" });
       const body = await response.json().catch(() => ({})) as ExportResponse;
       if (!response.ok) throw new Error(body.message || t.loadError);
-      setItems(Array.isArray(body.items) ? body.items : []);
+      const next=Array.isArray(body.items) ? body.items : [];
+      setItems(next);setPage(v=>clampPage(v,next.length,pageSize));
       setBoundary(body.privacyBoundary);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : t.loadError);
@@ -80,7 +81,8 @@ export function PrivacyExportMonitor() {
     </div>
     {error ? <div className={styles.error}>{error}</div> : null}
     <div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>{t.job}</th><th>{t.patient}</th><th>{t.requester}</th><th>{t.format}</th><th>{t.status}</th><th>{t.created}</th><th>{t.expiry}</th></tr></thead><tbody>
-      {!loading && items.length === 0 ? <tr><td className={styles.empty} colSpan={7}>{t.empty}</td></tr> : items.map((item) => <tr key={item.id}><td><code>{item.id.slice(0, 14)}</code></td><td>{item.patientReference}</td><td><code>{item.requesterAccountId.slice(0, 14)}</code></td><td>{item.format}</td><td><span className={styles.status}>{item.status}</span>{item.errorCode ? <div className={styles.muted}>{item.errorCode}</div> : null}</td><td>{new Date(item.createdAt).toLocaleString(locale)}</td><td>{new Date(item.expiresAt).toLocaleString(locale)}</td></tr>)}
+      {!loading && items.length === 0 ? <tr><td className={styles.empty} colSpan={7}>{t.empty}</td></tr> : paginateItems(items,page,pageSize).map((item) => <tr key={item.id}><td><code>{item.id.slice(0, 14)}</code></td><td>{item.patientReference}</td><td><code>{item.requesterAccountId.slice(0, 14)}</code></td><td>{item.format}</td><td><span className={styles.status}>{item.status}</span>{item.errorCode ? <div className={styles.muted}>{item.errorCode}</div> : null}</td><td>{new Date(item.createdAt).toLocaleString(locale)}</td><td>{new Date(item.expiresAt).toLocaleString(locale)}</td></tr>)}
     </tbody></table></div>
+    <AdminPagination page={page} pageSize={pageSize} total={items.length} onPageChange={setPage} onPageSizeChange={(size)=>{setPageSize(size);setPage(1);}}/>
   </div>;
 }
