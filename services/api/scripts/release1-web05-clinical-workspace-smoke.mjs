@@ -40,7 +40,7 @@ async function registerPatientFixture({ email, username, password, firstName, la
       username,
       password,
       dateOfBirth: '1990-01-15',
-      sex: 'UNSPECIFIED',
+      sex: 'PREFER_NOT_TO_SAY',
     },
   });
 }
