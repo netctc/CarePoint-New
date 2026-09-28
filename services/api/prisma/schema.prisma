@@ -359,8 +359,9 @@ model ProviderCredential {
   validUntil              DateTime?
   status                  String
   documentId              String?
-  renewedFromCredentialId String?
-  createdAt               DateTime @default(now())
+  renewedFromCredentialId        String?
+  sourceOnboardingCredentialId    String?  @unique
+  createdAt                       DateTime @default(now())
   updatedAt               DateTime @updatedAt
   provider                Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
   documents               ProviderCredentialDocument[]
@@ -383,8 +384,9 @@ model ProviderCredentialDocument {
   blobKeyId          String
   blobWrappedKey     String
   blobIv             String
-  createdByAccountId String
-  createdAt          DateTime           @default(now())
+  createdByAccountId          String
+  sourceOnboardingDocumentId   String?            @unique
+  createdAt                   DateTime           @default(now())
   credential         ProviderCredential @relation(fields: [credentialId], references: [id], onDelete: Cascade)
 
   @@index([credentialId, createdAt])
