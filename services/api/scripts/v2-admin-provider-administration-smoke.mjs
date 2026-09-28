@@ -32,7 +32,7 @@ assert.match(adminApi, /EXPIRING_SOON/);
 assert.match(adminApi, /EXPIRED/);
 assert.match(adminApi, /renewCredential/);
 assert.match(adminApi, /uploadCredentialDocument/);
-assert.match(adminApi, /ProviderCredentialVerification/);
+assert.match(adminApi, /providerCredentialVerification\.create/);
 
 assert.match(masterApi, /@Controller\("admin\/master-data"\)/);
 assert.match(masterApi, /MASTER_DATA_SPECIALTY_/);
