@@ -32,8 +32,36 @@ async function login(email, password) {
   return result.accessToken;
 }
 
+let carePointOtpSequence = 0;
+
+async function completePatientRegistration(body) {
+  carePointOtpSequence += 1;
+  const phone = `+966592${String(carePointOtpSequence).padStart(6, "0")}`;
+  const otp = await request("/iam/register/otp/start", {
+    method: "POST",
+    body: { kind: "PATIENT", firstName: body.firstName || "FHIR", lastName: body.lastName || "Test", phone },
+  });
+  const verified = await request("/iam/register/otp/verify", {
+    method: "POST",
+    body: { challengeId: otp.challengeId, code: otp.testOtp },
+  });
+  const username = String(body.email).split("@")[0].replace(/[^a-z0-9._-]/gi, "-").toLowerCase().slice(0, 40);
+  await request("/iam/register/patient", {
+    method: "POST",
+    body: {
+      challengeId: otp.challengeId,
+      registrationToken: verified.registrationToken,
+      email: body.email,
+      username,
+      password: body.password,
+      dateOfBirth: "1990-01-15",
+      sex: "PREFER_NOT_TO_SAY",
+    },
+  });
+}
+
 async function registerPatient(email, firstName) {
-  await request("/iam/register/patient", { method: "POST", body: { email, password: patientPassword, firstName, lastName: "FHIR Imaging Test" } });
+  await completePatientRegistration({ email, password: patientPassword, firstName, lastName: "FHIR Imaging Test" });
   return login(email, patientPassword);
 }
 
