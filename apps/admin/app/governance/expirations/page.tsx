@@ -24,7 +24,7 @@ async function api(path:string,method="GET",body?:unknown){
  return payload;
 }
 export default function CredentialExpirationsPage(){
- const {locale}=useI18n();const c=copy[locale];const [data,setData]=useState<Snapshot|null>(null);const [windows,setWindows]=useState("90,30,7");const [enabled,setEnabled]=useState(true);const [message,setMessage]=useState("");const [busy,setBusy]=useState(false);
+ const {locale}=useI18n();const c=copy[locale];const [data,setData]=useState<Snapshot|null>(null);const [windows,setWindows]=useState("90,30,7");const [enabled,setEnabled]=useState(true);const [message,setMessage]=useState("");const [busy,setBusy]=useState(false);const [page,setPage]=useState(1);const [pageSize,setPageSize]=useState(10);
  const load=useCallback(async()=>{try{const next=await api("credential-expirations") as Snapshot;setData(next);setWindows(next.policy.warningDays.join(","));setEnabled(next.policy.notificationsEnabled);setMessage("");}catch(e){setMessage(e instanceof Error?e.message:c.failed);}},[c.failed]);
  useEffect(()=>{void load();},[load]);
  const parsed=useMemo(()=>{const values=windows.split(",").map(v=>Number(v.trim())).filter(Number.isFinite);return{values,valid:values.length>=1&&values.length<=5&&values.every(v=>Number.isInteger(v)&&v>=1&&v<=365)&&new Set(values).size===values.length};},[windows]);
