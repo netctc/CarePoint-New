@@ -36,7 +36,7 @@ export default function CredentialExpirationsPage(){
   <div style={{display:"grid",gridTemplateColumns:"repeat(4,minmax(100px,1fr))",gap:10}}>{(["CURRENT","EXPIRING","EXPIRED","MISSING"] as State[]).map(s=><div key={s} style={box}><small>{c[s]}</small><div style={{fontSize:26,fontWeight:800}}>{data?.summary?.[s]??0}</div></div>)}</div>
   <div style={box}><div style={{display:"flex",gap:12,flexWrap:"wrap",alignItems:"end"}}>
    <label style={{display:"grid",gap:5}}>{c.windows}<input value={windows} onChange={e=>setWindows(e.target.value)} style={{padding:9,border:"1px solid #cbd5e1",borderRadius:8}}/></label>
-   <label><input type="checkbox" checked={enabled} onChange={e=>setEnabled(e.target.checked)}/> {c.notify}</label>
+   <label className="admin-form-check"><input type="checkbox" checked={enabled} onChange={e=>setEnabled(e.target.checked)}/> {c.notify}</label>
    <button className="secondary-button" disabled={busy||!parsed.valid} onClick={()=>void save()}>{c.save}</button>
    <button className="secondary-button" disabled={busy} onClick={()=>void run()}>{c.run}</button>
    <button className="secondary-button" disabled={busy} onClick={()=>void load()}>{c.refresh}</button>
