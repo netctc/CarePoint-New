@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { registerTestPatient } from "./support/register-test-patient.mjs";
 
 const base = process.env.CAREPOINT_API_URL || "http://127.0.0.1:4000/api/v1";
 const prisma = new PrismaClient();
@@ -32,10 +33,7 @@ async function login(email, password) {
 async function createPatient(suffix, label) {
   const email = `r6-${label}-${suffix}@carepoint.test`;
   const password = `CarePoint-R6-${label}#2026`;
-  await request("/iam/register/patient", {
-    method: "POST",
-    body: { email, password, firstName: `R6${label}`, lastName: "Synthetic" },
-  });
+  await registerTestPatient({ base, email, password, firstName: `R6${label}`, lastName: "Synthetic" });
   const token = await login(email, password);
   const user = await prisma.user.findUnique({ where: { email }, include: { patientProfile: true } });
   if (!user?.patientProfile?.id) throw new Error("Patient profile was not created.");
