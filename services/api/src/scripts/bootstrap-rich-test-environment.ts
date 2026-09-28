@@ -615,10 +615,15 @@ async function createAppointments(patients:PatientFixture[],providers:Schedulabl
     items.findIndex(candidate=>candidate.providerId===slot.providerId&&candidate.startsAt.getTime()===slot.startsAt.getTime())===index
   );
   let futureCount=0;
+  let slotCursor=0;
   const chosenSlotIds:string[]=[];
   for(const [patientIndex,patient] of patients.entries()){
+    let patientEndsAt=0;
     for(let future=0;future<2;future++){
-      const slot=uniqueSlots[patientIndex*2+future];
+      while(slotCursor<uniqueSlots.length && uniqueSlots[slotCursor]!.startsAt.getTime()<patientEndsAt){
+        slotCursor++;
+      }
+      const slot=uniqueSlots[slotCursor++];
       if(!slot) break;
       await prisma.appointment.create({
         data:{
@@ -633,6 +638,7 @@ async function createAppointments(patients:PatientFixture[],providers:Schedulabl
           endsAt:slot.endsAt,
         },
       });
+      patientEndsAt=slot.endsAt.getTime();
       chosenSlotIds.push(slot.id);
       futureCount++;
     }
