@@ -130,10 +130,10 @@ export function FinanceOperations() {
     </section>
 
     <nav className={styles.tabs}>
-      <Tab active={queue === "INVOICES"} onClick={() => setQueue("INVOICES");setPage(1)} label={c.invoices} count={workspace?.queues.invoices.length ?? 0} />
-      <Tab active={queue === "PAYMENTS"} onClick={() => setQueue("PAYMENTS");setPage(1)} label={c.payments} count={workspace?.queues.paymentIntents.length ?? 0} />
-      <Tab active={queue === "CLAIMS"} onClick={() => setQueue("CLAIMS");setPage(1)} label={c.claims} count={workspace?.queues.claims.length ?? 0} />
-      <Tab active={queue === "PAYOUTS"} onClick={() => setQueue("PAYOUTS");setPage(1)} label={c.payouts} count={workspace?.queues.payouts.length ?? 0} />
+      <Tab active={queue === "INVOICES"} onClick={() => {setQueue("INVOICES");setPage(1);}} label={c.invoices} count={workspace?.queues.invoices.length ?? 0} />
+      <Tab active={queue === "PAYMENTS"} onClick={() => {setQueue("PAYMENTS");setPage(1);}} label={c.payments} count={workspace?.queues.paymentIntents.length ?? 0} />
+      <Tab active={queue === "CLAIMS"} onClick={() => {setQueue("CLAIMS");setPage(1);}} label={c.claims} count={workspace?.queues.claims.length ?? 0} />
+      <Tab active={queue === "PAYOUTS"} onClick={() => {setQueue("PAYOUTS");setPage(1);}} label={c.payouts} count={workspace?.queues.payouts.length ?? 0} />
     </nav>
 
     {queue === "INVOICES" ? <div className={styles.tableWrap}><table><thead><tr><th>{c.invoice}</th><th>{c.provider}</th><th>{c.status}</th><th>{c.amount}</th><th>{c.balance}</th><th>{c.issued}</th></tr></thead><tbody>{paginateItems(workspace?.queues.invoices ?? [],page,pageSize).map((item) => <tr key={item.invoiceId}><td><strong>{item.number}</strong><small>{shortId(item.invoiceId)}</small></td><td>{item.provider.displayName}</td><td><Status value={item.status} /></td><td>{money(item.totalMinor, item.currency, locale)}</td><td>{money(item.balanceDueMinor, item.currency, locale)}</td><td>{dateTime(item.issuedAt, locale)}</td></tr>)}</tbody></table>{workspace && workspace.queues.invoices.length === 0 ? <Empty text={c.empty} /> : null}</div> : null}
