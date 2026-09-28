@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { registerTestPatient } from "./support/register-test-patient.mjs";
 
 const prisma = new PrismaClient();
 const base = process.env.CAREPOINT_API_URL || "http://127.0.0.1:4000/api/v1";
@@ -25,7 +26,7 @@ async function login(email, password) {
 
 async function registerPatient(email, firstName) {
   const password = "CarePoint-Telehealth#2026";
-  await request("/iam/register/patient", { method: "POST", body: { email, password, firstName, lastName: "Telehealth CI" } });
+  await registerTestPatient({ base, email, password, firstName, lastName: "Telehealth CI" });
   return login(email, password);
 }
 
