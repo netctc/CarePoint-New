@@ -27,6 +27,8 @@ export function IntegrationGatewayConsole({kind}:{kind:Kind}) {
   const {locale}=useI18n();
   const c=copy[locale];
   const [data,setData]=useState<Row>({}),[loading,setLoading]=useState(true),[error,setError]=useState("");
+  const [configPage,setConfigPage]=useState(1); const [configPageSize,setConfigPageSize]=useState(10);
+  const [eventPage,setEventPage]=useState(1); const [eventPageSize,setEventPageSize]=useState(10);
   const configs=useMemo(()=>list(data),[data]);
 
   const load=useCallback(async()=>{
