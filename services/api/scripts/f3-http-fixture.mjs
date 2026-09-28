@@ -34,10 +34,38 @@ export async function ok(path, options = {}) {
   assert.ok(result.status === 200 || result.status === 201, `${options.method || 'GET'} ${path}: unexpected status ${result.status}`);
   return result.body;
 }
+let patientSequence = 0;
 export async function account(role = 'PATIENT') {
-  const email = `availability-${id()}@example.invalid`;
+  const fixtureId = id();
+  const email = `availability-${fixtureId}@example.invalid`;
   if (role === 'PATIENT') {
-    await ok('/iam/register/patient', { method: 'POST', body: { email, password, firstName: 'Synthetic', lastName: 'HTTP Acceptance' } });
+    patientSequence += 1;
+    const username = `avail-${fixtureId.replace(/-/g, '').slice(0, 16)}`;
+    const phone = `+966555${String(100000 + patientSequence).slice(-6)}`;
+    const otp = await ok('/iam/register/otp/start', {
+      method: 'POST',
+      body: { kind: 'PATIENT', firstName: 'Synthetic', lastName: 'HTTP Acceptance', phone },
+    });
+    assert.equal(otp.deliveryMode, 'display');
+    assert.equal(typeof otp.challengeId, 'string');
+    assert.equal(typeof otp.testOtp, 'string');
+    const verified = await ok('/iam/register/otp/verify', {
+      method: 'POST',
+      body: { challengeId: otp.challengeId, code: otp.testOtp },
+    });
+    assert.equal(typeof verified.registrationToken, 'string');
+    await ok('/iam/register/patient', {
+      method: 'POST',
+      body: {
+        challengeId: otp.challengeId,
+        registrationToken: verified.registrationToken,
+        email,
+        username,
+        password,
+        dateOfBirth: '1990-01-15',
+        sex: 'PREFER_NOT_TO_SAY',
+      },
+    });
   } else {
     await db.user.create({ data: { email, passwordHash, role } });
   }
@@ -54,7 +82,7 @@ export async function provider(role = 'DOCTOR') {
     category = await db.providerCategory.create({ data: { slug: `synthetic-${id()}`, labels: { en: 'Synthetic category' }, family: 'TEST', requiredCredentialTypes: ['test-license'], capabilities: {} } });
     await db.otherProviderProfile.create({ data: { providerId: row.id, categoryId: category.id } });
   }
-  const credential = await db.providerCredential.create({ data: { providerId: row.id, type: role === 'DOCTOR' ? 'medical-license' : 'test-license', status: 'VERIFIED', validFrom: future(-1), validUntil: future(60) } });
+  const credential = await db.providerCredential.create({ data: { providerId: row.id, type: role === 'DOCTOR' ? 'medical-license' : 'test-license', status: 'VALID', validFrom: future(-1), validUntil: future(60) } });
   return { ...user, providerId: row.id, credentialId: credential.id, categoryId: category?.id };
 }
 export async function service(owner) {

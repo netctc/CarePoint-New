@@ -9,6 +9,7 @@ const doctorPassword = "CarePoint-Fhir-Doctor-Test";
 const patientAEmail = `fhir-patient-a-${suffix}@carepoint.test`;
 const patientBEmail = `fhir-patient-b-${suffix}@carepoint.test`;
 const doctorEmail = `fhir-doctor-${suffix}@carepoint.test`;
+let registrationSequence = 0;
 
 async function raw(path, { method = "GET", token, body, accept = "application/fhir+json" } = {}) {
   const headers = { accept, "content-type": "application/json" };
@@ -58,9 +59,29 @@ async function mfaAssuredLogin(existingToken, email, password) {
 }
 
 async function registerPatient(email, firstName) {
+  registrationSequence += 1;
+  const phone = `+9665551${String(registrationSequence).padStart(5, "0")}`;
+  const otp = await request("/iam/register/otp/start", {
+    method: "POST",
+    body: { kind: "PATIENT", firstName, lastName: "FHIR Test", phone },
+  });
+  if (!otp.challengeId || !otp.testOtp) throw new Error("FHIR test registration OTP was not issued.");
+  const verified = await request("/iam/register/otp/verify", {
+    method: "POST",
+    body: { challengeId: otp.challengeId, code: otp.testOtp },
+  });
+  const username = email.split("@")[0].replace(/[^a-z0-9._-]/gi, "-").toLowerCase().slice(0, 40);
   await request("/iam/register/patient", {
     method: "POST",
-    body: { email, password: patientPassword, firstName, lastName: "FHIR Test" },
+    body: {
+      challengeId: otp.challengeId,
+      registrationToken: verified.registrationToken,
+      email,
+      username,
+      password: patientPassword,
+      dateOfBirth: "1990-01-15",
+      sex: "PREFER_NOT_TO_SAY",
+    },
   });
   return login(email, patientPassword);
 }

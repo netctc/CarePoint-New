@@ -35,8 +35,19 @@ async function ensureAccount(adminToken, email, password, role) {
 }
 
 async function ensurePatient(email, password, firstName) {
-  const result = await raw("/iam/register/patient", { method: "POST", body: { email, password, firstName, lastName: "Release1 Context" } });
-  if (result.status !== 201 && result.status !== 409) throw new Error(`Unable to prepare patient ${email}: ${result.status} ${JSON.stringify(result.payload)}`);
+  const otp = await request("/iam/register/otp/start", {
+    method: "POST",
+    body: { kind: "PATIENT", firstName, lastName: "Release1 Context", phone: "+966593000002" },
+  });
+  const verified = await request("/iam/register/otp/verify", {
+    method: "POST",
+    body: { challengeId: otp.challengeId, code: otp.testOtp },
+  });
+  const username = email.split("@")[0].replace(/[^a-z0-9._-]/gi, "-").toLowerCase();
+  await request("/iam/register/patient", {
+    method: "POST",
+    body: { challengeId: otp.challengeId, registrationToken: verified.registrationToken, email, username, password, dateOfBirth: "1990-01-15", sex: "PREFER_NOT_TO_SAY" },
+  });
   return login(email, password);
 }
 

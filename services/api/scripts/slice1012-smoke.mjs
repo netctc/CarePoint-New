@@ -167,9 +167,26 @@ try {
     throw new Error("CapabilityStatement does not document Slice 10.12 release/bulk-only policy.");
   }
 
+  const registrationOtp = await json("/iam/register/otp/start", {
+    method: "POST",
+    body: { kind: "PATIENT", firstName: "Alice", lastName: "Bulk Clinical", phone: "+966599000001" },
+  });
+  const registrationVerified = await json("/iam/register/otp/verify", {
+    method: "POST",
+    body: { challengeId: registrationOtp.challengeId, code: registrationOtp.testOtp },
+  });
+  const patientUsername = patientEmail.split("@")[0].replace(/[^a-z0-9._-]/gi, "-").toLowerCase().slice(0, 40);
   await json("/iam/register/patient", {
     method: "POST",
-    body: { email: patientEmail, password: patientPassword, firstName: "Alice", lastName: "Bulk Clinical" },
+    body: {
+      challengeId: registrationOtp.challengeId,
+      registrationToken: registrationVerified.registrationToken,
+      email: patientEmail,
+      username: patientUsername,
+      password: patientPassword,
+      dateOfBirth: "1990-01-15",
+      sex: "PREFER_NOT_TO_SAY",
+    },
   });
   const patient = await prisma.patientProfile.findFirstOrThrow({ where: { user: { email: patientEmail } } });
 

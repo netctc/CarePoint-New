@@ -39,13 +39,27 @@ async function login(email, password) {
 }
 
 async function ensurePatient(email, password) {
-  const created = await raw("/iam/register/patient", {
+  const otp = await request("/iam/register/otp/start", {
     method: "POST",
-    body: { email, password, firstName: "Release1", lastName: "Reminder" },
+    body: { kind: "PATIENT", firstName: "Release1", lastName: "Reminder", phone: "+966593000001" },
   });
-  if (created.status !== 201 && created.status !== 409) {
-    throw new Error(`Unable to prepare reminder patient: HTTP ${created.status} ${JSON.stringify(created.payload)}`);
-  }
+  const verified = await request("/iam/register/otp/verify", {
+    method: "POST",
+    body: { challengeId: otp.challengeId, code: otp.testOtp },
+  });
+  const username = "release1-reminder-patient";
+  await request("/iam/register/patient", {
+    method: "POST",
+    body: {
+      challengeId: otp.challengeId,
+      registrationToken: verified.registrationToken,
+      email,
+      username,
+      password,
+      dateOfBirth: "1990-01-15",
+      sex: "PREFER_NOT_TO_SAY",
+    },
+  });
 }
 
 async function ensureDoctorAccount(adminToken, email, password) {

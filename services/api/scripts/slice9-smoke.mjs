@@ -1,3 +1,4 @@
+import { registerTestPatient } from "./support/register-test-patient.mjs";
 import { execFileSync } from "node:child_process";
 import { PrismaClient } from "@prisma/client";
 
@@ -33,10 +34,7 @@ async function main() {
 
   const email = `slice9-security-${Date.now()}@carepoint.test`;
   const password = "CarePoint-Slice9#2026";
-  await expectOk("/iam/register/patient", {
-    method: "POST",
-    body: JSON.stringify({ email, password, firstName: "Slice", lastName: "Nine" }),
-  });
+  await registerTestPatient({ base, email, password, firstName: "Slice", lastName: "Nine" });
   const login = await expectOk("/iam/login", { method: "POST", body: JSON.stringify({ email, password }) });
   if (!login.payload.accessToken || !login.payload.refreshToken || !login.payload.sessionId) throw new Error("Slice 9 login token material missing.");
 

@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { registerTestPatient } from './support/register-test-patient.mjs';
 
 const base = process.env.CAREPOINT_API_URL || 'http://127.0.0.1:4000/api/v1';
 const prisma = new PrismaClient();
@@ -28,7 +29,7 @@ async function login(email, password) {
 }
 
 async function registerPatient(email, firstName) {
-  await request('/iam/register/patient', { method: 'POST', body: { email, password: patientPassword, firstName, lastName: 'Transport CI' } });
+  await registerTestPatient({ base, email, password: patientPassword, firstName, lastName: 'Transport CI' });
   const token = await login(email, patientPassword);
   const user = await prisma.user.findUnique({ where: { email }, include: { patientProfile: true } });
   if (!user?.patientProfile) throw new Error(`Patient fixture missing for ${email}`);

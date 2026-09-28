@@ -212,9 +212,9 @@ try {
 
   const profile = await prisma.otherProviderProfile.findFirst({ where: { provider: { userId: providerUserId } }, include: { category: true } });
   assert(profile?.categoryId === category.id, "O1 approval did not promote the Other Provider profile category.");
-  const promotedCredentials = await prisma.providerCredential.findMany({ where: { provider: { userId: providerUserId }, status: "VERIFIED" } });
+  const promotedCredentials = await prisma.providerCredential.findMany({ where: { provider: { userId: providerUserId }, status: "VALID" } });
   const promotedTypes = new Set(promotedCredentials.map((item) => item.type));
-  for (const type of requiredTypes) assert(promotedTypes.has(type), `O1 approval did not promote verified credential ${type}.`);
+  for (const type of requiredTypes) assert(promotedTypes.has(type), `O1 approval did not promote canonical VALID credential ${type}.`);
 
   const activeRestart = await call("/onboarding/other-providers", {
     method: "POST",

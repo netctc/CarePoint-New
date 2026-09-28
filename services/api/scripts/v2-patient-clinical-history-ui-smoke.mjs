@@ -38,7 +38,7 @@ assert.match(ui, /manufacturer:/);
 for (const locale of ["en", "ar", "fr", "es"]) {
   assert.match(ui, new RegExp("'"+locale+"': \\{"));
 }
-assert.match(patientMain, /Directionality\(textDirection: locale\.textDirection/);
+assert.match(patientMain, /Directionality\(\s*textDirection:\s*locale\.textDirection/);
 
 // Backend contract remains no-store, patient self-scoped and has no DELETE route.
 assert.match(moduleSource, /@Controller\("patient\/clinical-history"\)/);

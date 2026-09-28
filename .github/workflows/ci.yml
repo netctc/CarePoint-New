@@ -79,6 +79,8 @@ jobs:
       SLICE6_PATIENT_PASSWORD: CarePoint-Patient#2026
       BOOTSTRAP_ADMIN_EMAIL: admin-ci@carepoint.test
       BOOTSTRAP_ADMIN_PASSWORD: CarePoint-CI-Admin#2026
+      REGISTRATION_OTP_DELIVERY_MODE: display
+      REGISTRATION_OTP_PEPPER: ci-registration-otp-pepper-2026-at-least-32-characters
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -124,7 +126,29 @@ jobs:
           }
           const health = await json('/health');
           if (health.status !== 'ok') throw new Error('health probe failed');
-          await json('/iam/register/patient', { method: 'POST', body: JSON.stringify({ email: 'patient-ci@carepoint.test', password: 'CarePoint-Patient#2026', firstName: 'CI', lastName: 'Patient' }) });
+          const otp = await json('/iam/register/otp/start', {
+            method: 'POST',
+            body: JSON.stringify({ kind: 'PATIENT', firstName: 'CI', lastName: 'Patient', phone: '+966555000001' }),
+          });
+          if (!otp.challengeId || !otp.testOtp || otp.deliveryMode !== 'display') throw new Error('test registration OTP was not issued');
+          const verified = await json('/iam/register/otp/verify', {
+            method: 'POST',
+            body: JSON.stringify({ challengeId: otp.challengeId, code: otp.testOtp }),
+          });
+          if (!verified.registrationToken) throw new Error('registration OTP verification did not return a completion token');
+          const registered = await json('/iam/register/patient', {
+            method: 'POST',
+            body: JSON.stringify({
+              challengeId: otp.challengeId,
+              registrationToken: verified.registrationToken,
+              email: 'patient-ci@carepoint.test',
+              username: 'patient-ci',
+              password: 'CarePoint-Patient#2026',
+              dateOfBirth: '1990-01-15',
+              sex: 'PREFER_NOT_TO_SAY',
+            }),
+          });
+          if (!registered.accessToken) throw new Error('registration did not return an access token');
           const login = await json('/iam/login', { method: 'POST', body: JSON.stringify({ email: 'patient-ci@carepoint.test', password: 'CarePoint-Patient#2026' }) });
           if (!login.accessToken) throw new Error('login did not return an access token');
           const me = await json('/iam/accounts/me', { headers: { authorization: `Bearer ${login.accessToken}` } });
@@ -222,7 +246,7 @@ jobs:
           trap 'rm -f "$CAREPOINT_MOBILE_LIVE_FIXTURE" "$CAREPOINT_MOBILE_LIVE_RESULT"' EXIT
           node services/api/scripts/f3-mobile-live-fixture.mjs prepare
           (cd packages/mobile_core && flutter pub get)
-          sha256sum --check --strict .ci/flutter-pubspec-locks.sha256
+          git diff --exit-code -- packages/mobile_core/pubspec.lock
           (cd packages/mobile_core && flutter analyze test_live && flutter test test_live/f3_live_api_test.dart --reporter expanded)
           node services/api/scripts/f3-mobile-live-fixture.mjs verify
       - name: Print API and Admin logs on failure
@@ -247,7 +271,12 @@ jobs:
           (cd apps/doctor-mobile && flutter pub get)
           (cd apps/provider-mobile && flutter pub get)
       - name: Phase C2 verify mobile dependency locks
-        run: sha256sum --check --strict .ci/flutter-pubspec-locks.sha256
+        run: |
+          git diff --exit-code -- \
+            packages/mobile_core/pubspec.lock \
+            apps/patient-mobile/pubspec.lock \
+            apps/doctor-mobile/pubspec.lock \
+            apps/provider-mobile/pubspec.lock
       - name: Test shared mobile client
         working-directory: packages/mobile_core
         run: flutter analyze && flutter test
