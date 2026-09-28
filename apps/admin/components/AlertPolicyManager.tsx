@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useI18n, type Locale } from "@/lib/i18n";
+import { AdminPagination, paginateItems } from "@/components/AdminPagination";
 import styles from "./AlertPolicyManager.module.css";
 
 type Labels={en?:string;ar?:string;fr?:string;es?:string};
@@ -121,11 +122,12 @@ export function AlertPolicyManager(){
         </div>
         <button className={styles.primary} disabled={busy||!code.trim()||!en.trim()} onClick={()=>void createPolicy()}>{t.create}</button>
         <div className={styles.policyList}>
-          {policies.map(policy=><button key={policy.id} className={selectedId===policy.id?styles.selected:styles.policy} onClick={()=>setSelectedId(policy.id)}>
+          {paginateItems(policies,page,pageSize).map(policy=><button key={policy.id} className={selectedId===policy.id?styles.selected:styles.policy} onClick={()=>setSelectedId(policy.id)}>
             <strong>{label(policy.labels,locale,policy.code)}</strong><small>{policy.code} · {policy.versions.length} {t.versions}</small>
           </button>)}
           {!policies.length?<div className={styles.empty}>{t.empty}</div>:null}
         </div>
+        <AdminPagination page={page} pageSize={pageSize} total={policies.length} onPageChange={setPage} onPageSizeChange={(size)=>{setPageSize(size);setPage(1);}}/>
       </section>
 
       <section className={styles.card}>
