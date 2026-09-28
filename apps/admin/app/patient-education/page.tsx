@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/AppShell";
+import { AdminPagination, paginateItems } from "@/components/AdminPagination";
 import { useI18n, type Locale } from "@/lib/i18n";
 import styles from "./PatientEducationCatalog.module.css";
 
@@ -38,6 +39,8 @@ export default function PatientEducationCatalogPage(){
   const [bodyLabels,setBodyLabels]=useState<Record<Locale,string>>(emptyLocalized());
   const [sourceName,setSourceName]=useState("");
   const [sourceUrl,setSourceUrl]=useState("");
+  const [definitionPage,setDefinitionPage]=useState(1); const [definitionPageSize,setDefinitionPageSize]=useState(10);
+  const [versionPage,setVersionPage]=useState(1); const [versionPageSize,setVersionPageSize]=useState(10);
 
   const selected=useMemo(()=>catalog.items.find(item=>item.id===selectedId)??null,[catalog.items,selectedId]);
 
@@ -108,11 +111,12 @@ export default function PatientEducationCatalogPage(){
             <button className={styles.primary} disabled={busy||!code.trim()} onClick={()=>void createDefinition()}>{t.create}</button>
           </div>
           <div style={{marginTop:14}}>
-            {catalog.items.map(item=><button key={item.id} type="button" className={styles.definition} data-active={item.id===selectedId} onClick={()=>setSelectedId(item.id)}>
+            {paginateItems(catalog.items,definitionPage,definitionPageSize).map(item=><button key={item.id} type="button" className={styles.definition} data-active={item.id===selectedId} onClick={()=>setSelectedId(item.id)}>
               <strong>{item.code}</strong><small>{item.active?t.active:"INACTIVE"} · {item.versions.length} {t.versions.toLowerCase()}</small>
             </button>)}
             {!catalog.items.length?<div className={styles.empty}>{t.empty}</div>:null}
           </div>
+          <AdminPagination page={definitionPage} pageSize={definitionPageSize} total={catalog.items.length} onPageChange={setDefinitionPage} onPageSizeChange={(size)=>{setDefinitionPageSize(size);setDefinitionPage(1);}}/>
         </section>
 
         <section className={styles.card}>
@@ -132,13 +136,14 @@ export default function PatientEducationCatalogPage(){
       <section className={styles.card}>
         <h2>{t.versions}{selected?` · ${selected.code}`:""}</h2>
         {!selected?<div className={styles.empty}>{t.select}</div>:selected.versions.length===0?<div className={styles.empty}>{t.empty}</div>:
-          selected.versions.map(version=><article className={styles.version} key={version.id}>
+          paginateItems(selected.versions,versionPage,versionPageSize).map(version=><article className={styles.version} key={version.id}>
             <div className={styles.versionHead}><strong>{t.version} {version.version} · {local(version.labels,locale,selected.code)}</strong><span className={styles.badge}>{version.status}</span></div>
             <div className={styles.bodyPreview}>{local(version.bodyLabels,locale,"")}</div>
             <div className={styles.source}><strong>{t.source}: {version.sourceName}</strong>{version.sourceUrl?<a href={version.sourceUrl} target="_blank" rel="noreferrer">{version.sourceUrl}</a>:null}</div>
             <div className={styles.muted}>{version.publishedAt?`${t.published}: ${new Date(version.publishedAt).toLocaleString(locale)}`:""}{version.retiredAt?` · ${t.retired}: ${new Date(version.retiredAt).toLocaleString(locale)}`:""}</div>
             {version.status==="DRAFT"?<div><button className={styles.primary} disabled={busy} onClick={()=>void publish(version)}>{t.publish}</button></div>:null}
           </article>)}
+        {selected?<AdminPagination page={versionPage} pageSize={versionPageSize} total={selected.versions.length} onPageChange={setVersionPage} onPageSizeChange={(size)=>{setVersionPageSize(size);setVersionPage(1);}}/>:null}
       </section>
     </div>
   </AppShell>;
