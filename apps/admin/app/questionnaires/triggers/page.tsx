@@ -119,12 +119,12 @@ export default function QuestionnaireTriggersPage(){
       <div style={{display:"grid",gap:18}}>
         <section style={box}><h2>{t.newRule}</h2>
           <label>{t.code}<input value={definition.code} onChange={(e)=>setDefinition({...definition,code:e.target.value})}/></label>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>{(["en","ar","fr","es"] as const).map((lang)=><label key={lang}>{t.labels} {lang.toUpperCase()}<input value={definition[lang]} onChange={(e)=>setDefinition({...definition,[lang]:e.target.value})}/></label>)}</div>
+          <div className="admin-form-grid">{(["en","ar","fr","es"] as const).map((lang)=><label key={lang}>{t.labels} {lang.toUpperCase()}<input value={definition[lang]} onChange={(e)=>setDefinition({...definition,[lang]:e.target.value})}/></label>)}</div>
           <button className="primary-button" onClick={()=>void createRule()}>{t.create}</button>
         </section>
         {!selected?<section style={box}>{t.select}</section>:<>
           <section style={box}><h2>{t.version} · {selected.code}</h2><p><small>{t.immutable}</small></p>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+            <div className="admin-form-grid">
               <label>{t.questionnaire}<select value={questionnaireVersionId} onChange={(e)=>setQuestionnaireVersionId(e.target.value)}>{activeQuestionnaireVersions.map((v)=><option key={v.id} value={v.id}>{v.label}</option>)}</select></label>
               <label>{t.type}<select value={triggerType} onChange={(e)=>{setTriggerType(e.target.value as TriggerType);setN1(e.target.value==="PERIODIC"?"30":e.target.value==="PRE_VISIT"?"48":e.target.value==="MANUAL"?"7":"0");}}>{TYPES.map((v)=><option key={v}>{v}</option>)}</select></label>
               <label>{t.config} · {configLabels[0]}<input inputMode="numeric" value={n1} onChange={(e)=>setN1(e.target.value)}/></label>
@@ -139,7 +139,7 @@ export default function QuestionnaireTriggersPage(){
               <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
                 {v.status==="DRAFT"&&<><button className="secondary-button" onClick={()=>void simulate(v)}>{t.simulate}</button><button className="primary-button" disabled={!v.lastSimulatedAt} onClick={()=>void activate(v)}>{t.activate}</button></>}
               </div>
-              {v.status==="ACTIVE"&&v.triggerType==="MANUAL"&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr auto",gap:8,marginTop:10}}><input placeholder={t.patientId} value={manual.patientId} onChange={(e)=>setManual({...manual,patientId:e.target.value})}/><input placeholder={t.eventId} value={manual.eventId} onChange={(e)=>setManual({...manual,eventId:e.target.value})}/><button className="secondary-button" onClick={()=>void dispatch(v)}>{t.dispatch}</button></div>}
+              {v.status==="ACTIVE"&&v.triggerType==="MANUAL"&&<div className="admin-form-grid" style={{marginTop:10}}><label><span>{t.patientId}</span><input placeholder={t.patientId} value={manual.patientId} onChange={(e)=>setManual({...manual,patientId:e.target.value})}/></label><label><span>{t.eventId}</span><input placeholder={t.eventId} value={manual.eventId} onChange={(e)=>setManual({...manual,eventId:e.target.value})}/></label><div className="admin-form-actions"><button className="secondary-button" onClick={()=>void dispatch(v)}>{t.dispatch}</button></div></div>}
             </div>)}
           </section>
           {simulation!=null&&<section style={{...box,background:"#f8fafc"}}><h3>{t.simulation}</h3><pre style={{whiteSpace:"pre-wrap",overflowWrap:"anywhere"}}>{JSON.stringify(simulation,null,2)}</pre></section>}

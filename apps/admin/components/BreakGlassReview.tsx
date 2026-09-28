@@ -42,8 +42,8 @@ export function BreakGlassReview(){
       <div className={styles.facts}><span><b>{c.patient}</b>{g.patientId}</span><span><b>{c.provider}</b>{g.providerId}</span><span><b>{c.scope}</b>{g.scope}</span><span><b>{c.ttl}</b>{g.ttlMinutes} min</span><span><b>{c.granted}</b>{dt(g.grantedAt)}</span><span><b>{c.expires}</b>{dt(g.expiresAt)}</span></div>
       <div className={styles.usage}><b>{c.usage}</b>{g.accessSummary?.accessed?<><span>{g.accessSummary.usageCount} {c.usedTimes}</span><small>{c.lastUsed}: {dt(g.accessSummary.lastUsedAt)}</small></>:<span>{c.neverUsed}</span>}</div>
       {g.reviewStatus==="PENDING"?<div className={styles.review}>
-        <select value={d.outcome} onChange={e=>setDrafts(s=>({...s,[g.id]:{...d,outcome:e.target.value}}))}><option value="APPROPRIATE">{c.appropriate}</option><option value="INAPPROPRIATE">{c.inappropriate}</option><option value="NEEDS_FOLLOW_UP">{c.followUp}</option></select>
-        <select value={d.reasonCode} onChange={e=>setDrafts(s=>({...s,[g.id]:{...d,reasonCode:e.target.value}}))}>{reasons.map(r=><option key={r} value={r}>{r.replaceAll("_"," ")}</option>)}</select>
+        <label className="admin-form-field"><span>{c.review}</span><select value={d.outcome} onChange={e=>setDrafts(s=>({...s,[g.id]:{...d,outcome:e.target.value}}))}><option value="APPROPRIATE">{c.appropriate}</option><option value="INAPPROPRIATE">{c.inappropriate}</option><option value="NEEDS_FOLLOW_UP">{c.followUp}</option></select></label>
+        <label className="admin-form-field"><span>{c.reason}</span><select value={d.reasonCode} onChange={e=>setDrafts(s=>({...s,[g.id]:{...d,reasonCode:e.target.value}}))}>{reasons.map(r=><option key={r} value={r}>{r.replaceAll("_"," ")}</option>)}</select></label>
         <button onClick={()=>void review(g.id)} disabled={busy!==""}>{busy===g.id?"…":c.review}</button>
       </div>:<div>{g.reviewOutcome??"REVIEWED"} · {dt(g.reviewedAt)}</div>}
     </article>;})}</section>}

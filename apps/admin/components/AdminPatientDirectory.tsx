@@ -54,10 +54,10 @@ export function AdminPatientDirectory() {
     <div className={styles.notice}>{pg(locale, "privacy")}</div>
     {error ? <div className={styles.error}>{error}</div> : null}
     <div className={styles.toolbar}>
-      <input className={styles.input} value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") void load(); }} placeholder={pg(locale, "search")} />
-      <select className={styles.select} value={status} onChange={(e) => setStatus(e.target.value)} aria-label={pg(locale, "status")}>
+      <label className="admin-form-field"><span>{pg(locale, "search")}</span><input className={styles.input} value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") void load(); }} placeholder={pg(locale, "search")} /></label>
+      <label className="admin-form-field"><span>{pg(locale, "status")}</span><select className={styles.select} value={status} onChange={(e) => setStatus(e.target.value)} aria-label={pg(locale, "status")}>
         <option value="">{pg(locale, "all")}</option><option value="ACTIVE">ACTIVE</option><option value="SUSPENDED">SUSPENDED</option><option value="ARCHIVED">ARCHIVED</option>
-      </select>
+      </select></label>
       <button className={styles.ghost} disabled={loading} onClick={() => void load()}>{pg(locale, "refresh")}</button>
     </div>
     <div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>{pg(locale, "patient")}</th><th>{pg(locale, "identity")}</th><th>{pg(locale, "verification")}</th><th>{pg(locale, "signals")}</th><th /></tr></thead><tbody>
