@@ -15,7 +15,7 @@ type ProviderCategory = {
   requiredCredentialTypes?: string[];
   _count?: { providers?: number; onboardings?: number; forms?: number };
 };
-const FAMILIES = ["NON_DOCTOR_HEALTHCARE", "MEDICAL_TRANSPORT_GROUND", "MEDICAL_TRANSPORT_AIR", "EMERGENCY_AMBULANCE"] as const;
+const FAMILIES = ["ALLIED_HEALTH", "DIAGNOSTIC", "NURSING", "PHARMACY", "LABORATORY", "THERAPY", "NON_DOCTOR_HEALTHCARE", "MEDICAL_TRANSPORT_GROUND", "MEDICAL_TRANSPORT_AIR", "EMERGENCY_AMBULANCE"] as const;
 const EMPTY_LABELS: Labels = { en: "", ar: "", fr: "", es: "" };
 
 const text = {
@@ -152,7 +152,7 @@ export default function MasterDataPage() {
         <h2>{categoryEdit.id ? t.edit : t.add} · {t.providers}</h2>
         <div style={{...grid,gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))"}}>
           <label>{t.slug}<input value={categoryEdit.slug ?? ""} onChange={e=>setCategoryEdit({...categoryEdit,slug:e.target.value.toLowerCase()})}/></label>
-          <label>{t.family}<select value={categoryEdit.family ?? FAMILIES[0]} onChange={e=>setCategoryEdit({...categoryEdit,family:e.target.value})}>{FAMILIES.map(item=><option key={item}>{item}</option>)}</select></label>
+          <label>{t.family}<input list="provider-family-options" value={categoryEdit.family ?? FAMILIES[0]} onChange={e=>setCategoryEdit({...categoryEdit,family:e.target.value.toUpperCase()})}/><datalist id="provider-family-options">{FAMILIES.map(item=><option key={item} value={item}/>)}</datalist></label>
           <label>{t.required}<input value={categoryEdit.required} onChange={e=>setCategoryEdit({...categoryEdit,required:e.target.value})} placeholder="license, certification"/></label>
           {(["en","ar","fr","es"] as const).map(lang=><label key={lang}>{t.labels} {lang.toUpperCase()}<input value={categoryEdit.labels[lang] ?? ""} onChange={e=>setCategoryEdit({...categoryEdit,labels:{...categoryEdit.labels,[lang]:e.target.value}})}/></label>)}
         </div>
