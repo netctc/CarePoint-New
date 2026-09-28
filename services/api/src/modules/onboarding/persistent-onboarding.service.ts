@@ -428,7 +428,22 @@ export class PersistentOnboardingService {
           },
         });
         const provider = await tx.provider.findUnique({ where: { userId: record.userId } });
-        if (provider) await tx.provider.update({ where: { id: provider.id }, data: { status: "DRAFT" } });
+        if (provider) {
+          await tx.provider.update({ where: { id: provider.id }, data: { status: "DRAFT" } });
+          if (provider.status !== "DRAFT") {
+            await tx.providerGovernanceHistory.create({
+              data: {
+                providerId: provider.id,
+                domain: "PROVIDER",
+                targetId: provider.id,
+                fromStatus: provider.status,
+                toStatus: "DRAFT",
+                reason: note?.trim() || "Credential rejected during onboarding review.",
+                actorId: principal.accountId,
+              },
+            });
+          }
+        }
       }
       return reviewed;
     });
@@ -454,7 +469,22 @@ export class PersistentOnboardingService {
 
     const result = await this.prisma.$transaction(async (tx) => {
       const provider = await tx.provider.findUnique({ where: { userId: record.userId } });
-      if (provider) await tx.provider.update({ where: { id: provider.id }, data: { status: "DRAFT" } });
+      if (provider) {
+        await tx.provider.update({ where: { id: provider.id }, data: { status: "DRAFT" } });
+        if (provider.status !== "DRAFT") {
+          await tx.providerGovernanceHistory.create({
+            data: {
+              providerId: provider.id,
+              domain: "PROVIDER",
+              targetId: provider.id,
+              fromStatus: provider.status,
+              toStatus: "DRAFT",
+              reason: reviewNote,
+              actorId: principal.accountId,
+            },
+          });
+        }
+      }
       return tx.providerOnboarding.update({
         where: { id: onboardingId },
         data: {
@@ -490,7 +520,22 @@ export class PersistentOnboardingService {
 
     const result = await this.prisma.$transaction(async (tx) => {
       const provider = await tx.provider.findUnique({ where: { userId: record.userId } });
-      if (provider) await tx.provider.update({ where: { id: provider.id }, data: { status: "REJECTED" } });
+      if (provider) {
+        await tx.provider.update({ where: { id: provider.id }, data: { status: "REJECTED" } });
+        if (provider.status !== "REJECTED") {
+          await tx.providerGovernanceHistory.create({
+            data: {
+              providerId: provider.id,
+              domain: "PROVIDER",
+              targetId: provider.id,
+              fromStatus: provider.status,
+              toStatus: "REJECTED",
+              reason: reviewNote,
+              actorId: principal.accountId,
+            },
+          });
+        }
+      }
       return tx.providerOnboarding.update({
         where: { id: onboardingId },
         data: {
@@ -684,7 +729,22 @@ export class PersistentOnboardingService {
     this.requireReviewPermission(principal);
     const provider = await this.prisma.provider.findUnique({ where: { userId: accountId } });
     if (!provider) throw new NotFoundException("Provider profile not found.");
-    await this.prisma.provider.update({ where: { id: provider.id }, data: { status: "SUSPENDED" } });
+    await this.prisma.$transaction(async (tx) => {
+      await tx.provider.update({ where: { id: provider.id }, data: { status: "SUSPENDED" } });
+      if (provider.status !== "SUSPENDED") {
+        await tx.providerGovernanceHistory.create({
+          data: {
+            providerId: provider.id,
+            domain: "PROVIDER",
+            targetId: provider.id,
+            fromStatus: provider.status,
+            toStatus: "SUSPENDED",
+            reason: "Provider suspended by governance reviewer.",
+            actorId: principal.accountId,
+          },
+        });
+      }
+    });
     await this.auth.revokeAll(principal, accountId);
     await this.audit.write({
       actorId: principal.accountId,
