@@ -32,6 +32,38 @@ services:
       retries: 12
     networks: [carepoint_test]
 
+  storage-init:
+    image: busybox:1.37.0
+    user: "0:0"
+    restart: "no"
+    command:
+      - sh
+      - -c
+      - |
+        mkdir -p /documents /bulk-export
+        chown -R 1000:1000 /documents /bulk-export
+        chmod 700 /documents /bulk-export
+    volumes:
+      - carepoint_test_documents:/documents
+      - carepoint_test_bulk:/bulk-export
+
+  migrate:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+      target: api
+      args:
+        RELEASE_SHA: ${TEST_RELEASE_SHA:-entorno-v2}
+        RELEASE_VERSION: ${TEST_RELEASE_VERSION:-entorno-v2}
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://carepoint_test:${TEST_POSTGRES_PASSWORD:?TEST_POSTGRES_PASSWORD is required}@postgres:5432/carepoint_test?schema=public
+    command: ["npm", "run", "db:deploy"]
+    networks: [carepoint_test]
+
   api:
     build:
       context: ../..
@@ -42,8 +74,10 @@ services:
         RELEASE_VERSION: ${TEST_RELEASE_VERSION:-entorno-v2}
     restart: unless-stopped
     depends_on:
-      postgres:
-        condition: service_healthy
+      storage-init:
+        condition: service_completed_successfully
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
     environment:

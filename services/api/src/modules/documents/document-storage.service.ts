@@ -29,8 +29,20 @@ export class DocumentStorageService implements OnModuleDestroy {
     const provider = this.provider();
     if (provider === "local") {
       const path = this.safePath(objectKey);
-      await mkdir(dirname(path), { recursive: true, mode: 0o700 });
-      await writeFile(path, ciphertext, { encoding: "utf8", mode: 0o600 });
+      try {
+        await mkdir(dirname(path), { recursive: true, mode: 0o700 });
+        await writeFile(path, ciphertext, { encoding: "utf8", mode: 0o600 });
+      } catch (error) {
+        const code = typeof error === "object" && error !== null && "code" in error
+          ? String((error as { code?: unknown }).code ?? "")
+          : "";
+        if (code === "EACCES" || code === "EPERM" || code === "EROFS") {
+          throw new InternalServerErrorException(
+            "Credential document storage is not writable. Verify persistent volume ownership.",
+          );
+        }
+        throw error;
+      }
       return;
     }
     if (provider === "gcp") {
