@@ -64,6 +64,10 @@ assert.match(rich,/createClinicalData/);
 assert.match(rich,/futureAvailabilitySlots/);
 assert.match(rich,/const encounterDays=\[300,210,120,35\]/);
 assert.match(rich,/wantsCompleted&&!assignedProviderId&&pool\.length/);
+assert.match(rich,/const availableSlots=\[\.\.\.uniqueSlots\]/);
+assert.match(rich,/const providerIntervals=new Map/);
+assert.match(rich,/if\(overlaps\(start,end,patientIntervals\)\) return false/);
+assert.match(rich,/return !overlaps\(start,end,providerIntervals\.get\(slot\.providerId\)\?\?\[\]\)/);
 
 assert.match(healthUi,/Directionality\\\(\\s\*textDirection:/);
 
