@@ -24,6 +24,7 @@ jobs:
           bash -n ops/test-v2/scripts/smoke.sh
           bash -n ops/test-v2/scripts/verify-public.sh
           bash -n ops/test-v2/scripts/load-test-fixtures.sh
+          bash -n ops/test-v2/scripts/reset-rich-test-data.sh
           bash -n ops/test-v2/scripts/use-nipio-domains.sh
           bash -n ops/test-v2/scripts/ensure-api-upload-limit.sh
       - name: Enforce synthetic lane boundaries
