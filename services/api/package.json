@@ -94,7 +94,8 @@
     "v2:admin-b6-operations": "node scripts/v2-admin-b6-operations-smoke.mjs",
     "v2:break-glass-surfaces": "node scripts/v2-break-glass-surfaces-smoke.mjs",
     "v2:devices": "node scripts/v2-medical-device-smoke.mjs",
-    "v2:food-diary": "node scripts/v2-food-diary-smoke.mjs"
+    "v2:food-diary": "node scripts/v2-food-diary-smoke.mjs",
+    "db:test-rich-password-reset": "node dist/scripts/reset-rich-test-passwords.js"
   },
   "dependencies": {
     "@aws-sdk/client-kms": "3.1128.0",
