@@ -23,6 +23,7 @@ import { BillingModule } from "./modules/billing/billing.module";
 import { ClaimsModule } from "./modules/claims/claims.module";
 import { ClinicalHistoryModule } from "./modules/clinical-history/clinical-history.module";
 import { ClinicalModule } from "./modules/clinical/clinical.module";
+import { ClinicalFactsModule } from "./modules/clinical-facts/clinical-facts.module";
 import { ClinicalProfileModule } from "./modules/clinical-profile/clinical-profile.module";
 import { CommunicationsModule } from "./modules/communications/communications.module";
 import { ConsentModule } from "./modules/consent/consent.module";
@@ -173,6 +174,7 @@ const isolatedSyntheticPilot = isolatedSyntheticPrivatePilotActive(process.env);
     PatientClinicalExportModule,
     QuestionnaireModule,
     ObservationModule,
+    ClinicalFactsModule,
     OnboardingModule,
     ConsentModule,
     ClinicalGovernanceModule,
