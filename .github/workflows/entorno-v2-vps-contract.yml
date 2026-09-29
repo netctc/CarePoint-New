@@ -77,5 +77,8 @@ jobs:
           grep -q 'storage-init:' ops/test-v2/compose.yaml
           grep -q 'chown -R 1000:1000 /documents /bulk-export' ops/test-v2/compose.yaml
           grep -q 'migrate:' ops/test-v2/compose.yaml
+          grep -q 'rich-test-data:' ops/test-v2/compose.yaml
+          grep -q 'CAREPOINT_RICH_TEST_DATA_CONFIRM' ops/test-v2/compose.yaml
+          test -f ops/test-v2/scripts/reset-rich-test-data.sh
           grep -Fq 'command: ["npm", "run", "db:deploy"]' ops/test-v2/compose.yaml
           test -f services/api/prisma/migrations/20260927170500_onboarding_credential_documents/migration.sql
