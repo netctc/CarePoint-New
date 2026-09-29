@@ -68,6 +68,8 @@ assert.match(rich,/const availableSlots=\[\.\.\.uniqueSlots\]/);
 assert.match(rich,/const providerIntervals=new Map/);
 assert.match(rich,/if\(overlaps\(start,end,patientIntervals\)\) return false/);
 assert.match(rich,/return !overlaps\(start,end,providerIntervals\.get\(slot\.providerId\)\?\?\[\]\)/);
+assert.match(rich,/createTransportData\(patients,other\.transportProviders,config,admin\.id\)/);
+assert.doesNotMatch(rich,/actorAccountId:SYSTEM_ACTOR/);
 
 assert.match(healthUi,/Directionality\\\(\\s\*textDirection:/);
 
