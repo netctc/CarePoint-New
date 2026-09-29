@@ -69,10 +69,16 @@ async function main() {
   const passwordHash = hashPassword(password);
 
   const result = await prisma.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe(
+      'INSERT INTO "AuditIntegrityHead" ("id") VALUES (\'default\') ON CONFLICT ("id") DO NOTHING',
+    );
     const sessions = await tx.authSession.deleteMany({
       where: { userId: { in: ids } },
     });
     const challenges = await tx.authChallenge.deleteMany({
+      where: { userId: { in: ids } },
+    });
+    const mfaEnrollments = await tx.mfaEnrollment.deleteMany({
       where: { userId: { in: ids } },
     });
     const updated = await tx.user.updateMany({
@@ -87,6 +93,7 @@ async function main() {
     return {
       sessionsDeleted: sessions.count,
       challengesDeleted: challenges.count,
+      mfaEnrollmentsDeleted: mfaEnrollments.count,
       usersUpdated: updated.count,
     };
   });
@@ -98,7 +105,7 @@ async function main() {
 
   const admin = users.find((user) => user.username === "admin.test");
 
-  console.log("CarePoint synthetic fixture passwords updated.");
+  console.log("CarePoint synthetic fixture authentication runtime repaired.");
   console.log(
     JSON.stringify(
       {
@@ -106,6 +113,8 @@ async function main() {
         usersUpdated: result.usersUpdated,
         sessionsDeleted: result.sessionsDeleted,
         challengesDeleted: result.challengesDeleted,
+        mfaEnrollmentsDeleted: result.mfaEnrollmentsDeleted,
+        auditIntegrityHead: "default",
         byRole,
         admin: admin
           ? { username: admin.username, email: admin.email }
