@@ -355,6 +355,11 @@ async function resetApplicationData(){
   if(!tables.length) return 0;
   const names=tables.map(({tablename})=>`"${tablename.replaceAll('"','""')}"`).join(",");
   await prisma.$executeRawUnsafe(`TRUNCATE TABLE ${names} RESTART IDENTITY CASCADE`);
+  // DatabaseAuditService requires the singleton integrity-chain head to exist
+  // before any audited authentication or administration operation can succeed.
+  await prisma.$executeRawUnsafe(
+    'INSERT INTO "AuditIntegrityHead" ("id") VALUES (\'default\') ON CONFLICT ("id") DO NOTHING',
+  );
   return tables.length;
 }
 
