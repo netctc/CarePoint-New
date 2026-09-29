@@ -68,6 +68,7 @@ jobs:
           categories=$(psql "$PSQL_DATABASE_URL" -Atqc 'select count(*) from "ProviderCategory"')
           metrics=$(psql "$PSQL_DATABASE_URL" -Atqc 'select count(*) from "ObservationType"')
           future_appointments=$(psql "$PSQL_DATABASE_URL" -Atqc 'select count(*) from "Appointment" where "startsAt" > now()')
+          audit_head=$(psql "$PSQL_DATABASE_URL" -Atqc 'select count(*) from "AuditIntegrityHead" where "id" = '\''default'\'')
           patient_overlaps=$(psql "$PSQL_DATABASE_URL" -Atqc '
             select count(*) from "Appointment" a
             join "Appointment" b on a.id < b.id and a."patientId" = b."patientId"
@@ -80,8 +81,8 @@ jobs:
             where tsrange(a."startsAt",a."endsAt",'\''[)'\'') && tsrange(b."startsAt",b."endsAt",'\''[)'\'')
               and a.status in ('\''REQUESTED'\'','\''CONFIRMED'\'','\''COMPLETED'\'')
               and b.status in ('\''REQUESTED'\'','\''CONFIRMED'\'','\''COMPLETED'\'')')
-          printf 'patients=%s doctors=%s providers=%s specialties=%s categories=%s metrics=%s future=%s patient_overlaps=%s provider_overlaps=%s\n' \
-            "$patients" "$doctors" "$providers" "$specialties" "$categories" "$metrics" "$future_appointments" "$patient_overlaps" "$provider_overlaps"
+          printf 'patients=%s doctors=%s providers=%s specialties=%s categories=%s metrics=%s future=%s audit_head=%s patient_overlaps=%s provider_overlaps=%s\n' \
+            "$patients" "$doctors" "$providers" "$specialties" "$categories" "$metrics" "$future_appointments" "$audit_head" "$patient_overlaps" "$provider_overlaps"
           test "$patients" -eq 50
           test "$doctors" -ge 74
           test "$providers" -ge 70
@@ -89,6 +90,7 @@ jobs:
           test "$categories" -ge 70
           test "$metrics" -ge 30
           test "$future_appointments" -ge 90
+          test "$audit_head" -eq 1
           test "$patient_overlaps" -eq 0
           test "$provider_overlaps" -eq 0
       - name: Verify representative login naming
