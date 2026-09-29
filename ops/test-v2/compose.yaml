@@ -64,6 +64,40 @@ services:
     command: ["npm", "run", "db:deploy"]
     networks: [carepoint_test]
 
+
+  rich-test-data:
+    profiles: ["rich-test-data"]
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+      target: api
+      args:
+        RELEASE_SHA: ${TEST_RELEASE_SHA:-entorno-v2}
+        RELEASE_VERSION: ${TEST_RELEASE_VERSION:-entorno-v2}
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      storage-init:
+        condition: service_completed_successfully
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://carepoint_test:${TEST_POSTGRES_PASSWORD:?TEST_POSTGRES_PASSWORD is required}@postgres:5432/carepoint_test?schema=public
+      CAREPOINT_RICH_TEST_DATA_CONFIRM: ${CAREPOINT_RICH_TEST_DATA_CONFIRM:?CAREPOINT_RICH_TEST_DATA_CONFIRM is required}
+      CAREPOINT_TEST_FIXTURE_PASSWORD: ${CAREPOINT_TEST_FIXTURE_PASSWORD:?CAREPOINT_TEST_FIXTURE_PASSWORD is required}
+      CAREPOINT_TEST_FIXTURE_EMAIL_DOMAIN: ${CAREPOINT_TEST_FIXTURE_EMAIL_DOMAIN:-carepoint.test}
+      CAREPOINT_TEST_FIXTURE_TIMEZONE: ${CAREPOINT_TEST_FIXTURE_TIMEZONE:-Asia/Riyadh}
+      CAREPOINT_RICH_TEST_PATIENT_COUNT: ${CAREPOINT_RICH_TEST_PATIENT_COUNT:-300}
+      CAREPOINT_RICH_TEST_DOCTORS_PER_SPECIALTY: ${CAREPOINT_RICH_TEST_DOCTORS_PER_SPECIALTY:-2}
+      CAREPOINT_RICH_TEST_PROVIDERS_PER_CATEGORY: ${CAREPOINT_RICH_TEST_PROVIDERS_PER_CATEGORY:-2}
+      CLINICAL_KEY_PROVIDER: local
+      CLINICAL_ENVELOPE_KEY_ID: test-clinical-kek-v1
+      CLINICAL_ENVELOPE_KEY_BASE64: ${CLINICAL_ENVELOPE_KEY_BASE64:?CLINICAL_ENVELOPE_KEY_BASE64 is required}
+    command: ["npm", "--workspace", "@carepoint/api", "run", "db:test-rich-reset"]
+    networks: [carepoint_test]
+
   api:
     build:
       context: ../..
