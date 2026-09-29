@@ -92,6 +92,19 @@ export CAREPOINT_TEST_FIXTURE_TIMEZONE=Asia/Riyadh
 ops/test-v2/scripts/load-test-fixtures.sh
 ```
 
+For the **full destructive rich dataset** (300+ patients by default, every seeded medical specialty/provider category, almost one year of history, clinical metrics/history, pending onboarding, air/ground transport and future availability), use the guarded one-command runner instead:
+
+```bash
+export CAREPOINT_RICH_TEST_DATA_CONFIRM=RESET_AND_CREATE_RICH_SYNTHETIC_DATA
+export CAREPOINT_TEST_FIXTURE_PASSWORD='<shared test-only password, minimum 16 characters>'
+export CAREPOINT_TEST_FIXTURE_EMAIL_DOMAIN=carepoint.test
+export CAREPOINT_TEST_FIXTURE_TIMEZONE=Asia/Riyadh
+# TEST_POSTGRES_PASSWORD and CLINICAL_ENVELOPE_KEY_BASE64 must already be exported.
+ops/test-v2/scripts/reset-rich-test-data.sh
+```
+
+This command stops application writers, migrates the schema, truncates application data, generates the rich synthetic dataset, restarts the applications and verifies minimum record counts plus representative usernames. It never prints the fixture password.
+
 The loader is idempotent and safety-gated to databases whose name contains `test`, `pilot`, `staging` or `uat`. It creates/refreshes:
 
 - one dedicated ADMIN and one SUPPORT account;
