@@ -69,6 +69,15 @@ CAREPOINT_TEST_FIXTURE_PASSWORD=<set manually; minimum 16 characters>
 CAREPOINT_TEST_FIXTURE_EMAIL_DOMAIN=carepoint.test
 CAREPOINT_TEST_FIXTURE_TIMEZONE=Asia/Riyadh
 
+Rich synthetic full-system reset
+--------------------------------
+# Destructive reset guard. Required only when running reset-rich-test-data.sh.
+CAREPOINT_RICH_TEST_DATA_CONFIRM=RESET_AND_CREATE_RICH_SYNTHETIC_DATA
+# Optional scale overrides; defaults shown:
+CAREPOINT_RICH_TEST_PATIENT_COUNT=300
+CAREPOINT_RICH_TEST_DOCTORS_PER_SPECIALTY=2
+CAREPOINT_RICH_TEST_PROVIDERS_PER_CATEGORY=2
+
 # Private-pilot fixtures use a stricter pilot/staging/uat database-name guard and
 # are not the default fixture set for the carepoint_test database.
 LOAD_SYNTHETIC_PILOT_FIXTURES=false
