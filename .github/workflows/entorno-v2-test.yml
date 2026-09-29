@@ -80,6 +80,10 @@ jobs:
       TELEHEALTH_MOCK_SIGNING_SECRET: dGVzdC10ZXN0LXRlc3QtdGVzdC10ZXN0LXRlc3Q=
       REGISTRATION_OTP_DELIVERY_MODE: display
       REGISTRATION_OTP_PEPPER: test-registration-otp-pepper-0123456789abcdef
+      CAREPOINT_RICH_TEST_DATA_CONFIRM: RESET_AND_CREATE_RICH_SYNTHETIC_DATA
+      CAREPOINT_TEST_FIXTURE_PASSWORD: CarePoint-Rich-Test-Password-2026
+      CAREPOINT_TEST_FIXTURE_EMAIL_DOMAIN: carepoint.test
+      CAREPOINT_TEST_FIXTURE_TIMEZONE: Asia/Riyadh
     steps:
       - uses: actions/checkout@v4
       - run: docker compose -f ops/test-v2/compose.yaml config >/dev/null
