@@ -704,16 +704,39 @@ async function createAppointments(patients:PatientFixture[],providers:Schedulabl
   }
   for(let i=0;i<historical.length;i+=2000) await prisma.appointment.createMany({data:historical.slice(i,i+2000),skipDuplicates:true});
 
-  const slots=await prisma.availabilitySlot.findMany({
+  const rawSlots=await prisma.availabilitySlot.findMany({
     where:{startsAt:{gt:now.add(1,"day").toDate(),lte:now.add(FUTURE_APPOINTMENT_DAYS,"day").toDate()},status:"OPEN"},
-    orderBy:[{startsAt:"asc"},{providerId:"asc"}],
-    take:patients.length*3,
+    orderBy:[{startsAt:"asc"},{providerId:"asc"},{modality:"asc"}],
+    take:patients.length*12,
   });
+  // Availability can expose overlapping slots for the same provider through
+  // different modalities. Future fixture bookings must respect the database
+  // exclusion constraints for both patient and provider time ranges.
+  const uniqueSlots=rawSlots.filter((slot,index,items)=>
+    items.findIndex(candidate=>
+      candidate.providerId===slot.providerId
+      && candidate.startsAt.getTime()===slot.startsAt.getTime()
+      && candidate.endsAt.getTime()===slot.endsAt.getTime()
+    )===index
+  );
+  const availableSlots=[...uniqueSlots];
+  const providerIntervals=new Map<string,Array<{start:number;end:number}>>();
+  const overlaps=(start:number,end:number,intervals:Array<{start:number;end:number}>)=>
+    intervals.some(interval=>start<interval.end&&interval.start<end);
+
   let futureCount=0;
   const chosenSlotIds:string[]=[];
   for(const [patientIndex,patient] of patients.entries()){
+    const patientIntervals:Array<{start:number;end:number}>=[];
     for(let future=0;future<2;future++){
-      const slot=slots[(patientIndex*2+future)%slots.length];
+      const slotIndex=availableSlots.findIndex(slot=>{
+        const start=slot.startsAt.getTime();
+        const end=slot.endsAt.getTime();
+        if(overlaps(start,end,patientIntervals)) return false;
+        return !overlaps(start,end,providerIntervals.get(slot.providerId)??[]);
+      });
+      if(slotIndex<0) break;
+      const [slot]=availableSlots.splice(slotIndex,1);
       if(!slot) break;
       await prisma.appointment.create({
         data:{
@@ -728,6 +751,11 @@ async function createAppointments(patients:PatientFixture[],providers:Schedulabl
           endsAt:slot.endsAt,
         },
       });
+      const interval={start:slot.startsAt.getTime(),end:slot.endsAt.getTime()};
+      patientIntervals.push(interval);
+      const providerBooked=providerIntervals.get(slot.providerId)??[];
+      providerBooked.push(interval);
+      providerIntervals.set(slot.providerId,providerBooked);
       chosenSlotIds.push(slot.id);
       futureCount++;
     }
