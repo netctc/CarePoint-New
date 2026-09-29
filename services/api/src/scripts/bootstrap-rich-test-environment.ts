@@ -119,6 +119,40 @@ const SPECIALTIES: SpecialtySeed[] = [
   { code: "PAIN", suffix: "PAI", name: "Pain Medicine" },
   { code: "NUCMED", suffix: "NUC", name: "Nuclear Medicine" },
   { code: "REPRO", suffix: "REP", name: "Reproductive Medicine / Fertility" },
+  { code: "NEON", suffix: "NEO", name: "Neonatology" },
+  { code: "PEDCARD", suffix: "PCA", name: "Pediatric Cardiology" },
+  { code: "PEDNEUR", suffix: "PNE", name: "Pediatric Neurology" },
+  { code: "PEDGAST", suffix: "PGA", name: "Pediatric Gastroenterology" },
+  { code: "PEDENDO", suffix: "PEN", name: "Pediatric Endocrinology" },
+  { code: "PEDPULM", suffix: "PPU", name: "Pediatric Pulmonology" },
+  { code: "PEDNEPH", suffix: "PNP", name: "Pediatric Nephrology" },
+  { code: "PEDHEMONC", suffix: "PHO", name: "Pediatric Hematology and Oncology" },
+  { code: "DEVPED", suffix: "DBP", name: "Developmental and Behavioral Pediatrics" },
+  { code: "ADOMED", suffix: "ADO", name: "Adolescent Medicine" },
+  { code: "MFM", suffix: "MFM", name: "Maternal-Fetal Medicine" },
+  { code: "GYNONC", suffix: "GYO", name: "Gynecologic Oncology" },
+  { code: "UROGYN", suffix: "UGY", name: "Urogynecology" },
+  { code: "BREASTSURG", suffix: "BRS", name: "Breast Surgery" },
+  { code: "COLORECT", suffix: "CRS", name: "Colorectal Surgery" },
+  { code: "SURGONC", suffix: "SON", name: "Surgical Oncology" },
+  { code: "TRANSPLANT", suffix: "TRS", name: "Transplant Surgery" },
+  { code: "TRAUMASURG", suffix: "TRA", name: "Trauma Surgery" },
+  { code: "HANDSURG", suffix: "HND", name: "Hand Surgery" },
+  { code: "OMFS", suffix: "OMS", name: "Oral and Maxillofacial Surgery" },
+  { code: "PEDSURG", suffix: "PSU", name: "Pediatric Surgery" },
+  { code: "INTRAD", suffix: "INR", name: "Interventional Radiology" },
+  { code: "RADONC", suffix: "RON", name: "Radiation Oncology" },
+  { code: "CLINGEN", suffix: "CGE", name: "Clinical Genetics" },
+  { code: "PREVMED", suffix: "PRV", name: "Preventive Medicine" },
+  { code: "CRITCARE", suffix: "CCM", name: "Critical Care Medicine" },
+  { code: "HOSPMED", suffix: "HSP", name: "Hospital Medicine" },
+  { code: "ADDICT", suffix: "ADM", name: "Addiction Medicine" },
+  { code: "INTCARD", suffix: "ICR", name: "Interventional Cardiology" },
+  { code: "CARDEPH", suffix: "EPH", name: "Cardiac Electrophysiology" },
+  { code: "HEPATO", suffix: "HEP", name: "Hepatology" },
+  { code: "BARMED", suffix: "BAR", name: "Bariatric Medicine" },
+  { code: "BARSURG", suffix: "BSR", name: "Bariatric Surgery" },
+  { code: "DENTMED", suffix: "DEN", name: "Dental Medicine" },
 ];
 
 const PROVIDER_CATEGORIES: CategorySeed[] = [
@@ -159,6 +193,39 @@ const PROVIDER_CATEGORIES: CategorySeed[] = [
   { slug:"emergency-ambulance", suffix:"EMS", name:"Emergency Ambulance", family:"EMERGENCY_AMBULANCE", credentialTypes:["transport-license","emergency-medical-license"], modalities:[], capabilities:{canManageTransport:true,transportMode:"GROUND",emergency:true} },
   { slug:"paramedicine", suffix:"PAR", name:"Paramedicine", family:"EMERGENCY_CARE", credentialTypes:["professional-license"], modalities:["HOME_VISIT"] },
   { slug:"care-coordination", suffix:"CCO", name:"Care Coordination", family:"CARE_COORDINATION", credentialTypes:["professional-certificate"], modalities:["TELEMEDICINE"] },
+  { slug:"school-psychology", suffix:"SCP", name:"School Psychology", family:"BEHAVIORAL_HEALTH", credentialTypes:["professional-license"], modalities:["CLINIC","TELEMEDICINE"] },
+  { slug:"industrial-organizational-psychology", suffix:"IOP", name:"Industrial and Organizational Psychology", family:"BEHAVIORAL_HEALTH", credentialTypes:["professional-license"], modalities:["CLINIC","TELEMEDICINE"] },
+  { slug:"rehabilitation-psychology", suffix:"RBP", name:"Rehabilitation Psychology", family:"BEHAVIORAL_HEALTH", credentialTypes:["professional-license"], modalities:["CLINIC","TELEMEDICINE","HOME_VISIT"] },
+  { slug:"geropsychology", suffix:"GOP", name:"Geropsychology", family:"BEHAVIORAL_HEALTH", credentialTypes:["professional-license"], modalities:["CLINIC","TELEMEDICINE","HOME_VISIT"] },
+  { slug:"sports-psychology", suffix:"SPP", name:"Sports Psychology", family:"BEHAVIORAL_HEALTH", credentialTypes:["professional-license"], modalities:["CLINIC","TELEMEDICINE"] },
+  { slug:"mental-health-counseling", suffix:"MHC", name:"Mental Health Counseling", family:"BEHAVIORAL_HEALTH", credentialTypes:["professional-license"], modalities:["CLINIC","TELEMEDICINE"] },
+  { slug:"addiction-counseling", suffix:"ADC", name:"Addiction Counseling", family:"BEHAVIORAL_HEALTH", credentialTypes:["professional-license"], modalities:["CLINIC","TELEMEDICINE"] },
+  { slug:"marriage-family-therapy", suffix:"MFT", name:"Marriage and Family Therapy", family:"BEHAVIORAL_HEALTH", credentialTypes:["professional-license"], modalities:["CLINIC","TELEMEDICINE"] },
+  { slug:"applied-behavior-analysis", suffix:"ABA", name:"Applied Behavior Analysis", family:"BEHAVIORAL_HEALTH", credentialTypes:["professional-license"], modalities:["CLINIC","HOME_VISIT"] },
+  { slug:"special-education-teacher", suffix:"SET", name:"Special Education Teacher", family:"SPECIAL_EDUCATION", credentialTypes:["professional-certificate"], modalities:["CLINIC","TELEMEDICINE","HOME_VISIT"] },
+  { slug:"assistive-technology", suffix:"AST", name:"Assistive Technology", family:"SPECIAL_EDUCATION", credentialTypes:["professional-certificate"], modalities:["CLINIC","TELEMEDICINE","HOME_VISIT"] },
+  { slug:"learning-support", suffix:"LSP", name:"Learning Support", family:"SPECIAL_EDUCATION", credentialTypes:["professional-certificate"], modalities:["CLINIC","TELEMEDICINE"] },
+  { slug:"vocational-rehabilitation", suffix:"VRH", name:"Vocational Rehabilitation", family:"REHABILITATION", credentialTypes:["professional-certificate"], modalities:["CLINIC","TELEMEDICINE","HOME_VISIT"] },
+  { slug:"clinical-nutrition", suffix:"CLN", name:"Clinical Nutrition", family:"NON_DOCTOR_HEALTHCARE", credentialTypes:["professional-license"], modalities:["CLINIC","TELEMEDICINE","HOME_VISIT"], capabilities:{canManageNutritionPlan:true} },
+  { slug:"pediatric-nutrition", suffix:"PNU", name:"Pediatric Nutrition", family:"NON_DOCTOR_HEALTHCARE", credentialTypes:["professional-license"], modalities:["CLINIC","TELEMEDICINE"] },
+  { slug:"renal-nutrition", suffix:"RNU", name:"Renal Nutrition", family:"NON_DOCTOR_HEALTHCARE", credentialTypes:["professional-license"], modalities:["CLINIC","TELEMEDICINE"] },
+  { slug:"sports-nutrition", suffix:"SNU", name:"Sports Nutrition", family:"NON_DOCTOR_HEALTHCARE", credentialTypes:["professional-license"], modalities:["CLINIC","TELEMEDICINE"] },
+  { slug:"genetic-counseling", suffix:"GCO", name:"Genetic Counseling", family:"ALLIED_HEALTH", credentialTypes:["professional-license"], modalities:["CLINIC","TELEMEDICINE"] },
+  { slug:"orthoptics", suffix:"ORP", name:"Orthoptics", family:"ALLIED_HEALTH", credentialTypes:["professional-license"], modalities:["CLINIC"] },
+  { slug:"phlebotomy", suffix:"PHL", name:"Phlebotomy", family:"LABORATORY", credentialTypes:["professional-certificate"], modalities:["CLINIC","HOME_VISIT"], capabilities:{canManageSpecimens:true} },
+  { slug:"sonography", suffix:"SNG", name:"Diagnostic Sonography", family:"DIAGNOSTIC", credentialTypes:["professional-license"], modalities:["CLINIC"] },
+  { slug:"cardiac-perfusion", suffix:"PRF", name:"Cardiac Perfusion", family:"ALLIED_HEALTH", credentialTypes:["professional-license"], modalities:["CLINIC"] },
+  { slug:"neurodiagnostic-technology", suffix:"NDT", name:"Neurodiagnostic Technology", family:"DIAGNOSTIC", credentialTypes:["professional-license"], modalities:["CLINIC"] },
+  { slug:"recreational-therapy", suffix:"RCT", name:"Recreational Therapy", family:"THERAPY", credentialTypes:["professional-license"], modalities:["CLINIC","HOME_VISIT"] },
+  { slug:"music-therapy", suffix:"MTH", name:"Music Therapy", family:"THERAPY", credentialTypes:["professional-certificate"], modalities:["CLINIC","HOME_VISIT"] },
+  { slug:"art-therapy", suffix:"ATH", name:"Art Therapy", family:"THERAPY", credentialTypes:["professional-certificate"], modalities:["CLINIC","HOME_VISIT"] },
+  { slug:"child-life-specialist", suffix:"CLS", name:"Child Life Specialist", family:"PEDIATRIC_SUPPORT", credentialTypes:["professional-certificate"], modalities:["CLINIC","HOME_VISIT"] },
+  { slug:"home-nursing", suffix:"HNS", name:"Home Nursing", family:"HOME_HEALTH", credentialTypes:["professional-license"], modalities:["HOME_VISIT"] },
+  { slug:"personal-care-assistance", suffix:"PCA", name:"Personal Care Assistance", family:"HOME_HEALTH", credentialTypes:["provider-license"], modalities:["HOME_VISIT"] },
+  { slug:"non-emergency-medical-transport", suffix:"NEM", name:"Non-Emergency Medical Transport", family:"MEDICAL_TRANSPORT_GROUND", credentialTypes:["transport-license"], modalities:[], capabilities:{canManageTransport:true,transportMode:"GROUND"} },
+  { slug:"wheelchair-medical-transport", suffix:"WCT", name:"Wheelchair Medical Transport", family:"MEDICAL_TRANSPORT_GROUND", credentialTypes:["transport-license"], modalities:[], capabilities:{canManageTransport:true,transportMode:"GROUND",wheelchair:true} },
+  { slug:"bariatric-medical-transport", suffix:"BMT", name:"Bariatric Medical Transport", family:"MEDICAL_TRANSPORT_GROUND", credentialTypes:["transport-license"], modalities:[], capabilities:{canManageTransport:true,transportMode:"GROUND",bariatric:true} },
+  { slug:"neonatal-medical-transport", suffix:"NTR", name:"Neonatal Medical Transport", family:"MEDICAL_TRANSPORT_GROUND", credentialTypes:["transport-license","emergency-medical-license"], modalities:[], capabilities:{canManageTransport:true,transportMode:"GROUND",neonatal:true} },
 ];
 
 const UNITS = [
@@ -178,6 +245,14 @@ const UNITS = [
   { code:"COUNT", dimension:"COUNT", name:"count" },
   { code:"L_MIN", dimension:"FLOW", name:"L/min" },
   { code:"SCORE", dimension:"SCORE", name:"score" },
+  { code:"KPA", dimension:"PRESSURE", name:"kPa" },
+  { code:"L", dimension:"VOLUME", name:"L" },
+  { code:"ML", dimension:"VOLUME", name:"mL" },
+  { code:"HOUR", dimension:"TIME", name:"hour" },
+  { code:"MINUTE", dimension:"TIME", name:"minute" },
+  { code:"KCAL", dimension:"ENERGY", name:"kcal" },
+  { code:"CMH2O", dimension:"PRESSURE", name:"cmH2O" },
+  { code:"ML_KG_H", dimension:"FLOW_PER_MASS", name:"mL/kg/h" },
 ] as const;
 
 const METRICS = [
@@ -193,6 +268,24 @@ const METRICS = [
   { code:"PAIN_SCORE", category:"SYMPTOM", name:"Pain score", unit:"SCORE", allowed:["SCORE"], min:0, max:10, precision:0 },
   { code:"STEPS", category:"ACTIVITY", name:"Daily steps", unit:"COUNT", allowed:["COUNT"], min:0, max:100000, precision:0 },
   { code:"HEIGHT", category:"BODY", name:"Height", unit:"CM", allowed:["CM","IN"], min:30, max:260, precision:1 },
+  { code:"MEAN_ARTERIAL_PRESSURE", category:"VITALS", name:"Mean arterial pressure", unit:"MMHG", allowed:["MMHG","KPA"], min:30, max:200, precision:1 },
+  { code:"PULSE_PRESSURE", category:"VITALS", name:"Pulse pressure", unit:"MMHG", allowed:["MMHG","KPA"], min:10, max:160, precision:1 },
+  { code:"WAIST_CIRCUMFERENCE", category:"BODY", name:"Waist circumference", unit:"CM", allowed:["CM","IN"], min:30, max:250, precision:1 },
+  { code:"BODY_FAT_PERCENT", category:"BODY", name:"Body fat percentage", unit:"PERCENT", allowed:["PERCENT"], min:2, max:70, precision:1 },
+  { code:"HBA1C", category:"METABOLIC", name:"HbA1c", unit:"PERCENT", allowed:["PERCENT"], min:2, max:20, precision:1 },
+  { code:"OXYGEN_FLOW", category:"RESPIRATORY", name:"Supplemental oxygen flow", unit:"L_MIN", allowed:["L_MIN"], min:0, max:30, precision:1 },
+  { code:"PEAK_EXPIRATORY_FLOW", category:"RESPIRATORY", name:"Peak expiratory flow", unit:"L_MIN", allowed:["L_MIN"], min:20, max:900, precision:0 },
+  { code:"FEV1", category:"RESPIRATORY", name:"Forced expiratory volume in one second", unit:"L", allowed:["L"], min:0.1, max:8, precision:2 },
+  { code:"FVC", category:"RESPIRATORY", name:"Forced vital capacity", unit:"L", allowed:["L"], min:0.1, max:10, precision:2 },
+  { code:"CPAP_PRESSURE", category:"RESPIRATORY", name:"CPAP pressure", unit:"CMH2O", allowed:["CMH2O"], min:0, max:30, precision:1 },
+  { code:"SLEEP_DURATION", category:"LIFESTYLE", name:"Sleep duration", unit:"HOUR", allowed:["HOUR","MINUTE"], min:0, max:24, precision:1 },
+  { code:"ACTIVE_MINUTES", category:"ACTIVITY", name:"Active minutes", unit:"MINUTE", allowed:["MINUTE","HOUR"], min:0, max:1440, precision:0 },
+  { code:"CALORIE_INTAKE", category:"NUTRITION", name:"Calorie intake", unit:"KCAL", allowed:["KCAL"], min:0, max:10000, precision:0 },
+  { code:"URINE_OUTPUT", category:"RENAL", name:"Urine output", unit:"ML", allowed:["ML","L"], min:0, max:10000, precision:0 },
+  { code:"URINE_OUTPUT_RATE", category:"RENAL", name:"Urine output rate", unit:"ML_KG_H", allowed:["ML_KG_H"], min:0, max:20, precision:2 },
+  { code:"GLASGOW_COMA_SCORE", category:"NEUROLOGIC", name:"Glasgow coma score", unit:"SCORE", allowed:["SCORE"], min:3, max:15, precision:0 },
+  { code:"PHQ9_SCORE", category:"BEHAVIORAL", name:"PHQ-9 score", unit:"SCORE", allowed:["SCORE"], min:0, max:27, precision:0 },
+  { code:"GAD7_SCORE", category:"BEHAVIORAL", name:"GAD-7 score", unit:"SCORE", allowed:["SCORE"], min:0, max:21, precision:0 },
 ] as const;
 
 const FIRST_NAMES = ["Omar","Layla","Yousef","Mariam","Khalid","Noura","Tariq","Sara","Hassan","Rania","Adam","Lina","Fadi","Maya","Sami","Huda","Karim","Dina","Nabil","Salma"];
@@ -317,6 +410,14 @@ async function seedReferenceData(){
     {dimension:"MASS",from:"KG",to:"LB",multiplier:2.2046226218,offset:0},
     {dimension:"LENGTH",from:"IN",to:"CM",multiplier:2.54,offset:0},
     {dimension:"LENGTH",from:"CM",to:"IN",multiplier:1/2.54,offset:0},
+    {dimension:"PRESSURE",from:"KPA",to:"MMHG",multiplier:7.500616827,offset:0},
+    {dimension:"PRESSURE",from:"MMHG",to:"KPA",multiplier:0.1333223684,offset:0},
+    {dimension:"PRESSURE",from:"CMH2O",to:"MMHG",multiplier:0.7355592401,offset:0},
+    {dimension:"PRESSURE",from:"MMHG",to:"CMH2O",multiplier:1.359510026,offset:0},
+    {dimension:"VOLUME",from:"L",to:"ML",multiplier:1000,offset:0},
+    {dimension:"VOLUME",from:"ML",to:"L",multiplier:0.001,offset:0},
+    {dimension:"TIME",from:"HOUR",to:"MINUTE",multiplier:60,offset:0},
+    {dimension:"TIME",from:"MINUTE",to:"HOUR",multiplier:1/60,offset:0},
   ];
   for(const item of conversions){
     await prisma.unitConversion.create({
@@ -651,6 +752,24 @@ function metricValue(code:string,patient:PatientFixture,patientIndex:number,poin
     case "PAIN_SCORE": return (patientIndex+point)%7;
     case "STEPS": return 2500+((patientIndex*641+point*903)%12000);
     case "HEIGHT": return patient.heightCm;
+    case "MEAN_ARTERIAL_PRESSURE": return Math.round((78+((patientIndex+point)%25))*10)/10;
+    case "PULSE_PRESSURE": return Math.round((35+((patientIndex*2+point)%30))*10)/10;
+    case "WAIST_CIRCUMFERENCE": return Math.round((68+((patientIndex+point)%45))*10)/10;
+    case "BODY_FAT_PERCENT": return Math.round((16+((patientIndex*3+point)%25))*10)/10;
+    case "HBA1C": return Math.round((4.8+((patientIndex+point)%28)*0.1)*10)/10;
+    case "OXYGEN_FLOW": return patientIndex%7===0?Math.round((1+((patientIndex+point)%8)*0.5)*10)/10:0;
+    case "PEAK_EXPIRATORY_FLOW": return 280+((patientIndex*7+point*13)%280);
+    case "FEV1": return Math.round((1.8+((patientIndex+point)%25)*0.1)*100)/100;
+    case "FVC": return Math.round((2.4+((patientIndex+point)%32)*0.1)*100)/100;
+    case "CPAP_PRESSURE": return patientIndex%9===0?6+((patientIndex+point)%8):0;
+    case "SLEEP_DURATION": return Math.round((5.5+((patientIndex+point)%18)*0.2)*10)/10;
+    case "ACTIVE_MINUTES": return 15+((patientIndex*11+point*17)%120);
+    case "CALORIE_INTAKE": return 1500+((patientIndex*37+point*71)%1600);
+    case "URINE_OUTPUT": return 900+((patientIndex*31+point*43)%1700);
+    case "URINE_OUTPUT_RATE": return Math.round((0.6+((patientIndex+point)%18)*0.1)*100)/100;
+    case "GLASGOW_COMA_SCORE": return patientIndex%29===0?12+((patientIndex+point)%4):15;
+    case "PHQ9_SCORE": return (patientIndex*3+point)%18;
+    case "GAD7_SCORE": return (patientIndex*5+point)%16;
     default: return 0;
   }
 }
@@ -658,7 +777,7 @@ function metricValue(code:string,patient:PatientFixture,patientIndex:number,poin
 async function createClinicalData(patients:PatientFixture[],metricVersions:Map<string,{typeId:string;versionId:string;version:number;unit:string}>,providers:SchedulableProvider[],config:FixtureConfig){
   const now=dayjs().tz(config.timezone);
   let observationCount=0,hospitalizationCount=0,immunizationCount=0,recordCount=0;
-  const metricCodes=["HEART_RATE","SYSTOLIC_BP","DIASTOLIC_BP","BLOOD_GLUCOSE","BODY_WEIGHT","BODY_TEMPERATURE","SPO2","RESPIRATORY_RATE","BMI","PAIN_SCORE","STEPS","HEIGHT"];
+  const metricCodes=METRICS.map((metric)=>metric.code);
 
   for(const [patientIndex,patient] of patients.entries()){
     const healthPayload={
@@ -754,18 +873,28 @@ async function createClinicalData(patients:PatientFixture[],metricVersions:Map<s
       immunizationCount++;
     }
 
-    const clinicalPayload={
-      schemaVersion:1,
-      summary:"Synthetic longitudinal clinical encounter.",
-      assessment:patientIndex%6===0?"Stable chronic-condition follow-up":"Routine preventive follow-up",
-      plan:["Continue monitoring","Review observations at next visit"],
-      synthetic:true,
-    };
-    const clinicalEncrypted=await envelope.encryptRecord(clinicalPayload);
-    await prisma.clinicalRecord.create({
-      data:{patientId:patient.id,providerId:assignedProvider.providerId,encounterRef:`RICH-ENC-${patientIndex+1}`,...envelopeData(clinicalEncrypted),createdAt:now.subtract(30+(patientIndex%270),"day").toDate()},
-    });
-    recordCount++;
+    const encounterDays=[300,210,120,35];
+    for(const [encounterIndex,baseDays] of encounterDays.entries()){
+      const encounterAt=now.subtract(Math.max(10,baseDays-(patientIndex%19)),"day");
+      const chronic=patientIndex%6===0;
+      const clinicalPayload={
+        schemaVersion:1,
+        summary:encounterIndex===0?"Synthetic baseline clinical assessment.":encounterIndex===3?"Synthetic recent follow-up encounter.":"Synthetic longitudinal follow-up encounter.",
+        assessment:chronic?"Stable chronic-condition follow-up":"Routine preventive follow-up",
+        diagnoses:chronic?["Essential hypertension monitoring","Metabolic risk monitoring"]:["Preventive health review"],
+        allergiesReviewed:patientIndex%13===0?["Synthetic penicillin allergy"]:["No known synthetic medication allergy"],
+        medicationsReviewed:chronic?["Synthetic antihypertensive therapy","Synthetic vitamin supplementation"]:["No long-term synthetic medication"],
+        proceduresReviewed:encounterIndex===1&&patientIndex%5===0?["Prior synthetic minor procedure"]:[],
+        labsReviewed:["Vitals trend","Glucose trend","Body composition trend"],
+        plan:["Continue monitoring","Review observations at next visit",encounterIndex===3?"Schedule next routine follow-up":"Maintain current care plan"],
+        synthetic:true,
+      };
+      const clinicalEncrypted=await envelope.encryptRecord(clinicalPayload);
+      await prisma.clinicalRecord.create({
+        data:{patientId:patient.id,providerId:assignedProvider.providerId,encounterRef:`RICH-ENC-${patientIndex+1}-${encounterIndex+1}`,...envelopeData(clinicalEncrypted),createdAt:encounterAt.toDate()},
+      });
+      recordCount++;
+    }
   }
   return {observationCount,hospitalizationCount,immunizationCount,recordCount};
 }
@@ -803,8 +932,10 @@ async function createTransportData(patients:PatientFixture[],transport:{ground:s
     const patient=patients[i]!;
     const mode=i%3===0?"AIR":"GROUND";
     const pool=mode==="AIR"?transport.air:transport.ground;
-    const assignedProviderId=pool.length&&i%4!==0?pool[i%pool.length]!:null;
-    const status=i<12?"REQUESTED":i%5===0?"COMPLETED":assignedProviderId?"ASSIGNED":"REQUESTED";
+    let assignedProviderId=pool.length&&i%4!==0?pool[i%pool.length]!:null;
+    const wantsCompleted=i>=12&&i%5===0;
+    if(wantsCompleted&&!assignedProviderId&&pool.length) assignedProviderId=pool[i%pool.length]!;
+    const status=i<12?"REQUESTED":wantsCompleted&&assignedProviderId?"COMPLETED":assignedProviderId?"ASSIGNED":"REQUESTED";
     const scheduledFor=status==="COMPLETED"?now.subtract(30+(i%120),"day"):now.add(2+(i%21),"day");
     const request=await prisma.medicalTransportRequest.create({
       data:{
