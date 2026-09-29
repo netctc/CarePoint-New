@@ -8,6 +8,7 @@ const healthUi=readFileSync(new URL("./v2-patient-clinical-history-ui-smoke.mjs"
 
 assert.match(rich,/RESET_AND_CREATE_RICH_SYNTHETIC_DATA/);
 assert.match(rich,/TRUNCATE TABLE/);
+assert.match(rich,/INSERT INTO "AuditIntegrityHead" \("id"\) VALUES \('default'\)/);
 assert.match(rich,/DEFAULT_PATIENT_COUNT = 300/);
 assert.match(rich,/HISTORY_DAYS = 330/);
 assert.match(rich,/FUTURE_APPOINTMENT_DAYS = 30/);
@@ -81,6 +82,8 @@ assert.match(passwordReset,/failedLoginCount: 0/);
 assert.match(passwordReset,/lockedUntil: null/);
 assert.match(passwordReset,/authSession\.deleteMany/);
 assert.match(passwordReset,/authChallenge\.deleteMany/);
+assert.match(passwordReset,/INSERT INTO "AuditIntegrityHead" \("id"\) VALUES \('default'\)/);
+assert.match(passwordReset,/mfaEnrollment\.deleteMany/);
 assert.match(apiPackage,/"db:test-rich-password-reset": "node dist\/scripts\/reset-rich-test-passwords\.js"/);
 
 assert.match(healthUi,/Directionality\\\(\\s\*textDirection:/);
