@@ -11,10 +11,10 @@ assert.match(rich,/HISTORY_DAYS = 330/);
 assert.match(rich,/FUTURE_APPOINTMENT_DAYS = 30/);
 assert.match(rich,/AVAILABILITY_DAYS = 42/);
 
-const specialtySection=rich.match(/const SPECIALTIES:[\\s\\S]*?= \\[([\\s\\S]*?)\\n\\];\\n\\nconst PROVIDER_CATEGORIES/)?.[1]??"";
-const providerSection=rich.match(/const PROVIDER_CATEGORIES:[\\s\\S]*?= \\[([\\s\\S]*?)\\n\\];\\n\\nconst UNITS/)?.[1]??"";
-const unitSection=rich.match(/const UNITS = \\[([\\s\\S]*?)\\n\\] as const;/)?.[1]??"";
-const metricSection=rich.match(/const METRICS = \\[([\\s\\S]*?)\\n\\] as const;/)?.[1]??"";
+const specialtySection=rich.match(/const SPECIALTIES:[\s\S]*?= \[([\s\S]*?)\n\];\n\nconst PROVIDER_CATEGORIES/)?.[1]??"";
+const providerSection=rich.match(/const PROVIDER_CATEGORIES:[\s\S]*?= \[([\s\S]*?)\n\];\n\nconst UNITS/)?.[1]??"";
+const unitSection=rich.match(/const UNITS = \[([\s\S]*?)\n\] as const;/)?.[1]??"";
+const metricSection=rich.match(/const METRICS = \[([\s\S]*?)\n\] as const;/)?.[1]??"";
 assert.ok((specialtySection.match(/suffix:/g)??[]).length>=70,"Rich fixtures must keep at least 70 medical specialties.");
 assert.ok((providerSection.match(/slug:/g)??[]).length>=65,"Rich fixtures must keep at least 65 provider categories.");
 assert.ok((unitSection.match(/code:/g)??[]).length>=20,"Rich fixtures must keep at least 20 measurement units.");
