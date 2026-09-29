@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 const rich=readFileSync(new URL("../src/scripts/bootstrap-rich-test-environment.ts",import.meta.url),"utf8");
+const passwordReset=readFileSync(new URL("../src/scripts/reset-rich-test-passwords.ts",import.meta.url),"utf8");
+const apiPackage=readFileSync(new URL("../package.json",import.meta.url),"utf8");
 const healthUi=readFileSync(new URL("./v2-patient-clinical-history-ui-smoke.mjs",import.meta.url),"utf8");
 
 assert.match(rich,/RESET_AND_CREATE_RICH_SYNTHETIC_DATA/);
@@ -70,6 +72,16 @@ assert.match(rich,/if\(overlaps\(start,end,patientIntervals\)\) return false/);
 assert.match(rich,/return !overlaps\(start,end,providerIntervals\.get\(slot\.providerId\)\?\?\[\]\)/);
 assert.match(rich,/createTransportData\(patients,other\.transportProviders,config,admin\.id\)/);
 assert.doesNotMatch(rich,/actorAccountId:SYSTEM_ACTOR/);
+
+assert.match(passwordReset,/RESET_SYNTHETIC_FIXTURE_PASSWORDS/);
+assert.match(passwordReset,/database name must contain test, pilot, staging, uat, demo or sandbox/);
+assert.match(passwordReset,/CAREPOINT_TEST_FIXTURE_PASSWORD must contain at least 16 characters/);
+assert.match(passwordReset,/email: \{ endsWith: emailSuffix, mode: "insensitive" \}/);
+assert.match(passwordReset,/failedLoginCount: 0/);
+assert.match(passwordReset,/lockedUntil: null/);
+assert.match(passwordReset,/authSession\.deleteMany/);
+assert.match(passwordReset,/authChallenge\.deleteMany/);
+assert.match(apiPackage,/"db:test-rich-password-reset": "node dist\/scripts\/reset-rich-test-passwords\.js"/);
 
 assert.match(healthUi,/Directionality\\\(\\s\*textDirection:/);
 
