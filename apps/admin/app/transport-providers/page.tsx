@@ -3,6 +3,7 @@ import { AppShell } from "@/components/AppShell";
 import { ProfessionalAdministrationCenter } from "@/components/ProfessionalAdministrationCenter";
 import { ProviderGovernanceQueue } from "@/components/ProviderGovernanceQueue";
 import { TransportOperationsPanel } from "@/components/TransportOperationsPanel";
+import { TransportCompanyPanel } from "@/components/TransportCompanyPanel";
 import { adminRuntimeFeatures } from "@/lib/runtime-features";
 import { TRANSPORT_PROVIDER_FAMILIES } from "@/lib/transport-provider-scope";
 
@@ -30,6 +31,7 @@ export default function TransportProvidersPage() {
       </section>
 
       <TransportOperationsPanel />
+      <TransportCompanyPanel />
 
       <div style={{ marginTop: 24 }}>
       <ProfessionalAdministrationCenter
