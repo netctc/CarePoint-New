@@ -106,6 +106,7 @@ import { TransportLiveOperationsModule } from "./modules/transport/transport-liv
 import { TransportTelemetryModule } from "./modules/transport/transport-telemetry.module";
 import { TransportSmartDispatchModule } from "./modules/transport/transport-smart-dispatch.module";
 import { TransportPerformanceAnalyticsModule } from "./modules/transport/transport-performance-analytics.module";
+import { TransportCommandCenterModule } from "./modules/transport/transport-command-center.module";
 import { isolatedSyntheticPrivatePilotActive } from "./infrastructure/release/private-pilot-infrastructure-profile";
 import { carePointRuntimeFeatures } from "./infrastructure/release/private-pilot-policy";
 
@@ -181,6 +182,7 @@ const isolatedSyntheticPilot = isolatedSyntheticPrivatePilotActive(process.env);
     TransportTelemetryModule,
     TransportSmartDispatchModule,
     TransportPerformanceAnalyticsModule,
+    TransportCommandCenterModule,
     IamModule,
     LocalizationModule,
     PatientProfileModule,

@@ -9,7 +9,9 @@ type RouteContext = { params: Promise<{ segments: string[] }> };
 export async function GET(request: NextRequest, context: RouteContext) {
   const path = await backendPath(context);
   if (!path) return invalid("Invalid transport administration route.");
-  return forwardAdminJson(request, analyticsQueryPath(request, path));
+  const withQuery = transportQueryPath(request, path);
+  if (!withQuery) return invalid("Invalid transport administration query.");
+  return forwardAdminJson(request, withQuery);
 }
 
 export async function POST(request: NextRequest, context: RouteContext) {
@@ -62,13 +64,56 @@ async function backendPath(context: RouteContext): Promise<string | null> {
   return "/admin/transport/" + segments.map(encodeURIComponent).join("/");
 }
 
-function analyticsQueryPath(request: NextRequest, path: string) {
-  if (path !== "/admin/transport/performance-analytics") return path;
+function transportQueryPath(request: NextRequest, path: string): string | null {
   const query = new URLSearchParams();
-  for (const key of ["windowDays", "forecastDays"] as const) {
-    const value = request.nextUrl.searchParams.get(key);
-    if (value != null && /^\d{1,3}$/.test(value)) query.set(key, value);
+
+  if (path === "/admin/transport/performance-analytics") {
+    for (const key of ["windowDays", "forecastDays"] as const) {
+      const value = request.nextUrl.searchParams.get(key);
+      if (value == null) continue;
+      if (!/^\d{1,3}$/.test(value)) return null;
+      query.set(key, value);
+    }
+  } else if (
+    path === "/admin/transport/command-center" ||
+    path === "/admin/transport/management-report"
+  ) {
+    const numericKeys =
+      path === "/admin/transport/command-center"
+        ? (["windowDays", "page", "limit"] as const)
+        : (["windowDays"] as const);
+    for (const key of numericKeys) {
+      const value = request.nextUrl.searchParams.get(key);
+      if (value == null) continue;
+      if (!/^\d{1,4}$/.test(value)) return null;
+      query.set(key, value);
+    }
+
+    const mode = request.nextUrl.searchParams.get("mode");
+    if (mode != null) {
+      const normalized = mode.toUpperCase();
+      if (!["ALL", "GROUND", "AIR"].includes(normalized)) return null;
+      query.set("mode", normalized);
+    }
+
+    const sla = request.nextUrl.searchParams.get("sla");
+    if (sla != null) {
+      const normalized = sla.toUpperCase();
+      if (!["ALL", "BREACHED", "COMPLIANT", "PENDING"].includes(normalized)) {
+        return null;
+      }
+      query.set("sla", normalized);
+    }
+
+    const providerId = request.nextUrl.searchParams.get("providerId");
+    if (providerId != null) {
+      if (!SAFE.test(providerId)) return null;
+      query.set("providerId", providerId);
+    }
+  } else {
+    return path;
   }
+
   const suffix = query.toString();
   return suffix ? path + "?" + suffix : path;
 }
