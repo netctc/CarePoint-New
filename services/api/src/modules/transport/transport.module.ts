@@ -57,6 +57,14 @@ class MedicalTransportService {
     const equipment = this.equipment(input.equipment ?? []);
     assertValidEmergencyLocation(input.pickupLatitude, input.pickupLongitude);
     assertValidEmergencyLocation(input.destinationLatitude, input.destinationLongitude);
+    const pickupAddress = input.pickupAddress?.trim().slice(0, 500) || null;
+    const destinationAddress = input.destinationAddress?.trim().slice(0, 500) || null;
+    if (input.pickupLatitude == null && input.pickupLongitude == null && pickupAddress === null) {
+      throw new BadRequestException("Pickup requires an address or a complete latitude/longitude pair.");
+    }
+    if (input.destinationLatitude == null && input.destinationLongitude == null && destinationAddress === null) {
+      throw new BadRequestException("Destination requires an address or a complete latitude/longitude pair.");
+    }
     const scheduledFor = new Date(input.scheduledFor);
     if (!Number.isFinite(scheduledFor.getTime())) throw new BadRequestException("scheduledFor must be a valid ISO date-time.");
     if (scheduledFor.getTime() < Date.now() + MIN_SCHEDULE_LEAD_MS) throw new BadRequestException("Scheduled medical transport must be at least 15 minutes in the future. Use Emergency Ambulance for urgent care transport.");
@@ -77,13 +85,13 @@ class MedicalTransportService {
             companionCount,
             equipment,
             scheduledFor,
-            pickupLatitude: input.pickupLatitude,
-            pickupLongitude: input.pickupLongitude,
-            destinationLatitude: input.destinationLatitude,
-            destinationLongitude: input.destinationLongitude,
+            pickupLatitude: input.pickupLatitude ?? null,
+            pickupLongitude: input.pickupLongitude ?? null,
+            destinationLatitude: input.destinationLatitude ?? null,
+            destinationLongitude: input.destinationLongitude ?? null,
             clientRequestId,
-            ...(input.pickupAddress?.trim() ? { pickupAddress: input.pickupAddress.trim().slice(0, 500) } : {}),
-            ...(input.destinationAddress?.trim() ? { destinationAddress: input.destinationAddress.trim().slice(0, 500) } : {}),
+            ...(pickupAddress ? { pickupAddress } : {}),
+            ...(destinationAddress ? { destinationAddress } : {}),
             ...(input.callbackPhone?.trim() ? { callbackPhone: input.callbackPhone.trim().slice(0, 80) } : {}),
           },
         });
@@ -280,11 +288,11 @@ class MedicalTransportService {
       companionCount: row.companionCount,
       equipment: row.equipment ?? [],
       scheduledFor: this.iso(row.scheduledFor),
-      pickupLatitude: Number(row.pickupLatitude),
-      pickupLongitude: Number(row.pickupLongitude),
+      pickupLatitude: row.pickupLatitude == null ? null : Number(row.pickupLatitude),
+      pickupLongitude: row.pickupLongitude == null ? null : Number(row.pickupLongitude),
       pickupAddress: row.pickupAddress ?? null,
-      destinationLatitude: Number(row.destinationLatitude),
-      destinationLongitude: Number(row.destinationLongitude),
+      destinationLatitude: row.destinationLatitude == null ? null : Number(row.destinationLatitude),
+      destinationLongitude: row.destinationLongitude == null ? null : Number(row.destinationLongitude),
       destinationAddress: row.destinationAddress ?? null,
       callbackPhone: row.callbackPhone ?? null,
       assignedProviderId: row.assignedProviderId ?? null,
