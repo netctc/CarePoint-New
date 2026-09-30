@@ -731,6 +731,233 @@ class _TransportDialogState extends State<_TransportDialog> {
     });
   }
 
+  TransportLocation? _formLocation({required bool pickup}) {
+    final addressController = pickup ? pickupAddress : destinationAddress;
+    final latitudeController = pickup ? pickupLatitude : destinationLatitude;
+    final longitudeController = pickup ? pickupLongitude : destinationLongitude;
+    final latitude = _optionalCoordinate(latitudeController.text, -90, 90);
+    final longitude = _optionalCoordinate(longitudeController.text, -180, 180);
+    if (_coordinatePairInvalid(
+      latitudeController.text,
+      longitudeController.text,
+      latitude,
+      longitude,
+    )) {
+      return null;
+    }
+    final address = addressController.text.trim();
+    final location = TransportLocation(
+      address: address.isEmpty ? null : address,
+      latitude: latitude,
+      longitude: longitude,
+      source: TransportLocationSource.manual,
+    );
+    return location.isValid ? location : null;
+  }
+
+  void _applyFormLocation(TransportLocation location, {required bool pickup}) {
+    final addressController = pickup ? pickupAddress : destinationAddress;
+    final latitudeController = pickup ? pickupLatitude : destinationLatitude;
+    final longitudeController = pickup ? pickupLongitude : destinationLongitude;
+    setState(() {
+      addressController.text = location.hasAddress ? location.address!.trim() : '';
+      latitudeController.text = location.latitude?.toStringAsFixed(6) ?? '';
+      longitudeController.text = location.longitude?.toStringAsFixed(6) ?? '';
+    });
+  }
+
+  Future<void> _selectSavedLocation({required bool pickup}) async {
+    try {
+      final items = await widget.session.api.savedTransportLocations();
+      if (!mounted) return;
+      if (items.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(transportText(widget.locale, 'noSavedLocations'))),
+        );
+        return;
+      }
+      final location = await showDialog<TransportLocation>(
+        context: context,
+        builder: (_) => Directionality(
+          textDirection: widget.locale.textDirection,
+          child: SimpleDialog(
+            title: Text(transportText(widget.locale, 'chooseSavedLocation')),
+            children: items.map((item) {
+              final raw = _map(item['location']);
+              final candidate = TransportLocation.fromJson(
+                raw,
+                fallbackSource: TransportLocationSource.savedLocation,
+              );
+              final label = item['label']?.toString() ?? candidate.address ?? '';
+              final kind = item['kind']?.toString().toLowerCase() ?? 'other';
+              return SimpleDialogOption(
+                onPressed: candidate.isValid ? () => Navigator.pop(context, candidate) : null,
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.bookmark_outline),
+                  title: Text(label),
+                  subtitle: Text(
+                    '${transportText(widget.locale, kind)}${candidate.hasAddress ? ' · ${candidate.address}' : ''}',
+                  ),
+                ),
+              );
+            }).toList(growable: false),
+          ),
+        ),
+      );
+      if (location != null && mounted) _applyFormLocation(location, pickup: pickup);
+    } catch (value) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value.toString())));
+      }
+    }
+  }
+
+  Future<void> _selectHealthcareCenter({required bool pickup}) async {
+    try {
+      final items = await widget.session.api.transportHealthcareCenters();
+      if (!mounted) return;
+      if (items.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(transportText(widget.locale, 'noLocationMatches'))),
+        );
+        return;
+      }
+      final location = await showDialog<TransportLocation>(
+        context: context,
+        builder: (_) => Directionality(
+          textDirection: widget.locale.textDirection,
+          child: SimpleDialog(
+            title: Text(transportText(widget.locale, 'healthcareCenters')),
+            children: items.map((item) {
+              final raw = _map(item['location']);
+              final candidate = TransportLocation.fromJson(
+                raw,
+                fallbackSource: TransportLocationSource.healthcareCenter,
+              );
+              return SimpleDialogOption(
+                onPressed: candidate.isValid ? () => Navigator.pop(context, candidate) : null,
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.local_hospital_outlined),
+                  title: Text(item['label']?.toString() ?? candidate.address ?? ''),
+                  subtitle: candidate.hasAddress ? Text(candidate.address!) : null,
+                ),
+              );
+            }).toList(growable: false),
+          ),
+        ),
+      );
+      if (location != null && mounted) _applyFormLocation(location, pickup: pickup);
+    } catch (value) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value.toString())));
+      }
+    }
+  }
+
+  Future<void> _saveCurrentLocation({required bool pickup}) async {
+    final location = _formLocation(pickup: pickup);
+    if (location == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(transportText(widget.locale, 'locationSearchHint'))),
+      );
+      return;
+    }
+    final draft = await showDialog<_SavedTransportLocationDraft>(
+      context: context,
+      builder: (_) => Directionality(
+        textDirection: widget.locale.textDirection,
+        child: _SavedTransportLocationDialog(locale: widget.locale),
+      ),
+    );
+    if (draft == null || !mounted) return;
+    try {
+      await widget.session.api.createSavedTransportLocation(
+        label: draft.label,
+        kind: draft.kind,
+        address: location.address,
+        latitude: location.latitude,
+        longitude: location.longitude,
+        source: location.source.name.toUpperCase(),
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(transportText(widget.locale, 'locationSaved'))),
+      );
+    } catch (value) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value.toString())));
+      }
+    }
+  }
+
+  Future<void> _previewRoute() async {
+    final pickup = _formLocation(pickup: true);
+    final destination = _formLocation(pickup: false);
+    if (pickup == null || destination == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(transportText(widget.locale, 'routeUnavailable'))),
+      );
+      return;
+    }
+    try {
+      final payload = await widget.session.api.previewTransportRoute(
+        mode: mode,
+        pickup: pickup.toJson(),
+        destination: destination.toJson(),
+        languageCode: widget.locale.name,
+      );
+      if (!mounted) return;
+      if (payload['available'] != true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(transportText(widget.locale, 'routeUnavailable'))),
+        );
+        return;
+      }
+      final distanceMeters = (payload['distanceMeters'] as num?)?.toDouble() ??
+          double.tryParse(payload['distanceMeters']?.toString() ?? '') ??
+          0;
+      final etaMinutes = (payload['etaMinutes'] as num?)?.toInt() ??
+          int.tryParse(payload['etaMinutes']?.toString() ?? '') ??
+          0;
+      await showDialog<void>(
+        context: context,
+        builder: (_) => Directionality(
+          textDirection: widget.locale.textDirection,
+          child: AlertDialog(
+            title: Text(transportText(widget.locale, 'routePreviewTitle')),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${transportText(widget.locale, 'routeDistance')}: ${(distanceMeters / 1000).toStringAsFixed(1)} km',
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '${transportText(widget.locale, 'routeDuration')}: $etaMinutes ${transportText(widget.locale, 'minutes')}',
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text(cpText(widget.locale, 'common.close')),
+              ),
+            ],
+          ),
+        ),
+      );
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(transportText(widget.locale, 'routeUnavailable'))),
+        );
+      }
+    }
+  }
+
   Future<void> _pickDateTime() async {
     final date = await showDatePicker(context: context, firstDate: DateTime.now(), lastDate: DateTime.now().add(const Duration(days: 365)), initialDate: scheduledFor);
     if (date == null || !mounted) return;
