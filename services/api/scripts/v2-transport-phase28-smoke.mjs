@@ -105,11 +105,17 @@ for (const transition of sequence) {
 const telemetry = sourceCache.get(
   "services/api/src/modules/transport/transport-telemetry.module.ts",
 );
-assert.ok(telemetry.includes("coordinateValuesExcludedFromAudit: true"));
+const telemetryAuditStart = telemetry.indexOf(
+  'action: "MEDICAL_TRANSPORT_TELEMETRY_RECEIVED"',
+);
+const telemetryAuditEnd = telemetry.indexOf("    });", telemetryAuditStart);
+assert.ok(telemetryAuditStart >= 0 && telemetryAuditEnd > telemetryAuditStart);
+const telemetryAuditBlock = telemetry.slice(telemetryAuditStart, telemetryAuditEnd);
+assert.ok(telemetryAuditBlock.includes("coordinateValuesExcludedFromAudit: true"));
 assert.equal(
-  /metadata:\s*\{[\s\S]{0,500}(latitude|longitude):\s*(point\.|input\.)/m.test(telemetry),
+  /\b(?:latitude|longitude)\s*:/.test(telemetryAuditBlock),
   false,
-  "raw telemetry coordinates must not enter bounded audit metadata",
+  "raw telemetry coordinates must not enter MEDICAL_TRANSPORT_TELEMETRY_RECEIVED audit metadata",
 );
 
 const milestones = sourceCache.get(
