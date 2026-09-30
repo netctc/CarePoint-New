@@ -59,7 +59,14 @@ class TransportLocation {
         if (latitude != null) 'latitude': latitude,
         if (longitude != null) 'longitude': longitude,
         if (placeId?.trim().isNotEmpty == true) 'placeId': placeId!.trim(),
-        'source': source.name.toUpperCase(),
+        'source': switch (source) {
+          TransportLocationSource.gps => 'GPS',
+          TransportLocationSource.addressSearch => 'ADDRESS_SEARCH',
+          TransportLocationSource.mapPicker => 'MAP_PICKER',
+          TransportLocationSource.savedLocation => 'SAVED_LOCATION',
+          TransportLocationSource.healthcareCenter => 'HEALTHCARE_CENTER',
+          TransportLocationSource.manual => 'MANUAL',
+        },
       };
 }
 
