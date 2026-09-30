@@ -5,8 +5,11 @@ import 'package:carepoint_mobile_core/patient_medical_transport.dart';
 import 'package:carepoint_mobile_core/transport_localization.dart';
 import 'package:carepoint_mobile_core/transport_location.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 
 import 'patient_transport_location.dart';
+import 'runtime_features.dart';
 
 Future<void> openEmergencyAmbulanceFlow(
   BuildContext context, {
@@ -88,6 +91,7 @@ Future<TransportLocation> _resolveTransportLocation(
       latitude: location.latitude!,
       longitude: location.longitude!,
       languageCode: locale.name,
+      source: _transportLocationApiSource(location.source),
     );
     final raw = _map(payload['location']);
     final resolved = TransportLocation.fromJson(
@@ -99,6 +103,11 @@ Future<TransportLocation> _resolveTransportLocation(
     return location;
   }
 }
+
+String _transportLocationApiSource(TransportLocationSource source) => switch (source) {
+      TransportLocationSource.mapPicker => 'MAP_PICKER',
+      _ => 'GPS',
+    };
 
 class PatientMedicalTransportPage extends StatefulWidget {
   const PatientMedicalTransportPage({super.key, required this.session, required this.locale});
