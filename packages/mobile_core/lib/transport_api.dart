@@ -1,6 +1,33 @@
 part of 'carepoint_api.dart';
 
 extension CarePointTransportApi on CarePointApi {
+  Future<Map<String, dynamic>> transportLocationConfig() async =>
+      _asMap(await _send('GET', '/transport/location/config'));
+
+  Future<Map<String, dynamic>> reverseGeocodeTransportLocation({
+    required double latitude,
+    required double longitude,
+    String? languageCode,
+  }) async =>
+      _asMap(await _send('POST', '/transport/location/reverse-geocode', body: {
+        'latitude': latitude,
+        'longitude': longitude,
+        if (languageCode?.trim().isNotEmpty == true) 'languageCode': languageCode!.trim(),
+      }));
+
+  Future<Map<String, dynamic>> searchTransportLocations({
+    required String query,
+    String? languageCode,
+    double? biasLatitude,
+    double? biasLongitude,
+  }) async =>
+      _asMap(await _send('POST', '/transport/location/search', body: {
+        'query': query.trim(),
+        if (languageCode?.trim().isNotEmpty == true) 'languageCode': languageCode!.trim(),
+        if (biasLatitude != null) 'biasLatitude': biasLatitude,
+        if (biasLongitude != null) 'biasLongitude': biasLongitude,
+      }));
+
   Future<Map<String, dynamic>> requestEmergencyAmbulance({
     required String clientRequestId,
     double? latitude,
