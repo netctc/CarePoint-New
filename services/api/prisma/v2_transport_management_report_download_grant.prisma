@@ -1,0 +1,13 @@
+model TransportManagementReportDownloadGrant {
+  id                String   @id @default(uuid())
+  runId             String
+  run               TransportManagementReportRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  tokenHash         String   @unique
+  issuedToAccountId String
+  expiresAt         DateTime
+  consumedAt        DateTime?
+  createdAt         DateTime @default(now())
+
+  @@index([runId, expiresAt, consumedAt])
+  @@index([issuedToAccountId, expiresAt])
+}
