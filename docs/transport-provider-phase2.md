@@ -12,6 +12,9 @@ Implemented in this phase:
 - Fleet / transport-unit administration.
 - Active transport-job counts.
 - Recent crew-assignment visibility.
+- Transport Company administration with provider/fleet grouping.
+- Transport Crew administration with role, optional provider linkage, license metadata and assignment-readiness calculation.
+- Unified read-only Dispatch Board for scheduled medical transport and emergency ambulance work.
 - Optional latitude/longitude across transport location contracts.
 - Nullable transport coordinates in PostgreSQL with a non-destructive migration.
 
@@ -104,14 +107,43 @@ type TransportLocation = {
 
 No latitude or longitude property becomes mandatory under this future design.
 
+## Transport Company and Crew boundary
+
+Transport Company is an additive organizational layer over the existing Provider and TransportUnit records.
+
+A company stores the IDs of the Transport Providers and fleet units it governs. Existing Provider, TransportUnit, MedicalTransportRequest, EmergencyAmbulanceRequest and CrewAssignment records are not rewritten.
+
+Crew members are managed under a Transport Company and support:
+
+- a required operational role;
+- an optional link to an existing Provider identity;
+- optional license number and issuer;
+- optional license expiry;
+- active/inactive status;
+- derived license-current and assignment-ready status.
+
+A linked Provider must already belong to the company. This preserves compatibility with the current CrewAssignment model, which records provider IDs.
+
+## Dispatch Board
+
+Admin now has a single read-only operational board containing:
+
+- active scheduled medical transport requests;
+- active emergency ambulance requests;
+- current status and timing;
+- pickup/destination address when available;
+- assigned Transport Provider;
+- resolved Transport Company;
+- current ETA.
+
+The board is intentionally read-only in this slice. Assignment must reuse the existing Medical Transport and Emergency lifecycle invariants through a dedicated adapter rather than duplicating state-transition logic.
+
 ## Next Phase 2 slices
 
 Remaining work should be split into small reviewable slices:
 
-1. Transport company / provider organizational boundary.
-2. Crew-member administration scoped to a transport provider.
-3. Crew licenses and role readiness.
-4. Dispatch board and assignment workflow.
-5. Dedicated Transport Provider mobile application extraction.
-6. GPS + place search + geocoding abstraction.
-7. Transport-specific analytics and operational audit views.
+1. Dispatch assignment adapter that reuses existing lifecycle services without forcing Emergency enablement.
+2. Crew-to-job selection using TransportCrewMember readiness and existing CrewAssignment revisions.
+3. Transport Provider mobile company/crew context.
+4. GPS + place search + geocoding abstraction.
+5. Transport-specific analytics and operational audit views.
