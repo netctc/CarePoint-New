@@ -958,7 +958,8 @@ class _TransportRasterMapPickerDialogState
     final clampedY = world.dy.clamp(0.0, _worldSize).toDouble();
     final lng = wrappedX / _worldSize * 360 - 180;
     final mercator = math.pi - 2 * math.pi * clampedY / _worldSize;
-    final lat = 180 / math.pi * math.atan(math.sinh(mercator));
+    final lat = 180 / math.pi *
+        (2 * math.atan(math.exp(mercator)) - math.pi / 2);
     return (latitude: lat, longitude: lng);
   }
 
@@ -1163,7 +1164,7 @@ class _TransportRasterMapPickerDialogState
               ),
               const SizedBox(height: 8),
               Text(
-                '\${latitude.toStringAsFixed(6)}, \${longitude.toStringAsFixed(6)}',
+                '${latitude.toStringAsFixed(6)}, ${longitude.toStringAsFixed(6)}',
               ),
             ],
           ),
