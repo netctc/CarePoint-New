@@ -233,8 +233,14 @@ export class TransportCommandCenterService {
       ),
     ];
 
-    const [providers, assignments, routes, incidents, escalations] =
-      await Promise.all([
+    const [
+      providers,
+      filterProviders,
+      assignments,
+      routes,
+      incidents,
+      escalations,
+    ] = await Promise.all([
         providerIds.length
           ? this.prisma.provider.findMany({
               where: { id: { in: providerIds } },
@@ -243,6 +249,21 @@ export class TransportCommandCenterService {
               take: 2000,
             })
           : [],
+        this.prisma.provider.findMany({
+          where: {
+            class: "OTHER_PROVIDER",
+            otherProviderProfile: {
+              category: {
+                family: {
+                  in: ["MEDICAL_TRANSPORT_GROUND", "MEDICAL_TRANSPORT_AIR"],
+                },
+              },
+            },
+          },
+          select: { id: true, displayName: true },
+          orderBy: [{ displayName: "asc" }, { id: "asc" }],
+          take: 2000,
+        }),
         requestIds.length
           ? this.prisma.crewAssignment.findMany({
               where: { transportRequestId: { in: requestIds } },
@@ -405,24 +426,7 @@ export class TransportCommandCenterService {
       })
       .filter((row) => this.matchesSla(row.sla.overall, options.sla));
 
-    const providersForFilter = [
-      ...new Map(
-        source
-          .map((request) => {
-            if (!request.assignedProviderId) return null;
-            const provider = providerById.get(request.assignedProviderId);
-            return provider ? ([provider.id, provider] as const) : null;
-          })
-          .filter(
-            (
-              value,
-            ): value is readonly [
-              string,
-              { id: string; displayName: string },
-            ] => Boolean(value),
-          ),
-      ).values(),
-    ].sort((a, b) => a.displayName.localeCompare(b.displayName));
+    const providersForFilter = filterProviders;
 
     return {
       generatedAt: now.toISOString(),
