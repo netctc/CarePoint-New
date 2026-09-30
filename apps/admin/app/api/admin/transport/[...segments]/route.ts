@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { forwardAdminJson } from "@/lib/admin-api";
+import { forwardAdminBinary, forwardAdminJson } from "@/lib/admin-api";
 import { noStore } from "@/lib/admin-auth";
 
 const SAFE = /^[A-Za-z0-9_.:-]{1,180}$/;
@@ -19,6 +19,16 @@ export async function POST(request: NextRequest, context: RouteContext) {
   if (!path) return invalid("Invalid transport administration route.");
   const body = await boundedBody(request);
   if (body instanceof NextResponse) return body;
+  if (
+    path.startsWith("/admin/transport/report-runs/") &&
+    path.endsWith("/download")
+  ) {
+    return forwardAdminBinary(request, path, {
+      method: "POST",
+      body,
+      requireSameOrigin: true,
+    });
+  }
   return forwardAdminJson(request, path, {
     method: "POST",
     body,

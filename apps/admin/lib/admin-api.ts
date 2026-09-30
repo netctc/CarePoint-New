@@ -69,7 +69,20 @@ export async function forwardAdminJson(request: NextRequest, path: string, optio
   return noStore(response);
 }
 
-export async function forwardAdminBinary(request: NextRequest, path: string) {
+export async function forwardAdminBinary(
+  request: NextRequest,
+  path: string,
+  options: ForwardOptions = {},
+) {
+  if (options.requireSameOrigin && !isTrustedSameOrigin(request)) {
+    return noStore(
+      NextResponse.json(
+        { message: "Cross-origin admin request denied." },
+        { status: 403 },
+      ),
+    );
+  }
+
   const auth = await resolveAdminAccess(request);
   if (!auth.accessToken) {
     const response = NextResponse.json({ message: "Administrator authentication is required." }, { status: 401 });
@@ -80,11 +93,15 @@ export async function forwardAdminBinary(request: NextRequest, path: string) {
   let backend: Response;
   try {
     backend = await adminBackendFetch(path, {
-      method: "GET",
+      method: options.method || "GET",
       headers: {
-        accept: "application/x-ndjson, application/octet-stream;q=0.9",
+        accept: "text/csv, application/x-ndjson;q=0.9, application/octet-stream;q=0.8",
         authorization: `Bearer ${auth.accessToken}`,
+        ...(options.body !== undefined ? { "content-type": "application/json" } : {}),
       },
+      ...(options.body !== undefined
+        ? { body: JSON.stringify(options.body) }
+        : {}),
     });
   } catch {
     return noStore(NextResponse.json({ message: "CarePoint API is temporarily unavailable." }, { status: 503 }));

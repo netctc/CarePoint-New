@@ -4,7 +4,7 @@ import {
   type OnModuleDestroy,
 } from "@nestjs/common";
 import { createHash } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import {
   createProductionGcpObjectStorageRuntime,
@@ -25,8 +25,7 @@ export class TransportReportArtifactStorageService implements OnModuleDestroy {
     if (process.env.NODE_ENV !== "production") {
       const root = resolve("/tmp/carepoint-transport-reports");
       await mkdir(root, { recursive: true, mode: 0o700 });
-      const storageId = createHash("sha256").update(objectKey, "utf8").digest("hex");
-      await writeFile(join(root, storageId + ".csv"), csv, {
+      await writeFile(this.localPath(objectKey), csv, {
         encoding: "utf8",
         mode: 0o600,
       });
@@ -72,6 +71,30 @@ export class TransportReportArtifactStorageService implements OnModuleDestroy {
     );
   }
 
+  async getCsv(objectKey: string): Promise<string> {
+    this.assertSafeObjectKey(objectKey);
+    if (process.env.NODE_ENV !== "production") {
+      return readFile(this.localPath(objectKey), "utf8");
+    }
+
+    const cloud = process.env.CAREPOINT_CLOUD_PROVIDER?.trim();
+    if (cloud === "gcp") {
+      return (await this.gcpRuntime()).getString(
+        "transport-management-reports",
+        objectKey,
+      );
+    }
+    if (cloud === "oci") {
+      return (await this.ociRuntime()).getString(
+        "transport-management-reports",
+        objectKey,
+      );
+    }
+    throw new InternalServerErrorException(
+      "Transport report artifact storage requires the approved production cloud object-storage runtime.",
+    );
+  }
+
   encodeCsv(
     columns: readonly string[],
     rows: ReadonlyArray<Record<string, unknown>>,
@@ -94,6 +117,14 @@ export class TransportReportArtifactStorageService implements OnModuleDestroy {
     let text = value == null ? "" : String(value);
     if (/^[=+\-@\t\r]/.test(text)) text = "'" + text;
     return '"' + text.replace(/"/g, '""') + '"';
+  }
+
+  private localPath(objectKey: string): string {
+    this.assertSafeObjectKey(objectKey);
+    const storageId = createHash("sha256")
+      .update(objectKey, "utf8")
+      .digest("hex");
+    return join(resolve("/tmp/carepoint-transport-reports"), storageId + ".csv");
   }
 
   private assertSafeObjectKey(objectKey: string): void {
