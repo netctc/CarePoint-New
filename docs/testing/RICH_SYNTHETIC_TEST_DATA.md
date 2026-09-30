@@ -16,23 +16,24 @@ It truncates application tables with `RESTART IDENTITY CASCADE`, excluding `_pri
 ## Default dataset
 
 - 300 patients.
-- 40 medical specialties, including Cardiology, Dermatology, Psychiatry, Pediatrics, surgical specialties, rehabilitation, palliative medicine, sleep medicine and others.
+- 74 medical specialties and subspecialties, including Cardiology, Dermatology, Psychiatry, Pediatrics, neonatal and pediatric subspecialties, maternal-fetal medicine, critical care, interventional disciplines, surgical specialties, rehabilitation, palliative medicine, sleep medicine, genetics, dental medicine and others.
 - 2 active doctors per specialty.
-- 37 extensible Other Provider categories, including Special Education, Nutrition, multiple Psychology branches, therapies, laboratory, pharmacy, home health, ground transport, air transport and emergency ambulance.
+- 70 extensible Other Provider categories, including Special Education and learning-support roles, broad Psychology and behavioral-health branches, Nutrition subspecialties, therapies, laboratory and phlebotomy, pharmacy, diagnostic technology, home health, rehabilitation, non-emergency and wheelchair transport, ground/air medical transport and emergency ambulance.
 - 2 active providers per provider category.
 - Pending Doctor and Other Provider credentialing/onboarding cases.
-- 16 measurement units with conversions.
-- 12 versioned clinical observation/metric types.
+- 24 measurement units with clinically relevant conversions for temperature, glucose, mass, length, pressure, volume and time.
+- 30 versioned clinical observation/metric types spanning vitals, metabolic, body composition, respiratory, sleep/activity, nutrition, renal and behavioral-health measurements.
 - 330 days of historical activity.
 - Completed, no-show and cancelled historical appointments.
 - Requested and confirmed appointments for the next 30 days.
 - Availability rules and slots for the next 42 days.
 - Encrypted patient health profiles and longitudinal observations.
-- Hospitalization, immunization and encrypted clinical-record history.
+- Hospitalization and immunization history plus four encrypted longitudinal clinical encounters per patient, including synthetic diagnosis, allergy, medication, procedure, lab-review and care-plan context.
 - Patient consent records.
 - Pending availability requests.
 - Air and ground medical transport requests in multiple states.
 - Emergency ambulance workflows and transport units.
+- Transport fixture consistency checks ensure completed transport requests always have an assigned provider.
 
 ## Login naming
 
@@ -73,7 +74,7 @@ CAREPOINT_RICH_TEST_DOCTORS_PER_SPECIALTY
 CAREPOINT_RICH_TEST_PROVIDERS_PER_CATEGORY
 ```
 
-Defaults are 300 patients, 2 doctors per specialty and 2 Other Providers per category.
+Defaults are 300 patients, 2 doctors per specialty and 2 Other Providers per category. With the expanded catalogs this produces 148 active doctors and 140 active Other Providers before pending onboarding cases. The patient count remains configurable up to 2,000 so larger load-test datasets can be generated without changing source code.
 
 ## Run
 

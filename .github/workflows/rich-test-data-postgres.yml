@@ -1,0 +1,98 @@
+name: Rich Test Data PostgreSQL
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: rich-test-data-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rich-fixtures:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: carepoint
+          POSTGRES_PASSWORD: carepoint
+          POSTGRES_DB: carepoint_rich_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd="pg_isready -U carepoint -d carepoint_rich_test"
+          --health-interval=5s --health-timeout=5s --health-retries=10
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://carepoint:carepoint@127.0.0.1:5432/carepoint_rich_test?schema=public
+      PSQL_DATABASE_URL: postgresql://carepoint:carepoint@127.0.0.1:5432/carepoint_rich_test
+      CAREPOINT_RICH_TEST_DATA_CONFIRM: RESET_AND_CREATE_RICH_SYNTHETIC_DATA
+      CAREPOINT_TEST_FIXTURE_PASSWORD: CarePoint-Rich-Test#2026
+      CAREPOINT_TEST_FIXTURE_EMAIL_DOMAIN: carepoint.test
+      CAREPOINT_TEST_FIXTURE_TIMEZONE: Asia/Riyadh
+      CAREPOINT_RICH_TEST_PATIENT_COUNT: '50'
+      CAREPOINT_RICH_TEST_DOCTORS_PER_SPECIALTY: '1'
+      CAREPOINT_RICH_TEST_PROVIDERS_PER_CATEGORY: '1'
+      CLINICAL_KEY_PROVIDER: local
+      CLINICAL_ENVELOPE_KEY_ID: rich-test-clinical-kek-v1
+      CLINICAL_ENVELOPE_KEY_BASE64: MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=
+      REGISTRATION_OTP_DELIVERY_MODE: display
+      REGISTRATION_OTP_PEPPER: carepoint-rich-test-registration-otp-pepper-v1-2026
+    steps:
+      - name: Check out exact candidate
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Install verified dependencies
+        run: |
+          npm install --global npm@10.9.2
+          npm ci
+      - name: Build and migrate
+        run: |
+          npm run build
+          npm run db:deploy
+      - name: Generate rich synthetic dataset
+        run: npm run db:test-rich-reset --workspace @carepoint/api
+      - name: Verify generated dataset and appointment invariants
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          patients=$(psql "$PSQL_DATABASE_URL" -Atqc 'select count(*) from "PatientProfile"')
+          doctors=$(psql "$PSQL_DATABASE_URL" -Atqc 'select count(*) from "Provider" where "class" = '\''DOCTOR'\'')
+          providers=$(psql "$PSQL_DATABASE_URL" -Atqc 'select count(*) from "Provider" where "class" = '\''OTHER_PROVIDER'\'')
+          specialties=$(psql "$PSQL_DATABASE_URL" -Atqc 'select count(*) from "MedicalSpecialty"')
+          categories=$(psql "$PSQL_DATABASE_URL" -Atqc 'select count(*) from "ProviderCategory"')
+          metrics=$(psql "$PSQL_DATABASE_URL" -Atqc 'select count(*) from "ObservationType"')
+          future_appointments=$(psql "$PSQL_DATABASE_URL" -Atqc 'select count(*) from "Appointment" where "startsAt" > now()')
+          audit_head=$(psql "$PSQL_DATABASE_URL" -Atqc 'select count(*) from "AuditIntegrityHead" where "id" = '\''default'\'')
+          patient_overlaps=$(psql "$PSQL_DATABASE_URL" -Atqc '
+            select count(*) from "Appointment" a
+            join "Appointment" b on a.id < b.id and a."patientId" = b."patientId"
+            where tsrange(a."startsAt",a."endsAt",'\''[)'\'') && tsrange(b."startsAt",b."endsAt",'\''[)'\'')
+              and a.status in ('\''REQUESTED'\'','\''CONFIRMED'\'','\''COMPLETED'\'')
+              and b.status in ('\''REQUESTED'\'','\''CONFIRMED'\'','\''COMPLETED'\'')')
+          provider_overlaps=$(psql "$PSQL_DATABASE_URL" -Atqc '
+            select count(*) from "Appointment" a
+            join "Appointment" b on a.id < b.id and a."providerId" = b."providerId"
+            where tsrange(a."startsAt",a."endsAt",'\''[)'\'') && tsrange(b."startsAt",b."endsAt",'\''[)'\'')
+              and a.status in ('\''REQUESTED'\'','\''CONFIRMED'\'','\''COMPLETED'\'')
+              and b.status in ('\''REQUESTED'\'','\''CONFIRMED'\'','\''COMPLETED'\'')')
+          printf 'patients=%s doctors=%s providers=%s specialties=%s categories=%s metrics=%s future=%s audit_head=%s patient_overlaps=%s provider_overlaps=%s\n' \
+            "$patients" "$doctors" "$providers" "$specialties" "$categories" "$metrics" "$future_appointments" "$audit_head" "$patient_overlaps" "$provider_overlaps"
+          test "$patients" -eq 50
+          test "$doctors" -ge 74
+          test "$providers" -ge 70
+          test "$specialties" -ge 74
+          test "$categories" -ge 70
+          test "$metrics" -ge 30
+          test "$future_appointments" -ge 90
+          test "$audit_head" -eq 1
+          test "$patient_overlaps" -eq 0
+          test "$provider_overlaps" -eq 0
+      - name: Verify representative login naming
+        run: |
+          psql "$PSQL_DATABASE_URL" -Atqc 'select "username" from "User" where "username" in ('\''pac001'\'', '\''dr001.CAR'\'', '\''dr001.DER'\'', '\''pr001.NUT'\'', '\''pr001.PSI'\'') order by "username"'
