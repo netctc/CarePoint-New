@@ -54,7 +54,7 @@ const resourceModule = readFileSync(
   "utf8",
 );
 const transportContracts = readFileSync(
-  new URL("../../../packages/contracts/src/transport.ts", import.meta.url),
+  new URL("../../../packages/contracts/src/index.ts", import.meta.url),
   "utf8",
 );
 
