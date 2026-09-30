@@ -185,10 +185,11 @@ class TransportLocationService {
         const longitude = this.optionalCoordinate(place.location?.longitude, -180, 180);
         const address = this.text(place.formattedAddress);
         const displayName = this.text(place.displayName?.text);
-        if (latitude == null || longitude == null || (!address && !displayName)) return null;
+        const label = displayName ?? address;
+        if (latitude == null || longitude == null || !label) return null;
 
         return {
-          label: displayName ?? address,
+          label,
           location: this.location({
             address: address ?? displayName,
             latitude,
