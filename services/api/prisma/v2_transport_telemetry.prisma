@@ -1,0 +1,42 @@
+model TransportTrackingSession {
+  id                 String   @id @default(uuid())
+  transportRequestId String   @unique
+  providerId         String
+  transportUnitId    String
+  sharingStatus      String   @default("ACTIVE")
+  shareWithPatient   Boolean  @default(false)
+  startedByAccountId String
+  startedAt          DateTime @default(now())
+  lastHeartbeatAt    DateTime?
+  stoppedAt          DateTime?
+  stopReason         String?
+  expiresAt          DateTime
+  updatedAt          DateTime @updatedAt
+
+  @@index([providerId, sharingStatus, expiresAt])
+  @@index([transportUnitId, sharingStatus, expiresAt])
+  @@index([expiresAt])
+}
+
+model TransportUnitTelemetry {
+  id                 String   @id @default(uuid())
+  sessionId          String
+  transportRequestId String
+  providerId         String
+  transportUnitId    String
+  clientEventId      String   @unique
+  latitude           Decimal  @db.Decimal(9, 6)
+  longitude          Decimal  @db.Decimal(9, 6)
+  accuracyMeters     Decimal? @db.Decimal(8, 2)
+  headingDegrees     Decimal? @db.Decimal(6, 2)
+  speedKph           Decimal? @db.Decimal(7, 2)
+  source             String   @default("PROVIDER_MOBILE_FOREGROUND")
+  capturedAt         DateTime
+  receivedAt         DateTime @default(now())
+  expiresAt          DateTime
+
+  @@index([sessionId, capturedAt])
+  @@index([transportRequestId, capturedAt])
+  @@index([transportUnitId, capturedAt])
+  @@index([expiresAt])
+}

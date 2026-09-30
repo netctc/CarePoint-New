@@ -98,6 +98,28 @@ class TransportLocationCandidate {
   }
 }
 
+class TransportTelemetryPosition {
+  const TransportTelemetryPosition({
+    required this.latitude,
+    required this.longitude,
+    required this.capturedAt,
+    this.accuracyMeters,
+    this.headingDegrees,
+    this.speedKph,
+  });
+
+  final double latitude;
+  final double longitude;
+  final DateTime capturedAt;
+  final double? accuracyMeters;
+  final double? headingDegrees;
+  final double? speedKph;
+}
+
+abstract interface class TransportTelemetryPositionProvider {
+  Future<TransportTelemetryPosition> currentTelemetryPosition();
+}
+
 abstract interface class CurrentDeviceTransportLocationProvider {
   Future<TransportLocation> currentLocation();
 }

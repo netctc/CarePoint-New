@@ -66,6 +66,7 @@ class PatientMedicalTransportStatusPage extends StatefulWidget {
 
 class _PatientMedicalTransportStatusPageState extends State<PatientMedicalTransportStatusPage> {
   Map<String, dynamic>? value;
+  Map<String, dynamic> tracking = <String, dynamic>{};
   bool busy = true;
   String? error;
 
@@ -93,7 +94,17 @@ class _PatientMedicalTransportStatusPageState extends State<PatientMedicalTransp
     if (mounted) setState(() { busy = true; error = null; });
     try {
       final next = await widget.session.api.medicalTransportRequest(requestId).timeout(const Duration(seconds: 30));
-      if (mounted) setState(() => value = next);
+      Map<String, dynamic> nextTracking = <String, dynamic>{};
+      try {
+        nextTracking = await widget.session.api.medicalTransportTracking(requestId).timeout(const Duration(seconds: 20));
+      } catch (_) {
+        // Transport status remains usable even when the optional tracking
+        // surface is temporarily unavailable.
+      }
+      if (mounted) setState(() {
+        value = next;
+        tracking = nextTracking;
+      });
     } catch (_) {
       if (mounted) setState(() {
         value = null;
@@ -177,6 +188,8 @@ class _PatientMedicalTransportStatusPageState extends State<PatientMedicalTransp
                             _detail(transportText(widget.locale, 'destination'), _location(request, pickup: false)),
                             if (provider['displayName'] != null) _detail(patientMedicalTransportText(widget.locale, 'provider'), provider['displayName'].toString()),
                             if (request['etaMinutes'] != null) _detail(transportText(widget.locale, 'eta'), '${request['etaMinutes']} ${transportText(widget.locale, 'minutes')}'),
+                            if (const {'EN_ROUTE', 'ARRIVED', 'TRANSPORTING'}.contains(status) || tracking['visible'] == true)
+                              _vehicleTrackingCard(),
                             if (request['cancellationReason']?.toString().trim().isNotEmpty == true)
                               _detail(patientMedicalTransportText(widget.locale, 'cancellationReason'), request['cancellationReason'].toString()),
                             if (error != null) Padding(
@@ -215,6 +228,56 @@ class _PatientMedicalTransportStatusPageState extends State<PatientMedicalTransp
                         ),
                       ),
       ),
+    );
+  }
+
+
+  Widget _vehicleTrackingCard() {
+    final visible = tracking['visible'] == true;
+    final freshness = tracking['freshness']?.toString();
+    final visibilityStatus = tracking['visibilityStatus']?.toString() ?? '';
+    final location = _map(tracking['location']);
+    final latitude = location['latitude'];
+    final longitude = location['longitude'];
+    final capturedAt = location['capturedAt'];
+    final title = transportText(widget.locale, 'vehicleTracking');
+    final statusText = visible
+        ? freshness == 'FRESH'
+            ? transportText(widget.locale, 'trackingFresh')
+            : transportText(widget.locale, 'trackingStale')
+        : visibilityStatus == 'WAITING_FOR_HEARTBEAT'
+            ? transportText(widget.locale, 'trackingWaiting')
+            : transportText(widget.locale, 'trackingStopped');
+    return Container(
+      key: const ValueKey('patient-vehicle-tracking'),
+      margin: const EdgeInsets.only(top: 8, bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Icon(Icons.local_shipping_outlined),
+          const SizedBox(width: 8),
+          Expanded(child: Text(title, style: const TextStyle(fontWeight: FontWeight.w900))),
+        ]),
+        const SizedBox(height: 8),
+        Text(statusText),
+        if (visible && latitude != null && longitude != null) ...[
+          const SizedBox(height: 6),
+          Text('$latitude, $longitude', style: const TextStyle(fontWeight: FontWeight.w700)),
+        ],
+        if (visible && capturedAt != null) ...[
+          const SizedBox(height: 4),
+          Text('${transportText(widget.locale, 'locationUpdated')}: ${patientMedicalTransportDateTime(capturedAt)}'),
+        ],
+        const SizedBox(height: 8),
+        Text(
+          transportText(widget.locale, 'etaSeparateNotice'),
+          style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+        ),
+      ]),
     );
   }
 

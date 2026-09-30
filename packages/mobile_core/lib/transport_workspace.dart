@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'carepoint_api.dart';
@@ -5,15 +7,17 @@ import 'carepoint_localization.dart';
 import 'transport_handoff.dart';
 import 'transport_incidents.dart';
 import 'transport_localization.dart';
+import 'transport_location.dart';
 
 class ProviderTransportWorkspace extends StatefulWidget {
-  const ProviderTransportWorkspace({super.key, required this.session, required this.locale, required this.accent, this.onSignOut, this.organizationLabel, this.organizationDetail});
+  const ProviderTransportWorkspace({super.key, required this.session, required this.locale, required this.accent, this.onSignOut, this.organizationLabel, this.organizationDetail, this.telemetryPositionProvider});
   final CarePointSession session;
   final CarePointLocale locale;
   final Color accent;
   final VoidCallback? onSignOut;
   final String? organizationLabel;
   final String? organizationDetail;
+  final TransportTelemetryPositionProvider? telemetryPositionProvider;
 
   @override
   State<ProviderTransportWorkspace> createState() => _ProviderTransportWorkspaceState();
@@ -27,6 +31,9 @@ class _ProviderTransportWorkspaceState extends State<ProviderTransportWorkspace>
   List<Map<String, dynamic>> emergencyJobs = const [];
   List<Map<String, dynamic>> available = const [];
   List<Map<String, dynamic>> assigned = const [];
+  Timer? telemetryTimer;
+  String? activeTrackingRequestId;
+  bool heartbeatInFlight = false;
 
   CarePointApi get api => widget.session.api;
 
@@ -34,6 +41,12 @@ class _ProviderTransportWorkspaceState extends State<ProviderTransportWorkspace>
   void initState() {
     super.initState();
     refresh();
+  }
+
+  @override
+  void dispose() {
+    telemetryTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> refresh() async {
@@ -89,7 +102,7 @@ class _ProviderTransportWorkspaceState extends State<ProviderTransportWorkspace>
           ]),
           actions: [
             IconButton(onPressed: refresh, icon: const Icon(Icons.refresh_rounded)),
-            if (widget.onSignOut != null) IconButton(onPressed: widget.onSignOut, tooltip: 'Sign out', icon: const Icon(Icons.logout_rounded)),
+            if (widget.onSignOut != null) IconButton(onPressed: _signOut, tooltip: 'Sign out', icon: const Icon(Icons.logout_rounded)),
           ],
         ),
         body: busy
@@ -147,6 +160,7 @@ class _ProviderTransportWorkspaceState extends State<ProviderTransportWorkspace>
     final requestId = request['id']?.toString() ?? '';
     final incidentEnabled = const {'ASSIGNED', 'EN_ROUTE', 'ARRIVED', 'TRANSPORTING'}.contains(status);
     final etaRecalculationEnabled = !emergency && request['mode']?.toString() == 'GROUND' && incidentEnabled;
+    final trackingEnabled = !emergency && const {'EN_ROUTE', 'ARRIVED', 'TRANSPORTING'}.contains(status);
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(14),
@@ -159,6 +173,15 @@ class _ProviderTransportWorkspaceState extends State<ProviderTransportWorkspace>
             label: Text(transportText(widget.locale, 'crewUnit')),
           ),
           if (!emergency) ...[
+            if (trackingEnabled) ...[
+              OutlinedButton.icon(
+                key: ValueKey('transport-vehicle-tracking-$requestId'),
+                onPressed: requestId.isEmpty ? null : () => _tracking(requestId),
+                icon: const Icon(Icons.my_location_outlined),
+                label: Text(transportText(widget.locale, 'vehicleTracking')),
+              ),
+              const SizedBox(height: 10),
+            ],
             if (etaRecalculationEnabled) ...[
               OutlinedButton.icon(
                 key: ValueKey('transport-recalculate-eta-$requestId'),
@@ -246,9 +269,29 @@ class _ProviderTransportWorkspaceState extends State<ProviderTransportWorkspace>
 
   Future<void> _advance(String requestId, String status, {required bool emergency}) async {
     if (requestId.isEmpty) return;
-    await _run(() => emergency
-        ? api.updateProviderEmergencyAmbulanceStatus(requestId, status: status)
-        : api.updateProviderMedicalTransportStatus(requestId, status: status));
+    if (emergency) {
+      await _run(() => api.updateProviderEmergencyAmbulanceStatus(requestId, status: status));
+      return;
+    }
+    try {
+      await api.updateProviderMedicalTransportStatus(requestId, status: status);
+      if (status == 'COMPLETED') {
+        try {
+          await api.stopProviderMedicalTransportTracking(requestId, reason: 'JOB_COMPLETED');
+        } catch (_) {
+          // Completion itself remains authoritative even if a best-effort
+          // tracking-session stop cannot be persisted immediately.
+        }
+        if (activeTrackingRequestId == requestId) {
+          telemetryTimer?.cancel();
+          telemetryTimer = null;
+          activeTrackingRequestId = null;
+        }
+      }
+      await refresh();
+    } catch (value) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value.toString())));
+    }
   }
 
   Future<void> _resources(String requestId, {required bool emergency}) async {
@@ -378,6 +421,190 @@ class _ProviderTransportWorkspaceState extends State<ProviderTransportWorkspace>
     } catch (value) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value.toString())));
     }
+  }
+
+
+  Future<void> _tracking(String requestId) async {
+    try {
+      final state = await api.providerMedicalTransportTracking(requestId);
+      final sharing = state['sharingStatus']?.toString() == 'ACTIVE' &&
+          state['shareWithPatient'] == true;
+      if (sharing && activeTrackingRequestId == null) {
+        activeTrackingRequestId = requestId;
+        _ensureTelemetryTimer(requestId);
+      }
+      if (!mounted) return;
+      final freshness = state['freshness']?.toString() ?? 'NO_HEARTBEAT';
+      final action = await showDialog<String>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(transportText(widget.locale, 'locationSharing')),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(sharing
+                  ? (freshness == 'FRESH'
+                      ? transportText(widget.locale, 'trackingFresh')
+                      : freshness == 'STALE'
+                          ? transportText(widget.locale, 'trackingStale')
+                          : transportText(widget.locale, 'trackingWaiting'))
+                  : transportText(widget.locale, 'trackingStopped')),
+              const SizedBox(height: 10),
+              Text(
+                transportText(widget.locale, 'foregroundTrackingNotice'),
+                style: const TextStyle(color: Color(0xFF64748B)),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                transportText(widget.locale, 'etaSeparateNotice'),
+                style: const TextStyle(color: Color(0xFF64748B)),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(transportText(widget.locale, 'close')),
+            ),
+            if (sharing)
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, 'stop'),
+                child: Text(transportText(widget.locale, 'stopLocationSharing')),
+              ),
+            if (sharing)
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, 'send'),
+                child: Text(transportText(widget.locale, 'sendLocationNow')),
+              )
+            else
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, 'start'),
+                child: Text(transportText(widget.locale, 'startLocationSharing')),
+              ),
+          ],
+        ),
+      );
+      if (action == 'start') await _startTracking(requestId);
+      if (action == 'send') await _sendHeartbeat(requestId, silent: false);
+      if (action == 'stop') await _stopTracking(requestId);
+    } catch (value) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value.toString())));
+    }
+  }
+
+  Future<void> _startTracking(String requestId) async {
+    final provider = widget.telemetryPositionProvider;
+    if (provider == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(transportText(widget.locale, 'locationPermissionUnavailable'))),
+        );
+      }
+      return;
+    }
+    final active = activeTrackingRequestId;
+    if (active != null && active != requestId) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(transportText(widget.locale, 'stopLocationSharing'))),
+        );
+      }
+      return;
+    }
+    await api.startProviderMedicalTransportTracking(
+      requestId,
+      shareWithPatient: true,
+    );
+    activeTrackingRequestId = requestId;
+    await _sendHeartbeat(requestId, silent: false);
+    _ensureTelemetryTimer(requestId);
+  }
+
+  void _ensureTelemetryTimer(String requestId) {
+    telemetryTimer?.cancel();
+    telemetryTimer = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) => _sendHeartbeat(requestId, silent: true),
+    );
+  }
+
+  Future<void> _sendHeartbeat(String requestId, {required bool silent}) async {
+    final provider = widget.telemetryPositionProvider;
+    if (provider == null || heartbeatInFlight) return;
+    heartbeatInFlight = true;
+    try {
+      final position = await provider.currentTelemetryPosition();
+      await api.sendProviderMedicalTransportHeartbeat(
+        requestId,
+        clientEventId: 'provider-telemetry-$requestId-${DateTime.now().microsecondsSinceEpoch}',
+        latitude: position.latitude,
+        longitude: position.longitude,
+        accuracyMeters: position.accuracyMeters,
+        headingDegrees: position.headingDegrees,
+        speedKph: position.speedKph,
+        capturedAt: position.capturedAt,
+      );
+      if (!silent && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(transportText(widget.locale, 'locationUpdated'))),
+        );
+      }
+    } on CarePointApiException catch (value) {
+      if (value.statusCode == 409) {
+        telemetryTimer?.cancel();
+        telemetryTimer = null;
+        if (activeTrackingRequestId == requestId) activeTrackingRequestId = null;
+      }
+      if (!silent && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value.toString())));
+      }
+    } catch (value) {
+      if (!silent && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(value is TransportLocationUnavailableException
+              ? transportText(widget.locale, 'locationPermissionUnavailable')
+              : value.toString())),
+        );
+      }
+    } finally {
+      heartbeatInFlight = false;
+    }
+  }
+
+  Future<void> _stopTracking(String requestId) async {
+    await api.stopProviderMedicalTransportTracking(
+      requestId,
+      reason: 'PROVIDER_STOPPED',
+    );
+    if (activeTrackingRequestId == requestId) {
+      telemetryTimer?.cancel();
+      telemetryTimer = null;
+      activeTrackingRequestId = null;
+    }
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(transportText(widget.locale, 'trackingStopped'))),
+      );
+    }
+  }
+
+  Future<void> _signOut() async {
+    final requestId = activeTrackingRequestId;
+    if (requestId != null) {
+      try {
+        await api.stopProviderMedicalTransportTracking(
+          requestId,
+          reason: 'APP_SIGN_OUT',
+        );
+      } catch (_) {
+        // Server-side TTL and lifecycle gating still terminate patient visibility.
+      }
+      telemetryTimer?.cancel();
+      telemetryTimer = null;
+      activeTrackingRequestId = null;
+    }
+    widget.onSignOut?.call();
   }
 
   Future<void> _incidents(String requestId) async {

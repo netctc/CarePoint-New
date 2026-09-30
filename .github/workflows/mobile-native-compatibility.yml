@@ -27,8 +27,6 @@ jobs:
             project: carepoint_provider
           - app: transport-provider-mobile
             project: carepoint_transport_provider
-          - app: transport-provider-mobile
-            project: carepoint_transport_provider
     steps:
       - name: Check out exact candidate SHA
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -59,6 +57,14 @@ jobs:
           flutter create --platforms=android --org io.carepoint.validation --project-name "${{ matrix.project }}" .
           test -f android/app/src/main/AndroidManifest.xml
           grep -R "io.carepoint.validation" android/app/build.gradle* android/app/src/main 2>/dev/null
+      - name: Configure Transport Provider foreground location permission
+        if: matrix.app == 'transport-provider-mobile'
+        working-directory: apps/${{ matrix.app }}
+        run: |
+          sed -i '/<manifest/a\    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />' android/app/src/main/AndroidManifest.xml
+          grep -F 'android.permission.ACCESS_FINE_LOCATION' android/app/src/main/AndroidManifest.xml
+          ! grep -F 'android.permission.ACCESS_BACKGROUND_LOCATION' android/app/src/main/AndroidManifest.xml
+
       - name: Build unsigned/non-production Android compatibility APK
         working-directory: apps/${{ matrix.app }}
         run: >-
@@ -93,6 +99,8 @@ jobs:
             project: carepoint_doctor
           - app: provider-mobile
             project: carepoint_provider
+          - app: transport-provider-mobile
+            project: carepoint_transport_provider
     steps:
       - name: Check out exact candidate SHA
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -124,6 +132,14 @@ jobs:
           flutter create --platforms=ios --org io.carepoint.validation --project-name "${{ matrix.project }}" .
           test -f ios/Runner/Info.plist
           grep -R "io.carepoint.validation" ios/Runner.xcodeproj/project.pbxproj
+      - name: Configure Transport Provider when-in-use location permission
+        if: matrix.app == 'transport-provider-mobile'
+        working-directory: apps/${{ matrix.app }}
+        run: |
+          /usr/libexec/PlistBuddy -c "Add :NSLocationWhenInUseUsageDescription string CarePoint uses vehicle location only while Transport Provider is actively sharing during an assigned transport." ios/Runner/Info.plist
+          /usr/libexec/PlistBuddy -c "Print :NSLocationWhenInUseUsageDescription" ios/Runner/Info.plist
+          ! grep -q 'NSLocationAlways' ios/Runner/Info.plist
+
       - name: Build non-production iOS simulator compatibility app
         working-directory: apps/${{ matrix.app }}
         run: >-

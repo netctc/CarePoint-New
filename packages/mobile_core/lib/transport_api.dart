@@ -305,4 +305,47 @@ extension CarePointTransportApi on CarePointApi {
   }));
 
 
+  Future<Map<String, dynamic>> medicalTransportTracking(String requestId) async =>
+      _asMap(await _send('GET', '/medical-transport/$requestId/tracking'));
+
+  Future<Map<String, dynamic>> providerMedicalTransportTracking(String requestId) async =>
+      _asMap(await _send('GET', '/provider/medical-transport/$requestId/tracking'));
+
+  Future<Map<String, dynamic>> startProviderMedicalTransportTracking(
+    String requestId, {
+    required bool shareWithPatient,
+  }) async =>
+      _asMap(await _send('POST', '/provider/medical-transport/$requestId/tracking/start', body: {
+        'shareWithPatient': shareWithPatient,
+      }));
+
+  Future<Map<String, dynamic>> sendProviderMedicalTransportHeartbeat(
+    String requestId, {
+    required String clientEventId,
+    required double latitude,
+    required double longitude,
+    double? accuracyMeters,
+    double? headingDegrees,
+    double? speedKph,
+    required DateTime capturedAt,
+  }) async =>
+      _asMap(await _send('POST', '/provider/medical-transport/$requestId/tracking/heartbeat', body: {
+        'clientEventId': clientEventId,
+        'latitude': latitude,
+        'longitude': longitude,
+        if (accuracyMeters != null) 'accuracyMeters': accuracyMeters,
+        if (headingDegrees != null) 'headingDegrees': headingDegrees,
+        if (speedKph != null) 'speedKph': speedKph,
+        'capturedAt': capturedAt.toUtc().toIso8601String(),
+      }));
+
+  Future<Map<String, dynamic>> stopProviderMedicalTransportTracking(
+    String requestId, {
+    String reason = 'PROVIDER_STOPPED',
+  }) async =>
+      _asMap(await _send('POST', '/provider/medical-transport/$requestId/tracking/stop', body: {
+        'reason': reason,
+      }));
+
+
 }
