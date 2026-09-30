@@ -20,12 +20,12 @@ type SlaFilter = "ALL" | "BREACHED" | "COMPLIANT" | "PENDING";
 type SlaState = "BREACHED" | "COMPLIANT" | "PENDING" | "NOT_APPLICABLE";
 
 type QueryInput = {
-  windowDays?: string;
-  mode?: string;
-  providerId?: string;
-  sla?: string;
-  page?: string;
-  limit?: string;
+  windowDays?: string | undefined;
+  mode?: string | undefined;
+  providerId?: string | undefined;
+  sla?: string | undefined;
+  page?: string | undefined;
+  limit?: string | undefined;
 };
 
 @Injectable()
