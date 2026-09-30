@@ -171,8 +171,24 @@ class TransportSavedLocationsService {
       throw new BadRequestException("q must not exceed 120 characters.");
     }
 
+    const clinicModalities = await this.prisma.serviceModality.findMany({
+      where: {
+        modality: "CLINIC",
+        active: true,
+        service: { active: true, provider: { status: "ACTIVE" } },
+      },
+      select: { serviceId: true },
+      take: 500,
+    });
+    const serviceIds = [...new Set(clinicModalities.map((row) => row.serviceId))];
+    if (serviceIds.length === 0) return { items: [] };
+
     const contexts = await this.prisma.serviceDeliveryContext.findMany({
-      where: { modality: "CLINIC", clinicLocationId: { not: null } },
+      where: {
+        modality: "CLINIC",
+        serviceId: { in: serviceIds },
+        clinicLocationId: { not: null },
+      },
       select: { clinicLocationId: true },
       take: 500,
     });
