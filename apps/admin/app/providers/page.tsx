@@ -5,6 +5,7 @@ import { AppShell } from "@/components/AppShell";
 import { ProviderGovernanceQueue } from "@/components/ProviderGovernanceQueue";
 import { ProfessionalAdministrationCenter } from "@/components/ProfessionalAdministrationCenter";
 import { useI18n } from "@/lib/i18n";
+import { TRANSPORT_PROVIDER_FAMILIES } from "@/lib/transport-provider-scope";
 
 export default function ProvidersPage() {
   const { t } = useI18n();
@@ -17,7 +18,7 @@ export default function ProvidersPage() {
       </div>
     </section>
     <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginBottom: 16 }}><Link className="secondary-button" href="/master-data">Master Data Maintenance</Link><Link className="secondary-button" href="/providers/taxonomy">Provider taxonomy · ADM-106/107</Link></div>
-    <ProfessionalAdministrationCenter kind="OTHER_PROVIDER" />
-    <div style={{ marginTop: 24 }}><ProviderGovernanceQueue kind="OTHER_PROVIDER" /></div>
+    <ProfessionalAdministrationCenter kind="OTHER_PROVIDER" excludeFamilies={TRANSPORT_PROVIDER_FAMILIES} />
+    <div style={{ marginTop: 24 }}><ProviderGovernanceQueue kind="OTHER_PROVIDER" excludeFamilies={TRANSPORT_PROVIDER_FAMILIES} /></div>
   </AppShell>;
 }
