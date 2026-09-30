@@ -753,5 +753,6 @@ class TransportCommandCenterController {
 @Module({
   controllers: [TransportCommandCenterController],
   providers: [TransportCommandCenterService],
+  exports: [TransportCommandCenterService],
 })
 export class TransportCommandCenterModule {}
