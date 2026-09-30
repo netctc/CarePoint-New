@@ -132,7 +132,7 @@ class _PatientMedicalTransportStatusPageState extends State<PatientMedicalTransp
         if (silent) error = null;
       });
     } catch (_) {
-      if (mounted) setState(() {
+      if (!silent && mounted) setState(() {
         value = null;
         error = patientMedicalTransportText(widget.locale, 'loadFailed');
       });
