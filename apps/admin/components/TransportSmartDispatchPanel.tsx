@@ -132,6 +132,22 @@ export function TransportSmartDispatchPanel() {
     return payload;
   }
 
+  async function loadSnapshot({ silent = true }: { silent?: boolean } = {}) {
+    if (!silent) setLoading(true);
+    try {
+      const payload = (await request(
+        "/api/admin/transport/smart-dispatch",
+      )) as SmartDispatchPayload;
+      setData(payload);
+      return payload;
+    } catch (error) {
+      if (!silent) setMessage(String(error));
+      return null;
+    } finally {
+      if (!silent) setLoading(false);
+    }
+  }
+
   async function evaluate({ silent = false }: { silent?: boolean } = {}) {
     if (!silent) setLoading(true);
     setMessage("");
@@ -195,7 +211,7 @@ export function TransportSmartDispatchPanel() {
         { method: "POST", body: "{}" },
       );
       setMessage("Escalation acknowledged.");
-      await evaluate({ silent: true });
+      await loadSnapshot({ silent: true });
     } catch (error) {
       setMessage(String(error));
     } finally {
@@ -223,8 +239,8 @@ export function TransportSmartDispatchPanel() {
           body: JSON.stringify({ note }),
         },
       );
-      setMessage("Escalation resolved. Persistent conditions may reopen automatically.");
-      await evaluate({ silent: true });
+      setMessage("Escalation resolved. Persistent conditions may reopen on the next evaluation cycle.");
+      await loadSnapshot({ silent: true });
     } catch (error) {
       setMessage(String(error));
     } finally {
