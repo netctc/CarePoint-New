@@ -57,6 +57,29 @@ This rule applies to:
 
 Existing coordinate data is preserved. The database migration only removes `NOT NULL` constraints.
 
+## Location abstraction foundation
+
+Mobile Core now defines a vendor-neutral transport location contract with:
+
+- optional address;
+- optional latitude/longitude pair;
+- optional place ID;
+- normalized source values: GPS, address search, map picker or manual;
+- validation that rejects partial or out-of-range coordinate pairs;
+- separate interfaces for current-device location and geocoding/search.
+
+Patient Mobile wraps the existing `geolocator` dependency behind this interface.
+
+Current behavior:
+
+- Emergency Ambulance continues to capture current GPS coordinates before dispatch.
+- Scheduled Medical Transport offers **Use current location** for pickup/origin.
+- GPS only fills optional pickup latitude/longitude at this stage.
+- manual address entry remains available and independent.
+- destination remains address/optional-coordinate based until place search/map selection is implemented.
+
+No map/geocoding vendor has been selected.
+
 ## Future location experience
 
 The next location enhancement should use a provider-neutral location abstraction instead of hard-wiring one map vendor.
@@ -163,5 +186,5 @@ For unassigned jobs, Admin can select a compatible dispatch-ready provider and a
 
 Remaining work should be split into small reviewable slices:
 
-1. GPS + place search + geocoding abstraction.
+1. Reverse geocoding + place search + map picker provider integration.
 2. Transport-specific analytics and operational audit views.
