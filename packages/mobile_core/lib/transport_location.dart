@@ -20,6 +20,19 @@ class TransportLocation {
   final String? placeId;
   final TransportLocationSource source;
 
+  factory TransportLocation.fromJson(
+    Map<String, dynamic> json, {
+    TransportLocationSource fallbackSource = TransportLocationSource.manual,
+  }) {
+    return TransportLocation(
+      address: json['address']?.toString(),
+      latitude: _transportDouble(json['latitude']),
+      longitude: _transportDouble(json['longitude']),
+      placeId: json['placeId']?.toString(),
+      source: _transportLocationSource(json['source']) ?? fallbackSource,
+    );
+  }
+
   bool get hasAddress => address?.trim().isNotEmpty == true;
   bool get hasCoordinates => latitude != null && longitude != null;
   bool get hasPartialCoordinates => (latitude == null) != (longitude == null);
@@ -56,6 +69,24 @@ class TransportLocationCandidate {
 
   final String label;
   final TransportLocation location;
+
+  factory TransportLocationCandidate.fromJson(Map<String, dynamic> json) {
+    final rawLocation = json['location'];
+    final locationMap = rawLocation is Map<String, dynamic>
+        ? rawLocation
+        : rawLocation is Map
+            ? rawLocation.map((key, value) => MapEntry(key.toString(), value))
+            : <String, dynamic>{};
+    return TransportLocationCandidate(
+      label: json['label']?.toString().trim().isNotEmpty == true
+          ? json['label'].toString().trim()
+          : locationMap['address']?.toString() ?? '',
+      location: TransportLocation.fromJson(
+        locationMap,
+        fallbackSource: TransportLocationSource.addressSearch,
+      ),
+    );
+  }
 }
 
 abstract interface class CurrentDeviceTransportLocationProvider {
@@ -78,4 +109,21 @@ class TransportLocationUnavailableException implements Exception {
 
   @override
   String toString() => 'Transport location unavailable: $code';
+}
+
+
+double? _transportDouble(dynamic value) {
+  if (value is num) return value.toDouble();
+  return double.tryParse(value?.toString() ?? '');
+}
+
+TransportLocationSource? _transportLocationSource(dynamic value) {
+  final normalized = value?.toString().trim().toUpperCase();
+  return switch (normalized) {
+    'GPS' => TransportLocationSource.gps,
+    'ADDRESS_SEARCH' => TransportLocationSource.addressSearch,
+    'MAP_PICKER' => TransportLocationSource.mapPicker,
+    'MANUAL' => TransportLocationSource.manual,
+    _ => null,
+  };
 }
