@@ -215,6 +215,22 @@ export class TransportReportDownloadService {
       );
     }
 
+    const recipientReceipts =
+      await this.prisma.transportManagementReportDelivery.updateMany({
+        where: {
+          runId,
+          status: "SENT",
+          downloadedAt: null,
+          destination: {
+            recipientAccountId: principal.accountId,
+          },
+        },
+        data: {
+          downloadedAt: new Date(),
+          downloadedByAccountId: principal.accountId,
+        },
+      });
+
     await this.audit.write({
       actorId: principal.accountId,
       action: "ADMIN_TRANSPORT_REPORT_DOWNLOADED",
@@ -227,6 +243,7 @@ export class TransportReportDownloadService {
         sha256,
         oneTimeGrantConsumed: true,
         publicUrlIssued: false,
+        recipientDeliveryReceiptsRecorded: recipientReceipts.count,
       },
     });
 

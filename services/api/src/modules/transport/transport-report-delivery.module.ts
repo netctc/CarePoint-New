@@ -259,6 +259,75 @@ export class TransportReportDeliveryOutboxService {
     };
   }
 
+  async inbox(principal: AuthPrincipal) {
+    const items = await this.prisma.transportManagementReportDelivery.findMany({
+      where: {
+        status: "SENT",
+        destination: {
+          recipientAccountId: principal.accountId,
+        },
+      },
+      select: {
+        id: true,
+        status: true,
+        sentAt: true,
+        downloadedAt: true,
+        downloadedByAccountId: true,
+        destination: {
+          select: {
+            id: true,
+            label: true,
+            channel: true,
+            scheduleId: true,
+          },
+        },
+        run: {
+          select: {
+            id: true,
+            scheduleId: true,
+            scheduledFor: true,
+            reportFilename: true,
+            rowCount: true,
+            artifactSha256: true,
+            artifactBytes: true,
+            artifactStoredAt: true,
+          },
+        },
+      },
+      orderBy: [{ sentAt: "desc" }, { createdAt: "desc" }],
+      take: 200,
+    });
+
+    await this.audit.write({
+      actorId: principal.accountId,
+      action: "ADMIN_TRANSPORT_REPORT_INBOX_READ",
+      objectType: "TRANSPORT_REPORT_DELIVERY",
+      objectId: principal.accountId,
+      purpose: "TRANSPORT_OPERATIONS",
+      result: "SUCCESS",
+      metadata: {
+        count: items.length,
+        patientIdentityIncluded: false,
+        patientLocationIncluded: false,
+        objectStorageKeyIncluded: false,
+      },
+    });
+
+    return {
+      generatedAt: new Date().toISOString(),
+      recipientAccountId: principal.accountId,
+      sensitiveDataPolicy: {
+        patientIdentityIncluded: false,
+        patientLocationIncluded: false,
+        objectStorageKeyIncluded: false,
+      },
+      items: items.map((item) => ({
+        ...item,
+        artifactAvailable: Boolean(item.run.artifactSha256),
+      })),
+    };
+  }
+
   async recoverable(limit: number) {
     const now = new Date();
     return this.prisma.transportManagementReportDelivery.findMany({
@@ -622,6 +691,11 @@ class TransportReportDeliveryController {
   @Get("report-deliveries")
   deliveries(@CurrentPrincipal() principal: AuthPrincipal) {
     return this.service.deliveries(principal);
+  }
+
+  @Get("report-inbox")
+  inbox(@CurrentPrincipal() principal: AuthPrincipal) {
+    return this.service.inbox(principal);
   }
 }
 
