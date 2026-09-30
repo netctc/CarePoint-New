@@ -3,8 +3,10 @@ import 'package:carepoint_mobile_core/carepoint_localization.dart';
 import 'package:carepoint_mobile_core/patient_emergency.dart';
 import 'package:carepoint_mobile_core/patient_medical_transport.dart';
 import 'package:carepoint_mobile_core/transport_localization.dart';
+import 'package:carepoint_mobile_core/transport_location.dart';
 import 'package:flutter/material.dart';
-import 'package:geolocator/geolocator.dart';
+
+import 'patient_transport_location.dart';
 
 Future<void> openEmergencyAmbulanceFlow(
   BuildContext context, {
@@ -35,11 +37,11 @@ Future<void> openEmergencyAmbulanceFlow(
   final messenger = ScaffoldMessenger.of(context);
   try {
     messenger.showSnackBar(SnackBar(content: Text(transportText(locale, 'locating'))));
-    final position = await _currentPosition(locale);
+    final location = await _currentTransportLocation(locale);
     final response = await session.api.requestEmergencyAmbulance(
       clientRequestId: 'mobile-emergency-${DateTime.now().microsecondsSinceEpoch}',
-      latitude: position.latitude,
-      longitude: position.longitude,
+      latitude: location.latitude,
+      longitude: location.longitude,
     );
     if (!context.mounted) return;
     messenger.hideCurrentSnackBar();
@@ -59,16 +61,14 @@ Future<void> openEmergencyAmbulanceFlow(
   }
 }
 
-Future<Position> _currentPosition(CarePointLocale locale) async {
-  if (!await Geolocator.isLocationServiceEnabled()) {
+const _deviceLocationProvider = GeolocatorTransportLocationProvider();
+
+Future<TransportLocation> _currentTransportLocation(CarePointLocale locale) async {
+  try {
+    return await _deviceLocationProvider.currentLocation();
+  } on TransportLocationUnavailableException {
     throw CarePointApiException(transportText(locale, 'locationDenied'));
   }
-  var permission = await Geolocator.checkPermission();
-  if (permission == LocationPermission.denied) permission = await Geolocator.requestPermission();
-  if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
-    throw CarePointApiException(transportText(locale, 'locationDenied'));
-  }
-  return Geolocator.getCurrentPosition(locationSettings: const LocationSettings(accuracy: LocationAccuracy.high));
 }
 
 class PatientMedicalTransportPage extends StatefulWidget {
@@ -281,6 +281,7 @@ class _TransportDialogState extends State<_TransportDialog> {
   int companionCount = 0;
   final Set<String> equipment = <String>{};
   DateTime scheduledFor = DateTime.now().add(const Duration(hours: 2));
+  bool locatingPickup = false;
 
   @override
   void dispose() {
@@ -349,6 +350,17 @@ class _TransportDialogState extends State<_TransportDialog> {
               ),
               const SizedBox(height: 10),
               TextField(controller: pickupAddress, decoration: InputDecoration(labelText: '${transportText(widget.locale, 'pickup')} · ${transportText(widget.locale, 'address')}')),
+              const SizedBox(height: 8),
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: OutlinedButton.icon(
+                  onPressed: locatingPickup ? null : _useCurrentPickupLocation,
+                  icon: locatingPickup
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.my_location_outlined),
+                  label: Text(transportText(widget.locale, 'useCurrentLocation')),
+                ),
+              ),
               const SizedBox(height: 10),
               TextField(controller: pickupLatitude, keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true), decoration: InputDecoration(labelText: '${transportText(widget.locale, 'pickup')} · ${transportText(widget.locale, 'latitude')}')),
               const SizedBox(height: 10),
@@ -384,6 +396,29 @@ class _TransportDialogState extends State<_TransportDialog> {
         equipment.remove(value);
       }
     });
+  }
+
+  Future<void> _useCurrentPickupLocation() async {
+    setState(() => locatingPickup = true);
+    try {
+      final location = await _currentTransportLocation(widget.locale);
+      if (!mounted) return;
+      setState(() {
+        pickupLatitude.text = location.latitude?.toStringAsFixed(6) ?? '';
+        pickupLongitude.text = location.longitude?.toStringAsFixed(6) ?? '';
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(transportText(widget.locale, 'locationCaptured'))),
+      );
+    } catch (value) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(value.toString())),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => locatingPickup = false);
+    }
   }
 
   Future<void> _pickDateTime() async {
