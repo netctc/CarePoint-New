@@ -251,7 +251,9 @@ export class TransportReportDeliveryOutboxService {
     });
     return {
       generatedAt: new Date().toISOString(),
-      executionMode: "EXTERNAL_DELIVERY_ADAPTER_REQUIRED",
+      executionMode: "REPORT_READY_NOTIFICATION_WORKER",
+      notificationDeliveryEnabled: true,
+      artifactDeliveryPerformed: false,
       reportDeliveryPerformed: false,
       items,
     };
