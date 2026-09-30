@@ -96,7 +96,6 @@ export class TransportReportDownloadService {
         oneTime: true,
         tokenPersistedPlaintext: false,
         publicUrlIssued: false,
-        recipientDeliveryReceiptsRecorded: recipientReceipts.count,
       },
     });
 
@@ -244,6 +243,7 @@ export class TransportReportDownloadService {
         sha256,
         oneTimeGrantConsumed: true,
         publicUrlIssued: false,
+        recipientDeliveryReceiptsRecorded: recipientReceipts.count,
       },
     });
 
