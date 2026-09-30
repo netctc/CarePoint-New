@@ -78,6 +78,10 @@ assert.match(backend, /routes\.googleapis\.com\/directions\/v2:computeRoutes/);
 assert.match(backend, /Booking remains available/);
 assert.match(backend, /AIR_NOT_SUPPORTED/);
 assert.match(backend, /@Post\("route-preview"\)/);
+assert.match(backend, /@RequirePermissions\("TRANSPORT_OPERATE"\)/);
+assert.match(backend, /@Controller\("operations\/medical-transport"\)/);
+assert.match(backend, /@Post\(":requestId\/route-preview"\)/);
+assert.match(backend, /medicalTransportRequest\.findUnique/);
 
 // Address-only route preview remains valid.
 assert.match(backend, /if \(!address && !pair\)/);
