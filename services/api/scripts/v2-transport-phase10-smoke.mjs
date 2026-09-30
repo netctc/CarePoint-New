@@ -109,6 +109,8 @@ assert.match(moduleSource, /candidate\.activeUnitCount/);
 assert.match(moduleSource, /session\.sharingStatus === "ACTIVE"/);
 assert.match(moduleSource, /session\.shareWithPatient === true/);
 assert.match(moduleSource, /session\.expiresAt\.getTime\(\) > now\.getTime\(\)/);
+assert.match(moduleSource, /telemetryCandidate\?\.sessionId === session\.id/);
+assert.match(moduleSource, /telemetryCandidate\.capturedAt\.getTime\(\) >= session\.startedAt\.getTime\(\)/);
 
 // Phase 9 milestone detections are advisory only.
 assert.match(moduleSource, /PICKUP_ARRIVAL_DETECTED/);
