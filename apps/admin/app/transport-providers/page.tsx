@@ -19,7 +19,7 @@ export default function TransportProvidersPage() {
       <section className="notice-card">
         <div>
           <span>Dedicated transport-provider domain</span>
-          <h3>Ground and air medical transport providers</h3>
+          <h3>Ground, air and emergency ambulance transport providers</h3>
           <p>
             Manage transport-provider accounts, onboarding, credential validity,
             operational status and audit history without mixing transport
@@ -32,7 +32,7 @@ export default function TransportProvidersPage() {
         kind="OTHER_PROVIDER"
         includeFamilies={TRANSPORT_PROVIDER_FAMILIES}
         title="Transport Provider Administration Center"
-        intro="Manage transport-provider accounts, licenses, credential evidence and operational status for ground and air medical transport."
+        intro="Manage transport-provider accounts, licenses, credential evidence and operational status for ground, air and emergency ambulance medical transport."
       />
 
       <div style={{ marginTop: 24 }}>
