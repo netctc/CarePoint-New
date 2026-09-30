@@ -603,16 +603,27 @@ async function createAppointments(patients:PatientFixture[],providers:Schedulabl
   }
   for(let i=0;i<historical.length;i+=2000) await prisma.appointment.createMany({data:historical.slice(i,i+2000),skipDuplicates:true});
 
-  const slots=await prisma.availabilitySlot.findMany({
+  const rawSlots=await prisma.availabilitySlot.findMany({
     where:{startsAt:{gt:now.add(1,"day").toDate(),lte:now.add(FUTURE_APPOINTMENT_DAYS,"day").toDate()},status:"OPEN"},
-    orderBy:[{startsAt:"asc"},{providerId:"asc"}],
-    take:patients.length*3,
+    orderBy:[{startsAt:"asc"},{providerId:"asc"},{modality:"asc"}],
+    take:patients.length*12,
   });
+  // The database enforces one non-overlapping appointment per provider/time range.
+  // Availability may expose the same provider/time through multiple modalities, so
+  // select only one slot for each provider + start time before creating bookings.
+  const uniqueSlots=rawSlots.filter((slot,index,items)=>
+    items.findIndex(candidate=>candidate.providerId===slot.providerId&&candidate.startsAt.getTime()===slot.startsAt.getTime())===index
+  );
   let futureCount=0;
+  let slotCursor=0;
   const chosenSlotIds:string[]=[];
   for(const [patientIndex,patient] of patients.entries()){
+    let patientEndsAt=0;
     for(let future=0;future<2;future++){
-      const slot=slots[(patientIndex*2+future)%slots.length];
+      while(slotCursor<uniqueSlots.length && uniqueSlots[slotCursor]!.startsAt.getTime()<patientEndsAt){
+        slotCursor++;
+      }
+      const slot=uniqueSlots[slotCursor++];
       if(!slot) break;
       await prisma.appointment.create({
         data:{
@@ -627,6 +638,7 @@ async function createAppointments(patients:PatientFixture[],providers:Schedulabl
           endsAt:slot.endsAt,
         },
       });
+      patientEndsAt=slot.endsAt.getTime();
       chosenSlotIds.push(slot.id);
       futureCount++;
     }
@@ -796,7 +808,7 @@ async function createAvailabilityRequests(patients:PatientFixture[],providers:Sc
   return count;
 }
 
-async function createTransportData(patients:PatientFixture[],transport:{ground:string[];air:string[];emergency:string[]},config:FixtureConfig){
+async function createTransportData(patients:PatientFixture[],transport:{ground:string[];air:string[];emergency:string[]},config:FixtureConfig,actorAccountId:string){
   const now=dayjs().tz(config.timezone);
   let ground=0,air=0,emergency=0;
   for(let i=0;i<Math.min(40,patients.length);i++){
@@ -832,10 +844,10 @@ async function createTransportData(patients:PatientFixture[],transport:{ground:s
     });
     await prisma.medicalTransportEvent.create({data:{transportRequestId:request.id,fromStatus:null,toStatus:"REQUESTED",occurredAt:request.requestedAt}});
     if(assignedProviderId&&status!=="REQUESTED"){
-      await prisma.medicalTransportEvent.create({data:{transportRequestId:request.id,actorAccountId:SYSTEM_ACTOR,fromStatus:"REQUESTED",toStatus:"ASSIGNED",providerId:assignedProviderId,etaMinutes:20+(i%25),occurredAt:now.subtract(1,"hour").toDate()}});
+      await prisma.medicalTransportEvent.create({data:{transportRequestId:request.id,actorAccountId,fromStatus:"REQUESTED",toStatus:"ASSIGNED",providerId:assignedProviderId,etaMinutes:20+(i%25),occurredAt:now.subtract(1,"hour").toDate()}});
     }
     if(status==="COMPLETED"){
-      await prisma.medicalTransportEvent.create({data:{transportRequestId:request.id,actorAccountId:SYSTEM_ACTOR,fromStatus:"ASSIGNED",toStatus:"COMPLETED",providerId:assignedProviderId,occurredAt:scheduledFor.add(1,"hour").toDate()}});
+      await prisma.medicalTransportEvent.create({data:{transportRequestId:request.id,actorAccountId,fromStatus:"ASSIGNED",toStatus:"COMPLETED",providerId:assignedProviderId,occurredAt:scheduledFor.add(1,"hour").toDate()}});
     }
     if(mode==="AIR") air++; else ground++;
   }
@@ -889,7 +901,7 @@ async function main(){
   const appointments=await createAppointments(patients,allSchedulable,config);
   const clinical=await createClinicalData(patients,reference.metricVersions,doctors.length?doctors:allSchedulable,config);
   const availabilityRequests=await createAvailabilityRequests(patients,allSchedulable,config);
-  const transport=await createTransportData(patients,other.transportProviders,config);
+  const transport=await createTransportData(patients,other.transportProviders,config,admin.id);
 
   const summary={
     resetTables,
