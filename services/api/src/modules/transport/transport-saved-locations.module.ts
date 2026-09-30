@@ -254,6 +254,40 @@ class TransportSavedLocationsService {
     return { items };
   }
 
+  async routePreviewForRequest(principal: AuthPrincipal, requestIdRaw: string) {
+    const requestId = this.id(requestIdRaw, "requestId");
+    const request = await this.prisma.medicalTransportRequest.findUnique({
+      where: { id: requestId },
+      select: {
+        id: true,
+        mode: true,
+        pickupAddress: true,
+        pickupLatitude: true,
+        pickupLongitude: true,
+        destinationAddress: true,
+        destinationLatitude: true,
+        destinationLongitude: true,
+      },
+    });
+    if (!request) throw new NotFoundException("Medical transport request not found.");
+
+    return this.routePreview(principal, {
+      mode: request.mode,
+      pickup: {
+        address: request.pickupAddress,
+        latitude: request.pickupLatitude == null ? null : Number(request.pickupLatitude),
+        longitude: request.pickupLongitude == null ? null : Number(request.pickupLongitude),
+        source: "TRANSPORT_REQUEST",
+      },
+      destination: {
+        address: request.destinationAddress,
+        latitude: request.destinationLatitude == null ? null : Number(request.destinationLatitude),
+        longitude: request.destinationLongitude == null ? null : Number(request.destinationLongitude),
+        source: "TRANSPORT_REQUEST",
+      },
+    });
+  }
+
   async routePreview(principal: AuthPrincipal, input: RoutePreviewBody) {
     const mode = this.transportMode(input.mode);
     const pickup = this.locationInput(this.map(input.pickup, "pickup"), "pickup");
@@ -630,8 +664,23 @@ class TransportSavedLocationsController {
   }
 }
 
+@RequirePermissions("TRANSPORT_OPERATE")
+@Controller("operations/medical-transport")
+class TransportRouteOperationsController {
+  constructor(private readonly locations: TransportSavedLocationsService) {}
+
+  @Post(":requestId/route-preview")
+  @Header("Cache-Control", "no-store")
+  routePreview(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Param("requestId") requestId: string,
+  ) {
+    return this.locations.routePreviewForRequest(principal, requestId);
+  }
+}
+
 @Module({
-  controllers: [TransportSavedLocationsController],
+  controllers: [TransportSavedLocationsController, TransportRouteOperationsController],
   providers: [TransportSavedLocationsService],
 })
 export class TransportSavedLocationsModule {}
