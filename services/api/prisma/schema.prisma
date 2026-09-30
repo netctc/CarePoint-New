@@ -201,6 +201,7 @@ model PatientProfile {
   healthProfile     PatientHealthProfile?
   questionnaireResponses QuestionnaireResponse[]
   observations       Observation[]
+  clinicalFacts      PatientClinicalFact[]
   clinicalProfileEntries ClinicalProfileEntry[]
   medicationReconciliations MedicationReconciliation[]
   providerFormResponses ProviderCategoryFormResponse[]
