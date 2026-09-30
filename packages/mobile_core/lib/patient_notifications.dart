@@ -28,6 +28,16 @@ const patientNotificationRoutableEntityTypesF15 = <String>{
 
 enum PatientNotificationDestination { appointment, availability, conversation, clinicalOrder, diagnosticReport, clinicalDocument, emergency, transport, generic }
 
+bool patientNotificationIsTransportRelated(Map<String, dynamic> row) {
+  final entityType = row['entityType']?.toString() ?? '';
+  final type = row['type']?.toString() ?? '';
+  final safeTitleKey = row['safeTitleKey']?.toString() ?? '';
+  return entityType == 'EMERGENCY_AMBULANCE_REQUEST'
+      || entityType == 'MEDICAL_TRANSPORT_REQUEST'
+      || type == 'TRANSPORT_UPDATE'
+      || safeTitleKey == 'notification.transport.title';
+}
+
 PatientNotificationDestination patientNotificationDestination(Map<String, dynamic> row) => switch (row['entityType']?.toString()) {
       'APPOINTMENT' => PatientNotificationDestination.appointment,
       'AVAILABILITY_REQUEST' => PatientNotificationDestination.availability,
@@ -79,10 +89,11 @@ const _safeTitleKeys = <String, String>{
 };
 
 class PatientNotificationCentreEntryButton extends StatefulWidget {
-  const PatientNotificationCentreEntryButton({super.key, required this.session, required this.locale});
+  const PatientNotificationCentreEntryButton({super.key, required this.session, required this.locale, this.transportModuleEnabled = true});
 
   final CarePointSession session;
   final CarePointLocale locale;
+  final bool transportModuleEnabled;
 
   @override
   State<PatientNotificationCentreEntryButton> createState() => _PatientNotificationCentreEntryButtonState();
@@ -102,7 +113,7 @@ class _PatientNotificationCentreEntryButtonState extends State<PatientNotificati
   @override
   void didUpdateWidget(covariant PatientNotificationCentreEntryButton oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.session != widget.session) _load();
+    if (oldWidget.session != widget.session || oldWidget.transportModuleEnabled != widget.transportModuleEnabled) _load();
   }
 
   Future<void> _load() async {
@@ -112,7 +123,8 @@ class _PatientNotificationCentreEntryButtonState extends State<PatientNotificati
     }
     try {
       final rows = await widget.session.api.notifications().timeout(const Duration(seconds: 30));
-      if (mounted) setState(() { unread = rows.where((row) => row['readAt'] == null).length; loading = false; });
+      final visibleRows = widget.transportModuleEnabled ? rows : rows.where((row) => !patientNotificationIsTransportRelated(row)).toList(growable: false);
+      if (mounted) setState(() { unread = visibleRows.where((row) => row['readAt'] == null).length; loading = false; });
     } catch (_) {
       if (mounted) setState(() { unread = 0; loading = false; });
     }
@@ -124,7 +136,7 @@ class _PatientNotificationCentreEntryButtonState extends State<PatientNotificati
     try {
       await Navigator.push<void>(
         context,
-        MaterialPageRoute(builder: (_) => PatientNotificationCentrePage(session: widget.session, locale: widget.locale)),
+        MaterialPageRoute(builder: (_) => PatientNotificationCentrePage(session: widget.session, locale: widget.locale, transportModuleEnabled: widget.transportModuleEnabled)),
       );
     } finally {
       if (mounted) {
@@ -152,10 +164,11 @@ class _PatientNotificationCentreEntryButtonState extends State<PatientNotificati
 }
 
 class PatientNotificationCentrePage extends StatefulWidget {
-  const PatientNotificationCentrePage({super.key, required this.session, required this.locale});
+  const PatientNotificationCentrePage({super.key, required this.session, required this.locale, this.transportModuleEnabled = true});
 
   final CarePointSession session;
   final CarePointLocale locale;
+  final bool transportModuleEnabled;
 
   @override
   State<PatientNotificationCentrePage> createState() => _PatientNotificationCentrePageState();
@@ -187,7 +200,7 @@ class _PatientNotificationCentrePageState extends State<PatientNotificationCentr
     try {
       final rows = await widget.session.api.notifications().timeout(const Duration(seconds: 30));
       if (!mounted) return;
-      setState(() => items = rows);
+      setState(() => items = widget.transportModuleEnabled ? rows : rows.where((row) => !patientNotificationIsTransportRelated(row)).toList(growable: false));
     } catch (_) {
       if (mounted) setState(() => error = t('loadFailed'));
     } finally {
