@@ -379,6 +379,7 @@ class _PatientShellState extends State<PatientShell> {
         session: widget.session,
         locale: widget.locale,
         onBooked: () => _selectMainTab(1),
+        transportModuleEnabled: transportModuleEnabled,
         header: Padding(
           padding: const EdgeInsets.only(bottom: 20),
           child: Column(
