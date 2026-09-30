@@ -1002,6 +1002,93 @@ class _TransportDialogState extends State<_TransportDialog> {
   }
 }
 
+class _SavedTransportLocationDraft {
+  const _SavedTransportLocationDraft({required this.label, required this.kind});
+  final String label;
+  final String kind;
+}
+
+class _SavedTransportLocationDialog extends StatefulWidget {
+  const _SavedTransportLocationDialog({required this.locale});
+  final CarePointLocale locale;
+
+  @override
+  State<_SavedTransportLocationDialog> createState() =>
+      _SavedTransportLocationDialogState();
+}
+
+class _SavedTransportLocationDialogState
+    extends State<_SavedTransportLocationDialog> {
+  final label = TextEditingController();
+  String kind = 'OTHER';
+
+  @override
+  void dispose() {
+    label.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+        title: Text(transportText(widget.locale, 'saveLocation')),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: label,
+              autofocus: true,
+              decoration: InputDecoration(
+                labelText: transportText(widget.locale, 'locationLabel'),
+              ),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: kind,
+              decoration: InputDecoration(
+                labelText: transportText(widget.locale, 'locationKind'),
+              ),
+              items: [
+                DropdownMenuItem(
+                  value: 'HOME',
+                  child: Text(transportText(widget.locale, 'home')),
+                ),
+                DropdownMenuItem(
+                  value: 'WORK',
+                  child: Text(transportText(widget.locale, 'work')),
+                ),
+                DropdownMenuItem(
+                  value: 'HEALTHCARE',
+                  child: Text(transportText(widget.locale, 'healthcare')),
+                ),
+                DropdownMenuItem(
+                  value: 'OTHER',
+                  child: Text(transportText(widget.locale, 'other')),
+                ),
+              ],
+              onChanged: (value) => setState(() => kind = value ?? kind),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(cpText(widget.locale, 'common.cancel')),
+          ),
+          FilledButton(
+            onPressed: () {
+              final value = label.text.trim();
+              if (value.isEmpty) return;
+              Navigator.pop(
+                context,
+                _SavedTransportLocationDraft(label: value, kind: kind),
+              );
+            },
+            child: Text(transportText(widget.locale, 'saveLocation')),
+          ),
+        ],
+      );
+}
+
 class _TransportLocationSearchDialog extends StatefulWidget {
   const _TransportLocationSearchDialog({
     required this.session,
