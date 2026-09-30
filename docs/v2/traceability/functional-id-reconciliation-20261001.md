@@ -4,8 +4,8 @@ This evidence update reconciles the frozen V2 canonical functional-ID authority 
 
 ## Result
 
-- MERGED_TO_MAIN: 109
-- PARTIAL_PR_HISTORY_RECONCILIATION_REQUIRED: 10
+- MERGED_TO_MAIN: 119
+- PARTIAL_PR_HISTORY_RECONCILIATION_REQUIRED: 0
 - CLOSED_UNMERGED_NEEDS_RECONCILIATION: 0
 - UNCLAIMED_OR_NOT_RECONCILED: 111
 - Total canonical IDs: 230
@@ -22,31 +22,18 @@ The following stale/combined PR paths have verified merged replacements:
 - #281 -> #320 (longitudinal laboratory series)
 - #283 -> #425 (Doctor Mobile contextual glucose trends)
 
-The canonical authority uses the merged replacement PRs. Historical PRs remain in the evidence ledger via `superseded_by_pr`.
+## Historical #228 reconciliation
 
-## Remaining partial history
+PR #228 was a closed-unmerged stacked aggregate. Its canonical responsibilities are no longer needed as active evidence because the original merged parent #227 explicitly claims the remaining ten clinical-profile foundation IDs, while the snapshot/specialized clinical responsibilities are separately evidenced by merged PRs such as #230, #445, #448 and #449.
 
-The unresolved partial rows are intentionally retained because their closed-unmerged #228 ancestry has not yet been mapped to an explicit merged replacement for every canonical responsibility:
+PR #463 later imported the missing Clinical Facts A6 capability selectively into the promoted V2 line, but this reconciliation deliberately does **not** use #463 to inflate canonical claims that are already explicitly supported by #227.
 
-- PAT-086 (#227;#228)
-- PAT-087 (#227;#228)
-- PAT-088 (#227;#228)
-- PAT-091 (#227;#228)
-- PAT-100 (#227;#228)
-- DOC-063 (#227;#228)
-- BE-002 (#227;#228)
-- BE-003 (#227;#228)
-- BE-004 (#227;#228)
-- BE-007 (#227;#228)
+Therefore #228 remains in the evidence ledger with zero active canonical references rather than being treated as a merged implementation.
 
 ## Interpretation
 
 MERGED_TO_MAIN means every PR currently referenced by that canonical ID has merged evidence in the reconciliation ledger.
 
-PARTIAL_PR_HISTORY_RECONCILIATION_REQUIRED means the canonical ID still references a mixture of merged and closed-unmerged PR history. It is intentionally not treated as complete until the supersession relationship is verified.
-
-CLOSED_UNMERGED_NEEDS_RECONCILIATION means all PR evidence currently attached to the ID is closed without merge.
-
 UNCLAIMED_OR_NOT_RECONCILED remains unchanged for IDs without sufficient PR evidence.
 
-No canonical ID, domain, or legacy alias was invented or removed. PR references are corrected only when a clean merged replacement is verified from GitHub history.
+No canonical ID, domain, or legacy alias was invented or removed. PR references are corrected only when merged GitHub evidence explicitly supports the canonical responsibility.
