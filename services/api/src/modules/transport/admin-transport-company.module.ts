@@ -414,6 +414,163 @@ class AdminTransportCompanyService {
     return payload;
   }
 
+  async analytics(principal: AuthPrincipal) {
+    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const [
+      medicalByStatus,
+      emergencyByStatus,
+      companies,
+      units,
+      crew,
+      medicalLast30Days,
+      emergencyLast30Days,
+      medicalCompletedLast30Days,
+      emergencyCompletedLast30Days,
+    ] = await Promise.all([
+      this.prisma.medicalTransportRequest.groupBy({
+        by: ["status"],
+        _count: { _all: true },
+      }),
+      this.prisma.emergencyAmbulanceRequest.groupBy({
+        by: ["status"],
+        _count: { _all: true },
+      }),
+      this.prisma.transportCompany.findMany({
+        select: { id: true, active: true, providerIds: true, unitIds: true },
+        take: 1000,
+      }),
+      this.prisma.transportUnit.findMany({
+        select: { id: true, mode: true, active: true, providerId: true },
+        take: 5000,
+      }),
+      this.prisma.transportCrewMember.findMany({
+        select: {
+          id: true,
+          active: true,
+          providerId: true,
+          role: true,
+          licenseNumber: true,
+          licenseValidUntil: true,
+        },
+        take: 5000,
+      }),
+      this.prisma.medicalTransportRequest.count({
+        where: { requestedAt: { gte: since } },
+      }),
+      this.prisma.emergencyAmbulanceRequest.count({
+        where: { requestedAt: { gte: since } },
+      }),
+      this.prisma.medicalTransportRequest.count({
+        where: { status: "COMPLETED", updatedAt: { gte: since } },
+      }),
+      this.prisma.emergencyAmbulanceRequest.count({
+        where: { status: "COMPLETED", updatedAt: { gte: since } },
+      }),
+    ]);
+
+    const licenseAttention = crew.filter((row) => {
+      if (!row.active || !LICENSE_REQUIRED_ROLES.has(row.role)) return false;
+      if (!row.licenseNumber) return true;
+      return Boolean(row.licenseValidUntil && row.licenseValidUntil.getTime() < Date.now());
+    }).length;
+    const assignmentReadyCrew = crew.filter((row) => {
+      if (!row.active || !row.providerId) return false;
+      if (!LICENSE_REQUIRED_ROLES.has(row.role)) return true;
+      if (!row.licenseNumber) return false;
+      return !row.licenseValidUntil || row.licenseValidUntil.getTime() >= Date.now();
+    }).length;
+
+    const statusMap = (rows: Array<{ status: string; _count: { _all: number } }>) =>
+      Object.fromEntries(rows.map((row) => [row.status, row._count._all]));
+
+    const payload = {
+      generatedAt: new Date().toISOString(),
+      window: { days: 30, since: since.toISOString() },
+      requests: {
+        medicalByStatus: statusMap(medicalByStatus),
+        emergencyByStatus: statusMap(emergencyByStatus),
+        last30Days: {
+          medical: medicalLast30Days,
+          emergency: emergencyLast30Days,
+          total: medicalLast30Days + emergencyLast30Days,
+        },
+        completedLast30Days: {
+          medical: medicalCompletedLast30Days,
+          emergency: emergencyCompletedLast30Days,
+          total: medicalCompletedLast30Days + emergencyCompletedLast30Days,
+        },
+      },
+      organization: {
+        companies: companies.length,
+        activeCompanies: companies.filter((row) => row.active).length,
+        providersInCompanies: new Set(companies.flatMap((row) => row.providerIds)).size,
+      },
+      fleet: {
+        total: units.length,
+        active: units.filter((row) => row.active).length,
+        activeGround: units.filter((row) => row.active && row.mode === "GROUND").length,
+        activeAir: units.filter((row) => row.active && row.mode === "AIR").length,
+      },
+      crew: {
+        total: crew.length,
+        active: crew.filter((row) => row.active).length,
+        assignmentReady: assignmentReadyCrew,
+        licenseAttention,
+      },
+    };
+
+    await this.audit.write({
+      actorId: principal.accountId,
+      action: "ADMIN_TRANSPORT_ANALYTICS_READ",
+      objectType: "TRANSPORT_ANALYTICS",
+      objectId: "30_DAY_WINDOW",
+      purpose: "TRANSPORT_OPERATIONS",
+      result: "SUCCESS",
+    });
+
+    return payload;
+  }
+
+  async operationalAudit(principal: AuthPrincipal) {
+    const rows = await this.prisma.auditEvent.findMany({
+      where: {
+        OR: [
+          { action: { startsWith: "ADMIN_TRANSPORT_" } },
+          { action: { startsWith: "MEDICAL_TRANSPORT_" } },
+          { action: { startsWith: "EMERGENCY_TRANSPORT_" } },
+          { purpose: { in: ["TRANSPORT_OPERATIONS", "MEDICAL_TRANSPORT", "EMERGENCY_DISPATCH"] } },
+        ],
+      },
+      select: {
+        id: true,
+        actorId: true,
+        action: true,
+        objectType: true,
+        objectId: true,
+        purpose: true,
+        result: true,
+        occurredAt: true,
+      },
+      orderBy: { occurredAt: "desc" },
+      take: 100,
+    });
+
+    await this.audit.write({
+      actorId: principal.accountId,
+      action: "ADMIN_TRANSPORT_AUDIT_READ",
+      objectType: "TRANSPORT_OPERATIONAL_AUDIT",
+      objectId: "RECENT",
+      purpose: "TRANSPORT_OPERATIONS",
+      result: "SUCCESS",
+      metadata: { resultCount: rows.length },
+    });
+
+    return {
+      generatedAt: new Date().toISOString(),
+      items: rows,
+    };
+  }
+
   private async validateCompanyResources(providerIds: string[], unitIds: string[]) {
     if (unitIds.length > 0 && providerIds.length === 0) {
       throw new BadRequestException("Transport units require at least one company provider.");
@@ -629,6 +786,18 @@ class AdminTransportCompanyController {
   @Header("Cache-Control", "no-store")
   dispatch(@CurrentPrincipal() principal: AuthPrincipal) {
     return this.service.dispatch(principal);
+  }
+
+  @Get("analytics")
+  @Header("Cache-Control", "no-store")
+  analytics(@CurrentPrincipal() principal: AuthPrincipal) {
+    return this.service.analytics(principal);
+  }
+
+  @Get("audit")
+  @Header("Cache-Control", "no-store")
+  operationalAudit(@CurrentPrincipal() principal: AuthPrincipal) {
+    return this.service.operationalAudit(principal);
   }
 }
 
