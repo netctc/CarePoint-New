@@ -27,6 +27,7 @@ type ScheduleInput = {
   hourUtc?: unknown;
   minuteUtc?: unknown;
   windowDays?: unknown;
+  artifactRetentionDays?: unknown;
   mode?: unknown;
   sla?: unknown;
   providerId?: unknown;
@@ -582,6 +583,7 @@ export class TransportExecutiveKpiService {
           hourUtc: number;
           minuteUtc: number;
           windowDays: number;
+          artifactRetentionDays: number;
           mode: string;
           sla: string;
           providerId: string | null;
@@ -628,6 +630,13 @@ export class TransportExecutiveKpiService {
         7,
         365,
         "windowDays",
+      ),
+      artifactRetentionDays: this.integerUnknown(
+        body.artifactRetentionDays,
+        existing?.artifactRetentionDays ?? 90,
+        7,
+        3650,
+        "artifactRetentionDays",
       ),
       mode: this.enumValue(
         body.mode,
@@ -724,6 +733,7 @@ export class TransportExecutiveKpiService {
       hourUtc: row.hourUtc,
       minuteUtc: row.minuteUtc,
       windowDays: row.windowDays,
+      artifactRetentionDays: row.artifactRetentionDays,
       mode: row.mode,
       sla: row.sla,
       providerId: row.providerId,
