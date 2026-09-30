@@ -2,6 +2,8 @@ enum TransportLocationSource {
   gps,
   addressSearch,
   mapPicker,
+  savedLocation,
+  healthcareCenter,
   manual,
 }
 
@@ -129,6 +131,8 @@ TransportLocationSource? _transportLocationSource(dynamic value) {
     'GPS' => TransportLocationSource.gps,
     'ADDRESS_SEARCH' => TransportLocationSource.addressSearch,
     'MAP_PICKER' => TransportLocationSource.mapPicker,
+    'SAVED_LOCATION' => TransportLocationSource.savedLocation,
+    'HEALTHCARE_CENTER' => TransportLocationSource.healthcareCenter,
     'MANUAL' => TransportLocationSource.manual,
     _ => null,
   };
