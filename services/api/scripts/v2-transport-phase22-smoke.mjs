@@ -88,7 +88,6 @@ for (const text of [
 }
 
 for (const text of [
-  "PHASE 22 · LEGAL HOLD + PURGE GOVERNANCE",
   "artifactLegalHold: boolean",
   "artifactLegalHoldReason: string | null",
   "async function changeLegalHold",
