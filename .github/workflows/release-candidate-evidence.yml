@@ -53,6 +53,17 @@ jobs:
           persist-credentials: false
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
+      - name: Resolve pull-request release baseline
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          requested_base="$CAREPOINT_RELEASE_BASE_SHA"
+          candidate="$CAREPOINT_RELEASE_SHA"
+          resolved_base="$(git merge-base "$requested_base" "$candidate")"
+          [[ "$resolved_base" =~ ^[0-9a-f]{40}$ ]]
+          git merge-base --is-ancestor "$resolved_base" "$candidate"
+          echo "CAREPOINT_RELEASE_BASE_SHA=$resolved_base" >> "$GITHUB_ENV"
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
