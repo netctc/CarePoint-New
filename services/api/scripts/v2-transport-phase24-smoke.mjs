@@ -127,7 +127,7 @@ for (const text of [
 
 for (const text of [
   "artifactIntegrityStatus: string",
-  'label="Integrity"',
+  "Integrity checked:",
   "artifactIntegrityLastCheckedAt",
   "artifactIntegrityFailureCode",
 ]) {
