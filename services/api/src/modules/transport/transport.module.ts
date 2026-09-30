@@ -255,10 +255,42 @@ class MedicalTransportService {
   }
 
   private async patientEnvelope(patientId: string, requestId: string) {
-    const request = await this.prisma.medicalTransportRequest.findFirst({ where: { id: requestId, patientId } });
+    const request = await this.prisma.medicalTransportRequest.findFirst({
+      where: { id: requestId, patientId },
+    });
     if (!request) throw new NotFoundException("Medical transport request not found.");
-    const history = await this.prisma.medicalTransportEvent.findMany({ where: { transportRequestId: request.id }, orderBy: { occurredAt: "asc" } });
-    return { request: await this.presentWithProvider(request), history };
+
+    const [history, routeRevisions] = await Promise.all([
+      this.prisma.medicalTransportEvent.findMany({
+        where: { transportRequestId: request.id },
+        orderBy: { occurredAt: "asc" },
+      }),
+      this.prisma.transportRouteRevision.findMany({
+        where: { transportRequestId: request.id },
+        orderBy: [{ createdAt: "asc" }, { revision: "asc" }],
+        select: {
+          id: true,
+          revision: true,
+          lifecycleStatus: true,
+          etaMinutes: true,
+          reasonCode: true,
+          source: true,
+          createdAt: true,
+        },
+      }),
+    ]);
+
+    return {
+      request: await this.presentWithProvider(request),
+      history,
+      tripTracking: {
+        trackingMode: "MILESTONE_ONLY",
+        liveGpsTrackingAvailable: false,
+        currentStatus: request.status,
+        etaMinutes: request.etaMinutes ?? null,
+        timeline: this.patientTripTimeline(history, routeRevisions),
+      },
+    };
   }
 
   private async operationalEnvelope(requestId: string) {
@@ -266,6 +298,49 @@ class MedicalTransportService {
     if (!request) throw new NotFoundException("Medical transport request not found.");
     const history = await this.prisma.medicalTransportEvent.findMany({ where: { transportRequestId: request.id }, orderBy: { occurredAt: "asc" } });
     return { ...(await this.presentOperational(request)), history };
+  }
+
+  private patientTripTimeline(
+    history: Array<{
+      id: string;
+      fromStatus: MedicalTransportStatus | null;
+      toStatus: MedicalTransportStatus;
+      etaMinutes: number | null;
+      occurredAt: Date;
+    }>,
+    routeRevisions: Array<{
+      id: string;
+      revision: number;
+      lifecycleStatus: string;
+      etaMinutes: number | null;
+      reasonCode: string;
+      source: string;
+      createdAt: Date;
+    }>,
+  ) {
+    const statusItems = history.map((event) => ({
+      id: `status:${event.id}`,
+      kind: "STATUS",
+      status: event.toStatus,
+      fromStatus: event.fromStatus,
+      etaMinutes: event.etaMinutes ?? null,
+      occurredAt: this.iso(event.occurredAt),
+    }));
+
+    const routeItems = routeRevisions.map((revision) => ({
+      id: `route:${revision.id}`,
+      kind: "ROUTE_UPDATED",
+      status: revision.lifecycleStatus,
+      revision: revision.revision,
+      etaMinutes: revision.etaMinutes ?? null,
+      reasonCode: revision.reasonCode,
+      source: revision.source,
+      occurredAt: this.iso(revision.createdAt),
+    }));
+
+    return [...statusItems, ...routeItems].sort((left, right) =>
+      String(left.occurredAt).localeCompare(String(right.occurredAt)),
+    );
   }
 
   private async presentOperational(row: any) {
