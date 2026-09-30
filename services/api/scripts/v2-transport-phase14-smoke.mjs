@@ -24,9 +24,9 @@ const [
   read("src/modules/transport/transport-command-center.module.ts"),
   read("src/app.module.ts"),
   read("package.json"),
-  read("../../admin/app/api/admin/transport/[...segments]/route.ts"),
-  read("../../admin/app/transport-providers/page.tsx"),
-  read("../../admin/components/TransportReportExecutionPanel.tsx"),
+  read("../../apps/admin/app/api/admin/transport/[...segments]/route.ts"),
+  read("../../apps/admin/app/transport-providers/page.tsx"),
+  read("../../apps/admin/components/TransportReportExecutionPanel.tsx"),
   read("../../docs/transport-report-execution-phase14.md"),
 ]);
 
