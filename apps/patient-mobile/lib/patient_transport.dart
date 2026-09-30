@@ -203,13 +203,12 @@ class _PatientMedicalTransportPageState extends State<PatientMedicalTransportPag
     if (result == null || !mounted) return;
     try {
       setState(() => busy = true);
-      final pickup = await _currentPosition(widget.locale);
       final response = await widget.session.api.createMedicalTransport(
         clientRequestId: 'mobile-transport-${DateTime.now().microsecondsSinceEpoch}',
         mode: result.mode,
         scheduledFor: result.scheduledFor,
-        pickupLatitude: pickup.latitude,
-        pickupLongitude: pickup.longitude,
+        pickupLatitude: result.pickupLatitude,
+        pickupLongitude: result.pickupLongitude,
         pickupAddress: result.pickupAddress,
         destinationLatitude: result.destinationLatitude,
         destinationLongitude: result.destinationLongitude,
@@ -242,8 +241,10 @@ class _TransportDraft {
     required this.companionCount,
     required this.equipment,
     required this.scheduledFor,
-    required this.destinationLatitude,
-    required this.destinationLongitude,
+    this.pickupLatitude,
+    this.pickupLongitude,
+    this.destinationLatitude,
+    this.destinationLongitude,
     this.pickupAddress,
     this.destinationAddress,
   });
@@ -252,8 +253,10 @@ class _TransportDraft {
   final int companionCount;
   final List<String> equipment;
   final DateTime scheduledFor;
-  final double destinationLatitude;
-  final double destinationLongitude;
+  final double? pickupLatitude;
+  final double? pickupLongitude;
+  final double? destinationLatitude;
+  final double? destinationLongitude;
   final String? pickupAddress;
   final String? destinationAddress;
 }
@@ -269,6 +272,8 @@ class _TransportDialog extends StatefulWidget {
 class _TransportDialogState extends State<_TransportDialog> {
   final pickupAddress = TextEditingController();
   final destinationAddress = TextEditingController();
+  final pickupLatitude = TextEditingController();
+  final pickupLongitude = TextEditingController();
   final destinationLatitude = TextEditingController();
   final destinationLongitude = TextEditingController();
   String mode = 'GROUND';
@@ -281,6 +286,8 @@ class _TransportDialogState extends State<_TransportDialog> {
   void dispose() {
     pickupAddress.dispose();
     destinationAddress.dispose();
+    pickupLatitude.dispose();
+    pickupLongitude.dispose();
     destinationLatitude.dispose();
     destinationLongitude.dispose();
     super.dispose();
@@ -343,6 +350,10 @@ class _TransportDialogState extends State<_TransportDialog> {
               const SizedBox(height: 10),
               TextField(controller: pickupAddress, decoration: InputDecoration(labelText: '${transportText(widget.locale, 'pickup')} · ${transportText(widget.locale, 'address')}')),
               const SizedBox(height: 10),
+              TextField(controller: pickupLatitude, keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true), decoration: InputDecoration(labelText: '${transportText(widget.locale, 'pickup')} · ${transportText(widget.locale, 'latitude')}')),
+              const SizedBox(height: 10),
+              TextField(controller: pickupLongitude, keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true), decoration: InputDecoration(labelText: '${transportText(widget.locale, 'pickup')} · ${transportText(widget.locale, 'longitude')}')),
+              const SizedBox(height: 10),
               TextField(controller: destinationAddress, decoration: InputDecoration(labelText: '${transportText(widget.locale, 'destination')} · ${transportText(widget.locale, 'address')}')),
               const SizedBox(height: 10),
               TextField(controller: destinationLatitude, keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true), decoration: InputDecoration(labelText: '${transportText(widget.locale, 'destination')} · ${transportText(widget.locale, 'latitude')}')),
@@ -384,10 +395,23 @@ class _TransportDialogState extends State<_TransportDialog> {
   }
 
   void _submit() {
-    final lat = double.tryParse(destinationLatitude.text.trim());
-    final lng = double.tryParse(destinationLongitude.text.trim());
-    if (lat == null || lat < -90 || lat > 90 || lng == null || lng < -180 || lng > 180) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Valid destination coordinates are required.')));
+    final pickupLat = _optionalCoordinate(pickupLatitude.text, -90, 90);
+    final pickupLng = _optionalCoordinate(pickupLongitude.text, -180, 180);
+    final destinationLat = _optionalCoordinate(destinationLatitude.text, -90, 90);
+    final destinationLng = _optionalCoordinate(destinationLongitude.text, -180, 180);
+    final pickupAddressValue = pickupAddress.text.trim();
+    final destinationAddressValue = destinationAddress.text.trim();
+    if (_coordinatePairInvalid(pickupLatitude.text, pickupLongitude.text, pickupLat, pickupLng) ||
+        _coordinatePairInvalid(destinationLatitude.text, destinationLongitude.text, destinationLat, destinationLng)) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Latitude and longitude are optional, but when used they must be valid and provided together.')));
+      return;
+    }
+    if (pickupAddressValue.isEmpty && pickupLat == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enter a pickup address or optional pickup coordinates.')));
+      return;
+    }
+    if (destinationAddressValue.isEmpty && destinationLat == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enter a destination address or optional destination coordinates.')));
       return;
     }
     Navigator.pop(context, _TransportDraft(
@@ -396,10 +420,12 @@ class _TransportDialogState extends State<_TransportDialog> {
       companionCount: companionCount,
       equipment: equipment.toList(growable: false),
       scheduledFor: scheduledFor,
-      destinationLatitude: lat,
-      destinationLongitude: lng,
-      pickupAddress: pickupAddress.text.trim().isEmpty ? null : pickupAddress.text.trim(),
-      destinationAddress: destinationAddress.text.trim().isEmpty ? null : destinationAddress.text.trim(),
+      pickupLatitude: pickupLat,
+      pickupLongitude: pickupLng,
+      destinationLatitude: destinationLat,
+      destinationLongitude: destinationLng,
+      pickupAddress: pickupAddressValue.isEmpty ? null : pickupAddressValue,
+      destinationAddress: destinationAddressValue.isEmpty ? null : destinationAddressValue,
     ));
   }
 }
@@ -419,4 +445,19 @@ Map<String, dynamic> _map(dynamic value) {
   if (value is Map<String, dynamic>) return value;
   if (value is Map) return value.map((key, item) => MapEntry(key.toString(), item));
   return <String, dynamic>{};
+}
+
+double? _optionalCoordinate(String raw, double min, double max) {
+  final text = raw.trim();
+  if (text.isEmpty) return null;
+  final value = double.tryParse(text);
+  if (value == null || value < min || value > max) return null;
+  return value;
+}
+
+bool _coordinatePairInvalid(String rawLatitude, String rawLongitude, double? latitude, double? longitude) {
+  final hasLatitudeText = rawLatitude.trim().isNotEmpty;
+  final hasLongitudeText = rawLongitude.trim().isNotEmpty;
+  if (!hasLatitudeText && !hasLongitudeText) return false;
+  return latitude == null || longitude == null || hasLatitudeText != hasLongitudeText;
 }
