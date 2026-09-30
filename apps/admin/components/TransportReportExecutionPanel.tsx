@@ -34,6 +34,11 @@ type Run = {
   artifactStorageProvider: string | null;
   artifactStoredAt: string | null;
   artifactDeletedAt: string | null;
+  artifactLegalHold: boolean;
+  artifactLegalHoldReason: string | null;
+  artifactLegalHoldSetAt: string | null;
+  artifactLegalHoldSetByAccountId: string | null;
+  artifactPurgeClaimedAt: string | null;
   deliveryStatus: string;
   deliveryHandoffPreparedAt: string | null;
   automaticDeliveryAvailable: false;
@@ -101,13 +106,17 @@ export function TransportReportExecutionPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
-  async function action(name: string, path: string) {
+  async function action(
+    name: string,
+    path: string,
+    payload: unknown = {},
+  ) {
     setBusy(name);
     setMessage("");
     try {
       const body = await request(path, {
         method: "POST",
-        body: JSON.stringify({}),
+        body: JSON.stringify(payload),
       });
       if (name === "queue") {
         setMessage(
@@ -133,6 +142,29 @@ export function TransportReportExecutionPanel() {
       setMessage(String(error));
       setBusy("");
     }
+  }
+
+  async function changeLegalHold(run: Run, enabled: boolean) {
+    if (enabled) {
+      const reason = window.prompt(
+        "Enter the legal/retention hold reason (3-500 printable characters):",
+      );
+      if (!reason?.trim()) return;
+      await action(
+        "legal-hold-" + run.id,
+        "/api/admin/transport/report-runs/" +
+          encodeURIComponent(run.id) +
+          "/legal-hold",
+        { reason: reason.trim() },
+      );
+      return;
+    }
+    await action(
+      "legal-hold-clear-" + run.id,
+      "/api/admin/transport/report-runs/" +
+        encodeURIComponent(run.id) +
+        "/legal-hold/clear",
+    );
   }
 
   async function secureDownload(run: Run) {
@@ -211,7 +243,7 @@ export function TransportReportExecutionPanel() {
       >
         <div>
           <span style={{ fontSize: 12, fontWeight: 900, color: "#0f766e" }}>
-            PHASE 19 · ONE-TIME SECURE ADMIN DOWNLOAD
+            PHASE 22 · LEGAL HOLD + PURGE GOVERNANCE
           </span>
           <h2 style={{ margin: "5px 0" }}>Scheduled Report Execution</h2>
           <p style={{ maxWidth: 960, marginBottom: 0 }}>
@@ -325,6 +357,14 @@ export function TransportReportExecutionPanel() {
                   {run.deliveryHandoffPreparedAt ? (
                     <div>{new Date(run.deliveryHandoffPreparedAt).toLocaleString()}</div>
                   ) : null}
+                  {run.artifactLegalHold ? (
+                    <div style={{ marginTop: 4 }}>
+                      <strong>LEGAL HOLD</strong>
+                      {run.artifactLegalHoldReason ? (
+                        <div>{run.artifactLegalHoldReason}</div>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </td>
                 <td>
                   {run.status === "QUEUED" ? (
@@ -383,6 +423,15 @@ export function TransportReportExecutionPanel() {
                         onClick={() => void secureDownload(run)}
                       >
                         Secure download
+                      </button>
+                      <button
+                        className="secondary-button"
+                        disabled={Boolean(busy)}
+                        onClick={() =>
+                          void changeLegalHold(run, !run.artifactLegalHold)
+                        }
+                      >
+                        {run.artifactLegalHold ? "Clear hold" : "Set legal hold"}
                       </button>
                     </div>
                   ) : run.reportFilename ? (
