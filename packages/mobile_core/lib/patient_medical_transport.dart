@@ -202,6 +202,7 @@ class _PatientMedicalTransportStatusPageState extends State<PatientMedicalTransp
     final status = request['status']?.toString() ?? '';
     final provider = _map(request['assignedProvider']);
     final history = _list(value?['history']);
+    final tripTimeline = _list(timeline['items']);
     return Directionality(
       textDirection: widget.locale.textDirection,
       child: Scaffold(
@@ -276,7 +277,14 @@ class _PatientMedicalTransportStatusPageState extends State<PatientMedicalTransp
                                 label: Text(transportText(widget.locale, 'cancel')),
                               ),
                             ],
-                            if (history.isNotEmpty) ...[
+                            if (tripTimeline.isNotEmpty) ...[
+                              const SizedBox(height: 24),
+                              Text(
+                                patientMedicalTransportText(widget.locale, 'tripTimeline'),
+                                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+                              ),
+                              ...tripTimeline.map((event) => _timelineTile(event)),
+                            ] else if (history.isNotEmpty) ...[
                               const SizedBox(height: 24),
                               Text(patientMedicalTransportText(widget.locale, 'history'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
                               ...history.map((event) => ListTile(
@@ -296,6 +304,33 @@ class _PatientMedicalTransportStatusPageState extends State<PatientMedicalTransp
     );
   }
 
+
+  Widget _timelineTile(Map<String, dynamic> event) {
+    final kind = event['kind']?.toString() ?? '';
+    final code = event['code']?.toString() ?? '';
+    final detected = kind == 'MILESTONE';
+    final distance = event['distanceMeters'];
+    final authority = event['authority']?.toString() ?? '';
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(
+        detected ? Icons.assistant_navigation : Icons.radio_button_checked,
+        size: 19,
+      ),
+      title: Text(
+        detected
+            ? patientMedicalTransportText(widget.locale, 'milestone.$code')
+            : patientMedicalTransportStatusText(widget.locale, code),
+      ),
+      subtitle: Text([
+        patientMedicalTransportDateTime(event['occurredAt']),
+        if (distance != null)
+          '${patientMedicalTransportText(widget.locale, 'distance')}: $distance m',
+        if (authority == 'AUTOMATED_DETECTION')
+          patientMedicalTransportText(widget.locale, 'detectedNotStatus'),
+      ].join(' · ')),
+    );
+  }
 
   Widget _vehicleTrackingCard() {
     final visible = tracking['visible'] == true;
