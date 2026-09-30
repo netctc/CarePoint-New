@@ -16,6 +16,8 @@ import {
 import type { AuthPrincipal } from "@carepoint/identity";
 import { Prisma } from "@prisma/client";
 import { DatabaseAuditService } from "../../infrastructure/audit/audit.service";
+import { CommunicationsModule } from "../communications/communications.module";
+import { NotificationsService } from "../communications/notifications.service";
 import { PrismaService } from "../../infrastructure/prisma/prisma.module";
 import { jsonStringArray, missingCurrentCredentialTypes } from "../../security/provider-credential-validity";
 import { CurrentPrincipal, RequirePermissions } from "../../security/api-security.module";
@@ -42,6 +44,7 @@ class TransportDispatchService {
     private readonly prisma: PrismaService,
     private readonly audit: DatabaseAuditService,
     private readonly routes: TransportSavedLocationsService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async board(
@@ -374,7 +377,7 @@ class TransportDispatchService {
 
   private async refreshEta(
     principal: AuthPrincipal,
-    request: Awaited<ReturnType<TransportDispatchService["requireRequest"]>>,
+    request: any,
     providerId: string,
     idempotencyKey: string,
     source: RefreshSource,
@@ -544,6 +547,8 @@ class TransportDispatchService {
       };
     }
 
+    await this.notifyPatientEta(request.patientId, request.id, idempotencyKey);
+
     return {
       requestId: request.id,
       persisted: true,
@@ -551,6 +556,27 @@ class TransportDispatchService {
       etaMinutes,
       preview,
     };
+  }
+
+  private async notifyPatientEta(
+    patientId: string,
+    requestId: string,
+    idempotencyKey: string,
+  ) {
+    const patient = await this.prisma.patientProfile.findUnique({
+      where: { id: patientId },
+      select: { userId: true },
+    });
+    if (!patient?.userId) return;
+    await this.notifications.notifyAccount({
+      accountId: patient.userId,
+      dedupeKey: `transport:${requestId}:eta:${idempotencyKey}`,
+      type: "TRANSPORT_UPDATE",
+      entityType: "MEDICAL_TRANSPORT_REQUEST",
+      entityId: requestId,
+      safeTitleKey: "notification.transport.title",
+      safeBodyKey: "notification.transport.body",
+    });
   }
 
   private async requireRequest(requestIdRaw: string) {
@@ -634,7 +660,7 @@ class ProviderTransportEtaController {
 }
 
 @Module({
-  imports: [TransportSavedLocationsModule],
+  imports: [TransportSavedLocationsModule, CommunicationsModule],
   controllers: [AdminTransportDispatchController, ProviderTransportEtaController],
   providers: [TransportDispatchService],
 })
