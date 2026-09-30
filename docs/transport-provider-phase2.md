@@ -16,6 +16,7 @@ Implemented in this phase:
 - Transport Crew administration with role, optional provider linkage, license metadata and assignment-readiness calculation.
 - Unified Dispatch Board for scheduled medical transport and emergency ambulance work.
 - Admin dispatch assignment reusing the existing scheduled/emergency lifecycle endpoints.
+- Company-aware emergency ambulance fleet and crew assignment with independent revision history.
 - Optional latitude/longitude across transport location contracts.
 - Nullable transport coordinates in PostgreSQL with a non-destructive migration.
 
@@ -133,8 +134,11 @@ When a company exists, the workspace shows the company name/code and uses compan
 
 When no company exists yet, the provider remains operational in `LEGACY_PROVIDER_SCOPE`. This allows existing providers to migrate gradually without breaking current jobs.
 
-Company-scoped CrewAssignment rules:
+Company-scoped resource-assignment rules:
 
+- scheduled transport uses `CrewAssignment`;
+- emergency ambulance uses `EmergencyCrewAssignment`;
+- both keep independent revision and idempotency histories;
 - fleet options are limited to units listed by the active Transport Company;
 - crew options are limited to active company crew with a linked Provider identity;
 - license-required roles must have a license number and a non-expired license;
@@ -161,4 +165,3 @@ Remaining work should be split into small reviewable slices:
 
 1. GPS + place search + geocoding abstraction.
 2. Transport-specific analytics and operational audit views.
-3. Company-aware emergency crew/resource assignment parity with scheduled transport.
