@@ -53,6 +53,7 @@ export class TransportPerformanceAnalyticsService {
 
     const [
       historical,
+      historicalScheduled,
       future,
       activeCurrent,
       providers,
@@ -63,6 +64,16 @@ export class TransportPerformanceAnalyticsService {
         this.prisma.medicalTransportRequest.findMany({
           where: { requestedAt: { gte: since, lt: now } },
           orderBy: [{ requestedAt: "asc" }, { id: "asc" }],
+          take: 20_000,
+        }),
+        this.prisma.medicalTransportRequest.findMany({
+          where: { scheduledFor: { gte: since, lt: now } },
+          select: {
+            id: true,
+            mode: true,
+            scheduledFor: true,
+          },
+          orderBy: [{ scheduledFor: "asc" }, { id: "asc" }],
           take: 20_000,
         }),
         this.prisma.medicalTransportRequest.findMany({
@@ -406,7 +417,7 @@ export class TransportPerformanceAnalyticsService {
       now,
     );
     const forecast = this.forecast(
-      historical,
+      historicalScheduled,
       future,
       units,
       since,
@@ -584,7 +595,11 @@ export class TransportPerformanceAnalyticsService {
   }
 
   private forecast(
-    historical: any[],
+    historicalScheduled: Array<{
+      id: string;
+      mode: Mode;
+      scheduledFor: Date;
+    }>,
     future: any[],
     units: any[],
     since: Date,
@@ -599,8 +614,7 @@ export class TransportPerformanceAnalyticsService {
     }
 
     const historicalDaily = new Map<string, { GROUND: number; AIR: number }>();
-    for (const request of historical) {
-      if (request.scheduledFor.getTime() >= now.getTime()) continue;
+    for (const request of historicalScheduled) {
       const date = this.dateKey(request.scheduledFor);
       const row = historicalDaily.get(date) ?? { GROUND: 0, AIR: 0 };
       row[request.mode as Mode] += 1;
