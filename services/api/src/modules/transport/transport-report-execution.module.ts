@@ -607,6 +607,7 @@ export class TransportReportExecutionService {
       artifactContentType: row.artifactContentType,
       artifactStorageProvider: row.artifactStorageProvider,
       artifactStoredAt: row.artifactStoredAt,
+      artifactDeletedAt: row.artifactDeletedAt,
       deliveryStatus: row.deliveryStatus,
       deliveryHandoffPreparedAt: row.deliveryHandoffPreparedAt,
       deliveryHandoffPreparedByAccountId: row.deliveryHandoffPreparedByAccountId,
