@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Injectable, Module, Param, Post } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Get, Header, Injectable, Module, Param, Post } from "@nestjs/common";
 import type { AuthPrincipal } from "@carepoint/identity";
 import { DatabaseAuditService } from "../../infrastructure/audit/audit.service";
 import { PrismaService } from "../../infrastructure/prisma/prisma.module";
@@ -15,6 +15,159 @@ export class TransportReportRetentionService {
     private readonly audit: DatabaseAuditService,
     private readonly artifacts: TransportReportArtifactStorageService,
   ) {}
+
+  async governance(principal: AuthPrincipal) {
+    const now = new Date();
+    const SOURCE_LIMIT = 2000;
+    const source = await this.prisma.transportManagementReportRun.findMany({
+      where: {
+        status: "SUCCEEDED",
+        artifactStoredAt: { not: null },
+      },
+      select: {
+        id: true,
+        scheduledFor: true,
+        reportFilename: true,
+        artifactStoredAt: true,
+        artifactDeletedAt: true,
+        artifactLegalHold: true,
+        artifactLegalHoldReason: true,
+        artifactLegalHoldSetAt: true,
+        artifactPurgeClaimedAt: true,
+        artifactBytes: true,
+        deliveryStatus: true,
+        schedule: {
+          select: {
+            id: true,
+            name: true,
+            artifactRetentionDays: true,
+          },
+        },
+        deliveries: {
+          select: { downloadedAt: true },
+          take: 100,
+        },
+      },
+      orderBy: [{ artifactStoredAt: "desc" }, { id: "desc" }],
+      take: SOURCE_LIMIT,
+    });
+
+    const staleClaimBefore = new Date(now.getTime() - 15 * 60_000);
+    const rows = source.map((row) => {
+      const storedAt = row.artifactStoredAt!;
+      const expiresAt = new Date(
+        storedAt.getTime() +
+          row.schedule.artifactRetentionDays * 86_400_000,
+      );
+      const daysUntilExpiry =
+        Math.ceil((expiresAt.getTime() - now.getTime()) / 86_400_000);
+      const activeClaim =
+        Boolean(row.artifactPurgeClaimedAt) &&
+        row.artifactPurgeClaimedAt!.getTime() >= staleClaimBefore.getTime();
+      const state = row.artifactDeletedAt
+        ? "PURGED"
+        : row.artifactLegalHold
+          ? "LEGAL_HOLD"
+          : activeClaim
+            ? "PURGE_CLAIMED"
+            : expiresAt.getTime() <= now.getTime()
+              ? "DUE"
+              : "LIVE";
+      return {
+        runId: row.id,
+        reportFilename: row.reportFilename,
+        scheduledFor: row.scheduledFor,
+        artifactStoredAt: storedAt,
+        artifactDeletedAt: row.artifactDeletedAt,
+        artifactBytes: row.artifactBytes,
+        artifactLegalHold: row.artifactLegalHold,
+        artifactLegalHoldReason: row.artifactLegalHoldReason,
+        artifactLegalHoldSetAt: row.artifactLegalHoldSetAt,
+        artifactPurgeClaimedAt: row.artifactPurgeClaimedAt,
+        expiresAt,
+        daysUntilExpiry,
+        state,
+        deliveryStatus: row.deliveryStatus,
+        recipientDownloadReceipts: row.deliveries.filter(
+          (delivery) => delivery.downloadedAt != null,
+        ).length,
+        schedule: row.schedule,
+      };
+    });
+
+    const live = rows.filter((row) => row.state !== "PURGED");
+    const summary = {
+      sourceRuns: rows.length,
+      sourceCapped: rows.length === SOURCE_LIMIT,
+      liveArtifacts: live.length,
+      purgedArtifacts: rows.filter((row) => row.state === "PURGED").length,
+      legalHolds: rows.filter((row) => row.state === "LEGAL_HOLD").length,
+      purgeClaimsActive: rows.filter((row) => row.state === "PURGE_CLAIMED").length,
+      retentionDue: rows.filter((row) => row.state === "DUE").length,
+      expiringWithin7Days: rows.filter(
+        (row) =>
+          row.state === "LIVE" &&
+          row.daysUntilExpiry >= 0 &&
+          row.daysUntilExpiry <= 7,
+      ).length,
+      expiringWithin30Days: rows.filter(
+        (row) =>
+          row.state === "LIVE" &&
+          row.daysUntilExpiry >= 0 &&
+          row.daysUntilExpiry <= 30,
+      ).length,
+      recipientDownloadReceipts: rows.reduce(
+        (total, row) => total + row.recipientDownloadReceipts,
+        0,
+      ),
+      deliveryAttentionRequired: rows.filter(
+        (row) => row.deliveryStatus === "DELIVERY_ATTENTION_REQUIRED",
+      ).length,
+    };
+
+    const items = rows
+      .sort((a, b) => {
+        const stateOrder: Record<string, number> = {
+          DUE: 0,
+          PURGE_CLAIMED: 1,
+          LEGAL_HOLD: 2,
+          LIVE: 3,
+          PURGED: 4,
+        };
+        const byState =
+          (stateOrder[a.state] ?? 99) - (stateOrder[b.state] ?? 99);
+        if (byState !== 0) return byState;
+        return a.expiresAt.getTime() - b.expiresAt.getTime();
+      })
+      .slice(0, 250);
+
+    await this.audit.write({
+      actorId: principal.accountId,
+      action: "ADMIN_TRANSPORT_REPORT_GOVERNANCE_READ",
+      objectType: "TRANSPORT_REPORT_GOVERNANCE",
+      objectId: "OVERVIEW",
+      purpose: "DATA_RETENTION",
+      result: "SUCCESS",
+      metadata: {
+        ...summary,
+        returnedItems: items.length,
+        patientIdentityIncluded: false,
+        patientLocationIncluded: false,
+        objectStorageKeyIncluded: false,
+      },
+    });
+
+    return {
+      generatedAt: now.toISOString(),
+      summary,
+      sensitiveDataPolicy: {
+        patientIdentityIncluded: false,
+        patientLocationIncluded: false,
+        objectStorageKeyIncluded: false,
+      },
+      items,
+    };
+  }
 
   async setLegalHold(
     principal: AuthPrincipal,
@@ -321,6 +474,12 @@ export class TransportReportRetentionService {
 @RequirePermissions("TRANSPORT_OPERATE")
 class TransportReportRetentionController {
   constructor(private readonly service: TransportReportRetentionService) {}
+
+  @Get("report-governance")
+  @Header("Cache-Control", "no-store")
+  governance(@CurrentPrincipal() principal: AuthPrincipal) {
+    return this.service.governance(principal);
+  }
 
   @Post("report-runs/:runId/legal-hold")
   setLegalHold(
