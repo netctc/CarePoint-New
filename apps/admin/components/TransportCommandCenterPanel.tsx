@@ -28,7 +28,7 @@ type Item = {
     departure: SlaMetric;
     breachCount: number;
     pendingCount: number;
-    overall: "BREACHED" | "COMPLIANT" | "PENDING";
+    overall: "BREACHED" | "COMPLIANT" | "PENDING" | "NOT_APPLICABLE";
   };
   etaEvidence: boolean;
   incidents: {
@@ -64,6 +64,7 @@ type Payload = {
     slaBreached: number;
     slaPending: number;
     slaCompliant: number;
+    slaNotApplicable: number;
     requestsWithCriticalIncidents: number;
     requestsWithOpenEscalations: number;
     distinctProviders: number;
@@ -347,6 +348,7 @@ export function TransportCommandCenterPanel() {
             <Metric label="SLA breached" value={data.summary.slaBreached} />
             <Metric label="SLA pending" value={data.summary.slaPending} />
             <Metric label="SLA compliant" value={data.summary.slaCompliant} />
+            <Metric label="SLA N/A" value={data.summary.slaNotApplicable} />
             <Metric
               label="Critical incidents"
               value={data.summary.requestsWithCriticalIncidents}
