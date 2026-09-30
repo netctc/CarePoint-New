@@ -1,0 +1,43 @@
+model TransportManagementReportDestination {
+  id                 String   @id @default(uuid())
+  scheduleId         String
+  schedule           TransportManagementReportSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  label              String
+  recipientAccountId String
+  channel            String   @default("EMAIL")
+  active             Boolean  @default(true)
+  createdByAccountId String
+  updatedByAccountId String
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  deliveries         TransportManagementReportDelivery[]
+
+  @@unique([scheduleId, recipientAccountId, channel])
+  @@index([scheduleId, active])
+  @@index([recipientAccountId, active])
+}
+
+model TransportManagementReportDelivery {
+  id            String   @id @default(uuid())
+  runId         String
+  run           TransportManagementReportRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  destinationId String
+  destination   TransportManagementReportDestination @relation(fields: [destinationId], references: [id], onDelete: Cascade)
+  status        String   @default("PENDING")
+  attemptCount  Int      @default(0)
+  availableAt   DateTime @default(now())
+  leaseOwner    String?
+  leaseUntil    DateTime?
+  attemptedAt   DateTime?
+  sentAt        DateTime?
+  failedAt      DateTime?
+  providerRef   String?
+  lastErrorCode String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([runId, destinationId])
+  @@index([status, availableAt, leaseUntil])
+  @@index([runId, createdAt])
+  @@index([destinationId, createdAt])
+}
