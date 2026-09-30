@@ -224,4 +224,121 @@ void main() {
     expect(find.text('Requested equipment: Oxygen, Monitoring'), findsOneWidget);
     expect(find.text('Accept job'), findsOneWidget);
   });
+
+  test('phase 8 telemetry client keeps vehicle position and ETA separate', () async {
+    final seen = <String>[];
+    final client = MockClient((request) async {
+      expect(request.headers['authorization'], 'Bearer phase8-telemetry');
+      seen.add(request.url.path);
+      if (request.url.path.endsWith('/tracking/start')) {
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(body, {'shareWithPatient': true});
+        expect(body.containsKey('providerId'), false);
+        return http.Response(
+          jsonEncode({'sharingStatus': 'ACTIVE', 'shareWithPatient': true}),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      }
+      if (request.url.path.endsWith('/tracking/heartbeat')) {
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(body['clientEventId'], 'phase8-heartbeat-0001');
+        expect(body['latitude'], 33.89);
+        expect(body['longitude'], 35.50);
+        expect(body['accuracyMeters'], 8.5);
+        expect(body.containsKey('etaMinutes'), false);
+        expect(body.containsKey('patientId'), false);
+        return http.Response(
+          jsonEncode({
+            'replayed': false,
+            'telemetry': {
+              'latitude': 33.89,
+              'longitude': 35.50,
+              'capturedAt': '2031-01-15T10:00:00Z'
+            },
+            'tracking': {
+              'routeEtaMinutes': 12,
+              'trackingPositionIsRouteEta': false
+            }
+          }),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      }
+      if (request.url.path.endsWith('/tracking/stop')) {
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(body['reason'], 'PRIVACY_STOP');
+        return http.Response(
+          jsonEncode({'sharingStatus': 'STOPPED', 'shareWithPatient': false}),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      }
+      return http.Response('{}', 404, headers: {'content-type': 'application/json'});
+    });
+    final api = CarePointApi(
+      baseUrl: 'https://carepoint.test/api/v1',
+      client: client,
+    )
+      ..accessToken = 'phase8-telemetry'
+      ..refreshToken = 'phase8-telemetry-refresh';
+
+    expect(
+      (await api.startProviderMedicalTransportTracking(
+        'tr-phase8',
+        shareWithPatient: true,
+      ))['sharingStatus'],
+      'ACTIVE',
+    );
+
+    final heartbeat = await api.sendProviderMedicalTransportHeartbeat(
+      'tr-phase8',
+      clientEventId: 'phase8-heartbeat-0001',
+      latitude: 33.89,
+      longitude: 35.50,
+      accuracyMeters: 8.5,
+      capturedAt: DateTime.utc(2031, 1, 15, 10),
+    );
+    expect((heartbeat['tracking'] as Map)['trackingPositionIsRouteEta'], false);
+
+    expect(
+      (await api.stopProviderMedicalTransportTracking(
+        'tr-phase8',
+        reason: 'PRIVACY_STOP',
+      ))['sharingStatus'],
+      'STOPPED',
+    );
+    expect(seen.length, 3);
+  });
+
+  test('phase 8 patient tracking is read-only and request scoped', () async {
+    final client = MockClient((request) async {
+      expect(request.method, 'GET');
+      expect(request.url.path, '/api/v1/medical-transport/tr-phase8/tracking');
+      return http.Response(
+        jsonEncode({
+          'requestId': 'tr-phase8',
+          'visible': true,
+          'freshness': 'FRESH',
+          'routeEtaMinutes': 12,
+          'trackingPositionIsRouteEta': false,
+          'location': {'latitude': 33.89, 'longitude': 35.50}
+        }),
+        200,
+        headers: {'content-type': 'application/json'},
+      );
+    });
+    final api = CarePointApi(
+      baseUrl: 'https://carepoint.test/api/v1',
+      client: client,
+    )
+      ..accessToken = 'phase8-patient'
+      ..refreshToken = 'phase8-patient-refresh';
+
+    final value = await api.medicalTransportTracking('tr-phase8');
+    expect(value['visible'], true);
+    expect(value['trackingPositionIsRouteEta'], false);
+    expect((value['location'] as Map)['latitude'], 33.89);
+  });
+
 }
