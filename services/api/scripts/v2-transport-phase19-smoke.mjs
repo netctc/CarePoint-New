@@ -65,7 +65,8 @@ for (const text of [
 for (const text of [
   "GRANT_TTL_MS = 5 * 60_000",
   "randomBytes(32).toString(\"base64url\")",
-  "tokenHash: this.tokenHash",
+  "const tokenHash = this.tokenHash(grantToken)",
+  "tokenHash,",
   "issuedToAccountId: principal.accountId",
   "consumedAt: null",
   "expiresAt: { gt: now }",
