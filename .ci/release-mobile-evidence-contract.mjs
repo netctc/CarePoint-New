@@ -6,7 +6,7 @@ import process from "node:process";
 const FULL_GIT_SHA = /^[0-9a-f]{40}$/i;
 const SHA256_DIGEST = /^sha256:[0-9a-f]{64}$/i;
 const PACKAGE_ID = /^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*){2,}$/;
-const APP_KEYS = ["patient-mobile", "doctor-mobile", "provider-mobile"];
+const APP_KEYS = ["patient-mobile", "doctor-mobile", "provider-mobile", "transport-provider-mobile"];
 const PLATFORMS = ["android", "ios"];
 const STATUS = new Set(["PASS", "FAIL", "BLOCKED", "NOT_APPLICABLE"]);
 const APPLICABILITY = new Set(["APPLICABLE", "NOT_APPLICABLE"]);
@@ -325,6 +325,7 @@ function validateDeviceMatrix(root, artifactsByKey) {
     if (app === "patient-mobile" && profile.hostedPaymentReturnEnabled) requiredBoolean(scenarios.hostedPaymentReturn, `${key}.scenarios.hostedPaymentReturn`, true);
     if (profile.push.enabled) requiredBoolean(scenarios.pushNotification, `${key}.scenarios.pushNotification`, true);
     if (app === "provider-mobile") requiredBoolean(scenarios.providerWorkQueueRoute, `${key}.scenarios.providerWorkQueueRoute`, true);
+    if (app === "transport-provider-mobile") requiredBoolean(scenarios.transportWorkQueueRoute, `${key}.scenarios.transportWorkQueueRoute`, true);
   }
   return map.size;
 }
@@ -388,7 +389,7 @@ export function validateEvidence(evidence, options = {}) {
     artifactMap.set(key, object);
   }
   for (const app of APP_KEYS) for (const platform of PLATFORMS) if (!artifactMap.has(deviceKey(app, platform))) throw new Error(`Missing signed artifact ${app}/${platform}.`);
-  if (artifactMap.size !== APP_KEYS.length * PLATFORMS.length) throw new Error("Exactly six signed mobile release artifacts are required.");
+  if (artifactMap.size !== APP_KEYS.length * PLATFORMS.length) throw new Error("Exactly eight signed mobile release artifacts are required.");
 
   const controls = validateControls(root);
   const deviceCount = validateDeviceMatrix(root, artifactMap);
@@ -419,9 +420,9 @@ function makeValidSample(sha) {
   const profile = (app, index) => ({
     app,
     launchEnabled: true,
-    androidApplicationId: `com.carepoint.release.${["patient", "doctor", "provider"][index]}`,
-    iosBundleId: `com.carepoint.release.${["patient", "doctor", "provider"][index]}.ios`,
-    displayName: ["CarePoint Patient", "CarePoint Doctor", "CarePoint Provider"][index],
+    androidApplicationId: `com.carepoint.release.${["patient", "doctor", "provider", "transportprovider"][index]}`,
+    iosBundleId: `com.carepoint.release.${["patient", "doctor", "provider", "transportprovider"][index]}.ios`,
+    displayName: ["CarePoint Patient", "CarePoint Doctor", "CarePoint Provider", "CarePoint Transport Provider"][index],
     productDecisionRef: `evidence/product/${app}`,
     storeOwnershipRef: `evidence/store/${app}`,
     signingOwnershipRef: `evidence/signing-owner/${app}`,
@@ -497,6 +498,7 @@ function makeValidSample(sha) {
         ...(app === "patient-mobile" && selectedProfile.hostedPaymentReturnEnabled ? { hostedPaymentReturn: true } : {}),
         ...(selectedProfile.push.enabled ? { pushNotification: true } : {}),
         ...(app === "provider-mobile" ? { providerWorkQueueRoute: true } : {}),
+        ...(app === "transport-provider-mobile" ? { transportWorkQueueRoute: true } : {}),
       },
     };
   }));
@@ -578,9 +580,9 @@ async function checkTemplate(path) {
   if (template.overallStatus !== "DRAFT") throw new Error("Template must remain DRAFT.");
   requiredBoolean(template.approved, "template.approved", false);
   requiredBoolean(template.sensitiveDataIncluded, "template.sensitiveDataIncluded", false);
-  if (!Array.isArray(template.appProfiles) || template.appProfiles.length !== 3) throw new Error("Template must enumerate three app profiles.");
-  if (!Array.isArray(template.artifacts) || template.artifacts.length !== 6) throw new Error("Template must enumerate six platform artifacts.");
-  if (!Array.isArray(template.deviceMatrix) || template.deviceMatrix.length !== 6) throw new Error("Template must enumerate six physical-device records.");
+  if (!Array.isArray(template.appProfiles) || template.appProfiles.length !== 4) throw new Error("Template must enumerate four app profiles.");
+  if (!Array.isArray(template.artifacts) || template.artifacts.length !== 8) throw new Error("Template must enumerate eight platform artifacts.");
+  if (!Array.isArray(template.deviceMatrix) || template.deviceMatrix.length !== 8) throw new Error("Template must enumerate eight physical-device records.");
   return { ok: true, status: "DRAFT", productionReleaseEvidence: false };
 }
 
