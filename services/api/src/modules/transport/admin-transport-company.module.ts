@@ -178,7 +178,7 @@ class AdminTransportCompanyService {
       ? current.unitIds
       : this.ids(input.unitIds, "unitIds", 300);
 
-    await this.validateCompanyResources(providerIds, unitIds);
+    await this.validateCompanyResources(providerIds, unitIds, current.id);
 
     const removedProviderIds = new Set(current.providerIds.filter((id) => !providerIds.includes(id)));
     const blockedCrew = current.crewMembers.find(
@@ -239,6 +239,17 @@ class AdminTransportCompanyService {
     if (providerId && !company.providerIds.includes(providerId)) {
       throw new BadRequestException("Crew providerId must belong to the transport company.");
     }
+    if (providerId) {
+      const duplicate = await this.prisma.transportCrewMember.findFirst({
+        where: { companyId: company.id, providerId },
+        select: { id: true },
+      });
+      if (duplicate) {
+        throw new BadRequestException(
+          "The selected Provider identity is already linked to another crew member in this company.",
+        );
+      }
+    }
 
     const role = this.crewRole(input.role);
     const row = await this.prisma.transportCrewMember.create({
@@ -287,6 +298,21 @@ class AdminTransportCompanyService {
         : this.id(input.providerId, "providerId");
     if (providerId && !company.providerIds.includes(providerId)) {
       throw new BadRequestException("Crew providerId must belong to the transport company.");
+    }
+    if (providerId) {
+      const duplicate = await this.prisma.transportCrewMember.findFirst({
+        where: {
+          companyId: company.id,
+          providerId,
+          id: { not: current.id },
+        },
+        select: { id: true },
+      });
+      if (duplicate) {
+        throw new BadRequestException(
+          "The selected Provider identity is already linked to another crew member in this company.",
+        );
+      }
     }
 
     const row = await this.prisma.transportCrewMember.update({
@@ -571,7 +597,11 @@ class AdminTransportCompanyService {
     };
   }
 
-  private async validateCompanyResources(providerIds: string[], unitIds: string[]) {
+  private async validateCompanyResources(
+    providerIds: string[],
+    unitIds: string[],
+    excludeCompanyId?: string,
+  ) {
     if (unitIds.length > 0 && providerIds.length === 0) {
       throw new BadRequestException("Transport units require at least one company provider.");
     }
@@ -602,6 +632,26 @@ class AdminTransportCompanyService {
       if (units.length !== unitIds.length) {
         throw new BadRequestException(
           "Every unitIds value must belong to one of the company's Transport Providers.",
+        );
+      }
+    }
+
+    if (providerIds.length > 0 || unitIds.length > 0) {
+      const overlaps = await this.prisma.transportCompany.findMany({
+        where: {
+          ...(excludeCompanyId ? { id: { not: excludeCompanyId } } : {}),
+          OR: [
+            ...(providerIds.length > 0 ? [{ providerIds: { hasSome: providerIds } }] : []),
+            ...(unitIds.length > 0 ? [{ unitIds: { hasSome: unitIds } }] : []),
+          ],
+        },
+        select: { id: true, code: true, providerIds: true, unitIds: true },
+        take: 10,
+      });
+
+      if (overlaps.length > 0) {
+        throw new BadRequestException(
+          "A Transport Provider or fleet unit can belong to only one Transport Company.",
         );
       }
     }
