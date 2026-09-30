@@ -27,7 +27,7 @@ When disabled:
 
 When enabled:
 - a dedicated **Transport Providers** section is available in Admin;
-- only `MEDICAL_TRANSPORT_GROUND` and `MEDICAL_TRANSPORT_AIR` provider families are shown in that section.
+- only `MEDICAL_TRANSPORT_GROUND`, `MEDICAL_TRANSPORT_AIR` and `EMERGENCY_AMBULANCE` provider families are shown in that section.
 
 ### Patient Mobile
 
