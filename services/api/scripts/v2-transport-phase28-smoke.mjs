@@ -59,7 +59,7 @@ for (const scenario of manifest.scenarios) {
 
   let permissionEvidence = false;
   for (const source of scenario.sources) {
-    assert.match(source.path, /^services\/api\/src\/|^services\/api\/src\/scripts\//);
+    assert.match(source.path, /^services\/api\/(?:src|prisma)\//);
     assert.equal(source.path.includes(".env"), false);
     assert.ok(Array.isArray(source.mustContain) && source.mustContain.length > 0);
 
