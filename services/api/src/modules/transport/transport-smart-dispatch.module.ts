@@ -833,6 +833,30 @@ export class TransportSmartDispatchService {
       60,
       3600,
     );
+    const milestoneConfirmationMinutes = this.envInteger(
+      "TRANSPORT_SMART_MILESTONE_CONFIRMATION_MINUTES",
+      3,
+      1,
+      60,
+    );
+    const telemetryCriticalSeconds = Math.max(
+      telemetryStaleSeconds,
+      this.envInteger(
+        "TRANSPORT_SMART_TELEMETRY_CRITICAL_SECONDS",
+        Math.min(7200, Math.max(600, telemetryStaleSeconds * 3)),
+        telemetryStaleSeconds,
+        7200,
+      ),
+    );
+    const milestoneCriticalMinutes = Math.max(
+      milestoneConfirmationMinutes,
+      this.envInteger(
+        "TRANSPORT_SMART_MILESTONE_CRITICAL_MINUTES",
+        Math.min(240, Math.max(10, milestoneConfirmationMinutes * 3)),
+        milestoneConfirmationMinutes,
+        240,
+      ),
+    );
     return {
       evaluationIntervalSeconds: this.envInteger(
         "TRANSPORT_SMART_DISPATCH_EVALUATION_SECONDS",
@@ -865,24 +889,9 @@ export class TransportSmartDispatchService {
         1440,
       ),
       telemetryStaleSeconds,
-      telemetryCriticalSeconds: this.envInteger(
-        "TRANSPORT_SMART_TELEMETRY_CRITICAL_SECONDS",
-        Math.max(600, telemetryStaleSeconds * 3),
-        telemetryStaleSeconds,
-        7200,
-      ),
-      milestoneConfirmationMinutes: this.envInteger(
-        "TRANSPORT_SMART_MILESTONE_CONFIRMATION_MINUTES",
-        3,
-        1,
-        60,
-      ),
-      milestoneCriticalMinutes: this.envInteger(
-        "TRANSPORT_SMART_MILESTONE_CRITICAL_MINUTES",
-        10,
-        2,
-        240,
-      ),
+      telemetryCriticalSeconds,
+      milestoneConfirmationMinutes,
+      milestoneCriticalMinutes,
     };
   }
 
