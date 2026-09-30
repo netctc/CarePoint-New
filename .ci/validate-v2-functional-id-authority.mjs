@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 
 const authorityPath = 'docs/v2/traceability/functional-id-authority-v1.csv';
 const aliasesPath = 'docs/v2/traceability/legacy-id-aliases-v1.csv';
+const reconciliationPath = 'docs/v2/traceability/pr-reconciliation-evidence-20261001.csv';
 
 const fail = (message) => {
   throw new Error(`V2 functional ID authority invalid: ${message}`);
@@ -117,3 +118,71 @@ expectAlias('PRELIM-2026-09-18:BE-038', 'BE-033', 'EXACT');
 expectAlias('PRELIM-2026-09-18:BE-050', '', 'NO_EXACT_CANONICAL_MATCH');
 
 console.log(`V2 functional ID authority OK: ${seen.size} canonical IDs, ${aliases.length - 1} legacy alias records.`);
+
+
+const reconciliation = parseCsv(reconciliationPath);
+const reconciliationHeader = [
+  'pr_number',
+  'github_state',
+  'merged',
+  'merged_at',
+  'authority_row_references',
+  'superseded_by_pr',
+];
+if (reconciliation[0].join('|') !== reconciliationHeader.join('|')) {
+  fail('unexpected PR reconciliation evidence header');
+}
+const prEvidence = new Map();
+for (const row of reconciliation.slice(1)) {
+  if (row.length !== reconciliationHeader.length) {
+    fail(`wrong PR reconciliation evidence column count for ${row[0] ?? '<unknown>'}`);
+  }
+  const [prRef, githubState, merged, mergedAt, referenceCount, supersededBy] = row;
+  if (!/^#\d+$/.test(prRef)) fail(`invalid reconciliation PR reference ${prRef}`);
+  if (prEvidence.has(prRef)) fail(`duplicate reconciliation PR reference ${prRef}`);
+  if (githubState !== 'closed') fail(`unexpected GitHub state for ${prRef}: ${githubState}`);
+  if (merged !== 'true' && merged !== 'false') fail(`invalid merged flag for ${prRef}`);
+  if (merged === 'true' && !mergedAt) fail(`merged PR ${prRef} requires merged_at evidence`);
+  if (merged === 'false' && mergedAt) fail(`unmerged PR ${prRef} must not carry merged_at evidence`);
+  if (!/^\d+$/.test(referenceCount)) fail(`invalid authority reference count for ${prRef}`);
+  if (supersededBy && !/^#\d+$/.test(supersededBy)) fail(`invalid superseded_by_pr for ${prRef}`);
+  prEvidence.set(prRef, { merged: merged === 'true', referenceCount: Number(referenceCount), supersededBy });
+}
+
+const authorityPrUsage = new Map();
+for (const row of authority.slice(1)) {
+  const [id, , , prRefs, , state] = row;
+  const refs = prRefs ? prRefs.split(';') : [];
+  for (const ref of refs) authorityPrUsage.set(ref, (authorityPrUsage.get(ref) ?? 0) + 1);
+  if (state === 'MERGED_TO_MAIN') {
+    if (!refs.length || !refs.every((ref) => prEvidence.get(ref)?.merged === true)) {
+      fail(`MERGED_TO_MAIN requires merged PR evidence for ${id}`);
+    }
+  }
+  if (state === 'PARTIAL_PR_HISTORY_RECONCILIATION_REQUIRED') {
+    const states = refs.map((ref) => prEvidence.get(ref)?.merged);
+    if (!states.includes(true) || !states.includes(false)) {
+      fail(`partial reconciliation state requires mixed merged/unmerged PR evidence for ${id}`);
+    }
+  }
+  if (state === 'CLOSED_UNMERGED_NEEDS_RECONCILIATION') {
+    if (!refs.length || !refs.every((ref) => prEvidence.get(ref)?.merged === false)) {
+      fail(`closed-unmerged state requires only unmerged PR evidence for ${id}`);
+    }
+  }
+}
+for (const [prRef, evidence] of prEvidence.entries()) {
+  const actual = authorityPrUsage.get(prRef) ?? 0;
+  if (actual !== evidence.referenceCount) {
+    fail(`PR evidence reference count mismatch for ${prRef}: expected ${evidence.referenceCount}, actual ${actual}`);
+  }
+}
+if (prEvidence.get('#281')?.supersededBy !== '#320') {
+  fail('DOC-061 historical PR #281 must remain recorded as superseded by clean integration PR #320');
+}
+const doc061 = authority.slice(1).find((row) => row[0] === 'DOC-061');
+if (!doc061 || doc061[3] !== '#320' || doc061[5] !== 'MERGED_TO_MAIN') {
+  fail('DOC-061 must point to merged clean integration PR #320');
+}
+
+console.log(`V2 PR reconciliation evidence OK: ${prEvidence.size} PR records.`);
