@@ -1,0 +1,266 @@
+{
+  "schemaVersion": 1,
+  "scope": "transport-phases-8-26",
+  "canonicalBase": "main",
+  "productionAcceptance": false,
+  "validation": {
+    "consolidatedPr": 497,
+    "consolidatedBranch": "integration/transport-phases8-26-validation-20261001",
+    "fastLanePr": 496,
+    "fastLaneBranch": "feature/transport-compliance-manifest-phase26-20261001",
+    "fullMatrixRequiredBeforeMerge": true,
+    "mainMergeAllowed": false
+  },
+  "phases": [
+    {
+      "phase": 8,
+      "doc": "docs/transport-fleet-telemetry-phase8.md",
+      "smoke": "services/api/scripts/v2-transport-phase8-smoke.mjs",
+      "migrations": [
+        "20260930173000_v2_transport_telemetry"
+      ],
+      "modules": [
+        "TransportTelemetryModule"
+      ],
+      "panels": [
+        "TransportFleetTelemetryPanel"
+      ]
+    },
+    {
+      "phase": 9,
+      "doc": "docs/transport-realtime-milestones-phase9.md",
+      "smoke": "services/api/scripts/v2-transport-phase9-smoke.mjs",
+      "migrations": [
+        "20260930195000_v2_transport_trip_milestones"
+      ],
+      "modules": [
+        "TransportTripMilestonesModule"
+      ],
+      "panels": []
+    },
+    {
+      "phase": 10,
+      "doc": "docs/transport-smart-dispatch-phase10.md",
+      "smoke": "services/api/scripts/v2-transport-phase10-smoke.mjs",
+      "migrations": [
+        "20260930204500_v2_transport_smart_dispatch"
+      ],
+      "modules": [
+        "TransportSmartDispatchModule"
+      ],
+      "panels": [
+        "TransportSmartDispatchPanel"
+      ]
+    },
+    {
+      "phase": 11,
+      "doc": "docs/transport-capacity-analytics-phase11.md",
+      "smoke": "services/api/scripts/v2-transport-phase11-smoke.mjs",
+      "migrations": [],
+      "modules": [
+        "TransportPerformanceAnalyticsModule"
+      ],
+      "panels": [
+        "TransportPerformanceAnalyticsPanel"
+      ]
+    },
+    {
+      "phase": 12,
+      "doc": "docs/transport-command-center-phase12.md",
+      "smoke": "services/api/scripts/v2-transport-phase12-smoke.mjs",
+      "migrations": [],
+      "modules": [
+        "TransportCommandCenterModule"
+      ],
+      "panels": [
+        "TransportCommandCenterPanel"
+      ]
+    },
+    {
+      "phase": 13,
+      "doc": "docs/transport-executive-kpi-phase13.md",
+      "smoke": "services/api/scripts/v2-transport-phase13-smoke.mjs",
+      "migrations": [
+        "20260930230000_v2_transport_management_report_schedule"
+      ],
+      "modules": [
+        "TransportExecutiveKpiModule"
+      ],
+      "panels": [
+        "TransportExecutiveKpiPanel"
+      ]
+    },
+    {
+      "phase": 14,
+      "doc": "docs/transport-report-execution-phase14.md",
+      "smoke": "services/api/scripts/v2-transport-phase14-smoke.mjs",
+      "migrations": [
+        "20260930233000_v2_transport_report_execution_ledger"
+      ],
+      "modules": [
+        "TransportReportExecutionModule"
+      ],
+      "panels": [
+        "TransportReportExecutionPanel"
+      ]
+    },
+    {
+      "phase": 15,
+      "doc": "docs/transport-report-worker-phase15.md",
+      "smoke": "services/api/scripts/v2-transport-phase15-smoke.mjs",
+      "migrations": [],
+      "modules": [
+        "TransportReportExecutionModule"
+      ],
+      "panels": []
+    },
+    {
+      "phase": 16,
+      "doc": "docs/transport-report-artifact-phase16.md",
+      "smoke": "services/api/scripts/v2-transport-phase16-smoke.mjs",
+      "migrations": [
+        "20260930234500_v2_transport_report_artifact_handoff"
+      ],
+      "modules": [
+        "TransportReportExecutionModule"
+      ],
+      "panels": [
+        "TransportReportExecutionPanel"
+      ]
+    },
+    {
+      "phase": 17,
+      "doc": "docs/transport-report-delivery-outbox-phase17.md",
+      "smoke": "services/api/scripts/v2-transport-phase17-smoke.mjs",
+      "migrations": [
+        "20261001000500_v2_transport_report_delivery_outbox"
+      ],
+      "modules": [
+        "TransportReportDeliveryModule"
+      ],
+      "panels": [
+        "TransportReportDeliveryPanel"
+      ]
+    },
+    {
+      "phase": 18,
+      "doc": "docs/transport-report-delivery-worker-phase18.md",
+      "smoke": "services/api/scripts/v2-transport-phase18-smoke.mjs",
+      "migrations": [],
+      "modules": [
+        "TransportReportDeliveryModule"
+      ],
+      "panels": [
+        "TransportReportDeliveryPanel"
+      ]
+    },
+    {
+      "phase": 19,
+      "doc": "docs/transport-report-secure-download-phase19.md",
+      "smoke": "services/api/scripts/v2-transport-phase19-smoke.mjs",
+      "migrations": [
+        "20261001002000_v2_transport_report_download_grants"
+      ],
+      "modules": [
+        "TransportReportDownloadModule"
+      ],
+      "panels": [
+        "TransportReportExecutionPanel"
+      ]
+    },
+    {
+      "phase": 20,
+      "doc": "docs/transport-report-recipient-inbox-phase20.md",
+      "smoke": "services/api/scripts/v2-transport-phase20-smoke.mjs",
+      "migrations": [
+        "20261001003500_v2_transport_report_recipient_inbox"
+      ],
+      "modules": [
+        "TransportReportDeliveryModule"
+      ],
+      "panels": [
+        "TransportReportDeliveryPanel"
+      ]
+    },
+    {
+      "phase": 21,
+      "doc": "docs/transport-report-retention-phase21.md",
+      "smoke": "services/api/scripts/v2-transport-phase21-smoke.mjs",
+      "migrations": [
+        "20261001005000_v2_transport_report_artifact_retention"
+      ],
+      "modules": [
+        "TransportReportRetentionModule"
+      ],
+      "panels": [
+        "TransportExecutiveKpiPanel",
+        "TransportReportExecutionPanel"
+      ]
+    },
+    {
+      "phase": 22,
+      "doc": "docs/transport-report-legal-hold-phase22.md",
+      "smoke": "services/api/scripts/v2-transport-phase22-smoke.mjs",
+      "migrations": [
+        "20261001010500_v2_transport_report_legal_hold"
+      ],
+      "modules": [
+        "TransportReportRetentionModule"
+      ],
+      "panels": [
+        "TransportReportExecutionPanel"
+      ]
+    },
+    {
+      "phase": 23,
+      "doc": "docs/transport-report-governance-timeline-phase23.md",
+      "smoke": "services/api/scripts/v2-transport-phase23-smoke.mjs",
+      "migrations": [],
+      "modules": [
+        "TransportReportGovernanceModule"
+      ],
+      "panels": [
+        "TransportReportGovernancePanel"
+      ]
+    },
+    {
+      "phase": 24,
+      "doc": "docs/transport-report-integrity-phase24.md",
+      "smoke": "services/api/scripts/v2-transport-phase24-smoke.mjs",
+      "migrations": [
+        "20261001012000_v2_transport_report_artifact_integrity"
+      ],
+      "modules": [
+        "TransportReportIntegrityModule"
+      ],
+      "panels": [
+        "TransportReportGovernancePanel",
+        "TransportReportExecutionPanel"
+      ]
+    },
+    {
+      "phase": 25,
+      "doc": "docs/transport-report-integrity-quarantine-phase25.md",
+      "smoke": "services/api/scripts/v2-transport-phase25-smoke.mjs",
+      "migrations": [],
+      "modules": [
+        "TransportReportIntegrityModule"
+      ],
+      "panels": [
+        "TransportReportExecutionPanel"
+      ]
+    },
+    {
+      "phase": 26,
+      "doc": "docs/transport-report-compliance-manifest-phase26.md",
+      "smoke": "services/api/scripts/v2-transport-phase26-smoke.mjs",
+      "migrations": [],
+      "modules": [
+        "TransportReportGovernanceModule"
+      ],
+      "panels": [
+        "TransportReportGovernancePanel"
+      ]
+    }
+  ]
+}
