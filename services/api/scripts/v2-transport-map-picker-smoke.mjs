@@ -66,7 +66,7 @@ assert.match(patientTransport, /_resolveTransportLocation/);
 // Existing optional-coordinate/manual fallback remains intact.
 assert.match(patientTransport, /pickupAddressValue\.isEmpty && pickupLat == null/);
 assert.match(patientTransport, /destinationAddressValue\.isEmpty && destinationLat == null/);
-assert.match(phase4Doc, /No \.env file/i);
+assert.match(phase4Doc, /No `\.env` file/i);
 assert.match(phase4Doc, /manual fallback/i);
 
 console.log("V2 Transport Map Picker Phase 4 contract acceptance passed");
