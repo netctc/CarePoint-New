@@ -4,6 +4,7 @@ import Link from "next/link";
 import { AdminOperator } from "@/components/AdminOperator";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useI18n, type Locale, type MessageKey } from "@/lib/i18n";
+import { useRuntimeFeatures } from "@/lib/use-runtime-features";
 
 const nav = [
   ["01", "nav.commandCenter", "/"],
@@ -37,6 +38,7 @@ const questionnaireTriggerLabels: Record<Locale, string> = { en:"Questionnaire T
 const deviceLabels: Record<Locale, string> = { en:"Medical Devices", ar:"الأجهزة الطبية", fr:"Dispositifs médicaux", es:"Dispositivos médicos" };
 const deviceIntegrationLabels: Record<Locale, string> = { en:"Device Integrations", ar:"تكاملات الأجهزة", fr:"Intégrations dispositifs", es:"Integraciones de dispositivos" };
 const masterDataLabels: Record<Locale, string> = { en:"Master Data", ar:"البيانات الرئيسية", fr:"Données de référence", es:"Datos maestros" };
+const transportProvidersLabel = "Transport Providers";
 
 type Props = Readonly<{
   active: string;
@@ -49,6 +51,7 @@ type Props = Readonly<{
 
 export function AppShell({ active, titleKey, eyebrowKey, title, eyebrow, children }: Props) {
   const { t, direction, locale } = useI18n();
+  const { transportModuleEnabled } = useRuntimeFeatures();
   const renderedTitle = title ?? (titleKey ? t(titleKey) : "");
   const renderedEyebrow = eyebrow ?? (eyebrowKey ? t(eyebrowKey) : "");
   return <div className="app-shell" data-direction={direction}>
@@ -75,6 +78,7 @@ export function AppShell({ active, titleKey, eyebrowKey, title, eyebrow, childre
         <Link className={`nav-item ${active === "24" ? "active" : ""}`} href="/devices"><small>24</small><span>{deviceLabels[locale]}</span><b>{direction === "rtl" ? "‹" : "›"}</b></Link>
         <Link className={`nav-item ${active === "25" ? "active" : ""}`} href="/integrations/devices"><small>25</small><span>{deviceIntegrationLabels[locale]}</span><b>{direction === "rtl" ? "‹" : "›"}</b></Link>
         <Link className={`nav-item ${active === "26" ? "active" : ""}`} href="/master-data"><small>26</small><span>{masterDataLabels[locale]}</span><b>{direction === "rtl" ? "‹" : "›"}</b></Link>
+        {transportModuleEnabled && <Link className={`nav-item ${active === "27" ? "active" : ""}`} href="/transport-providers"><small>27</small><span>{transportProvidersLabel}</span><b>{direction === "rtl" ? "‹" : "›"}</b></Link>}
       </nav>
       <div className="security-pill"><div><small>{t("shell.e2eeStatus")}</small><strong>{t("shell.shieldPolicy")}</strong></div><i /></div>
     </aside>
