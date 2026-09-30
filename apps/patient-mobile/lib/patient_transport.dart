@@ -369,12 +369,14 @@ class _TransportDialogState extends State<_TransportDialog> {
   final Set<String> equipment = <String>{};
   DateTime scheduledFor = DateTime.now().add(const Duration(hours: 2));
   bool locatingPickup = false;
+  bool routePreviewAvailable = false;
   _TransportRasterMapConfig? mapConfig;
 
   @override
   void initState() {
     super.initState();
     _loadMapConfig();
+    _loadPhase5Capabilities();
   }
 
   Future<void> _loadMapConfig() async {
@@ -388,6 +390,16 @@ class _TransportDialogState extends State<_TransportDialog> {
       }
     } catch (_) {
       // Search, GPS and manual entry remain available when map config cannot load.
+    }
+  }
+
+  Future<void> _loadPhase5Capabilities() async {
+    try {
+      final payload = await widget.session.api.transportLocationCapabilities();
+      if (!mounted) return;
+      setState(() => routePreviewAvailable = payload['routePreviewAvailable'] == true);
+    } catch (_) {
+      // Saved/manual locations keep working even when route preview is unavailable.
     }
   }
 
