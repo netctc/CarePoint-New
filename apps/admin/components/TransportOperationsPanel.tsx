@@ -23,7 +23,7 @@ type TransportProvider = {
   category?: { id: string; slug: string; labels: unknown; active: boolean } | null;
   requiredCredentialTypes: string[];
   missingCredentialTypes: string[];
-  units: { total: number; active: number; expectedMode: "GROUND" | "AIR" };
+  fleet: { total: number; active: number; expectedMode: "GROUND" | "AIR" };
   activeJobs: number;
   dispatchReady: boolean;
 };
@@ -171,7 +171,7 @@ export function TransportOperationsPanel() {
           body: JSON.stringify({
             code: unit.code,
             registrationCode: unit.registrationCode,
-            mode: detail.units.expectedMode,
+            mode: detail.fleet.expectedMode,
             capabilities,
             active: true,
           }),
@@ -301,9 +301,9 @@ export function TransportOperationsPanel() {
                       )}
                   </td>
                   <td style={{ padding: "12px 8px" }}>
-                    {row.units.active} active / {row.units.total} total
+                    {row.fleet.active} active / {row.fleet.total} total
                     <br />
-                    <small>{row.units.expectedMode}</small>
+                    <small>{row.fleet.expectedMode}</small>
                   </td>
                   <td style={{ padding: "12px 8px" }}>{row.activeJobs}</td>
                   <td style={{ padding: "12px 8px" }}>
@@ -341,7 +341,7 @@ export function TransportOperationsPanel() {
               </span>
               <h2 style={{ margin: "5px 0" }}>{detail.displayName}</h2>
               <p>
-                Expected fleet mode: <strong>{detail.units.expectedMode}</strong>
+                Expected fleet mode: <strong>{detail.fleet.expectedMode}</strong>
               </p>
             </div>
             <Status
