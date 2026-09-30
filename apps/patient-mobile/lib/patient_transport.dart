@@ -410,6 +410,11 @@ class _TransportDialogState extends State<_TransportDialog> {
                     icon: const Icon(Icons.search_outlined),
                     label: Text(transportText(widget.locale, 'searchLocation')),
                   ),
+                  OutlinedButton.icon(
+                    onPressed: () => _pickOnMap(pickup: true),
+                    icon: const Icon(Icons.map_outlined),
+                    label: Text(transportText(widget.locale, 'pickOnMap')),
+                  ),
                 ],
               ),
               const SizedBox(height: 10),
@@ -421,10 +426,21 @@ class _TransportDialogState extends State<_TransportDialog> {
               const SizedBox(height: 8),
               Align(
                 alignment: AlignmentDirectional.centerStart,
-                child: OutlinedButton.icon(
-                  onPressed: () => _searchLocation(pickup: false),
-                  icon: const Icon(Icons.search_outlined),
-                  label: Text(transportText(widget.locale, 'searchLocation')),
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: () => _searchLocation(pickup: false),
+                      icon: const Icon(Icons.search_outlined),
+                      label: Text(transportText(widget.locale, 'searchLocation')),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () => _pickOnMap(pickup: false),
+                      icon: const Icon(Icons.map_outlined),
+                      label: Text(transportText(widget.locale, 'pickOnMap')),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 10),
@@ -524,6 +540,75 @@ class _TransportDialogState extends State<_TransportDialog> {
       if (location.hasAddress) addressController.text = location.address!.trim();
       latitudeController.text = location.latitude?.toStringAsFixed(6) ?? '';
       longitudeController.text = location.longitude?.toStringAsFixed(6) ?? '';
+    });
+  }
+
+  Future<void> _pickOnMap({required bool pickup}) async {
+    if (!transportMapPickerEnabled) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(transportText(widget.locale, 'mapPickerUnavailable'))),
+      );
+      return;
+    }
+
+    double? initialLatitude = _optionalCoordinate(
+      (pickup ? pickupLatitude : destinationLatitude).text,
+      -90,
+      90,
+    );
+    double? initialLongitude = _optionalCoordinate(
+      (pickup ? pickupLongitude : destinationLongitude).text,
+      -180,
+      180,
+    );
+
+    if ((!pickup) && (initialLatitude == null || initialLongitude == null)) {
+      initialLatitude = _optionalCoordinate(pickupLatitude.text, -90, 90);
+      initialLongitude = _optionalCoordinate(pickupLongitude.text, -180, 180);
+    }
+
+    if (initialLatitude == null || initialLongitude == null) {
+      try {
+        final current = await _currentTransportLocation(widget.locale);
+        initialLatitude = current.latitude;
+        initialLongitude = current.longitude;
+      } catch (_) {
+        // A map picker remains usable without GPS permission.
+      }
+    }
+
+    if (!mounted) return;
+    final picked = await showDialog<TransportLocation>(
+      context: context,
+      builder: (_) => Directionality(
+        textDirection: widget.locale.textDirection,
+        child: _TransportMapPickerDialog(
+          locale: widget.locale,
+          title: transportText(
+            widget.locale,
+            pickup ? 'mapPickup' : 'mapDestination',
+          ),
+          initialLatitude: initialLatitude,
+          initialLongitude: initialLongitude,
+        ),
+      ),
+    );
+    if (picked == null || !mounted) return;
+
+    final resolved = await _resolveTransportLocation(
+      widget.session,
+      widget.locale,
+      picked,
+    );
+    if (!mounted) return;
+
+    setState(() {
+      final addressController = pickup ? pickupAddress : destinationAddress;
+      final latitudeController = pickup ? pickupLatitude : destinationLatitude;
+      final longitudeController = pickup ? pickupLongitude : destinationLongitude;
+      if (resolved.hasAddress) addressController.text = resolved.address!.trim();
+      latitudeController.text = resolved.latitude?.toStringAsFixed(6) ?? '';
+      longitudeController.text = resolved.longitude?.toStringAsFixed(6) ?? '';
     });
   }
 
@@ -731,6 +816,138 @@ class _TransportLocationSearchDialogState
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: Text(cpText(widget.locale, 'common.cancel')),
+          ),
+        ],
+      );
+}
+
+class _TransportMapPickerDialog extends StatefulWidget {
+  const _TransportMapPickerDialog({
+    required this.locale,
+    required this.title,
+    this.initialLatitude,
+    this.initialLongitude,
+  });
+
+  final CarePointLocale locale;
+  final String title;
+  final double? initialLatitude;
+  final double? initialLongitude;
+
+  @override
+  State<_TransportMapPickerDialog> createState() => _TransportMapPickerDialogState();
+}
+
+class _TransportMapPickerDialogState extends State<_TransportMapPickerDialog> {
+  late LatLng selected;
+  late double initialZoom;
+
+  @override
+  void initState() {
+    super.initState();
+    final hasInitial = widget.initialLatitude != null && widget.initialLongitude != null;
+    selected = hasInitial
+        ? LatLng(widget.initialLatitude!, widget.initialLongitude!)
+        : const LatLng(20, 0);
+    initialZoom = hasInitial ? 15 : 2;
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+        title: Text(widget.title),
+        content: SizedBox(
+          width: 680,
+          height: 500,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                transportText(widget.locale, 'tapMapToChoose'),
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 8),
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(14),
+                  child: Stack(
+                    children: [
+                      FlutterMap(
+                        options: MapOptions(
+                          initialCenter: selected,
+                          initialZoom: initialZoom,
+                          minZoom: 2,
+                          maxZoom: 19,
+                          onTap: (_, point) => setState(() => selected = point),
+                        ),
+                        children: [
+                          TileLayer(
+                            urlTemplate: transportMapTileUrl,
+                            userAgentPackageName: 'com.carepoint.patient',
+                            maxNativeZoom: 19,
+                          ),
+                          MarkerLayer(
+                            markers: [
+                              Marker(
+                                point: selected,
+                                width: 52,
+                                height: 52,
+                                child: const Icon(
+                                  Icons.location_pin,
+                                  size: 48,
+                                  color: Color(0xFFE11D48),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      if (transportMapAttribution.trim().isNotEmpty)
+                        PositionedDirectional(
+                          end: 6,
+                          bottom: 6,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.88),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                              child: Text(
+                                transportMapAttribution,
+                                style: const TextStyle(fontSize: 10),
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '${selected.latitude.toStringAsFixed(6)}, ${selected.longitude.toStringAsFixed(6)}',
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(cpText(widget.locale, 'common.cancel')),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(
+              context,
+              TransportLocation(
+                latitude: selected.latitude,
+                longitude: selected.longitude,
+                source: TransportLocationSource.mapPicker,
+              ),
+            ),
+            icon: const Icon(Icons.check_circle_outline),
+            label: Text(transportText(widget.locale, 'confirmMapLocation')),
           ),
         ],
       );
