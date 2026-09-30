@@ -33,7 +33,9 @@ const phase3Doc = readFileSync(
 // Backend-only provider configuration defaults safely to manual operation.
 assert.match(backend, /TRANSPORT_LOCATION_PROVIDER/);
 assert.match(backend, /process\.env\.TRANSPORT_LOCATION_PROVIDER \?\? "manual"/);
+assert.match(backend, /GOOGLE_MAPS_SERVER_API_KEY/);
 assert.match(backend, /GOOGLE_MAPS_API_KEY/);
+assert.match(backend, /TRANSPORT_LOCATION_REGION_CODE/);
 assert.match(backend, /reverseGeocodingAvailable/);
 assert.match(backend, /placeSearchAvailable/);
 assert.match(backend, /manualFallback:\s*true/);
@@ -45,6 +47,11 @@ assert.match(backend, /X-Goog-Api-Key/);
 assert.match(backend, /X-Goog-FieldMask/);
 assert.match(backend, /pageSize:\s*8/);
 assert.match(backend, /PROVIDER_TIMEOUT_MS\s*=\s*6_000/);
+assert.match(backend, /TRANSPORT_LOCATION_SEARCH/);
+assert.match(backend, /TRANSPORT_LOCATION_REVERSE/);
+assert.match(backend, /resultCount/);
+const auditOperation = backend.match(/private async auditOperation[\s\S]*?\n  }/m)?.[0] ?? "";
+assert.doesNotMatch(auditOperation, /query|latitude|longitude|address/i);
 
 // Patient-only authorization is required for location-service calls.
 assert.match(backend, /RequirePermissions\("PATIENT_TRANSPORT_REQUEST"\)/);
@@ -60,6 +67,7 @@ assert.doesNotMatch(patientPubspec, /google_maps_flutter|mapbox|here_sdk/i);
 assert.match(transportLocation, /enum TransportLocationSource/);
 assert.match(transportLocation, /addressSearch/);
 assert.match(transportLocation, /mapPicker/);
+assert.match(transportLocation, /abstract interface class TransportMapPickerProvider/);
 assert.match(transportLocation, /manual/);
 assert.match(transportLocation, /factory TransportLocation\.fromJson/);
 assert.match(transportApi, /reverseGeocodeTransportLocation/);
