@@ -1,0 +1,28 @@
+model TransportManagementReportRun {
+  id                   String   @id @default(uuid())
+  scheduleId           String
+  schedule             TransportManagementReportSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  scheduledFor         DateTime
+  status               String   @default("QUEUED")
+  attemptCount         Int      @default(0)
+  claimedAt            DateTime?
+  leaseExpiresAt       DateTime?
+  startedAt            DateTime?
+  completedAt          DateTime?
+  failedAt             DateTime?
+  lastError            String?
+  reportGeneratedAt    DateTime?
+  reportFilename       String?
+  reportFormat         String?
+  rowCount             Int?
+  truncatedSource      Boolean  @default(false)
+  snapshotHash         String?
+  snapshotJson         String?
+  createdByAccountId   String
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@unique([scheduleId, scheduledFor])
+  @@index([status, leaseExpiresAt])
+  @@index([scheduleId, createdAt])
+}
