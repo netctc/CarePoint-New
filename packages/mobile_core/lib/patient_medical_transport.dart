@@ -412,28 +412,32 @@ List<Map<String, dynamic>> _list(dynamic value) {
 
 const Map<String, Map<String, String>> _patientMedicalTransportCopy = {
   'en': {
-    'detailTitle': 'Medical transport details', 'tracking': 'Medical transport status', 'history': 'Status history', 'provider': 'Transport provider',
+    'detailTitle': 'Medical transport details', 'tracking': 'Medical transport status', 'history': 'Status history', 'tripTimeline': 'Trip timeline', 'distance': 'Distance', 'detectedNotStatus': 'Detected automatically — does not change transport status', 'provider': 'Transport provider',
+    'milestone.TRACKING_STARTED': 'Location sharing started', 'milestone.FIRST_POSITION_RECEIVED': 'First vehicle position received', 'milestone.NEAR_PICKUP': 'Vehicle is near pickup', 'milestone.PICKUP_ARRIVAL_DETECTED': 'Vehicle arrival at pickup detected', 'milestone.NEAR_DESTINATION': 'Vehicle is near destination', 'milestone.DESTINATION_ARRIVAL_DETECTED': 'Vehicle arrival at destination detected', 'milestone.TRACKING_STOPPED': 'Location sharing stopped',
     'cancellationReason': 'Cancellation reason', 'retry': 'Retry', 'loadFailed': 'This transport request is not available. Refresh and try again.',
     'changeFailed': 'The transport request changed. Refresh before trying again.', 'denied': 'Medical transport details are available only to the Patient app.',
     'status.REQUESTED': 'Requested', 'status.ASSIGNED': 'Assigned', 'status.EN_ROUTE': 'En route', 'status.ARRIVED': 'Arrived',
     'status.TRANSPORTING': 'Transporting', 'status.COMPLETED': 'Completed', 'status.CANCELLED': 'Cancelled',
   },
   'ar': {
-    'detailTitle': 'تفاصيل النقل الطبي', 'tracking': 'حالة النقل الطبي', 'history': 'سجل الحالة', 'provider': 'مقدم خدمة النقل',
+    'detailTitle': 'تفاصيل النقل الطبي', 'tracking': 'حالة النقل الطبي', 'history': 'سجل الحالة', 'tripTimeline': 'الخط الزمني للرحلة', 'distance': 'المسافة', 'detectedNotStatus': 'تم الاكتشاف تلقائياً — لا يغيّر حالة النقل', 'provider': 'مقدم خدمة النقل',
+    'milestone.TRACKING_STARTED': 'بدأت مشاركة الموقع', 'milestone.FIRST_POSITION_RECEIVED': 'تم استلام أول موقع للمركبة', 'milestone.NEAR_PICKUP': 'المركبة قريبة من نقطة الاستلام', 'milestone.PICKUP_ARRIVAL_DETECTED': 'تم اكتشاف وصول المركبة إلى نقطة الاستلام', 'milestone.NEAR_DESTINATION': 'المركبة قريبة من الوجهة', 'milestone.DESTINATION_ARRIVAL_DETECTED': 'تم اكتشاف وصول المركبة إلى الوجهة', 'milestone.TRACKING_STOPPED': 'توقفت مشاركة الموقع',
     'cancellationReason': 'سبب الإلغاء', 'retry': 'إعادة المحاولة', 'loadFailed': 'طلب النقل هذا غير متاح. حدّث وحاول مرة أخرى.',
     'changeFailed': 'تغيّرت حالة طلب النقل. حدّث قبل المحاولة مرة أخرى.', 'denied': 'تفاصيل النقل الطبي متاحة فقط في تطبيق المريض.',
     'status.REQUESTED': 'تم الطلب', 'status.ASSIGNED': 'تم التعيين', 'status.EN_ROUTE': 'في الطريق', 'status.ARRIVED': 'وصل',
     'status.TRANSPORTING': 'جارٍ النقل', 'status.COMPLETED': 'مكتمل', 'status.CANCELLED': 'ملغى',
   },
   'fr': {
-    'detailTitle': 'Détails du transport médical', 'tracking': 'Statut du transport médical', 'history': 'Historique du statut', 'provider': 'Prestataire de transport',
+    'detailTitle': 'Détails du transport médical', 'tracking': 'Statut du transport médical', 'history': 'Historique du statut', 'tripTimeline': 'Chronologie du trajet', 'distance': 'Distance', 'detectedNotStatus': 'Détection automatique — ne modifie pas le statut du transport', 'provider': 'Prestataire de transport',
+    'milestone.TRACKING_STARTED': 'Partage de position démarré', 'milestone.FIRST_POSITION_RECEIVED': 'Première position du véhicule reçue', 'milestone.NEAR_PICKUP': 'Le véhicule est proche du point de prise en charge', 'milestone.PICKUP_ARRIVAL_DETECTED': 'Arrivée du véhicule au point de prise en charge détectée', 'milestone.NEAR_DESTINATION': 'Le véhicule est proche de la destination', 'milestone.DESTINATION_ARRIVAL_DETECTED': 'Arrivée du véhicule à destination détectée', 'milestone.TRACKING_STOPPED': 'Partage de position arrêté',
     'cancellationReason': 'Motif d’annulation', 'retry': 'Réessayer', 'loadFailed': 'Cette demande de transport n’est pas disponible. Actualisez et réessayez.',
     'changeFailed': 'La demande de transport a changé. Actualisez avant de réessayer.', 'denied': 'Les détails du transport médical sont réservés à l’application Patient.',
     'status.REQUESTED': 'Demandé', 'status.ASSIGNED': 'Attribué', 'status.EN_ROUTE': 'En route', 'status.ARRIVED': 'Arrivé',
     'status.TRANSPORTING': 'Transport en cours', 'status.COMPLETED': 'Terminé', 'status.CANCELLED': 'Annulé',
   },
   'es': {
-    'detailTitle': 'Detalles del transporte médico', 'tracking': 'Estado del transporte médico', 'history': 'Historial de estado', 'provider': 'Proveedor de transporte',
+    'detailTitle': 'Detalles del transporte médico', 'tracking': 'Estado del transporte médico', 'history': 'Historial de estado', 'tripTimeline': 'Cronología del traslado', 'distance': 'Distancia', 'detectedNotStatus': 'Detección automática — no cambia el estado del transporte', 'provider': 'Proveedor de transporte',
+    'milestone.TRACKING_STARTED': 'Ubicación compartida iniciada', 'milestone.FIRST_POSITION_RECEIVED': 'Primera posición del vehículo recibida', 'milestone.NEAR_PICKUP': 'El vehículo está cerca del punto de recogida', 'milestone.PICKUP_ARRIVAL_DETECTED': 'Llegada del vehículo al punto de recogida detectada', 'milestone.NEAR_DESTINATION': 'El vehículo está cerca del destino', 'milestone.DESTINATION_ARRIVAL_DETECTED': 'Llegada del vehículo al destino detectada', 'milestone.TRACKING_STOPPED': 'Ubicación compartida detenida',
     'cancellationReason': 'Motivo de cancelación', 'retry': 'Reintentar', 'loadFailed': 'Esta solicitud de transporte no está disponible. Actualiza e inténtalo de nuevo.',
     'changeFailed': 'La solicitud de transporte ha cambiado. Actualiza antes de volver a intentarlo.', 'denied': 'Los detalles del transporte médico solo están disponibles en la aplicación del paciente.',
     'status.REQUESTED': 'Solicitado', 'status.ASSIGNED': 'Asignado', 'status.EN_ROUTE': 'En camino', 'status.ARRIVED': 'Ha llegado',
