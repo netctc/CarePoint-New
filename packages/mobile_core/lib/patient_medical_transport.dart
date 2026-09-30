@@ -222,8 +222,7 @@ class _PatientMedicalTransportStatusPageState extends State<PatientMedicalTransp
                                    patientMedicalTransportDateTime(event['occurredAt']),
                                    if (event['etaMinutes'] != null)
                                      '${transportText(widget.locale, 'eta')}: ${event['etaMinutes']} ${transportText(widget.locale, 'minutes')}',
-                                   if (isRoute && event['reasonCode']?.toString().trim().isNotEmpty == true)
-                                     '${patientMedicalTransportText(widget.locale, 'routeReason')}: ${event['reasonCode']}',
+
                                  ];
                                  return ListTile(
                                    contentPadding: EdgeInsets.zero,
