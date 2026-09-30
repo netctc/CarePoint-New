@@ -94,9 +94,17 @@ The existing `GOOGLE_MAPS_API_KEY` fallback remains supported by the backend for
 
 No `.env` file is added. Deployment variables must be configured manually.
 
-### Endpoint
+### Endpoints
+
+Patient preview from entered/saved locations:
 
 `POST /transport/location/route-preview`
+
+Dispatch/Operations preview from an existing medical-transport request:
+
+`POST /operations/medical-transport/:requestId/route-preview`
+
+The operations endpoint reuses the request's address and optional coordinates, so Dispatch does not need to copy location data into a second payload.
 
 Example address-only request:
 
@@ -194,7 +202,8 @@ Phase 5 is complete when:
 6. route preview is disabled by default;
 7. route preview can use address-only origin and destination;
 8. route preview failure never prevents transport booking;
-9. route ETA is limited to supported ground routing;
-10. no Google/client map SDK or new Flutter dependency is introduced;
-11. existing Transport map/location smoke contracts remain intact;
-12. Phase 5 smoke checks cover persistence, API surfaces, optional-coordinate behavior and Patient UI wiring.
+9. Dispatch can request a route preview for an existing medical-transport request without requiring coordinates;
+10. route ETA is limited to supported ground routing;
+11. no Google/client map SDK or new Flutter dependency is introduced;
+12. existing Transport map/location smoke contracts remain intact;
+13. Phase 5 smoke checks cover persistence, API surfaces, optional-coordinate behavior, Dispatch routing and Patient UI wiring.
