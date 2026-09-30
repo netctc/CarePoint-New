@@ -47,7 +47,9 @@ async function backendPath(context: RouteContext): Promise<string | null> {
     segments[0] === "dispatch" &&
     segments[3] === "assign"
   ) {
-    const requestId = encodeURIComponent(segments[2]);
+    const requestIdSegment = segments[2];
+    if (!requestIdSegment) return null;
+    const requestId = encodeURIComponent(requestIdSegment);
     if (segments[1] === "medical") {
       return "/operations/medical-transport/" + requestId + "/assign";
     }
