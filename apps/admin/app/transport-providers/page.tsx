@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { ProfessionalAdministrationCenter } from "@/components/ProfessionalAdministrationCenter";
 import { ProviderGovernanceQueue } from "@/components/ProviderGovernanceQueue";
+import { TransportOperationsPanel } from "@/components/TransportOperationsPanel";
 import { adminRuntimeFeatures } from "@/lib/runtime-features";
 import { TRANSPORT_PROVIDER_FAMILIES } from "@/lib/transport-provider-scope";
 
@@ -28,12 +29,16 @@ export default function TransportProvidersPage() {
         </div>
       </section>
 
+      <TransportOperationsPanel />
+
+      <div style={{ marginTop: 24 }}>
       <ProfessionalAdministrationCenter
         kind="OTHER_PROVIDER"
         includeFamilies={TRANSPORT_PROVIDER_FAMILIES}
         title="Transport Provider Administration Center"
         intro="Manage transport-provider accounts, licenses, credential evidence and operational status for ground, air and emergency ambulance medical transport."
       />
+      </div>
 
       <div style={{ marginTop: 24 }}>
         <ProviderGovernanceQueue
