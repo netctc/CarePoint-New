@@ -1,0 +1,35 @@
+model TransportCompany {
+  id                 String                @id @default(uuid())
+  code               String                @unique
+  displayName        String
+  legalName          String
+  registrationNumber String?               @unique
+  contactPhone       String?
+  providerIds        String[]              @default([])
+  unitIds            String[]              @default([])
+  active             Boolean               @default(true)
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+  crewMembers        TransportCrewMember[]
+
+  @@index([active, displayName])
+}
+
+model TransportCrewMember {
+  id                String           @id @default(uuid())
+  companyId         String
+  providerId        String?
+  displayName       String
+  role              String
+  licenseNumber     String?
+  licenseIssuer     String?
+  licenseValidUntil DateTime?
+  active            Boolean          @default(true)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  company           TransportCompany @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, providerId])
+  @@index([companyId, active, role])
+  @@index([providerId])
+}
