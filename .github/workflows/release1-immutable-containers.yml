@@ -2,6 +2,11 @@ name: Release 1 Immutable Containers
 
 on:
   pull_request:
+    branches:
+      - main
+      - v2/development
+      - entorno-v2
+      - "release/**"
     paths:
       - "Dockerfile"
       - ".dockerignore"
