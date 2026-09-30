@@ -46,10 +46,20 @@ export class TransportPerformanceAnalyticsService {
     const forecastUntil = new Date(
       now.getTime() + forecastDays * 24 * 60 * 60 * 1000,
     );
+    const capacityUntil = new Date(
+      now.getTime() + Math.max(forecastDays, 7) * 24 * 60 * 60 * 1000,
+    );
     const thresholds = this.thresholds();
 
-    const [historical, future, providers, units, escalations, incidents] =
-      await Promise.all([
+    const [
+      historical,
+      future,
+      activeCurrent,
+      providers,
+      units,
+      escalations,
+      incidents,
+    ] = await Promise.all([
         this.prisma.medicalTransportRequest.findMany({
           where: { requestedAt: { gte: since, lt: now } },
           orderBy: [{ requestedAt: "asc" }, { id: "asc" }],
@@ -57,12 +67,23 @@ export class TransportPerformanceAnalyticsService {
         }),
         this.prisma.medicalTransportRequest.findMany({
           where: {
-            scheduledFor: { gte: now, lt: forecastUntil },
+            scheduledFor: { gte: now, lt: capacityUntil },
             status: {
               in: ["REQUESTED", "ASSIGNED", "EN_ROUTE", "ARRIVED", "TRANSPORTING"],
             },
           },
           orderBy: [{ scheduledFor: "asc" }, { id: "asc" }],
+          take: 10_000,
+        }),
+        this.prisma.medicalTransportRequest.findMany({
+          where: {
+            status: { in: ["ASSIGNED", "EN_ROUTE", "ARRIVED", "TRANSPORTING"] },
+          },
+          select: {
+            id: true,
+            assignedProviderId: true,
+            status: true,
+          },
           take: 10_000,
         }),
         this.prisma.provider.findMany({
@@ -129,21 +150,12 @@ export class TransportPerformanceAnalyticsService {
     ]);
 
     const activeJobsByProvider = new Map<string, number>();
-    const activeRequestById = new Map(
-      [...historical, ...future].map((request) => [request.id, request]),
-    );
-    for (const request of activeRequestById.values()) {
-      if (
-        request.assignedProviderId &&
-        ["ASSIGNED", "EN_ROUTE", "ARRIVED", "TRANSPORTING"].includes(
-          request.status,
-        )
-      ) {
-        activeJobsByProvider.set(
-          request.assignedProviderId,
-          (activeJobsByProvider.get(request.assignedProviderId) ?? 0) + 1,
-        );
-      }
+    for (const request of activeCurrent) {
+      if (!request.assignedProviderId) continue;
+      activeJobsByProvider.set(
+        request.assignedProviderId,
+        (activeJobsByProvider.get(request.assignedProviderId) ?? 0) + 1,
+      );
     }
 
     const unitsByProvider = new Map<string, typeof units>();
@@ -421,7 +433,9 @@ export class TransportPerformanceAnalyticsService {
           (row) => row.dispatchReady,
         ).length,
         currentActiveUnits: units.filter((row) => row.active).length,
-        upcomingScheduledRequests: future.length,
+        upcomingScheduledRequests: future.filter(
+          (row) => row.scheduledFor.getTime() < forecastUntil.getTime(),
+        ).length,
       },
       sla: {
         assignment: {
@@ -501,7 +515,9 @@ export class TransportPerformanceAnalyticsService {
         analyticsWindowDays: windowDays,
         forecastDays,
         historicalRequests: historical.length,
-        upcomingScheduledRequests: future.length,
+        upcomingScheduledRequests: future.filter(
+          (row) => row.scheduledFor.getTime() < forecastUntil.getTime(),
+        ).length,
         forecastMethod: "SAME_WEEKDAY_HISTORICAL_AVERAGE",
         machineLearning: false,
         capacityGuarantee: false,
