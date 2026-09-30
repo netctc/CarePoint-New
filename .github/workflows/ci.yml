@@ -270,13 +270,15 @@ jobs:
           (cd apps/patient-mobile && flutter pub get)
           (cd apps/doctor-mobile && flutter pub get)
           (cd apps/provider-mobile && flutter pub get)
+          (cd apps/transport-provider-mobile && flutter pub get)
       - name: Phase C2 verify mobile dependency locks
         run: |
           git diff --exit-code -- \
             packages/mobile_core/pubspec.lock \
             apps/patient-mobile/pubspec.lock \
             apps/doctor-mobile/pubspec.lock \
-            apps/provider-mobile/pubspec.lock
+            apps/provider-mobile/pubspec.lock \
+            apps/transport-provider-mobile/pubspec.lock
       - name: Test shared mobile client
         working-directory: packages/mobile_core
         run: flutter analyze && flutter test
@@ -288,4 +290,7 @@ jobs:
         run: flutter analyze
       - name: Analyze provider app
         working-directory: apps/provider-mobile
+        run: flutter analyze
+      - name: Analyze transport provider app
+        working-directory: apps/transport-provider-mobile
         run: flutter analyze
