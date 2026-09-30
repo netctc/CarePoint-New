@@ -3,6 +3,7 @@ import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
 const { assertProductionObjectStorageReady } = require("../dist/infrastructure/security/production-object-storage-preflight.js");
+const { productionObjectStorageContract } = require("../dist/infrastructure/cloud/production-object-storage.js");
 
 const region = "me-south-1";
 const accountId = "123456789012";
@@ -259,6 +260,23 @@ async function expectOciReject(pattern, mutator) {
 }
 
 configureOciProduction();
+const ociContract = productionObjectStorageContract(process.env);
+assert.ok(ociContract);
+assert.deepEqual(
+  ociContract.domains.map((domain) => domain.label).sort(),
+  ["clinical-documents", "fhir-bulk-export", "transport-management-reports"],
+);
+const ociDocuments = ociContract.domains.find(
+  (domain) => domain.label === "clinical-documents",
+);
+const ociTransportReports = ociContract.domains.find(
+  (domain) => domain.label === "transport-management-reports",
+);
+assert.ok(ociDocuments);
+assert.ok(ociTransportReports);
+assert.equal(ociTransportReports.bucketRef, ociDocuments.bucketRef);
+assert.equal(ociTransportReports.kmsKeyRef, ociDocuments.kmsKeyRef);
+
 const ociLabels = [];
 await assertProductionObjectStorageReady({
   inspectOciBucket: async (label) => {
@@ -266,7 +284,11 @@ await assertProductionObjectStorageReady({
     return validOciBucket(label);
   },
 });
-assert.deepEqual(ociLabels.sort(), ["clinical-documents", "fhir-bulk-export", "transport-management-reports"]);
+assert.deepEqual(
+  ociLabels.sort(),
+  ["clinical-documents", "fhir-bulk-export"],
+  "OCI preflight should inspect each unique bucket once while validating all three configured domains",
+);
 
 await expectOciReject(/must have public access disabled/, (_label, value) => ({ ...value, publicAccessDisabled: false }));
 await expectOciReject(/must use customer-managed encryption/, (_label, value) => ({ ...value, customerManagedEncryption: false }));
