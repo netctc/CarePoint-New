@@ -21,6 +21,10 @@ import {
 } from "../../security/api-security.module";
 import { CommunicationsModule } from "../communications/communications.module";
 import { NotificationsService } from "../communications/notifications.service";
+import {
+  TransportTripMilestonesModule,
+  TransportTripMilestoneService,
+} from "./transport-trip-milestones.module";
 
 const SAFE_ID = /^[A-Za-z0-9_.:-]{1,180}$/;
 const CLIENT_EVENT_ID = /^[A-Za-z0-9_.:-]{8,180}$/;
@@ -57,6 +61,7 @@ class TransportTelemetryService {
     private readonly prisma: PrismaService,
     private readonly audit: DatabaseAuditService,
     private readonly notifications: NotificationsService,
+    private readonly milestones: TransportTripMilestoneService,
   ) {}
 
   async providerStatus(principal: AuthPrincipal, requestIdRaw: string) {
@@ -133,6 +138,14 @@ class TransportTelemetryService {
       },
     });
     await this.notifyPatient(context.request.patientId, context.request.id, "tracking-started");
+    await this.milestones.recordTrackingStarted({
+      requestId: context.request.id,
+      patientId: context.request.patientId,
+      lifecycleStatus: context.request.status,
+      providerId: context.provider.id,
+      transportUnitId: context.unit.id,
+      occurredAt: now,
+    });
     await this.purgeExpiredTelemetry();
 
     return this.providerEnvelope(context.request, session);
@@ -191,9 +204,20 @@ class TransportTelemetryService {
           "clientEventId was already used for different telemetry content.",
         );
       }
+      const milestoneDetection = await this.milestones.detectFromHeartbeat({
+        request: context.request,
+        providerId: context.provider.id,
+        transportUnitId: session.transportUnitId,
+        latitude: Number(existing.latitude),
+        longitude: Number(existing.longitude),
+        accuracyMeters:
+          existing.accuracyMeters == null ? null : Number(existing.accuracyMeters),
+        capturedAt: existing.capturedAt,
+      });
       return {
         replayed: true,
         telemetry: this.telemetry(existing),
+        milestoneDetection,
         tracking: await this.providerEnvelope(context.request, session),
       };
     }
@@ -264,6 +288,15 @@ class TransportTelemetryService {
       },
     });
 
+    const milestoneDetection = await this.milestones.detectFromHeartbeat({
+      request: context.request,
+      providerId: context.provider.id,
+      transportUnitId: context.unit.id,
+      latitude: point.latitude,
+      longitude: point.longitude,
+      accuracyMeters: point.accuracyMeters,
+      capturedAt,
+    });
     await this.purgeExpiredTelemetry();
     const refreshed = await this.prisma.transportTrackingSession.findUniqueOrThrow({
       where: { id: session.id },
@@ -271,6 +304,7 @@ class TransportTelemetryService {
     return {
       replayed: false,
       telemetry: this.telemetry(telemetry),
+      milestoneDetection,
       tracking: await this.providerEnvelope(context.request, refreshed),
     };
   }
@@ -318,6 +352,14 @@ class TransportTelemetryService {
       },
     });
     await this.notifyPatient(context.request.patientId, context.request.id, "tracking-stopped");
+    await this.milestones.recordTrackingStopped({
+      requestId: context.request.id,
+      patientId: context.request.patientId,
+      lifecycleStatus: context.request.status,
+      providerId: context.provider.id,
+      transportUnitId: session.transportUnitId,
+      occurredAt: stoppedAt,
+    });
     return this.providerEnvelope(context.request, updated);
   }
 
@@ -939,7 +981,7 @@ class AdminTransportTelemetryController {
 }
 
 @Module({
-  imports: [CommunicationsModule],
+  imports: [CommunicationsModule, TransportTripMilestonesModule],
   controllers: [
     ProviderTransportTelemetryController,
     PatientTransportTelemetryController,
