@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:carepoint_mobile_core/carepoint_api.dart';
 import 'package:carepoint_mobile_core/carepoint_localization.dart';
 import 'package:carepoint_mobile_core/patient_emergency.dart';
@@ -293,6 +295,58 @@ class _TransportDraft {
   final String? destinationAddress;
 }
 
+class _TransportRasterMapConfig {
+  const _TransportRasterMapConfig({
+    required this.tileUrlTemplate,
+    required this.attribution,
+    required this.minZoom,
+    required this.maxZoom,
+    required this.initialZoom,
+    this.defaultLatitude,
+    this.defaultLongitude,
+  });
+
+  final String tileUrlTemplate;
+  final String attribution;
+  final int minZoom;
+  final int maxZoom;
+  final int initialZoom;
+  final double? defaultLatitude;
+  final double? defaultLongitude;
+
+  factory _TransportRasterMapConfig.fromJson(Map<String, dynamic> json) {
+    int intValue(String key, int fallback) {
+      final raw = json[key];
+      return raw is num ? raw.toInt() : int.tryParse(raw?.toString() ?? '') ?? fallback;
+    }
+
+    double? doubleValue(String key) {
+      final raw = json[key];
+      return raw is num ? raw.toDouble() : double.tryParse(raw?.toString() ?? '');
+    }
+
+    final minZoom = intValue('minZoom', 2);
+    final maxZoom = intValue('maxZoom', 18);
+    final initialZoom = intValue('initialZoom', 14).clamp(minZoom, maxZoom).toInt();
+    return _TransportRasterMapConfig(
+      tileUrlTemplate: json['tileUrlTemplate']?.toString().trim() ?? '',
+      attribution: json['attribution']?.toString().trim() ?? '',
+      minZoom: minZoom,
+      maxZoom: maxZoom,
+      initialZoom: initialZoom,
+      defaultLatitude: doubleValue('defaultLatitude'),
+      defaultLongitude: doubleValue('defaultLongitude'),
+    );
+  }
+
+  bool get isValid =>
+      tileUrlTemplate.startsWith('https://') &&
+      tileUrlTemplate.contains('{z}') &&
+      tileUrlTemplate.contains('{x}') &&
+      tileUrlTemplate.contains('{y}') &&
+      attribution.isNotEmpty;
+}
+
 class _TransportDialog extends StatefulWidget {
   const _TransportDialog({required this.session, required this.locale});
   final CarePointSession session;
@@ -315,6 +369,27 @@ class _TransportDialogState extends State<_TransportDialog> {
   final Set<String> equipment = <String>{};
   DateTime scheduledFor = DateTime.now().add(const Duration(hours: 2));
   bool locatingPickup = false;
+  _TransportRasterMapConfig? mapConfig;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMapConfig();
+  }
+
+  Future<void> _loadMapConfig() async {
+    try {
+      final payload = await widget.session.api.transportLocationConfig();
+      final raw = _map(payload['map']);
+      final config = _TransportRasterMapConfig.fromJson(raw);
+      if (!mounted) return;
+      if (payload['mapPickerAvailable'] == true && config.isValid) {
+        setState(() => mapConfig = config);
+      }
+    } catch (_) {
+      // Search, GPS and manual entry remain available when map config cannot load.
+    }
+  }
 
   @override
   void dispose() {
@@ -401,6 +476,12 @@ class _TransportDialogState extends State<_TransportDialog> {
                     icon: const Icon(Icons.search_outlined),
                     label: Text(transportText(widget.locale, 'searchLocation')),
                   ),
+                  if (mapConfig != null)
+                    OutlinedButton.icon(
+                      onPressed: () => _pickOnMap(pickup: true),
+                      icon: const Icon(Icons.map_outlined),
+                      label: Text(transportText(widget.locale, 'pickOnMap')),
+                    ),
                 ],
               ),
               const SizedBox(height: 10),
@@ -410,13 +491,23 @@ class _TransportDialogState extends State<_TransportDialog> {
               const SizedBox(height: 10),
               TextField(controller: destinationAddress, decoration: InputDecoration(labelText: '${transportText(widget.locale, 'destination')} · ${transportText(widget.locale, 'address')}')),
               const SizedBox(height: 8),
-              Align(
-                alignment: AlignmentDirectional.centerStart,
-                child: OutlinedButton.icon(
-                  onPressed: () => _searchLocation(pickup: false),
-                  icon: const Icon(Icons.search_outlined),
-                  label: Text(transportText(widget.locale, 'searchLocation')),
-                ),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                alignment: WrapAlignment.start,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: () => _searchLocation(pickup: false),
+                    icon: const Icon(Icons.search_outlined),
+                    label: Text(transportText(widget.locale, 'searchLocation')),
+                  ),
+                  if (mapConfig != null)
+                    OutlinedButton.icon(
+                      onPressed: () => _pickOnMap(pickup: false),
+                      icon: const Icon(Icons.map_outlined),
+                      label: Text(transportText(widget.locale, 'pickOnMap')),
+                    ),
+                ],
               ),
               const SizedBox(height: 10),
               TextField(controller: destinationLatitude, keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true), decoration: InputDecoration(labelText: '${transportText(widget.locale, 'destination')} · ${transportText(widget.locale, 'latitude')}')),
@@ -503,6 +594,78 @@ class _TransportDialogState extends State<_TransportDialog> {
           initialQuery: initialQuery,
           biasLatitude: biasLatitude,
           biasLongitude: biasLongitude,
+        ),
+      ),
+    );
+    if (location == null || !mounted) return;
+
+    setState(() {
+      final addressController = pickup ? pickupAddress : destinationAddress;
+      final latitudeController = pickup ? pickupLatitude : destinationLatitude;
+      final longitudeController = pickup ? pickupLongitude : destinationLongitude;
+      if (location.hasAddress) addressController.text = location.address!.trim();
+      latitudeController.text = location.latitude?.toStringAsFixed(6) ?? '';
+      longitudeController.text = location.longitude?.toStringAsFixed(6) ?? '';
+    });
+  }
+
+  Future<void> _pickOnMap({required bool pickup}) async {
+    final config = mapConfig;
+    if (config == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(transportText(widget.locale, 'mapUnavailable'))),
+      );
+      return;
+    }
+
+    final selectedLatitude = _optionalCoordinate(
+      (pickup ? pickupLatitude : destinationLatitude).text,
+      -90,
+      90,
+    );
+    final selectedLongitude = _optionalCoordinate(
+      (pickup ? pickupLongitude : destinationLongitude).text,
+      -180,
+      180,
+    );
+
+    TransportLocation? initialLocation;
+    if (selectedLatitude != null && selectedLongitude != null) {
+      initialLocation = TransportLocation(
+        latitude: selectedLatitude,
+        longitude: selectedLongitude,
+        source: TransportLocationSource.mapPicker,
+      );
+    } else if (!pickup) {
+      final pickupLat = _optionalCoordinate(pickupLatitude.text, -90, 90);
+      final pickupLng = _optionalCoordinate(pickupLongitude.text, -180, 180);
+      if (pickupLat != null && pickupLng != null) {
+        initialLocation = TransportLocation(
+          latitude: pickupLat,
+          longitude: pickupLng,
+          source: TransportLocationSource.mapPicker,
+        );
+      }
+    }
+
+    if (initialLocation == null) {
+      try {
+        initialLocation = await _currentTransportLocation(widget.locale);
+      } catch (_) {
+        // The map can still use its configured default center or world view.
+      }
+    }
+
+    if (!mounted) return;
+    final location = await showDialog<TransportLocation>(
+      context: context,
+      builder: (_) => Directionality(
+        textDirection: widget.locale.textDirection,
+        child: _TransportRasterMapPickerDialog(
+          session: widget.session,
+          locale: widget.locale,
+          config: config,
+          initialLocation: initialLocation,
         ),
       ),
     );
