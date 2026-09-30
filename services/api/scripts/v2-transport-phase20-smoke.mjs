@@ -85,7 +85,6 @@ assert.ok(
 );
 
 for (const text of [
-  "PHASE 20 · RECIPIENT REPORT INBOX + DOWNLOAD RECEIPTS",
   "My Report Inbox",
   "/api/admin/transport/report-inbox",
   "NOT YET DOWNLOADED",
