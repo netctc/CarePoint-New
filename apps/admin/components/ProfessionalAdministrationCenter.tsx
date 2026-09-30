@@ -30,8 +30,9 @@ const copy={
  ar:{center:"مركز إدارة الأطباء ومقدمي الخدمة",intro:"يتم فصل حوكمة حالة الحساب وحالة مقدم الخدمة وصلاحية الاعتماد.",search:"بحث بالاسم أو الترخيص أو الجهة أو البريد",total:"المهنيون",active:"قابلون للعمل",blocked:"محظورون",expiring:"قريب الانتهاء",open:"إدارة",account:"الحساب",provider:"مقدم الخدمة",credential:"الاعتماد",profile:"الملف الإداري",display:"الاسم الظاهر",legal:"الاسم القانوني",phone:"الهاتف",save:"حفظ",reason:"سبب التغيير",apply:"تطبيق",licenses:"التراخيص والاعتمادات",type:"النوع",number:"الرقم",issuer:"الجهة",from:"صالح من",until:"صالح حتى",status:"الحالة",documents:"المستندات",renew:"تجديد",verification:"سجل التحقق",history:"سجل الحالات",newCredential:"إضافة ترخيص / اعتماد",add:"إضافة",upload:"إرفاق PDF",missing:"الاعتمادات الناقصة",blockedWhy:"الحظر التشغيلي",none:"لا يوجد",loading:"جارٍ التحميل…",refresh:"تحديث",uploadLimit:"PDF فقط بحد أقصى 8 ميغابايت لكل ملف مع الاحتفاظ بعدة مستندات لكل اعتماد.",renewUntil:"تاريخ الانتهاء الجديد",renewNote:"ملاحظة التجديد",view:"عرض",saved:"تم الحفظ.",failed:"تعذر إتمام العملية.",deleteDocument:"حذف",confirmDeleteDocument:"إزالة هذا المستند من الملف المهني؟"}
 } satisfies Record<Locale,Record<string,string>>;
 
-export function ProfessionalAdministrationCenter({kind}:{kind:ProviderKind}) {
+export function ProfessionalAdministrationCenter({kind,includeFamilies=[],excludeFamilies=[],title,intro}:{kind:ProviderKind;includeFamilies?:readonly string[];excludeFamilies?:readonly string[];title?:string;intro?:string}) {
   const {locale}=useI18n(); const t=copy[locale];
+  const includeFamiliesParam=includeFamilies.join(","); const excludeFamiliesParam=excludeFamilies.join(",");
   const [rows,setRows]=useState<Provider[]>([]); const [query,setQuery]=useState(""); const [busy,setBusy]=useState(true);
   const [page,setPage]=useState(1); const [pageSize,setPageSize]=useState(10); const [total,setTotal]=useState(0);
   const [message,setMessage]=useState(""); const [selectedId,setSelectedId]=useState(""); const [detail,setDetail]=useState<Provider|null>(null);
@@ -49,14 +50,14 @@ export function ProfessionalAdministrationCenter({kind}:{kind:ProviderKind}) {
   async function load(targetPage=page,targetPageSize=pageSize){
     setBusy(true); setMessage("");
     try{
-      const params=new URLSearchParams({class:kind,page:String(targetPage),pageSize:String(targetPageSize)}); if(query.trim())params.set("q",query.trim());
+      const params=new URLSearchParams({class:kind,page:String(targetPage),pageSize:String(targetPageSize)}); if(query.trim())params.set("q",query.trim()); if(includeFamiliesParam)params.set("families",includeFamiliesParam); if(excludeFamiliesParam)params.set("excludeFamilies",excludeFamiliesParam);
       const body=await request("/api/admin/provider-administration?"+params.toString());
       const nextRows=Array.isArray(body?.items)?body.items:[];
       const nextTotal=Number(body?.total??nextRows.length);
       setRows(nextRows);setTotal(nextTotal);setPage(clampPage(targetPage,nextTotal,targetPageSize));
     }catch(e){setMessage(String(e));}finally{setBusy(false);}
   }
-  useEffect(()=>{setPage(1);void load(1,pageSize);},[kind]);
+  useEffect(()=>{setPage(1);void load(1,pageSize);},[kind,includeFamiliesParam,excludeFamiliesParam]);
   async function open(id:string){
     try{
       const body=await request("/api/admin/provider-administration/"+encodeURIComponent(id));
@@ -118,7 +119,7 @@ export function ProfessionalAdministrationCenter({kind}:{kind:ProviderKind}) {
   return <section style={{display:"grid",gap:16}}>
     <section style={card}>
       <div style={{display:"flex",justifyContent:"space-between",gap:16,alignItems:"start",flexWrap:"wrap"}}>
-        <div><span style={{fontSize:12,fontWeight:800,color:"#64748b"}}>ADM-PRO-001 → ADM-PRO-010</span><h2 style={{margin:"5px 0"}}>{t.center}</h2><p>{t.intro}</p></div>
+        <div><span style={{fontSize:12,fontWeight:800,color:"#64748b"}}>ADM-PRO-001 → ADM-PRO-010</span><h2 style={{margin:"5px 0"}}>{title??t.center}</h2><p>{intro??t.intro}</p></div>
         <button className="secondary-button" onClick={()=>void load()}>{t.refresh}</button>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,minmax(110px,1fr))",gap:10}}>

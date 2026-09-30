@@ -196,6 +196,51 @@ async function main() {
   const acceptedAir = await request(`/provider/medical-transport/${airRequest.request.id}/accept`, { method: 'POST', token: air.token, body: {} });
   if (acceptedAir.assignedProviderId !== air.provider.id) throw new Error('Air transport provider acceptance failed.');
 
+  const addressOnlyEmergency = await request('/emergency/ambulance', {
+    method: 'POST',
+    token: patientA.token,
+    body: {
+      clientRequestId: 'slice8-emergency-address-only-0001',
+      pickupAddress: 'SLICE8 ADDRESS ONLY EMERGENCY PICKUP',
+    },
+  });
+  if (addressOnlyEmergency.request?.latitude !== null || addressOnlyEmergency.request?.longitude !== null) {
+    throw new Error('Address-only emergency unexpectedly persisted coordinates.');
+  }
+  await request(`/emergency/ambulance/${addressOnlyEmergency.request.id}/cancel`, {
+    method: 'POST',
+    token: patientA.token,
+    body: { reason: 'Address-only contract smoke test complete' },
+  });
+
+  const addressOnlyTransport = await request('/medical-transport', {
+    method: 'POST',
+    token: patientA.token,
+    body: {
+      clientRequestId: 'slice8-transport-address-only-0001',
+      mode: 'GROUND',
+      scheduledFor: new Date(Date.now() + 90 * 60 * 1000).toISOString(),
+      pickupAddress: 'SLICE8 ADDRESS ONLY PICKUP',
+      destinationAddress: 'SLICE8 ADDRESS ONLY DESTINATION',
+      assistance: 'STANDARD',
+      companionCount: 0,
+      equipment: [],
+    },
+  });
+  if (
+    addressOnlyTransport.request?.pickupLatitude !== null ||
+    addressOnlyTransport.request?.pickupLongitude !== null ||
+    addressOnlyTransport.request?.destinationLatitude !== null ||
+    addressOnlyTransport.request?.destinationLongitude !== null
+  ) {
+    throw new Error('Address-only scheduled transport unexpectedly persisted coordinates.');
+  }
+  await request(`/medical-transport/${addressOnlyTransport.request.id}/cancel`, {
+    method: 'POST',
+    token: patientA.token,
+    body: { reason: 'Address-only contract smoke test complete' },
+  });
+
   if (await prisma.appointment.count() !== appointmentCountBefore) throw new Error('Emergency or medical transport created an ordinary Appointment unexpectedly.');
 
   const patientEvents = await prisma.notificationEvent.findMany({ where: { accountId: patientA.user.id }, orderBy: { createdAt: 'asc' } });

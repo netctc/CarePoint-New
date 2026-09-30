@@ -577,8 +577,8 @@ model EmergencyAmbulanceRequest {
   id                 String                   @id @default(uuid())
   patientId          String
   status             EmergencyAmbulanceStatus @default(REQUESTED)
-  latitude           Decimal                  @db.Decimal(9, 6)
-  longitude          Decimal                  @db.Decimal(9, 6)
+  latitude           Decimal?                 @db.Decimal(9, 6)
+  longitude          Decimal?                 @db.Decimal(9, 6)
   pickupAddress      String?
   callbackPhone      String?
   note               String?

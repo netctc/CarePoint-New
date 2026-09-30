@@ -5,6 +5,8 @@ import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { AdminPagination, paginateItems } from "@/components/AdminPagination";
 import { useI18n, type Locale } from "@/lib/i18n";
+import { useRuntimeFeatures } from "@/lib/use-runtime-features";
+import { isTransportProviderFamily } from "@/lib/transport-provider-scope";
 
 type Labels = { en: string; ar: string; fr: string; es: string };
 type Specialty = {
@@ -29,6 +31,7 @@ const text = {
 export default function MasterDataPage() {
   const { locale } = useI18n();
   const t = text[locale];
+  const { transportModuleEnabled } = useRuntimeFeatures();
   const [tab, setTab] = useState<"specialties"|"providers">("specialties");
   const [specialties, setSpecialties] = useState<Specialty[]>([]);
   const [categories, setCategories] = useState<ProviderCategory[]>([]);
@@ -60,6 +63,8 @@ export default function MasterDataPage() {
   useEffect(() => { void load(); }, []);
 
   const specialtyParents = useMemo(() => specialties.filter((item) => item.id !== specialtyEdit.id), [specialties, specialtyEdit.id]);
+  const visibleCategories = useMemo(() => transportModuleEnabled ? categories : categories.filter((item) => !isTransportProviderFamily(item.family)), [categories, transportModuleEnabled]);
+  const visibleFamilies = useMemo(() => transportModuleEnabled ? [...FAMILIES] : FAMILIES.filter((item) => !isTransportProviderFamily(item)), [transportModuleEnabled]);
 
   async function saveSpecialty() {
     const editing = Boolean(specialtyEdit.id);
@@ -153,7 +158,7 @@ export default function MasterDataPage() {
         <h2>{categoryEdit.id ? t.edit : t.add} · {t.providers}</h2>
         <div style={{...grid,gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))"}}>
           <label>{t.slug}<input value={categoryEdit.slug ?? ""} onChange={e=>setCategoryEdit({...categoryEdit,slug:e.target.value.toLowerCase()})}/></label>
-          <label>{t.family}<input list="provider-family-options" value={categoryEdit.family ?? FAMILIES[0]} onChange={e=>setCategoryEdit({...categoryEdit,family:e.target.value.toUpperCase()})}/><datalist id="provider-family-options">{FAMILIES.map(item=><option key={item} value={item}/>)}</datalist></label>
+          <label>{t.family}<input list="provider-family-options" value={categoryEdit.family ?? FAMILIES[0]} onChange={e=>setCategoryEdit({...categoryEdit,family:e.target.value.toUpperCase()})}/><datalist id="provider-family-options">{visibleFamilies.map(item=><option key={item} value={item}/>)}</datalist></label>
           <label>{t.required}<input value={categoryEdit.required} onChange={e=>setCategoryEdit({...categoryEdit,required:e.target.value})} placeholder="license, certification"/></label>
           {(["en","ar","fr","es"] as const).map(lang=><label key={lang}>{t.labels} {lang.toUpperCase()}<input value={categoryEdit.labels[lang] ?? ""} onChange={e=>setCategoryEdit({...categoryEdit,labels:{...categoryEdit.labels,[lang]:e.target.value}})}/></label>)}
         </div>
@@ -162,7 +167,7 @@ export default function MasterDataPage() {
           {categoryEdit.id && <button className="secondary-button" onClick={()=>setCategoryEdit({labels:{...EMPTY_LABELS},active:true,family:FAMILIES[0],required:""})}>{t.cancel}</button>}
         </div>
       </section>
-      <CatalogTable rows={categories} locale={locale} kind="provider-categories" onEdit={(item:any)=>setCategoryEdit({...item,labels:normalizeLabels(item.labels),required:Array.isArray(item.requiredCredentialTypes)?item.requiredCredentialTypes.join(", "):""})} onToggle={toggleActive} t={t}/>
+      <CatalogTable rows={visibleCategories} locale={locale} kind="provider-categories" onEdit={(item:any)=>setCategoryEdit({...item,labels:normalizeLabels(item.labels),required:Array.isArray(item.requiredCredentialTypes)?item.requiredCredentialTypes.join(", "):""})} onToggle={toggleActive} t={t}/>
     </>}
   </AppShell>;
 }

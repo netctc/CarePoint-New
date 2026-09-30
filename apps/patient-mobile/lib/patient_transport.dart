@@ -3,8 +3,10 @@ import 'package:carepoint_mobile_core/carepoint_localization.dart';
 import 'package:carepoint_mobile_core/patient_emergency.dart';
 import 'package:carepoint_mobile_core/patient_medical_transport.dart';
 import 'package:carepoint_mobile_core/transport_localization.dart';
+import 'package:carepoint_mobile_core/transport_location.dart';
 import 'package:flutter/material.dart';
-import 'package:geolocator/geolocator.dart';
+
+import 'patient_transport_location.dart';
 
 Future<void> openEmergencyAmbulanceFlow(
   BuildContext context, {
@@ -35,11 +37,11 @@ Future<void> openEmergencyAmbulanceFlow(
   final messenger = ScaffoldMessenger.of(context);
   try {
     messenger.showSnackBar(SnackBar(content: Text(transportText(locale, 'locating'))));
-    final position = await _currentPosition(locale);
+    final location = await _currentTransportLocation(locale);
     final response = await session.api.requestEmergencyAmbulance(
       clientRequestId: 'mobile-emergency-${DateTime.now().microsecondsSinceEpoch}',
-      latitude: position.latitude,
-      longitude: position.longitude,
+      latitude: location.latitude,
+      longitude: location.longitude,
     );
     if (!context.mounted) return;
     messenger.hideCurrentSnackBar();
@@ -59,16 +61,14 @@ Future<void> openEmergencyAmbulanceFlow(
   }
 }
 
-Future<Position> _currentPosition(CarePointLocale locale) async {
-  if (!await Geolocator.isLocationServiceEnabled()) {
+const _deviceLocationProvider = GeolocatorTransportLocationProvider();
+
+Future<TransportLocation> _currentTransportLocation(CarePointLocale locale) async {
+  try {
+    return await _deviceLocationProvider.currentLocation();
+  } on TransportLocationUnavailableException {
     throw CarePointApiException(transportText(locale, 'locationDenied'));
   }
-  var permission = await Geolocator.checkPermission();
-  if (permission == LocationPermission.denied) permission = await Geolocator.requestPermission();
-  if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
-    throw CarePointApiException(transportText(locale, 'locationDenied'));
-  }
-  return Geolocator.getCurrentPosition(locationSettings: const LocationSettings(accuracy: LocationAccuracy.high));
 }
 
 class PatientMedicalTransportPage extends StatefulWidget {
@@ -145,8 +145,8 @@ class _PatientMedicalTransportPageState extends State<PatientMedicalTransportPag
           ]),
           const SizedBox(height: 8),
           Text('${transportText(widget.locale, 'scheduledFor')}: ${patientMedicalTransportDateTime(item['scheduledFor'])}'),
-          Text('${transportText(widget.locale, 'pickup')}: ${item['pickupAddress'] ?? '${item['pickupLatitude']}, ${item['pickupLongitude']}'}'),
-          Text('${transportText(widget.locale, 'destination')}: ${item['destinationAddress'] ?? '${item['destinationLatitude']}, ${item['destinationLongitude']}'}'),
+          Text('${transportText(widget.locale, 'pickup')}: ${_locationText(item, pickup: true)}'),
+          Text('${transportText(widget.locale, 'destination')}: ${_locationText(item, pickup: false)}'),
           Text('${transportText(widget.locale, 'companions')}: ${item['companionCount'] ?? 0}'),
           Text('${transportText(widget.locale, 'equipment')}: ${_equipmentText(widget.locale, item['equipment'])}'),
           if (provider['displayName'] != null) Text(provider['displayName'].toString(), style: const TextStyle(fontWeight: FontWeight.w700)),
@@ -203,13 +203,12 @@ class _PatientMedicalTransportPageState extends State<PatientMedicalTransportPag
     if (result == null || !mounted) return;
     try {
       setState(() => busy = true);
-      final pickup = await _currentPosition(widget.locale);
       final response = await widget.session.api.createMedicalTransport(
         clientRequestId: 'mobile-transport-${DateTime.now().microsecondsSinceEpoch}',
         mode: result.mode,
         scheduledFor: result.scheduledFor,
-        pickupLatitude: pickup.latitude,
-        pickupLongitude: pickup.longitude,
+        pickupLatitude: result.pickupLatitude,
+        pickupLongitude: result.pickupLongitude,
         pickupAddress: result.pickupAddress,
         destinationLatitude: result.destinationLatitude,
         destinationLongitude: result.destinationLongitude,
@@ -242,8 +241,10 @@ class _TransportDraft {
     required this.companionCount,
     required this.equipment,
     required this.scheduledFor,
-    required this.destinationLatitude,
-    required this.destinationLongitude,
+    this.pickupLatitude,
+    this.pickupLongitude,
+    this.destinationLatitude,
+    this.destinationLongitude,
     this.pickupAddress,
     this.destinationAddress,
   });
@@ -252,8 +253,10 @@ class _TransportDraft {
   final int companionCount;
   final List<String> equipment;
   final DateTime scheduledFor;
-  final double destinationLatitude;
-  final double destinationLongitude;
+  final double? pickupLatitude;
+  final double? pickupLongitude;
+  final double? destinationLatitude;
+  final double? destinationLongitude;
   final String? pickupAddress;
   final String? destinationAddress;
 }
@@ -269,6 +272,8 @@ class _TransportDialog extends StatefulWidget {
 class _TransportDialogState extends State<_TransportDialog> {
   final pickupAddress = TextEditingController();
   final destinationAddress = TextEditingController();
+  final pickupLatitude = TextEditingController();
+  final pickupLongitude = TextEditingController();
   final destinationLatitude = TextEditingController();
   final destinationLongitude = TextEditingController();
   String mode = 'GROUND';
@@ -276,11 +281,14 @@ class _TransportDialogState extends State<_TransportDialog> {
   int companionCount = 0;
   final Set<String> equipment = <String>{};
   DateTime scheduledFor = DateTime.now().add(const Duration(hours: 2));
+  bool locatingPickup = false;
 
   @override
   void dispose() {
     pickupAddress.dispose();
     destinationAddress.dispose();
+    pickupLatitude.dispose();
+    pickupLongitude.dispose();
     destinationLatitude.dispose();
     destinationLongitude.dispose();
     super.dispose();
@@ -342,6 +350,21 @@ class _TransportDialogState extends State<_TransportDialog> {
               ),
               const SizedBox(height: 10),
               TextField(controller: pickupAddress, decoration: InputDecoration(labelText: '${transportText(widget.locale, 'pickup')} · ${transportText(widget.locale, 'address')}')),
+              const SizedBox(height: 8),
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: OutlinedButton.icon(
+                  onPressed: locatingPickup ? null : _useCurrentPickupLocation,
+                  icon: locatingPickup
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.my_location_outlined),
+                  label: Text(transportText(widget.locale, 'useCurrentLocation')),
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(controller: pickupLatitude, keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true), decoration: InputDecoration(labelText: '${transportText(widget.locale, 'pickup')} · ${transportText(widget.locale, 'latitude')}')),
+              const SizedBox(height: 10),
+              TextField(controller: pickupLongitude, keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true), decoration: InputDecoration(labelText: '${transportText(widget.locale, 'pickup')} · ${transportText(widget.locale, 'longitude')}')),
               const SizedBox(height: 10),
               TextField(controller: destinationAddress, decoration: InputDecoration(labelText: '${transportText(widget.locale, 'destination')} · ${transportText(widget.locale, 'address')}')),
               const SizedBox(height: 10),
@@ -375,6 +398,29 @@ class _TransportDialogState extends State<_TransportDialog> {
     });
   }
 
+  Future<void> _useCurrentPickupLocation() async {
+    setState(() => locatingPickup = true);
+    try {
+      final location = await _currentTransportLocation(widget.locale);
+      if (!mounted) return;
+      setState(() {
+        pickupLatitude.text = location.latitude?.toStringAsFixed(6) ?? '';
+        pickupLongitude.text = location.longitude?.toStringAsFixed(6) ?? '';
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(transportText(widget.locale, 'locationCaptured'))),
+      );
+    } catch (value) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(value.toString())),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => locatingPickup = false);
+    }
+  }
+
   Future<void> _pickDateTime() async {
     final date = await showDatePicker(context: context, firstDate: DateTime.now(), lastDate: DateTime.now().add(const Duration(days: 365)), initialDate: scheduledFor);
     if (date == null || !mounted) return;
@@ -384,10 +430,23 @@ class _TransportDialogState extends State<_TransportDialog> {
   }
 
   void _submit() {
-    final lat = double.tryParse(destinationLatitude.text.trim());
-    final lng = double.tryParse(destinationLongitude.text.trim());
-    if (lat == null || lat < -90 || lat > 90 || lng == null || lng < -180 || lng > 180) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Valid destination coordinates are required.')));
+    final pickupLat = _optionalCoordinate(pickupLatitude.text, -90, 90);
+    final pickupLng = _optionalCoordinate(pickupLongitude.text, -180, 180);
+    final destinationLat = _optionalCoordinate(destinationLatitude.text, -90, 90);
+    final destinationLng = _optionalCoordinate(destinationLongitude.text, -180, 180);
+    final pickupAddressValue = pickupAddress.text.trim();
+    final destinationAddressValue = destinationAddress.text.trim();
+    if (_coordinatePairInvalid(pickupLatitude.text, pickupLongitude.text, pickupLat, pickupLng) ||
+        _coordinatePairInvalid(destinationLatitude.text, destinationLongitude.text, destinationLat, destinationLng)) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Latitude and longitude are optional, but when used they must be valid and provided together.')));
+      return;
+    }
+    if (pickupAddressValue.isEmpty && pickupLat == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enter a pickup address or optional pickup coordinates.')));
+      return;
+    }
+    if (destinationAddressValue.isEmpty && destinationLat == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enter a destination address or optional destination coordinates.')));
       return;
     }
     Navigator.pop(context, _TransportDraft(
@@ -396,12 +455,23 @@ class _TransportDialogState extends State<_TransportDialog> {
       companionCount: companionCount,
       equipment: equipment.toList(growable: false),
       scheduledFor: scheduledFor,
-      destinationLatitude: lat,
-      destinationLongitude: lng,
-      pickupAddress: pickupAddress.text.trim().isEmpty ? null : pickupAddress.text.trim(),
-      destinationAddress: destinationAddress.text.trim().isEmpty ? null : destinationAddress.text.trim(),
+      pickupLatitude: pickupLat,
+      pickupLongitude: pickupLng,
+      destinationLatitude: destinationLat,
+      destinationLongitude: destinationLng,
+      pickupAddress: pickupAddressValue.isEmpty ? null : pickupAddressValue,
+      destinationAddress: destinationAddressValue.isEmpty ? null : destinationAddressValue,
     ));
   }
+}
+
+String _locationText(Map<String, dynamic> row, {required bool pickup}) {
+  final address = row[pickup ? 'pickupAddress' : 'destinationAddress']?.toString().trim() ?? '';
+  if (address.isNotEmpty) return address;
+  final latitude = row[pickup ? 'pickupLatitude' : 'destinationLatitude'];
+  final longitude = row[pickup ? 'pickupLongitude' : 'destinationLongitude'];
+  if (latitude == null || longitude == null) return '—';
+  return '$latitude, $longitude';
 }
 
 String _equipmentText(CarePointLocale locale, dynamic raw) {
@@ -419,4 +489,19 @@ Map<String, dynamic> _map(dynamic value) {
   if (value is Map<String, dynamic>) return value;
   if (value is Map) return value.map((key, item) => MapEntry(key.toString(), item));
   return <String, dynamic>{};
+}
+
+double? _optionalCoordinate(String raw, double min, double max) {
+  final text = raw.trim();
+  if (text.isEmpty) return null;
+  final value = double.tryParse(text);
+  if (value == null || value < min || value > max) return null;
+  return value;
+}
+
+bool _coordinatePairInvalid(String rawLatitude, String rawLongitude, double? latitude, double? longitude) {
+  final hasLatitudeText = rawLatitude.trim().isNotEmpty;
+  final hasLongitudeText = rawLongitude.trim().isNotEmpty;
+  if (!hasLatitudeText && !hasLongitudeText) return false;
+  return latitude == null || longitude == null || hasLatitudeText != hasLongitudeText;
 }

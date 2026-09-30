@@ -31,3 +31,22 @@ model CrewAssignment {
   @@index([providerId, assignedAt])
   @@index([transportUnitId, assignedAt])
 }
+
+
+model EmergencyCrewAssignment {
+  id                  String   @id @default(uuid())
+  emergencyRequestId  String
+  transportUnitId     String?
+  providerId          String
+  crewProviderIds     String[] @default([])
+  revision            Int
+  idempotencyKey      String   @unique
+  payloadHash         String
+  assignedByAccountId String
+  assignedAt          DateTime @default(now())
+
+  @@unique([emergencyRequestId, revision])
+  @@index([emergencyRequestId, assignedAt])
+  @@index([providerId, assignedAt])
+  @@index([transportUnitId, assignedAt])
+}

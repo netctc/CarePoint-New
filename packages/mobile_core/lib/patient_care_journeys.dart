@@ -6,12 +6,29 @@ import 'care_journeys_localization.dart';
 import 'care_journeys_widgets.dart';
 import 'care_booking.dart';
 
+const _transportProviderFamilies = <String>{
+  'MEDICAL_TRANSPORT_GROUND',
+  'MEDICAL_TRANSPORT_AIR',
+  'EMERGENCY_AMBULANCE',
+};
+
+bool _isTransportCategory(JourneyMap row) =>
+    _transportProviderFamilies.contains(row['family']?.toString());
+
+bool _isTransportService(JourneyMap row) {
+  final provider = journeyMap(row['provider']);
+  final profile = journeyMap(provider['otherProviderProfile']);
+  final category = journeyMap(profile['category']);
+  return _transportProviderFamilies.contains(category['family']?.toString());
+}
+
 class CareDiscoveryPage extends StatefulWidget {
-  const CareDiscoveryPage({super.key, required this.session, required this.locale, required this.onBooked, this.header});
+  const CareDiscoveryPage({super.key, required this.session, required this.locale, required this.onBooked, this.header, this.transportModuleEnabled = true});
   final CarePointSession session;
   final CarePointLocale locale;
   final VoidCallback onBooked;
   final Widget? header;
+  final bool transportModuleEnabled;
   @override
   State<CareDiscoveryPage> createState() => _CareDiscoveryPageState();
 }
@@ -32,7 +49,13 @@ class _CareDiscoveryPageState extends State<CareDiscoveryPage> {
   Future<void> loadCatalogs() async {
     try {
       final values = await Future.wait([widget.session.api.doctorSpecialties(), widget.session.api.otherProviderCategories()]);
-      if (mounted) setState(() { specialties = values[0]; categories = values[1]; catalogFailed = false; });
+      if (mounted) setState(() {
+        specialties = values[0];
+        categories = widget.transportModuleEnabled
+            ? values[1]
+            : values[1].where((row) => !_isTransportCategory(row)).toList(growable: false);
+        catalogFailed = false;
+      });
     } catch (_) { if (mounted) setState(() => catalogFailed = true); }
   }
   Future<void> search({int? page}) async {
@@ -42,7 +65,10 @@ class _CareDiscoveryPageState extends State<CareDiscoveryPage> {
     try {
       final response = await widget.session.api.discoverCare(filters, page: page ?? 1);
       if (!mounted || !epoch.isCurrent(ticket)) return;
-      final received = journeyList(response['items']);
+      final receivedRows = journeyList(response['items']);
+      final received = widget.transportModuleEnabled
+          ? receivedRows
+          : receivedRows.where((row) => !_isTransportService(row)).toList(growable: false);
       final next = response['nextPage'];
       setState(() {
         final merged = <String, JourneyMap>{for (final row in items) row['id'].toString(): row, for (final row in received) row['id'].toString(): row};

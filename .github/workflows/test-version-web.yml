@@ -6,6 +6,7 @@ on:
       - "apps/patient-mobile/**"
       - "apps/doctor-mobile/**"
       - "apps/provider-mobile/**"
+      - "apps/transport-provider-mobile/**"
       - "packages/mobile_core/**"
       - ".github/workflows/test-version-web.yml"
   workflow_dispatch:
@@ -41,6 +42,8 @@ jobs:
             label: doctor
           - app: provider-mobile
             label: provider
+          - app: transport-provider-mobile
+            label: transport-provider
     steps:
       - name: Check out exact candidate SHA
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4

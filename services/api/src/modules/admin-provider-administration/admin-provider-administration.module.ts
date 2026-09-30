@@ -54,14 +54,28 @@ class AdminProviderAdministrationService {
     private readonly documentScanner: DocumentMalwareScannerService,
   ) {}
 
-  async directory(principal: AuthPrincipal, providerClass?: string, query?: string, pageRaw?: string, pageSizeRaw?: string) {
+  async directory(principal: AuthPrincipal, providerClass?: string, query?: string, pageRaw?: string, pageSizeRaw?: string, familiesRaw?: string, excludeFamiliesRaw?: string) {
     const normalizedClass = providerClass === "DOCTOR" || providerClass === "OTHER_PROVIDER" ? providerClass : undefined;
     const page = this.page(pageRaw);
     const pageSize = this.pageSize(pageSizeRaw);
     const needle = query?.trim() ?? "";
+    const families = this.providerFamilies(familiesRaw, "families");
+    const excludeFamilies = this.providerFamilies(excludeFamiliesRaw, "excludeFamilies");
     if (needle.length > 120) throw new BadRequestException("q exceeds 120 characters.");
     const where: Prisma.ProviderWhereInput = {
       ...(normalizedClass ? { class: normalizedClass } : {}),
+      ...(families.length > 0 ? {
+        otherProviderProfile: {
+          category: { family: { in: families } },
+        },
+      } : {}),
+      ...(excludeFamilies.length > 0 ? {
+        NOT: {
+          otherProviderProfile: {
+            category: { family: { in: excludeFamilies } },
+          },
+        },
+      } : {}),
       ...(needle ? {
         OR: [
           { displayName: { contains: needle, mode: "insensitive" } },
@@ -104,7 +118,7 @@ class AdminProviderAdministrationService {
       objectId: normalizedClass ?? "ALL",
       purpose: "PROVIDER_ADMINISTRATION",
       result: "SUCCESS",
-      metadata: { providerClass: normalizedClass ?? "ALL", resultCount: items.length, total, queryApplied: Boolean(needle), page, pageSize },
+      metadata: { providerClass: normalizedClass ?? "ALL", resultCount: items.length, total, queryApplied: Boolean(needle), page, pageSize, families, excludeFamilies },
     });
     return { generatedAt: new Date().toISOString(), warningDays, total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)), items };
   }
@@ -484,6 +498,15 @@ class AdminProviderAdministrationService {
     return "VALID";
   }
 
+  private providerFamilies(value: string | undefined, field: string): string[] {
+    if (!value?.trim()) return [];
+    const values = [...new Set(value.split(",").map((item) => item.trim().toUpperCase()).filter(Boolean))];
+    if (values.length > 20 || values.some((item) => !/^[A-Z][A-Z0-9_]{1,79}$/.test(item))) {
+      throw new BadRequestException(`${field} contains an invalid provider family.`);
+    }
+    return values;
+  }
+
   private page(value?: string): number {
     if (!value) return 1;
     const parsed = Number(value);
@@ -539,8 +562,10 @@ class AdminProviderAdministrationController {
     @Query("q") query?: string,
     @Query("page") page?: string,
     @Query("pageSize") pageSize?: string,
+    @Query("families") families?: string,
+    @Query("excludeFamilies") excludeFamilies?: string,
   ) {
-    return this.providers.directory(principal, providerClass, query, page, pageSize);
+    return this.providers.directory(principal, providerClass, query, page, pageSize, families, excludeFamilies);
   }
 
   @Get(":providerId")

@@ -197,8 +197,8 @@ export interface TelehealthJoinCredentials {
 
 export interface CreateEmergencyAmbulanceRequestInput {
   clientRequestId: string;
-  latitude: number;
-  longitude: number;
+  latitude?: number;
+  longitude?: number;
   pickupAddress?: string;
   callbackPhone?: string;
   note?: string;
@@ -222,8 +222,8 @@ export interface EmergencyAmbulanceRequest {
   id: string;
   patientId: string;
   status: EmergencyAmbulanceStatus;
-  latitude: number;
-  longitude: number;
+  latitude: number | null;
+  longitude: number | null;
   pickupAddress: string | null;
   callbackPhone: string | null;
   note: string | null;
@@ -237,11 +237,11 @@ export interface CreateMedicalTransportRequestInput {
   clientRequestId: string;
   mode: MedicalTransportMode;
   scheduledFor: string;
-  pickupLatitude: number;
-  pickupLongitude: number;
+  pickupLatitude?: number;
+  pickupLongitude?: number;
   pickupAddress?: string;
-  destinationLatitude: number;
-  destinationLongitude: number;
+  destinationLatitude?: number;
+  destinationLongitude?: number;
   destinationAddress?: string;
   assistance?: MedicalTransportAssistance;
   companionCount?: number;
@@ -272,11 +272,11 @@ export interface MedicalTransportRequest {
   companionCount: number;
   equipment: readonly MedicalTransportEquipment[];
   scheduledFor: string;
-  pickupLatitude: number;
-  pickupLongitude: number;
+  pickupLatitude: number | null;
+  pickupLongitude: number | null;
   pickupAddress: string | null;
-  destinationLatitude: number;
-  destinationLongitude: number;
+  destinationLatitude: number | null;
+  destinationLongitude: number | null;
   destinationAddress: string | null;
   callbackPhone: string | null;
   assignedProviderId: string | null;
@@ -287,4 +287,4 @@ export interface MedicalTransportRequest {
 
 export function assertDoctorRole(role: UserRole): asserts role is "DOCTOR" { if (role !== "DOCTOR") throw new Error("Doctor application access is restricted to doctors."); }
 export function assertOtherProviderFamily(value: string): asserts value is OtherProviderFamily { if (!(OtherProviderFamilies as readonly string[]).includes(value)) throw new Error(`Unsupported other-provider family: ${value}`); }
-export function assertValidEmergencyLocation(latitude: number, longitude: number): void { if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90) throw new Error("Latitude must be between -90 and 90."); if (!Number.isFinite(longitude) || longitude < -180 || longitude > 180) throw new Error("Longitude must be between -180 and 180."); }
+export function assertValidEmergencyLocation(latitude?: number | null, longitude?: number | null): void { const hasLatitude = latitude !== undefined && latitude !== null; const hasLongitude = longitude !== undefined && longitude !== null; if (hasLatitude !== hasLongitude) throw new Error("Latitude and longitude must be provided together."); if (!hasLatitude) return; if (!Number.isFinite(latitude) || latitude! < -90 || latitude! > 90) throw new Error("Latitude must be between -90 and 90."); if (!Number.isFinite(longitude) || longitude! < -180 || longitude! > 180) throw new Error("Longitude must be between -180 and 180."); }

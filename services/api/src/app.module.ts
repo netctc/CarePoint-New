@@ -93,6 +93,8 @@ import { SymptomReportModule } from "./modules/symptom-reports/symptom-report.mo
 import { TelehealthModule } from "./modules/telehealth/telehealth.module";
 import { TerminologyModule } from "./modules/terminology/terminology.module";
 import { TransportModule } from "./modules/transport/transport.module";
+import { AdminTransportOperationsModule } from "./modules/transport/admin-transport-operations.module";
+import { AdminTransportCompanyModule } from "./modules/transport/admin-transport-company.module";
 import { TransportResourcesModule } from "./modules/transport/transport-resources.module";
 import { TransportHandoffModule } from "./modules/transport/transport-handoff.module";
 import { TransportIncidentsModule } from "./modules/transport/transport-incidents.module";
@@ -159,6 +161,8 @@ const isolatedSyntheticPilot = isolatedSyntheticPrivatePilotActive(process.env);
     NutritionPlanModule,
     ...(emergencyAmbulanceModuleEnabled(process.env) ? [EmergencyModule] : []),
     TransportModule,
+    AdminTransportOperationsModule,
+    AdminTransportCompanyModule,
     TransportResourcesModule,
     TransportHandoffModule,
     TransportIncidentsModule,

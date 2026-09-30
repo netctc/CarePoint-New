@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { useI18n, type Locale } from "@/lib/i18n";
+import { useRuntimeFeatures } from "@/lib/use-runtime-features";
+import { isTransportProviderFamily } from "@/lib/transport-provider-scope";
 
 type Labels = { en?: string; ar?: string; fr?: string; es?: string };
 type Category = {
@@ -78,6 +80,7 @@ function codeList(value: string): string[] {
 export default function ProviderTaxonomyPage() {
   const { locale } = useI18n();
   const t = copy[locale];
+  const { transportModuleEnabled } = useRuntimeFeatures();
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [forms, setForms] = useState<ProviderForm[]>([]);
@@ -93,9 +96,13 @@ export default function ProviderTaxonomyPage() {
   const [purpose, setPurpose] = useState("GENERAL");
   const [labels, setLabels] = useState({ en: "", ar: "", fr: "", es: "" });
   const [questions, setQuestions] = useState<BuilderQuestion[]>([blankQuestion()]);
-  const selected = useMemo(() => categories.find((item) => item.id === selectedId) ?? null, [categories, selectedId]);
+  const visibleCategories = useMemo(() => transportModuleEnabled ? categories : categories.filter((item) => !isTransportProviderFamily(item.family)), [categories, transportModuleEnabled]);
+  const visibleWorkflow = useMemo(() => transportModuleEnabled ? [...WORKFLOW] : WORKFLOW.filter((item) => !item.startsWith("TRANSPORT_")), [transportModuleEnabled]);
+  const visiblePurposes = useMemo(() => transportModuleEnabled ? [...PURPOSES] : PURPOSES.filter((item) => !item.startsWith("TRANSPORT_")), [transportModuleEnabled]);
+  const selected = useMemo(() => visibleCategories.find((item) => item.id === selectedId) ?? null, [visibleCategories, selectedId]);
 
   useEffect(() => { void loadCategories(); }, []);
+  useEffect(() => { setSelectedId((current) => current && visibleCategories.some((item) => item.id === current) ? current : (visibleCategories[0]?.id ?? "")); }, [visibleCategories]);
   useEffect(() => { if (selectedId) void loadForms(selectedId); }, [selectedId]);
   useEffect(() => {
     if (!selected) return;
@@ -125,7 +132,6 @@ export default function ProviderTaxonomyPage() {
       const body = await request("/api/admin/provider-taxonomy/categories");
       const items: Category[] = Array.isArray(body?.items) ? body.items : [];
       setCategories(items);
-      setSelectedId((current) => current && items.some((item) => item.id === current) ? current : (items[0]?.id ?? ""));
     } catch (error) {
       setMessage(String(error));
     } finally {
@@ -253,7 +259,7 @@ export default function ProviderTaxonomyPage() {
     {busy ? <p>Loading…</p> : <div style={{ display: "grid", gridTemplateColumns: "minmax(220px,280px) 1fr", gap: 18 }}>
       <aside style={{ ...box, ...grid, alignContent: "start" }}>
         <h3>{t.category}</h3>
-        {categories.map((category) => <button
+        {visibleCategories.map((category) => <button
           key={category.id}
           className={category.id === selectedId ? "primary-button" : "secondary-button"}
           onClick={() => setSelectedId(category.id)}
@@ -271,7 +277,7 @@ export default function ProviderTaxonomyPage() {
             <CapabilityGroup label="Service modalities" values={MODALITIES} selected={modalities} onToggle={(value) => toggle(modalities, value, setModalities)} />
             <CapabilityGroup label="Clinical orders" values={ORDER_CAPS} selected={orderCaps} onToggle={(value) => toggle(orderCaps, value, setOrderCaps)} />
             <CapabilityGroup label="Clinical summary" values={SUMMARY} selected={summary} onToggle={(value) => toggle(summary, value, setSummary)} />
-            <CapabilityGroup label="Workflow" values={WORKFLOW} selected={workflow} onToggle={(value) => toggle(workflow, value, setWorkflow)} />
+            <CapabilityGroup label="Workflow" values={visibleWorkflow} selected={workflow} onToggle={(value) => toggle(workflow, value, setWorkflow)} />
             <div className="admin-form-grid">
               <label>{t.observations}<input value={observationCodes} onChange={(event) => setObservationCodes(event.target.value)} placeholder="HEART_RATE, SPO2" /></label>
               <label>{t.questionnaires}<input value={questionnaireCodes} onChange={(event) => setQuestionnaireCodes(event.target.value)} placeholder="INTAKE_GENERAL" /></label>
@@ -301,7 +307,7 @@ export default function ProviderTaxonomyPage() {
             <h2>{t.newForm}</h2>
             <div className="admin-form-grid">
               <label>{t.code}<input value={formCode} onChange={(event) => setFormCode(event.target.value)} placeholder="HOME_VISIT_ASSESSMENT" /></label>
-              <label>{t.purpose}<select value={purpose} onChange={(event) => setPurpose(event.target.value)}>{PURPOSES.map((item) => <option key={item}>{item}</option>)}</select></label>
+              <label>{t.purpose}<select value={purpose} onChange={(event) => setPurpose(event.target.value)}>{visiblePurposes.map((item) => <option key={item}>{item}</option>)}</select></label>
             </div>
             <div className="admin-form-grid">
               {(["en","ar","fr","es"] as const).map((language) => <label key={language}>{t.labels} {language.toUpperCase()}<input value={labels[language]} onChange={(event) => setLabels({ ...labels, [language]: event.target.value })} /></label>)}

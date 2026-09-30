@@ -34,11 +34,11 @@ model MedicalTransportRequest {
   companionCount       Int                         @default(0)
   equipment             MedicalTransportEquipment[] @default([])
   scheduledFor         DateTime
-  pickupLatitude       Decimal                     @db.Decimal(9, 6)
-  pickupLongitude      Decimal                     @db.Decimal(9, 6)
+  pickupLatitude       Decimal?                    @db.Decimal(9, 6)
+  pickupLongitude      Decimal?                    @db.Decimal(9, 6)
   pickupAddress        String?
-  destinationLatitude  Decimal                     @db.Decimal(9, 6)
-  destinationLongitude Decimal                     @db.Decimal(9, 6)
+  destinationLatitude  Decimal?                    @db.Decimal(9, 6)
+  destinationLongitude Decimal?                    @db.Decimal(9, 6)
   destinationAddress   String?
   callbackPhone        String?
   assignedProviderId   String?

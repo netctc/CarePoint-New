@@ -6,6 +6,7 @@ ARG APP_TITLE=CarePoint Test
 ARG CAREPOINT_API_BASE
 ARG CAREPOINT_BUILD_ENV=staging
 ARG CAREPOINT_RELEASE_SHA
+ARG TRANSPORT_MODULE_ENABLED=false
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PATH=/opt/flutter/bin:/opt/flutter/bin/cache/dart-sdk/bin:${PATH}
@@ -30,6 +31,7 @@ RUN test -n "${CAREPOINT_RELEASE_SHA}" \
       --dart-define=CAREPOINT_API_BASE=${CAREPOINT_API_BASE} \
       --dart-define=CAREPOINT_BUILD_ENV=${CAREPOINT_BUILD_ENV} \
       --dart-define=CAREPOINT_RELEASE_SHA=${CAREPOINT_RELEASE_SHA} \
+      --dart-define=TRANSPORT_MODULE_ENABLED=${TRANSPORT_MODULE_ENABLED} \
  && mkdir -p /out \
  && cp -a build/web/. /out/
 

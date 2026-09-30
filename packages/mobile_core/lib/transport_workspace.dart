@@ -7,10 +7,13 @@ import 'transport_incidents.dart';
 import 'transport_localization.dart';
 
 class ProviderTransportWorkspace extends StatefulWidget {
-  const ProviderTransportWorkspace({super.key, required this.session, required this.locale, required this.accent});
+  const ProviderTransportWorkspace({super.key, required this.session, required this.locale, required this.accent, this.onSignOut, this.organizationLabel, this.organizationDetail});
   final CarePointSession session;
   final CarePointLocale locale;
   final Color accent;
+  final VoidCallback? onSignOut;
+  final String? organizationLabel;
+  final String? organizationDetail;
 
   @override
   State<ProviderTransportWorkspace> createState() => _ProviderTransportWorkspaceState();
@@ -77,8 +80,17 @@ class _ProviderTransportWorkspaceState extends State<ProviderTransportWorkspace>
   @override
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(
-          title: Text(transportText(widget.locale, 'providerTitle')),
-          actions: [IconButton(onPressed: refresh, icon: const Icon(Icons.refresh_rounded))],
+          title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(transportText(widget.locale, 'providerTitle')),
+            if (widget.organizationLabel?.isNotEmpty == true)
+              Text(widget.organizationLabel!, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+            if (widget.organizationDetail?.isNotEmpty == true)
+              Text(widget.organizationDetail!, style: const TextStyle(fontSize: 10)),
+          ]),
+          actions: [
+            IconButton(onPressed: refresh, icon: const Icon(Icons.refresh_rounded)),
+            if (widget.onSignOut != null) IconButton(onPressed: widget.onSignOut, tooltip: 'Sign out', icon: const Icon(Icons.logout_rounded)),
+          ],
         ),
         body: busy
             ? const Center(child: CircularProgressIndicator())
@@ -139,13 +151,13 @@ class _ProviderTransportWorkspaceState extends State<ProviderTransportWorkspace>
         padding: const EdgeInsets.all(14),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           _requestSummary(request, emergency: emergency),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            onPressed: requestId.isEmpty ? null : () => _resources(requestId, emergency: emergency),
+            icon: const Icon(Icons.groups_2_outlined),
+            label: Text(transportText(widget.locale, 'crewUnit')),
+          ),
           if (!emergency) ...[
-            const SizedBox(height: 10),
-            OutlinedButton.icon(
-              onPressed: requestId.isEmpty ? null : () => _resources(requestId),
-              icon: const Icon(Icons.groups_2_outlined),
-              label: Text(transportText(widget.locale, 'crewUnit')),
-            ),
             if (incidentEnabled) ...[
               const SizedBox(height: 10),
               OutlinedButton.icon(
@@ -229,9 +241,11 @@ class _ProviderTransportWorkspaceState extends State<ProviderTransportWorkspace>
         : api.updateProviderMedicalTransportStatus(requestId, status: status));
   }
 
-  Future<void> _resources(String requestId) async {
+  Future<void> _resources(String requestId, {required bool emergency}) async {
     try {
-      final data = await api.providerMedicalTransportResources(requestId);
+      final data = emergency
+          ? await api.providerEmergencyAmbulanceResources(requestId)
+          : await api.providerMedicalTransportResources(requestId);
       if (!mounted) return;
       final changed = await showModalBottomSheet<bool>(
         context: context,
@@ -243,6 +257,7 @@ class _ProviderTransportWorkspaceState extends State<ProviderTransportWorkspace>
           locale: widget.locale,
           accent: widget.accent,
           data: data,
+          emergency: emergency,
         ),
       );
       if (changed == true) await refresh();
@@ -303,7 +318,14 @@ class _ProviderTransportWorkspaceState extends State<ProviderTransportWorkspace>
             FilledButton(onPressed: () {
               final lat = double.tryParse(latitude.text.trim());
               final lon = double.tryParse(longitude.text.trim());
-              if (lat == null || lat < -90 || lat > 90 || lon == null || lon < -180 || lon > 180) {
+              final latitudeText = latitude.text.trim();
+              final longitudeText = longitude.text.trim();
+              final addressText = address.text.trim();
+              final hasLatitude = latitudeText.isNotEmpty;
+              final hasLongitude = longitudeText.isNotEmpty;
+              final invalidPair = hasLatitude != hasLongitude ||
+                  (hasLatitude && (lat == null || lat < -90 || lat > 90 || lon == null || lon < -180 || lon > 180));
+              if (invalidPair || (!hasLatitude && addressText.isEmpty)) {
                 setLocal(() => validation = transportText(widget.locale, 'invalidDestination'));
                 return;
               }
@@ -318,7 +340,7 @@ class _ProviderTransportWorkspaceState extends State<ProviderTransportWorkspace>
     final lon = double.tryParse(longitude.text.trim());
     final addressValue = address.text.trim();
     latitude.dispose(); longitude.dispose(); address.dispose();
-    if (accepted != true || lat == null || lon == null) return;
+    if (accepted != true) return;
 
     await _run(() => api.changeProviderTransportDestination(
       requestId,
@@ -407,6 +429,7 @@ class _TransportResourcesSheet extends StatefulWidget {
     required this.locale,
     required this.accent,
     required this.data,
+    required this.emergency,
   });
 
   final CarePointApi api;
@@ -414,6 +437,7 @@ class _TransportResourcesSheet extends StatefulWidget {
   final CarePointLocale locale;
   final Color accent;
   final Map<String, dynamic> data;
+  final bool emergency;
 
   @override
   State<_TransportResourcesSheet> createState() => _TransportResourcesSheetState();
@@ -547,12 +571,21 @@ class _TransportResourcesSheetState extends State<_TransportResourcesSheet> {
     if (unitId == null || selectedCrewIds.isEmpty) return;
     setState(() { saving = true; error = null; });
     try {
-      await widget.api.updateProviderMedicalTransportResources(
-        widget.requestId,
-        transportUnitId: unitId,
-        crewProviderIds: selectedCrewIds.toList(growable: false),
-        idempotencyKey: 'transport-resources-${widget.requestId}-${DateTime.now().microsecondsSinceEpoch}',
-      );
+      if (widget.emergency) {
+        await widget.api.updateProviderEmergencyAmbulanceResources(
+          widget.requestId,
+          transportUnitId: unitId,
+          crewProviderIds: selectedCrewIds.toList(growable: false),
+          idempotencyKey: 'emergency-transport-resources-${widget.requestId}-${DateTime.now().microsecondsSinceEpoch}',
+        );
+      } else {
+        await widget.api.updateProviderMedicalTransportResources(
+          widget.requestId,
+          transportUnitId: unitId,
+          crewProviderIds: selectedCrewIds.toList(growable: false),
+          idempotencyKey: 'transport-resources-${widget.requestId}-${DateTime.now().microsecondsSinceEpoch}',
+        );
+      }
       if (mounted) Navigator.of(context).pop(true);
     } catch (value) {
       if (mounted) setState(() => error = value.toString());

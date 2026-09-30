@@ -53,7 +53,9 @@ class _OtherProviderAccessGateState extends State<OtherProviderAccessGate> {
       ]);
       if (!mounted) return;
       final nextState = _map(values[0]);
-      final nextCategories = _list(values[1]);
+      final nextCategories = _list(values[1])
+          .where((item) => !_isTransportFamily(item['family']?.toString()))
+          .toList(growable: false);
       final onboarding = _map(nextState['onboarding']);
       final currentCategory = _map(onboarding['providerCategory']);
       setState(() {
@@ -77,9 +79,38 @@ class _OtherProviderAccessGateState extends State<OtherProviderAccessGate> {
         body: const Center(child: CircularProgressIndicator()),
       );
     }
+    final provider = _map(state['provider']);
+    final profile = _map(provider['otherProviderProfile']);
+    final providerCategory = _map(profile['category']);
+    final onboarding = _map(state['onboarding']);
+    final onboardingCategory = _map(onboarding['providerCategory']);
+    final family = (providerCategory['family'] ?? onboardingCategory['family'])?.toString();
+    if (_isTransportFamily(family)) return _transportProviderBoundary();
     if (state['accessReady'] == true) return widget.activeBuilder(context);
     return _credentialingScaffold();
   }
+
+  Widget _transportProviderBoundary() => Scaffold(
+        backgroundColor: widget.dark ? const Color(0xFF0F172A) : null,
+        appBar: AppBar(
+          title: const Text('Transport Provider'),
+          actions: [
+            IconButton(onPressed: widget.onSignOut, tooltip: 'Sign out', icon: const Icon(Icons.logout_rounded)),
+          ],
+        ),
+        body: const Center(
+          child: Padding(
+            padding: EdgeInsets.all(28),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.local_shipping_outlined, size: 56),
+              SizedBox(height: 14),
+              Text('Transport Provider application required', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900), textAlign: TextAlign.center),
+              SizedBox(height: 8),
+              Text('Medical transport and emergency ambulance providers are separated from the Health Provider application. Use the dedicated Transport Provider application when it becomes available.', textAlign: TextAlign.center),
+            ]),
+          ),
+        ),
+      );
 
   Widget _credentialingScaffold() {
     final provider = _map(state['provider']);
@@ -642,6 +673,12 @@ List<String> _strings(dynamic value) {
   if (value is! List) return const [];
   return value.map((item) => item?.toString()).whereType<String>().where((item) => item.trim().isNotEmpty).toList(growable: false);
 }
+
+bool _isTransportFamily(String? family) => const {
+  'MEDICAL_TRANSPORT_GROUND',
+  'MEDICAL_TRANSPORT_AIR',
+  'EMERGENCY_AMBULANCE',
+}.contains(family);
 
 const Map<String, Map<String, String>> _providerAccessText = {
   'en': {

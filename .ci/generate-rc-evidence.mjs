@@ -164,6 +164,7 @@ for (const fileName of [
   "patient-mobile-deps.json",
   "doctor-mobile-deps.json",
   "provider-mobile-deps.json",
+  "transport-provider-mobile-deps.json",
   "flutter-version.txt",
 ]) {
   artifacts.push(await artifactEvidence(outputDir, fileName));

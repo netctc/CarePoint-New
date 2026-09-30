@@ -3,15 +3,15 @@ part of 'carepoint_api.dart';
 extension CarePointTransportApi on CarePointApi {
   Future<Map<String, dynamic>> requestEmergencyAmbulance({
     required String clientRequestId,
-    required double latitude,
-    required double longitude,
+    double? latitude,
+    double? longitude,
     String? pickupAddress,
     String? callbackPhone,
   }) async =>
       _asMap(await _send('POST', '/emergency/ambulance', body: {
         'clientRequestId': clientRequestId,
-        'latitude': latitude,
-        'longitude': longitude,
+        if (latitude != null) 'latitude': latitude,
+        if (longitude != null) 'longitude': longitude,
         if (pickupAddress?.trim().isNotEmpty == true) 'pickupAddress': pickupAddress!.trim(),
         if (callbackPhone?.trim().isNotEmpty == true) 'callbackPhone': callbackPhone!.trim(),
       }));
@@ -40,15 +40,30 @@ extension CarePointTransportApi on CarePointApi {
         if (etaMinutes != null) 'etaMinutes': etaMinutes,
       }));
 
+  Future<Map<String, dynamic>> providerEmergencyAmbulanceResources(String requestId) async =>
+      _asMap(await _send('GET', '/provider/emergency/ambulance/$requestId/resources'));
+
+  Future<Map<String, dynamic>> updateProviderEmergencyAmbulanceResources(
+    String requestId, {
+    required String transportUnitId,
+    required List<String> crewProviderIds,
+    required String idempotencyKey,
+  }) async =>
+      _asMap(await _send('PATCH', '/provider/emergency/ambulance/$requestId/resources', body: {
+        'transportUnitId': transportUnitId,
+        'crewProviderIds': crewProviderIds,
+        'idempotencyKey': idempotencyKey,
+      }));
+
   Future<Map<String, dynamic>> createMedicalTransport({
     required String clientRequestId,
     required String mode,
     required DateTime scheduledFor,
-    required double pickupLatitude,
-    required double pickupLongitude,
+    double? pickupLatitude,
+    double? pickupLongitude,
     String? pickupAddress,
-    required double destinationLatitude,
-    required double destinationLongitude,
+    double? destinationLatitude,
+    double? destinationLongitude,
     String? destinationAddress,
     String assistance = 'STANDARD',
     int companionCount = 0,
@@ -59,11 +74,11 @@ extension CarePointTransportApi on CarePointApi {
         'clientRequestId': clientRequestId,
         'mode': mode,
         'scheduledFor': scheduledFor.toUtc().toIso8601String(),
-        'pickupLatitude': pickupLatitude,
-        'pickupLongitude': pickupLongitude,
+        if (pickupLatitude != null) 'pickupLatitude': pickupLatitude,
+        if (pickupLongitude != null) 'pickupLongitude': pickupLongitude,
         if (pickupAddress?.trim().isNotEmpty == true) 'pickupAddress': pickupAddress!.trim(),
-        'destinationLatitude': destinationLatitude,
-        'destinationLongitude': destinationLongitude,
+        if (destinationLatitude != null) 'destinationLatitude': destinationLatitude,
+        if (destinationLongitude != null) 'destinationLongitude': destinationLongitude,
         if (destinationAddress?.trim().isNotEmpty == true) 'destinationAddress': destinationAddress!.trim(),
         'assistance': assistance,
         'companionCount': companionCount,
@@ -90,6 +105,9 @@ extension CarePointTransportApi on CarePointApi {
 
   Future<List<Map<String, dynamic>>> providerMedicalTransportJobs() async =>
       _asList(await _send('GET', '/provider/medical-transport'));
+
+  Future<Map<String, dynamic>> providerTransportCompanyContext() async =>
+      _asMap(await _send('GET', '/provider/medical-transport/company-context'));
 
   Future<Map<String, dynamic>> providerMedicalTransportResources(String requestId) async =>
       _asMap(await _send('GET', '/provider/medical-transport/$requestId/resources'));
@@ -169,14 +187,14 @@ extension CarePointTransportApi on CarePointApi {
       }));
   Future<Map<String, dynamic>> changeProviderTransportDestination(
     String requestId, {
-    required double destinationLatitude,
-    required double destinationLongitude,
+    double? destinationLatitude,
+    double? destinationLongitude,
     String? destinationAddress,
     required String reasonCode,
     required String idempotencyKey,
   }) async => _asMap(await _send('POST', '/provider/transport/jobs/$requestId/destination-change', body: {
-    'destinationLatitude': destinationLatitude,
-    'destinationLongitude': destinationLongitude,
+    if (destinationLatitude != null) 'destinationLatitude': destinationLatitude,
+    if (destinationLongitude != null) 'destinationLongitude': destinationLongitude,
     if (destinationAddress?.trim().isNotEmpty == true) 'destinationAddress': destinationAddress!.trim(),
     'reasonCode': reasonCode,
     'idempotencyKey': idempotencyKey,
