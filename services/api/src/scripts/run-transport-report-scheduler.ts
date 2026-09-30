@@ -4,6 +4,7 @@ import { NestFactory } from "@nestjs/core";
 import type { AuthPrincipal } from "@carepoint/identity";
 import { AppModule } from "../app.module";
 import { TransportReportExecutionService } from "../modules/transport/transport-report-execution.module";
+import { TransportReportDeliveryWorkerService } from "../modules/transport/transport-report-delivery.module";
 
 const principal: AuthPrincipal = {
   accountId: "system:transport-report-scheduler",
@@ -17,12 +18,18 @@ async function main(): Promise<void> {
   });
   try {
     const worker = app.get(TransportReportExecutionService);
-    const result = await worker.workerCycle(principal, 25);
+    const deliveryWorker = app.get(TransportReportDeliveryWorkerService);
+    const reportResult = await worker.workerCycle(principal, 25);
+    const deliveryResult = await deliveryWorker.runOnce(25);
     process.stdout.write(JSON.stringify({
       event: "transport-report-worker-cycle",
-      ...result,
+      report: reportResult,
+      deliveryNotification: deliveryResult,
+      artifactDeliveryPerformed: false,
     }) + "\n");
-    if (result.failed > 0) process.exitCode = 1;
+    if (reportResult.failed > 0 || deliveryResult.failed > 0) {
+      process.exitCode = 1;
+    }
   } finally {
     await app.close();
   }
