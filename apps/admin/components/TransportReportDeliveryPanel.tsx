@@ -167,9 +167,10 @@ export function TransportReportDeliveryPanel() {
       </span>
       <h2 style={{ margin: "5px 0" }}>Report Delivery Outbox</h2>
       <p>
-        Configure active ADMIN accounts as report destinations. Preparing a
-        Phase 16 handoff creates one durable, idempotent outbox item per active
-        destination. No external provider send is performed in this phase.
+        Configure active ADMIN accounts as report destinations. The Cloud Run
+        worker sends a PHI-neutral "report ready" EMAIL notification through the
+        existing Notification Gateway. The private CSV artifact itself is not
+        sent to the notification provider.
       </p>
 
       <div
@@ -281,7 +282,9 @@ export function TransportReportDeliveryPanel() {
       <div style={{ overflowX: "auto", marginTop: 18 }}>
         <h3>Durable delivery outbox</h3>
         <p style={{ fontSize: 13 }}>
-          Execution mode: <strong>EXTERNAL_DELIVERY_ADAPTER_REQUIRED</strong>
+          Execution mode: <strong>REPORT_READY_NOTIFICATION_WORKER</strong>.
+          SENT means the readiness notification was sent; it does not mean the
+          private CSV artifact was delivered.
         </p>
         <table style={{ width: "100%", minWidth: 850, borderCollapse: "collapse" }}>
           <thead>
