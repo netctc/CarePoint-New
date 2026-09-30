@@ -126,6 +126,9 @@ class _PatientMedicalTransportStatusPageState extends State<PatientMedicalTransp
     final status = request['status']?.toString() ?? '';
     final provider = _map(request['assignedProvider']);
     final history = _list(value?['history']);
+    final tripTracking = _map(value?['tripTracking']);
+    final timeline = _list(tripTracking['timeline']);
+    final timelineItems = timeline.isNotEmpty ? timeline : history;
     return Directionality(
       textDirection: widget.locale.textDirection,
       child: Scaffold(
@@ -167,7 +170,17 @@ class _PatientMedicalTransportStatusPageState extends State<PatientMedicalTransp
                               label: '${transportText(widget.locale, 'status')}: ${patientMedicalTransportStatusText(widget.locale, status)}',
                               child: Chip(label: Text(patientMedicalTransportStatusText(widget.locale, status), style: const TextStyle(fontWeight: FontWeight.w800))),
                             )),
-                            const SizedBox(height: 16),
+                             const SizedBox(height: 14),
+                             _tripProgress(status),
+                             const SizedBox(height: 10),
+                             Center(
+                               child: Text(
+                                 patientMedicalTransportText(widget.locale, 'milestoneTrackingOnly'),
+                                 textAlign: TextAlign.center,
+                                 style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                               ),
+                             ),
+                             const SizedBox(height: 16),
                             _detail(transportText(widget.locale, 'scheduledFor'), patientMedicalTransportDateTime(request['scheduledFor'])),
                             _detail(transportText(widget.locale, 'mode'), patientMedicalTransportModeText(widget.locale, request['mode'])),
                             _detail(transportText(widget.locale, 'assistance'), patientMedicalTransportAssistanceText(widget.locale, request['assistance'])),
@@ -198,22 +211,74 @@ class _PatientMedicalTransportStatusPageState extends State<PatientMedicalTransp
                                 label: Text(transportText(widget.locale, 'cancel')),
                               ),
                             ],
-                            if (history.isNotEmpty) ...[
-                              const SizedBox(height: 24),
-                              Text(patientMedicalTransportText(widget.locale, 'history'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
-                              ...history.map((event) => ListTile(
-                                contentPadding: EdgeInsets.zero,
-                                leading: const Icon(Icons.radio_button_checked, size: 18),
-                                title: Text(patientMedicalTransportStatusText(widget.locale, event['toStatus'])),
-                                subtitle: Text([
-                                  patientMedicalTransportDateTime(event['occurredAt']),
-                                  if (event['etaMinutes'] != null) '${transportText(widget.locale, 'eta')}: ${event['etaMinutes']} ${transportText(widget.locale, 'minutes')}',
-                                ].join(' · ')),
-                              )),
-                            ],
+                             if (timelineItems.isNotEmpty) ...[
+                               const SizedBox(height: 24),
+                               Text(patientMedicalTransportText(widget.locale, 'timeline'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+                               ...timelineItems.map((event) {
+                                 final kind = event['kind']?.toString() ?? 'STATUS';
+                                 final isRoute = kind == 'ROUTE_UPDATED';
+                                 final eventStatus = event['status'] ?? event['toStatus'];
+                                 final subtitle = <String>[
+                                   patientMedicalTransportDateTime(event['occurredAt']),
+                                   if (event['etaMinutes'] != null)
+                                     '${transportText(widget.locale, 'eta')}: ${event['etaMinutes']} ${transportText(widget.locale, 'minutes')}',
+                                   if (isRoute && event['reasonCode']?.toString().trim().isNotEmpty == true)
+                                     '${patientMedicalTransportText(widget.locale, 'routeReason')}: ${event['reasonCode']}',
+                                 ];
+                                 return ListTile(
+                                   contentPadding: EdgeInsets.zero,
+                                   leading: Icon(isRoute ? Icons.alt_route_outlined : Icons.radio_button_checked, size: 20),
+                                   title: Text(
+                                     isRoute
+                                         ? patientMedicalTransportText(widget.locale, 'routeUpdated')
+                                         : patientMedicalTransportStatusText(widget.locale, eventStatus),
+                                   ),
+                                   subtitle: Text(subtitle.join(' · ')),
+                                 );
+                               }),
+                             ],
                           ],
                         ),
                       ),
+      ),
+    );
+  }
+
+  Widget _tripProgress(String status) {
+    const milestones = <String>[
+      'REQUESTED',
+      'ASSIGNED',
+      'EN_ROUTE',
+      'ARRIVED',
+      'TRANSPORTING',
+      'COMPLETED',
+    ];
+    final current = milestones.indexOf(status);
+    final cancelled = status == 'CANCELLED';
+
+    return Semantics(
+      label: patientMedicalTransportText(widget.locale, 'tripProgress'),
+      child: Wrap(
+        spacing: 6,
+        runSpacing: 6,
+        alignment: WrapAlignment.center,
+        children: milestones.asMap().entries.map((entry) {
+          final index = entry.key;
+          final milestone = entry.value;
+          final reached = !cancelled && current >= index;
+          final active = !cancelled && current == index;
+          return Chip(
+            avatar: Icon(
+              reached ? Icons.check_circle : Icons.radio_button_unchecked,
+              size: 17,
+              color: active ? const Color(0xFF0369A1) : null,
+            ),
+            label: Text(
+              patientMedicalTransportStatusText(widget.locale, milestone),
+              style: TextStyle(fontWeight: active ? FontWeight.w800 : FontWeight.w500),
+            ),
+          );
+        }).toList(growable: false),
       ),
     );
   }
@@ -249,28 +314,28 @@ List<Map<String, dynamic>> _list(dynamic value) {
 
 const Map<String, Map<String, String>> _patientMedicalTransportCopy = {
   'en': {
-    'detailTitle': 'Medical transport details', 'tracking': 'Medical transport status', 'history': 'Status history', 'provider': 'Transport provider',
+    'detailTitle': 'Medical transport details', 'tracking': 'Medical transport status', 'history': 'Status history', 'timeline': 'Trip timeline', 'provider': 'Transport provider', 'tripProgress': 'Trip progress', 'milestoneTrackingOnly': 'Milestone and ETA tracking only — live vehicle GPS is not enabled.', 'routeUpdated': 'Route / ETA updated', 'routeReason': 'Reason',
     'cancellationReason': 'Cancellation reason', 'retry': 'Retry', 'loadFailed': 'This transport request is not available. Refresh and try again.',
     'changeFailed': 'The transport request changed. Refresh before trying again.', 'denied': 'Medical transport details are available only to the Patient app.',
     'status.REQUESTED': 'Requested', 'status.ASSIGNED': 'Assigned', 'status.EN_ROUTE': 'En route', 'status.ARRIVED': 'Arrived',
     'status.TRANSPORTING': 'Transporting', 'status.COMPLETED': 'Completed', 'status.CANCELLED': 'Cancelled',
   },
   'ar': {
-    'detailTitle': 'تفاصيل النقل الطبي', 'tracking': 'حالة النقل الطبي', 'history': 'سجل الحالة', 'provider': 'مقدم خدمة النقل',
+    'detailTitle': 'تفاصيل النقل الطبي', 'tracking': 'حالة النقل الطبي', 'history': 'سجل الحالة', 'timeline': 'الخط الزمني للرحلة', 'provider': 'مقدم خدمة النقل', 'tripProgress': 'تقدم الرحلة', 'milestoneTrackingOnly': 'التتبع يعتمد على المراحل ووقت الوصول المتوقع فقط — التتبع الحي لموقع المركبة غير مفعّل.', 'routeUpdated': 'تم تحديث المسار / وقت الوصول', 'routeReason': 'السبب',
     'cancellationReason': 'سبب الإلغاء', 'retry': 'إعادة المحاولة', 'loadFailed': 'طلب النقل هذا غير متاح. حدّث وحاول مرة أخرى.',
     'changeFailed': 'تغيّرت حالة طلب النقل. حدّث قبل المحاولة مرة أخرى.', 'denied': 'تفاصيل النقل الطبي متاحة فقط في تطبيق المريض.',
     'status.REQUESTED': 'تم الطلب', 'status.ASSIGNED': 'تم التعيين', 'status.EN_ROUTE': 'في الطريق', 'status.ARRIVED': 'وصل',
     'status.TRANSPORTING': 'جارٍ النقل', 'status.COMPLETED': 'مكتمل', 'status.CANCELLED': 'ملغى',
   },
   'fr': {
-    'detailTitle': 'Détails du transport médical', 'tracking': 'Statut du transport médical', 'history': 'Historique du statut', 'provider': 'Prestataire de transport',
+    'detailTitle': 'Détails du transport médical', 'tracking': 'Statut du transport médical', 'history': 'Historique du statut', 'timeline': 'Chronologie du trajet', 'provider': 'Prestataire de transport', 'tripProgress': 'Progression du trajet', 'milestoneTrackingOnly': 'Suivi par étapes et ETA uniquement — le GPS temps réel du véhicule n’est pas activé.', 'routeUpdated': 'Itinéraire / ETA mis à jour', 'routeReason': 'Motif',
     'cancellationReason': 'Motif d’annulation', 'retry': 'Réessayer', 'loadFailed': 'Cette demande de transport n’est pas disponible. Actualisez et réessayez.',
     'changeFailed': 'La demande de transport a changé. Actualisez avant de réessayer.', 'denied': 'Les détails du transport médical sont réservés à l’application Patient.',
     'status.REQUESTED': 'Demandé', 'status.ASSIGNED': 'Attribué', 'status.EN_ROUTE': 'En route', 'status.ARRIVED': 'Arrivé',
     'status.TRANSPORTING': 'Transport en cours', 'status.COMPLETED': 'Terminé', 'status.CANCELLED': 'Annulé',
   },
   'es': {
-    'detailTitle': 'Detalles del transporte médico', 'tracking': 'Estado del transporte médico', 'history': 'Historial de estado', 'provider': 'Proveedor de transporte',
+    'detailTitle': 'Detalles del transporte médico', 'tracking': 'Estado del transporte médico', 'history': 'Historial de estado', 'timeline': 'Cronología del viaje', 'provider': 'Proveedor de transporte', 'tripProgress': 'Progreso del viaje', 'milestoneTrackingOnly': 'Seguimiento por hitos y ETA únicamente — el GPS en vivo del vehículo no está habilitado.', 'routeUpdated': 'Ruta / ETA actualizada', 'routeReason': 'Motivo',
     'cancellationReason': 'Motivo de cancelación', 'retry': 'Reintentar', 'loadFailed': 'Esta solicitud de transporte no está disponible. Actualiza e inténtalo de nuevo.',
     'changeFailed': 'La solicitud de transporte ha cambiado. Actualiza antes de volver a intentarlo.', 'denied': 'Los detalles del transporte médico solo están disponibles en la aplicación del paciente.',
     'status.REQUESTED': 'Solicitado', 'status.ASSIGNED': 'Asignado', 'status.EN_ROUTE': 'En camino', 'status.ARRIVED': 'Ha llegado',
