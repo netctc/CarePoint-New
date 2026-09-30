@@ -32,7 +32,8 @@ Optional Google-backed mode:
 
 ```text
 TRANSPORT_LOCATION_PROVIDER=google
-GOOGLE_MAPS_API_KEY=<configured manually in the deployment platform>
+GOOGLE_MAPS_SERVER_API_KEY=<configured manually in the deployment platform>
+TRANSPORT_LOCATION_REGION_CODE=<optional ISO/CLDR two-letter region>
 ```
 
 These values must be configured manually in Dokploy or the target runtime. They must not be committed to the repository.
@@ -43,6 +44,10 @@ When `TRANSPORT_LOCATION_PROVIDER=google`, the Google Maps Platform project must
 - Places API (New) for text-based place/address search.
 
 The API key should be restricted to the required APIs and to the intended backend environment wherever the deployment platform permits it.
+
+`GOOGLE_MAPS_SERVER_API_KEY` is the preferred variable. `GOOGLE_MAPS_API_KEY` remains accepted temporarily for backward compatibility, but new deployments should use the server-specific name.
+
+`TRANSPORT_LOCATION_REGION_CODE` is optional. When supplied, it is used as a two-letter regional hint for reverse geocoding and place search. No region is hard-coded in source code.
 
 ## Backend endpoints
 
@@ -169,7 +174,7 @@ longitude only                       invalid
 
 ## Map picker
 
-The provider-neutral contract already includes `MAP_PICKER`, but Phase 3 does not yet add a client map SDK.
+The provider-neutral contract includes `MAP_PICKER` and Mobile Core now exposes a `TransportMapPickerProvider` interface, but Phase 3 does not yet add a client map SDK.
 
 This is intentional:
 
@@ -184,7 +189,9 @@ A later map-picker slice should return the same `TransportLocation` structure an
 
 - API keys remain server-side.
 - Provider errors are sanitized before returning to Patient Mobile.
-- Search strings and raw coordinates are not written into application audit metadata by this module.
+- Search strings, addresses and raw coordinates are not written into application audit metadata by this module.
+- Audit events record only provider, operation type, resolution success and result count.
+- Reverse geocoding preserves the original device GPS coordinates and only enriches them with a readable address/place ID; provider-returned coordinates do not replace the captured origin.
 - Requests use a bounded provider timeout.
 - Search results are bounded.
 - Only Patient transport permission can access the endpoints.
@@ -196,7 +203,8 @@ Add manually only when external geocoding/search is required:
 
 ```text
 TRANSPORT_LOCATION_PROVIDER=google
-GOOGLE_MAPS_API_KEY=<secret>
+GOOGLE_MAPS_SERVER_API_KEY=<secret>
+TRANSPORT_LOCATION_REGION_CODE=<optional two-letter region>
 ```
 
 For environments that should remain offline/manual:
