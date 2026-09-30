@@ -8,8 +8,8 @@ const [moduleText, worker, packageText, contractText, docs] = await Promise.all(
   read("src/modules/transport/transport-report-execution.module.ts"),
   read("src/scripts/run-transport-report-scheduler.ts"),
   read("package.json"),
-  read("../../../ops/release-1/gcp-transport-report-worker-contract.json"),
-  read("../../../docs/transport-report-worker-phase15.md"),
+  read("../../ops/release-1/gcp-transport-report-worker-contract.json"),
+  read("../../docs/transport-report-worker-phase15.md"),
 ]);
 
 const pkg = JSON.parse(packageText);
