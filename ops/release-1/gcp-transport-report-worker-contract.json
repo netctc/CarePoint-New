@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "productionAcceptance": false,
+  "workload": "transport-management-report-worker",
+  "provider": "gcp",
+  "jurisdiction": "SA",
+  "region": "me-central2",
+  "runtime": {
+    "type": "cloud-run-job",
+    "image": "same-release-candidate-as-api",
+    "command": [
+      "node",
+      "dist/scripts/run-transport-report-scheduler.js"
+    ],
+    "maxParallelExecutions": 1,
+    "batchLimit": 25,
+    "applicationContextOnly": true,
+    "httpServerStarted": false
+  },
+  "scheduler": {
+    "type": "cloud-scheduler",
+    "region": "me-central2",
+    "invocationAuth": "oidc-service-account",
+    "publicUnauthenticatedInvocationAllowed": false,
+    "staticServiceAccountKeysAllowed": false,
+    "staticAccessTokensAllowed": false
+  },
+  "durability": {
+    "ledger": "TransportManagementReportRun",
+    "idempotencyKey": [
+      "scheduleId",
+      "scheduledFor"
+    ],
+    "executionLeaseMinutes": 5,
+    "maxAttempts": 5,
+    "staleLeaseRecovery": true,
+    "boundedBatch": true
+  },
+  "data": {
+    "patientIdentityPersisted": false,
+    "patientLocationPersisted": false,
+    "fullReportRowsPersisted": false,
+    "sanitizedSnapshotPersisted": true,
+    "snapshotIntegrity": "sha256"
+  },
+  "delivery": {
+    "automaticDeliveryAvailable": false,
+    "reportDeliveryPerformed": false
+  },
+  "acceptance": {
+    "liveDeploymentEvidenceRequired": true,
+    "schedulerInvocationEvidenceRequired": true,
+    "workerLeaseIdempotencyEvidenceRequired": true,
+    "failureRecoveryEvidenceRequired": true
+  }
+}
