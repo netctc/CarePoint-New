@@ -99,6 +99,7 @@ assert.match(moduleSource, /private departureSla/);
 assert.match(moduleSource, /minutes <= threshold \? "COMPLIANT" : "BREACHED"/);
 assert.match(moduleSource, /minutes > threshold \? "BREACHED" : "PENDING"/);
 assert.match(moduleSource, /"NOT_APPLICABLE"/);
+assert.match(moduleSource, /applicableCount === 0[\s\S]*"NOT_APPLICABLE"/);
 assert.match(moduleSource, /breachCount > 0[\s\S]*"BREACHED"/);
 assert.match(moduleSource, /pendingCount > 0[\s\S]*"PENDING"/);
 assert.match(moduleSource, /this\.matchesSla\(row\.sla\.overall, options\.sla\)/);
@@ -112,6 +113,7 @@ for (const column of [
   "providerName",
   "requestedAt",
   "scheduledFor",
+  "overallSlaState",
   "assignmentSlaState",
   "resourceReadinessSlaState",
   "departureSlaState",
