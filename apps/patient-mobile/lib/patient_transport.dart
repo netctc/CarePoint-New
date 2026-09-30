@@ -37,11 +37,17 @@ Future<void> openEmergencyAmbulanceFlow(
   final messenger = ScaffoldMessenger.of(context);
   try {
     messenger.showSnackBar(SnackBar(content: Text(transportText(locale, 'locating'))));
-    final location = await _currentTransportLocation(locale);
+    final capturedLocation = await _currentTransportLocation(locale);
+    final location = await _resolveTransportLocation(
+      session,
+      locale,
+      capturedLocation,
+    );
     final response = await session.api.requestEmergencyAmbulance(
       clientRequestId: 'mobile-emergency-${DateTime.now().microsecondsSinceEpoch}',
       latitude: location.latitude,
       longitude: location.longitude,
+      pickupAddress: location.address,
     );
     if (!context.mounted) return;
     messenger.hideCurrentSnackBar();
@@ -68,6 +74,29 @@ Future<TransportLocation> _currentTransportLocation(CarePointLocale locale) asyn
     return await _deviceLocationProvider.currentLocation();
   } on TransportLocationUnavailableException {
     throw CarePointApiException(transportText(locale, 'locationDenied'));
+  }
+}
+
+Future<TransportLocation> _resolveTransportLocation(
+  CarePointSession session,
+  CarePointLocale locale,
+  TransportLocation location,
+) async {
+  if (!location.hasCoordinates) return location;
+  try {
+    final payload = await session.api.reverseGeocodeTransportLocation(
+      latitude: location.latitude!,
+      longitude: location.longitude!,
+      languageCode: locale.name,
+    );
+    final raw = _map(payload['location']);
+    final resolved = TransportLocation.fromJson(
+      raw,
+      fallbackSource: location.source,
+    );
+    return resolved.isValid ? resolved : location;
+  } catch (_) {
+    return location;
   }
 }
 
@@ -198,7 +227,10 @@ class _PatientMedicalTransportPageState extends State<PatientMedicalTransportPag
   Future<void> _create() async {
     final result = await showDialog<_TransportDraft>(
       context: context,
-      builder: (_) => Directionality(textDirection: widget.locale.textDirection, child: _TransportDialog(locale: widget.locale)),
+      builder: (_) => Directionality(
+        textDirection: widget.locale.textDirection,
+        child: _TransportDialog(session: widget.session, locale: widget.locale),
+      ),
     );
     if (result == null || !mounted) return;
     try {
@@ -262,7 +294,8 @@ class _TransportDraft {
 }
 
 class _TransportDialog extends StatefulWidget {
-  const _TransportDialog({required this.locale});
+  const _TransportDialog({required this.session, required this.locale});
+  final CarePointSession session;
   final CarePointLocale locale;
 
   @override
@@ -351,15 +384,24 @@ class _TransportDialogState extends State<_TransportDialog> {
               const SizedBox(height: 10),
               TextField(controller: pickupAddress, decoration: InputDecoration(labelText: '${transportText(widget.locale, 'pickup')} · ${transportText(widget.locale, 'address')}')),
               const SizedBox(height: 8),
-              Align(
-                alignment: AlignmentDirectional.centerStart,
-                child: OutlinedButton.icon(
-                  onPressed: locatingPickup ? null : _useCurrentPickupLocation,
-                  icon: locatingPickup
-                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Icon(Icons.my_location_outlined),
-                  label: Text(transportText(widget.locale, 'useCurrentLocation')),
-                ),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                alignment: WrapAlignment.start,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: locatingPickup ? null : _useCurrentPickupLocation,
+                    icon: locatingPickup
+                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.my_location_outlined),
+                    label: Text(transportText(widget.locale, 'useCurrentLocation')),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () => _searchLocation(pickup: true),
+                    icon: const Icon(Icons.search_outlined),
+                    label: Text(transportText(widget.locale, 'searchLocation')),
+                  ),
+                ],
               ),
               const SizedBox(height: 10),
               TextField(controller: pickupLatitude, keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true), decoration: InputDecoration(labelText: '${transportText(widget.locale, 'pickup')} · ${transportText(widget.locale, 'latitude')}')),
@@ -367,6 +409,15 @@ class _TransportDialogState extends State<_TransportDialog> {
               TextField(controller: pickupLongitude, keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true), decoration: InputDecoration(labelText: '${transportText(widget.locale, 'pickup')} · ${transportText(widget.locale, 'longitude')}')),
               const SizedBox(height: 10),
               TextField(controller: destinationAddress, decoration: InputDecoration(labelText: '${transportText(widget.locale, 'destination')} · ${transportText(widget.locale, 'address')}')),
+              const SizedBox(height: 8),
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: OutlinedButton.icon(
+                  onPressed: () => _searchLocation(pickup: false),
+                  icon: const Icon(Icons.search_outlined),
+                  label: Text(transportText(widget.locale, 'searchLocation')),
+                ),
+              ),
               const SizedBox(height: 10),
               TextField(controller: destinationLatitude, keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true), decoration: InputDecoration(labelText: '${transportText(widget.locale, 'destination')} · ${transportText(widget.locale, 'latitude')}')),
               const SizedBox(height: 10),
@@ -401,14 +452,26 @@ class _TransportDialogState extends State<_TransportDialog> {
   Future<void> _useCurrentPickupLocation() async {
     setState(() => locatingPickup = true);
     try {
-      final location = await _currentTransportLocation(widget.locale);
+      final captured = await _currentTransportLocation(widget.locale);
+      final location = await _resolveTransportLocation(
+        widget.session,
+        widget.locale,
+        captured,
+      );
       if (!mounted) return;
       setState(() {
         pickupLatitude.text = location.latitude?.toStringAsFixed(6) ?? '';
         pickupLongitude.text = location.longitude?.toStringAsFixed(6) ?? '';
+        if (location.hasAddress) pickupAddress.text = location.address!.trim();
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(transportText(widget.locale, 'locationCaptured'))),
+        SnackBar(
+          content: Text(
+            location.hasAddress
+                ? transportText(widget.locale, 'addressResolved')
+                : transportText(widget.locale, 'locationCaptured'),
+          ),
+        ),
       );
     } catch (value) {
       if (mounted) {
@@ -419,6 +482,40 @@ class _TransportDialogState extends State<_TransportDialog> {
     } finally {
       if (mounted) setState(() => locatingPickup = false);
     }
+  }
+
+  Future<void> _searchLocation({required bool pickup}) async {
+    final biasLatitude = _optionalCoordinate(pickupLatitude.text, -90, 90);
+    final biasLongitude = _optionalCoordinate(pickupLongitude.text, -180, 180);
+    final initialQuery = (pickup ? pickupAddress.text : destinationAddress.text).trim();
+
+    final location = await showDialog<TransportLocation>(
+      context: context,
+      builder: (_) => Directionality(
+        textDirection: widget.locale.textDirection,
+        child: _TransportLocationSearchDialog(
+          session: widget.session,
+          locale: widget.locale,
+          title: transportText(
+            widget.locale,
+            pickup ? 'searchPickup' : 'searchDestination',
+          ),
+          initialQuery: initialQuery,
+          biasLatitude: biasLatitude,
+          biasLongitude: biasLongitude,
+        ),
+      ),
+    );
+    if (location == null || !mounted) return;
+
+    setState(() {
+      final addressController = pickup ? pickupAddress : destinationAddress;
+      final latitudeController = pickup ? pickupLatitude : destinationLatitude;
+      final longitudeController = pickup ? pickupLongitude : destinationLongitude;
+      if (location.hasAddress) addressController.text = location.address!.trim();
+      latitudeController.text = location.latitude?.toStringAsFixed(6) ?? '';
+      longitudeController.text = location.longitude?.toStringAsFixed(6) ?? '';
+    });
   }
 
   Future<void> _pickDateTime() async {
@@ -463,6 +560,171 @@ class _TransportDialogState extends State<_TransportDialog> {
       destinationAddress: destinationAddressValue.isEmpty ? null : destinationAddressValue,
     ));
   }
+}
+
+class _TransportLocationSearchDialog extends StatefulWidget {
+  const _TransportLocationSearchDialog({
+    required this.session,
+    required this.locale,
+    required this.title,
+    required this.initialQuery,
+    this.biasLatitude,
+    this.biasLongitude,
+  });
+
+  final CarePointSession session;
+  final CarePointLocale locale;
+  final String title;
+  final String initialQuery;
+  final double? biasLatitude;
+  final double? biasLongitude;
+
+  @override
+  State<_TransportLocationSearchDialog> createState() =>
+      _TransportLocationSearchDialogState();
+}
+
+class _TransportLocationSearchDialogState
+    extends State<_TransportLocationSearchDialog> {
+  late final TextEditingController query;
+  bool busy = false;
+  String? message;
+  List<TransportLocationCandidate> items = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    query = TextEditingController(text: widget.initialQuery);
+  }
+
+  @override
+  void dispose() {
+    query.dispose();
+    super.dispose();
+  }
+
+  Future<void> search() async {
+    final value = query.text.trim();
+    if (value.length < 2) {
+      setState(() {
+        items = const [];
+        message = transportText(widget.locale, 'locationSearchHint');
+      });
+      return;
+    }
+
+    setState(() {
+      busy = true;
+      message = null;
+      items = const [];
+    });
+    try {
+      final payload = await widget.session.api.searchTransportLocations(
+        query: value,
+        languageCode: widget.locale.name,
+        biasLatitude: widget.biasLatitude,
+        biasLongitude: widget.biasLongitude,
+      );
+      final rawItems = payload['items'];
+      final next = rawItems is List
+          ? rawItems
+              .map((raw) => _map(raw))
+              .map(TransportLocationCandidate.fromJson)
+              .where((candidate) => candidate.location.isValid)
+              .toList(growable: false)
+          : const <TransportLocationCandidate>[];
+
+      if (!mounted) return;
+      setState(() {
+        items = next;
+        if (payload['placeSearchAvailable'] != true) {
+          message = transportText(widget.locale, 'manualLocationMode');
+        } else if (next.isEmpty) {
+          message = transportText(widget.locale, 'noLocationMatches');
+        }
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        items = const [];
+        message = transportText(widget.locale, 'locationServiceUnavailable');
+      });
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+        title: Text(widget.title),
+        content: SizedBox(
+          width: 520,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: query,
+                autofocus: true,
+                textInputAction: TextInputAction.search,
+                onSubmitted: (_) => search(),
+                decoration: InputDecoration(
+                  labelText: transportText(widget.locale, 'searchLocation'),
+                  hintText: transportText(widget.locale, 'locationSearchHint'),
+                  suffixIcon: IconButton(
+                    onPressed: busy ? null : search,
+                    icon: busy
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.search_outlined),
+                  ),
+                ),
+              ),
+              if (message != null) ...[
+                const SizedBox(height: 12),
+                Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: Text(message!),
+                ),
+              ],
+              if (items.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 320),
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: items.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (_, index) {
+                      final candidate = items[index];
+                      final location = candidate.location;
+                      return ListTile(
+                        leading: const Icon(Icons.place_outlined),
+                        title: Text(candidate.label),
+                        subtitle: Text([
+                          if (location.address?.trim().isNotEmpty == true)
+                            location.address!.trim(),
+                          if (location.hasCoordinates)
+                            '${location.latitude!.toStringAsFixed(6)}, ${location.longitude!.toStringAsFixed(6)}',
+                        ].join('\n')),
+                        onTap: () => Navigator.pop(context, location),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(cpText(widget.locale, 'common.cancel')),
+          ),
+        ],
+      );
 }
 
 String _locationText(Map<String, dynamic> row, {required bool pickup}) {
