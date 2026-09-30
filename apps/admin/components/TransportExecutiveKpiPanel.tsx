@@ -609,8 +609,8 @@ function ExecutiveMetric({
 }: {
   label: string;
   value: string | number;
-  delta?: number | null;
-  unit?: string;
+  delta?: number | null | undefined;
+  unit?: string | undefined;
 }) {
   return (
     <div style={{ border: "1px solid #e2e8f0", borderRadius: 12, padding: 12 }}>
