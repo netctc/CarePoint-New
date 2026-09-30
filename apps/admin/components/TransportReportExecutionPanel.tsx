@@ -134,6 +134,69 @@ export function TransportReportExecutionPanel() {
     }
   }
 
+  async function secureDownload(run: Run) {
+    setBusy("download-" + run.id);
+    setMessage("");
+    try {
+      const grant = await request(
+        "/api/admin/transport/report-runs/" +
+          encodeURIComponent(run.id) +
+          "/download-grant",
+        { method: "POST", body: JSON.stringify({}) },
+      );
+      if (typeof grant?.grantToken !== "string") {
+        throw new Error("Secure download grant was not issued.");
+      }
+
+      const response = await fetch(
+        "/api/admin/transport/report-runs/" +
+          encodeURIComponent(run.id) +
+          "/download",
+        {
+          method: "POST",
+          cache: "no-store",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ grantToken: grant.grantToken }),
+        },
+      );
+      if (response.status === 401) {
+        window.location.assign(
+          "/login?next=" + encodeURIComponent(window.location.pathname),
+        );
+        throw new Error("Authentication required.");
+      }
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(
+          typeof body?.message === "string"
+            ? body.message
+            : "Secure report download failed.",
+        );
+      }
+
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      try {
+        const anchor = document.createElement("a");
+        anchor.href = objectUrl;
+        anchor.download =
+          run.reportFilename || "carepoint-transport-management-report.csv";
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+      } finally {
+        URL.revokeObjectURL(objectUrl);
+      }
+      setMessage(
+        "Secure one-time download completed. No public or signed artifact URL was issued.",
+      );
+    } catch (error) {
+      setMessage(String(error));
+    } finally {
+      setBusy("");
+    }
+  }
+
   return (
     <section style={{ ...card, marginTop: 24, border: "2px solid #0f766e" }}>
       <div
@@ -147,14 +210,14 @@ export function TransportReportExecutionPanel() {
       >
         <div>
           <span style={{ fontSize: 12, fontWeight: 900, color: "#0f766e" }}>
-            PHASE 16 · SECURE REPORT ARTIFACT + DELIVERY HANDOFF
+            PHASE 19 · ONE-TIME SECURE ADMIN DOWNLOAD
           </span>
           <h2 style={{ margin: "5px 0" }}>Scheduled Report Execution</h2>
           <p style={{ maxWidth: 960, marginBottom: 0 }}>
-            Durable report runs now persist a sanitized CSV artifact in private
-            object storage. Delivery remains external: this panel can prepare an
-            auditable handoff descriptor but does not create public links or claim
-            that delivery occurred.
+            Successful report artifacts remain private. An authenticated ADMIN can
+            request a five-minute one-time download grant and retrieve the CSV by
+            same-origin POST after server-side SHA-256 integrity verification.
+            No public or signed artifact URL is created.
           </p>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -287,23 +350,32 @@ export function TransportReportExecutionPanel() {
                     >
                       Requeue
                     </button>
-                  ) : run.status === "SUCCEEDED" &&
-                    run.artifactSha256 &&
-                    !run.deliveryHandoffPreparedAt ? (
-                    <button
-                      className="secondary-button"
-                      disabled={Boolean(busy)}
-                      onClick={() =>
-                        void action(
-                          "handoff-" + run.id,
-                          "/api/admin/transport/report-runs/" +
-                            encodeURIComponent(run.id) +
-                            "/prepare-delivery-handoff",
-                        )
-                      }
-                    >
-                      Prepare handoff
-                    </button>
+                  ) : run.status === "SUCCEEDED" && run.artifactSha256 ? (
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      {!run.deliveryHandoffPreparedAt ? (
+                        <button
+                          className="secondary-button"
+                          disabled={Boolean(busy)}
+                          onClick={() =>
+                            void action(
+                              "handoff-" + run.id,
+                              "/api/admin/transport/report-runs/" +
+                                encodeURIComponent(run.id) +
+                                "/prepare-delivery-handoff",
+                            )
+                          }
+                        >
+                          Prepare handoff
+                        </button>
+                      ) : null}
+                      <button
+                        className="secondary-button"
+                        disabled={Boolean(busy)}
+                        onClick={() => void secureDownload(run)}
+                      >
+                        Secure download
+                      </button>
+                    </div>
                   ) : run.reportFilename ? (
                     <span style={{ fontSize: 12 }}>{run.reportFilename}</span>
                   ) : (
@@ -314,7 +386,7 @@ export function TransportReportExecutionPanel() {
             ))}
             {!runs.length ? (
               <tr>
-                <td colSpan={7} style={{ padding: 16 }}>
+                <td colSpan={8} style={{ padding: 16 }}>
                   {busy === "load" ? "Loading report runs…" : "No report runs match this filter."}
                 </td>
               </tr>
