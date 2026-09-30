@@ -303,7 +303,14 @@ class _ProviderTransportWorkspaceState extends State<ProviderTransportWorkspace>
             FilledButton(onPressed: () {
               final lat = double.tryParse(latitude.text.trim());
               final lon = double.tryParse(longitude.text.trim());
-              if (lat == null || lat < -90 || lat > 90 || lon == null || lon < -180 || lon > 180) {
+              final latitudeText = latitude.text.trim();
+              final longitudeText = longitude.text.trim();
+              final addressText = address.text.trim();
+              final hasLatitude = latitudeText.isNotEmpty;
+              final hasLongitude = longitudeText.isNotEmpty;
+              final invalidPair = hasLatitude != hasLongitude ||
+                  (hasLatitude && (lat == null || lat < -90 || lat > 90 || lon == null || lon < -180 || lon > 180));
+              if (invalidPair || (!hasLatitude && addressText.isEmpty)) {
                 setLocal(() => validation = transportText(widget.locale, 'invalidDestination'));
                 return;
               }
@@ -318,7 +325,7 @@ class _ProviderTransportWorkspaceState extends State<ProviderTransportWorkspace>
     final lon = double.tryParse(longitude.text.trim());
     final addressValue = address.text.trim();
     latitude.dispose(); longitude.dispose(); address.dispose();
-    if (accepted != true || lat == null || lon == null) return;
+    if (accepted != true) return;
 
     await _run(() => api.changeProviderTransportDestination(
       requestId,
