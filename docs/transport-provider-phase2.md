@@ -125,6 +125,22 @@ Crew members are managed under a Transport Company and support:
 
 A linked Provider must already belong to the company. This preserves compatibility with the current CrewAssignment model, which records provider IDs.
 
+## Provider company context
+
+The dedicated Transport Provider application now resolves its active Transport Company context after access validation.
+
+When a company exists, the workspace shows the company name/code and uses company-scoped fleet and crew options for resource assignment.
+
+When no company exists yet, the provider remains operational in `LEGACY_PROVIDER_SCOPE`. This allows existing providers to migrate gradually without breaking current jobs.
+
+Company-scoped CrewAssignment rules:
+
+- fleet options are limited to units listed by the active Transport Company;
+- crew options are limited to active company crew with a linked Provider identity;
+- license-required roles must have a license number and a non-expired license;
+- existing Provider credential validity and transport-family compatibility checks still apply;
+- providers not yet assigned to a company retain the legacy compatibility behavior.
+
 ## Dispatch Board
 
 Admin now has a single operational board containing:
@@ -143,7 +159,6 @@ For unassigned jobs, Admin can select a compatible dispatch-ready provider and a
 
 Remaining work should be split into small reviewable slices:
 
-1. Crew-to-job selection using TransportCrewMember readiness and existing CrewAssignment revisions.
-2. Transport Provider mobile company/crew context.
-3. GPS + place search + geocoding abstraction.
-4. Transport-specific analytics and operational audit views.
+1. GPS + place search + geocoding abstraction.
+2. Transport-specific analytics and operational audit views.
+3. Company-aware emergency crew/resource assignment parity with scheduled transport.
