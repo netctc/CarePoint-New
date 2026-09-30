@@ -82,7 +82,6 @@ assert.ok(
 );
 
 for (const text of [
-  "PHASE 26 · COMPLIANCE EVIDENCE + GOVERNANCE MANIFEST",
   "async function exportComplianceManifest",
   '"/compliance-manifest"',
   "Export compliance manifest",
