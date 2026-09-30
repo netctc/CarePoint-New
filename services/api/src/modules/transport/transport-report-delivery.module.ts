@@ -15,6 +15,10 @@ import {
   CurrentPrincipal,
   RequirePermissions,
 } from "../../security/api-security.module";
+import {
+  CommunicationsModule,
+} from "../communications/communications.module";
+import { NotificationGatewayService } from "../communications/notification-gateway.service";
 
 type DestinationInput = {
   scheduleId?: unknown;
@@ -253,6 +257,175 @@ export class TransportReportDeliveryOutboxService {
     };
   }
 
+  async recoverable(limit: number) {
+    const now = new Date();
+    return this.prisma.transportManagementReportDelivery.findMany({
+      where: {
+        status: "PENDING",
+        availableAt: { lte: now },
+        OR: [{ leaseUntil: null }, { leaseUntil: { lt: now } }],
+      },
+      select: { id: true },
+      orderBy: [{ availableAt: "asc" }, { createdAt: "asc" }],
+      take: Math.max(1, Math.min(limit, 100)),
+    });
+  }
+
+  async claim(deliveryId: string, owner: string, leaseSeconds: number) {
+    const now = new Date();
+    const leaseUntil = new Date(now.getTime() + leaseSeconds * 1000);
+    const claimed = await this.prisma.transportManagementReportDelivery.updateMany({
+      where: {
+        id: deliveryId,
+        status: "PENDING",
+        availableAt: { lte: now },
+        OR: [
+          { leaseUntil: null },
+          { leaseUntil: { lt: now } },
+          { leaseOwner: owner },
+        ],
+      },
+      data: {
+        leaseOwner: owner,
+        leaseUntil,
+        attemptCount: { increment: 1 },
+      },
+    });
+    if (claimed.count !== 1) return null;
+    return this.prisma.transportManagementReportDelivery.findUnique({
+      where: { id: deliveryId },
+      include: {
+        destination: true,
+        run: {
+          select: {
+            id: true,
+            scheduleId: true,
+            reportFilename: true,
+          },
+        },
+      },
+    });
+  }
+
+  async routingContext(item: {
+    destination: {
+      active: boolean;
+      recipientAccountId: string;
+      channel: string;
+    };
+  }) {
+    if (!item.destination.active || item.destination.channel !== "EMAIL") {
+      return { enabled: false, destinationRef: null as string | null };
+    }
+    const recipient = await this.prisma.user.findUnique({
+      where: { id: item.destination.recipientAccountId },
+      select: { email: true, role: true, status: true },
+    });
+    if (!recipient || recipient.role !== "ADMIN" || recipient.status !== "ACTIVE") {
+      return { enabled: false, destinationRef: null as string | null };
+    }
+    return {
+      enabled: true,
+      destinationRef: recipient.email,
+    };
+  }
+
+  async markSent(
+    deliveryId: string,
+    owner: string,
+    runId: string,
+    providerRef: string,
+  ) {
+    const now = new Date();
+    const updated = await this.prisma.transportManagementReportDelivery.updateMany({
+      where: { id: deliveryId, leaseOwner: owner, status: "PENDING" },
+      data: {
+        status: "SENT",
+        attemptedAt: now,
+        sentAt: now,
+        providerRef: providerRef.slice(0, 300),
+        lastErrorCode: null,
+        leaseOwner: null,
+        leaseUntil: null,
+      },
+    });
+    if (updated.count === 1) await this.syncRunDeliveryStatus(runId);
+    return updated.count === 1;
+  }
+
+  async markSkipped(deliveryId: string, owner: string, runId: string) {
+    const updated = await this.prisma.transportManagementReportDelivery.updateMany({
+      where: { id: deliveryId, leaseOwner: owner, status: "PENDING" },
+      data: {
+        status: "SKIPPED",
+        attemptedAt: new Date(),
+        lastErrorCode: null,
+        leaseOwner: null,
+        leaseUntil: null,
+      },
+    });
+    if (updated.count === 1) await this.syncRunDeliveryStatus(runId);
+    return updated.count === 1;
+  }
+
+  async requeue(
+    deliveryId: string,
+    owner: string,
+    availableAt: Date,
+    errorCode: string,
+  ) {
+    const updated = await this.prisma.transportManagementReportDelivery.updateMany({
+      where: { id: deliveryId, leaseOwner: owner, status: "PENDING" },
+      data: {
+        attemptedAt: new Date(),
+        availableAt,
+        lastErrorCode: errorCode.slice(0, 120),
+        leaseOwner: null,
+        leaseUntil: null,
+      },
+    });
+    return updated.count === 1;
+  }
+
+  async markFailed(
+    deliveryId: string,
+    owner: string,
+    runId: string,
+    errorCode: string,
+  ) {
+    const updated = await this.prisma.transportManagementReportDelivery.updateMany({
+      where: { id: deliveryId, leaseOwner: owner, status: "PENDING" },
+      data: {
+        status: "FAILED",
+        attemptedAt: new Date(),
+        failedAt: new Date(),
+        lastErrorCode: errorCode.slice(0, 120),
+        leaseOwner: null,
+        leaseUntil: null,
+      },
+    });
+    if (updated.count === 1) await this.syncRunDeliveryStatus(runId);
+    return updated.count === 1;
+  }
+
+  private async syncRunDeliveryStatus(runId: string) {
+    const rows = await this.prisma.transportManagementReportDelivery.findMany({
+      where: { runId },
+      select: { status: true },
+      take: 200,
+    });
+    if (!rows.length || rows.some((row) => row.status === "PENDING")) return;
+    const failed = rows.some((row) => row.status === "FAILED");
+    await this.prisma.transportManagementReportRun.update({
+      where: { id: runId },
+      data: {
+        deliveryStatus: failed
+          ? "DELIVERY_ATTENTION_REQUIRED"
+          : "DELIVERY_NOTIFICATION_COMPLETE",
+      },
+    });
+  }
+
   private channel(raw: unknown): "EMAIL" {
     if (raw == null || raw === "" || raw === "EMAIL") return "EMAIL";
     if (typeof raw === "string" && raw.trim().toUpperCase() === "EMAIL") {
@@ -283,6 +456,138 @@ export class TransportReportDeliveryOutboxService {
       );
     }
     return value;
+  }
+}
+
+
+@Injectable()
+export class TransportReportDeliveryWorkerService {
+  private static readonly LEASE_SECONDS = 60;
+  private static readonly MAX_ATTEMPTS = 5;
+  private static readonly RETRY_BASE_SECONDS = 5;
+  private static readonly MAX_RETRY_SECONDS = 15 * 60;
+
+  constructor(
+    private readonly outbox: TransportReportDeliveryOutboxService,
+    private readonly gateway: NotificationGatewayService,
+    private readonly audit: DatabaseAuditService,
+  ) {}
+
+  async runOnce(limit = 25) {
+    const boundedLimit = Math.max(1, Math.min(limit, 100));
+    const owner =
+      "transport-report-delivery-" +
+      process.pid +
+      "-" +
+      Date.now().toString(36);
+    const result = {
+      claimed: 0,
+      sent: 0,
+      skipped: 0,
+      requeued: 0,
+      failed: 0,
+      artifactDeliveryPerformed: false,
+    };
+
+    const candidates = await this.outbox.recoverable(boundedLimit);
+    for (const candidate of candidates) {
+      const item = await this.outbox.claim(
+        candidate.id,
+        owner,
+        TransportReportDeliveryWorkerService.LEASE_SECONDS,
+      );
+      if (!item) continue;
+      result.claimed += 1;
+
+      try {
+        const routing = await this.outbox.routingContext(item);
+        if (!routing.enabled || !routing.destinationRef) {
+          if (await this.outbox.markSkipped(item.id, owner, item.runId)) {
+            result.skipped += 1;
+          }
+          continue;
+        }
+
+        const sent = await this.gateway.send({
+          notificationId: item.id,
+          channel: "EMAIL",
+          destinationRef: routing.destinationRef,
+          locale: "en",
+          safeTitleKey: "transport.report.ready.title",
+          safeBodyKey: "transport.report.ready.body",
+          entityType: "TRANSPORT_REPORT_RUN",
+          entityId: item.runId,
+        });
+        if (
+          await this.outbox.markSent(
+            item.id,
+            owner,
+            item.runId,
+            sent.reference,
+          )
+        ) {
+          result.sent += 1;
+        }
+      } catch (error) {
+        const errorCode = this.safeErrorCode(error);
+        if (
+          item.attemptCount >=
+          TransportReportDeliveryWorkerService.MAX_ATTEMPTS
+        ) {
+          if (
+            await this.outbox.markFailed(
+              item.id,
+              owner,
+              item.runId,
+              errorCode,
+            )
+          ) {
+            result.failed += 1;
+            await this.audit.write({
+              actorId: "transport-report-delivery-worker",
+              action: "TRANSPORT_REPORT_DELIVERY_NOTIFICATION_EXHAUSTED",
+              objectType: "TRANSPORT_REPORT_DELIVERY",
+              objectId: item.id,
+              purpose: "TRANSPORT_OPERATIONS",
+              result: "FAILED",
+              metadata: {
+                attemptCount: item.attemptCount,
+                errorCode,
+                artifactDeliveryPerformed: false,
+              },
+            }).catch(() => undefined);
+          }
+          continue;
+        }
+
+        const delaySeconds = Math.min(
+          TransportReportDeliveryWorkerService.MAX_RETRY_SECONDS,
+          TransportReportDeliveryWorkerService.RETRY_BASE_SECONDS *
+            2 ** Math.max(0, item.attemptCount - 1),
+        );
+        if (
+          await this.outbox.requeue(
+            item.id,
+            owner,
+            new Date(Date.now() + delaySeconds * 1000),
+            errorCode,
+          )
+        ) {
+          result.requeued += 1;
+        }
+      }
+    }
+
+    return result;
+  }
+
+  private safeErrorCode(error: unknown) {
+    const name =
+      error instanceof Error ? error.constructor.name : "DeliveryError";
+    return (
+      name.replace(/[^A-Za-z0-9_.-]/g, "").slice(0, 80) ||
+      "DeliveryError"
+    );
   }
 }
 
@@ -319,8 +624,15 @@ class TransportReportDeliveryController {
 }
 
 @Module({
+  imports: [CommunicationsModule],
   controllers: [TransportReportDeliveryController],
-  providers: [TransportReportDeliveryOutboxService],
-  exports: [TransportReportDeliveryOutboxService],
+  providers: [
+    TransportReportDeliveryOutboxService,
+    TransportReportDeliveryWorkerService,
+  ],
+  exports: [
+    TransportReportDeliveryOutboxService,
+    TransportReportDeliveryWorkerService,
+  ],
 })
 export class TransportReportDeliveryModule {}
