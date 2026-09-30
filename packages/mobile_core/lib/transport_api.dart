@@ -40,6 +40,21 @@ extension CarePointTransportApi on CarePointApi {
         if (etaMinutes != null) 'etaMinutes': etaMinutes,
       }));
 
+  Future<Map<String, dynamic>> providerEmergencyAmbulanceResources(String requestId) async =>
+      _asMap(await _send('GET', '/provider/emergency/ambulance/$requestId/resources'));
+
+  Future<Map<String, dynamic>> updateProviderEmergencyAmbulanceResources(
+    String requestId, {
+    required String transportUnitId,
+    required List<String> crewProviderIds,
+    required String idempotencyKey,
+  }) async =>
+      _asMap(await _send('PATCH', '/provider/emergency/ambulance/$requestId/resources', body: {
+        'transportUnitId': transportUnitId,
+        'crewProviderIds': crewProviderIds,
+        'idempotencyKey': idempotencyKey,
+      }));
+
   Future<Map<String, dynamic>> createMedicalTransport({
     required String clientRequestId,
     required String mode,
