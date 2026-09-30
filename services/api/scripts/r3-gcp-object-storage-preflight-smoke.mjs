@@ -76,7 +76,11 @@ function inspectionFor(domain, overrides = {}) {
       return inspectionFor(domain);
     },
   });
-  assert.equal(calls, 3);
+  assert.equal(
+    calls,
+    2,
+    "preflight should inspect each unique bucket once while validating all configured domains",
+  );
 }
 
 async function rejectsPreflight(pattern, mutate) {
