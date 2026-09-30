@@ -102,6 +102,12 @@ abstract interface class TransportGeocodingProvider {
   Future<List<TransportLocationCandidate>> search(String query);
 }
 
+abstract interface class TransportMapPickerProvider {
+  Future<TransportLocation?> pick({
+    TransportLocation? initialLocation,
+  });
+}
+
 class TransportLocationUnavailableException implements Exception {
   const TransportLocationUnavailableException(this.code);
 
