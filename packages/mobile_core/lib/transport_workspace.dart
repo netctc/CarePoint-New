@@ -146,6 +146,7 @@ class _ProviderTransportWorkspaceState extends State<ProviderTransportWorkspace>
     final next = _nextStatus(status);
     final requestId = request['id']?.toString() ?? '';
     final incidentEnabled = const {'ASSIGNED', 'EN_ROUTE', 'ARRIVED', 'TRANSPORTING'}.contains(status);
+    final etaRecalculationEnabled = !emergency && request['mode']?.toString() == 'GROUND' && incidentEnabled;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(14),
@@ -158,6 +159,15 @@ class _ProviderTransportWorkspaceState extends State<ProviderTransportWorkspace>
             label: Text(transportText(widget.locale, 'crewUnit')),
           ),
           if (!emergency) ...[
+            if (etaRecalculationEnabled) ...[
+              OutlinedButton.icon(
+                key: ValueKey('transport-recalculate-eta-$requestId'),
+                onPressed: requestId.isEmpty ? null : () => _recalculateEta(requestId),
+                icon: const Icon(Icons.route_outlined),
+                label: Text(transportText(widget.locale, 'recalculateEta')),
+              ),
+              const SizedBox(height: 10),
+            ],
             if (incidentEnabled) ...[
               const SizedBox(height: 10),
               OutlinedButton.icon(
@@ -349,6 +359,14 @@ class _ProviderTransportWorkspaceState extends State<ProviderTransportWorkspace>
       destinationAddress: addressValue,
       reasonCode: reasonCode,
       idempotencyKey: 'transport-destination-$requestId-${DateTime.now().microsecondsSinceEpoch}',
+    ));
+  }
+
+  Future<void> _recalculateEta(String requestId) async {
+    if (requestId.isEmpty) return;
+    await _run(() => api.recalculateProviderMedicalTransportEta(
+      requestId,
+      idempotencyKey: 'provider-eta-$requestId-${DateTime.now().microsecondsSinceEpoch}',
     ));
   }
 
