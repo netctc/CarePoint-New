@@ -98,6 +98,8 @@ enum EmergencyAmbulanceStatus {
 model User {
   id                  String               @id @default(uuid())
   email               String               @unique
+  username            String?              @unique
+  registrationReference String?
   passwordHash        String
   role                UserRole
   status              AccountStatus        @default(ACTIVE)
@@ -111,6 +113,27 @@ model User {
   authChallenges      AuthChallenge[]
   mfaEnrollment       MfaEnrollment?
   providerOnboardings ProviderOnboarding[]
+}
+
+model RegistrationOtpChallenge {
+  id                  String    @id
+  kind                UserRole
+  firstName           String
+  lastName            String
+  phone               String
+  codeHash            String
+  attempts            Int       @default(0)
+  maxAttempts         Int       @default(3)
+  expiresAt           DateTime
+  verifiedAt          DateTime?
+  consumedAt          DateTime?
+  completionTokenHash String?
+  deliveryMode        String
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([phone, expiresAt])
+  @@index([expiresAt, verifiedAt, consumedAt])
 }
 
 model AuthSession {
@@ -165,6 +188,8 @@ model PatientProfile {
   userId            String                      @unique
   firstName         String
   lastName          String
+  dateOfBirth       DateTime?                   @db.Date
+  sex               String?
   phone             String?
   createdAt         DateTime                    @default(now())
   updatedAt         DateTime                    @updatedAt
@@ -176,11 +201,28 @@ model PatientProfile {
   healthProfile     PatientHealthProfile?
   questionnaireResponses QuestionnaireResponse[]
   observations       Observation[]
+  clinicalFacts      PatientClinicalFact[]
   clinicalProfileEntries ClinicalProfileEntry[]
   medicationReconciliations MedicationReconciliation[]
   providerFormResponses ProviderCategoryFormResponse[]
   providerWorkflowEvents ProviderWorkflowEvent[]
   temporaryClinicalShares TemporaryClinicalShare[]
+  administrativeContactChanges PatientAdministrativeContactChange[]
+}
+
+model PatientAdministrativeContactChange {
+  id                 String         @id @default(uuid())
+  patientId          String
+  kind               String
+  requestedValue     String
+  status             String         @default("PENDING")
+  requestedByActorId String
+  verifiedByActorId  String?
+  requestedAt        DateTime       @default(now())
+  verifiedAt         DateTime?
+  patient            PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId, status, requestedAt])
 }
 
 model Provider {
@@ -189,6 +231,7 @@ model Provider {
   class                     ProviderClass
   displayName               String
   legalName                 String?
+  contactPhone              String?
   status                    ProviderStatus              @default(DRAFT)
   createdAt                 DateTime                    @default(now())
   updatedAt                 DateTime                    @updatedAt
@@ -204,6 +247,7 @@ model Provider {
   providerFormResponses     ProviderCategoryFormResponse[]
   providerWorkflowEvents    ProviderWorkflowEvent[]
   temporaryClinicalShares   TemporaryClinicalShare[]
+  governanceHistory          ProviderGovernanceHistory[]
 }
 
 model ProviderOnboarding {
@@ -243,8 +287,29 @@ model OnboardingCredential {
   createdAt         DateTime              @default(now())
   updatedAt         DateTime              @updatedAt
   onboarding        ProviderOnboarding    @relation(fields: [onboardingId], references: [id], onDelete: Cascade)
+  documents         OnboardingCredentialDocument[]
 
   @@index([onboardingId, state])
+}
+
+model OnboardingCredentialDocument {
+  id                 String               @id @default(uuid())
+  credentialId       String
+  fileName           String
+  mediaType          String               @default("application/pdf")
+  byteLength         Int
+  contentDigest      String
+  storageProvider    String
+  objectKey          String               @unique
+  blobAlgorithm      String
+  blobKeyId          String
+  blobWrappedKey     String
+  blobIv             String
+  createdByAccountId String
+  createdAt          DateTime             @default(now())
+  credential         OnboardingCredential @relation(fields: [credentialId], references: [id], onDelete: Cascade)
+
+  @@index([credentialId, createdAt])
 }
 
 model MedicalSpecialty {
@@ -302,19 +367,74 @@ model OtherProviderProfile {
 }
 
 model ProviderCredential {
+  id                      String   @id @default(uuid())
+  providerId              String
+  type                    String
+  issuer                  String?
+  number                  String?
+  validFrom               DateTime?
+  validUntil              DateTime?
+  status                  String
+  documentId              String?
+  renewedFromCredentialId        String?
+  sourceOnboardingCredentialId    String?  @unique
+  createdAt                       DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+  provider                Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  documents               ProviderCredentialDocument[]
+  verifications           ProviderCredentialVerification[]
+
+  @@index([providerId, type, status])
+  @@index([renewedFromCredentialId])
+}
+
+model ProviderCredentialDocument {
+  id                 String             @id @default(uuid())
+  credentialId       String
+  fileName           String
+  mediaType          String             @default("application/pdf")
+  byteLength         Int
+  contentDigest      String
+  storageProvider    String
+  objectKey          String             @unique
+  blobAlgorithm      String
+  blobKeyId          String
+  blobWrappedKey     String
+  blobIv             String
+  createdByAccountId          String
+  sourceOnboardingDocumentId   String?            @unique
+  createdAt                   DateTime           @default(now())
+  credential         ProviderCredential @relation(fields: [credentialId], references: [id], onDelete: Cascade)
+
+  @@index([credentialId, createdAt])
+}
+
+model ProviderCredentialVerification {
+  id           String             @id @default(uuid())
+  credentialId String
+  status       String
+  note         String?
+  actorId      String
+  createdAt    DateTime           @default(now())
+  credential   ProviderCredential @relation(fields: [credentialId], references: [id], onDelete: Cascade)
+
+  @@index([credentialId, createdAt])
+}
+
+model ProviderGovernanceHistory {
   id         String   @id @default(uuid())
   providerId String
-  type       String
-  issuer     String?
-  number     String?
-  validFrom  DateTime?
-  validUntil DateTime?
-  status     String
-  documentId String?
+  domain     String
+  targetId   String?
+  fromStatus String?
+  toStatus   String
+  reason     String?
+  actorId    String
+  metadata   Json?
   createdAt  DateTime @default(now())
   provider   Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
 
-  @@index([providerId, type, status])
+  @@index([providerId, domain, createdAt])
 }
 
 model Service {

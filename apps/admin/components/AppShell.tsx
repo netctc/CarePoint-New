@@ -36,6 +36,7 @@ const questionnaireBuilderLabels: Record<Locale, string> = { en:"Questionnaire B
 const questionnaireTriggerLabels: Record<Locale, string> = { en:"Questionnaire Triggers", ar:"قواعد تفعيل الاستبيانات", fr:"Déclencheurs de questionnaires", es:"Triggers de cuestionarios" };
 const deviceLabels: Record<Locale, string> = { en:"Medical Devices", ar:"الأجهزة الطبية", fr:"Dispositifs médicaux", es:"Dispositivos médicos" };
 const deviceIntegrationLabels: Record<Locale, string> = { en:"Device Integrations", ar:"تكاملات الأجهزة", fr:"Intégrations dispositifs", es:"Integraciones de dispositivos" };
+const masterDataLabels: Record<Locale, string> = { en:"Master Data", ar:"البيانات الرئيسية", fr:"Données de référence", es:"Datos maestros" };
 
 type Props = Readonly<{
   active: string;
@@ -73,6 +74,7 @@ export function AppShell({ active, titleKey, eyebrowKey, title, eyebrow, childre
         <Link className={`nav-item ${active === "23" ? "active" : ""}`} href="/questionnaires/triggers"><small>23</small><span>{questionnaireTriggerLabels[locale]}</span><b>{direction === "rtl" ? "‹" : "›"}</b></Link>
         <Link className={`nav-item ${active === "24" ? "active" : ""}`} href="/devices"><small>24</small><span>{deviceLabels[locale]}</span><b>{direction === "rtl" ? "‹" : "›"}</b></Link>
         <Link className={`nav-item ${active === "25" ? "active" : ""}`} href="/integrations/devices"><small>25</small><span>{deviceIntegrationLabels[locale]}</span><b>{direction === "rtl" ? "‹" : "›"}</b></Link>
+        <Link className={`nav-item ${active === "26" ? "active" : ""}`} href="/master-data"><small>26</small><span>{masterDataLabels[locale]}</span><b>{direction === "rtl" ? "‹" : "›"}</b></Link>
       </nav>
       <div className="security-pill"><div><small>{t("shell.e2eeStatus")}</small><strong>{t("shell.shieldPolicy")}</strong></div><i /></div>
     </aside>

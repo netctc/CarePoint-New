@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Children, useCallback, useEffect, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { useI18n, type Locale } from "@/lib/i18n";
+import { AdminPagination, paginateItems } from "@/components/AdminPagination";
 import styles from "./B6GovernanceCenter.module.css";
 
 type Section = "rpm-dashboard" | "rpm-alerts" | "care-plan-templates";
@@ -164,7 +165,7 @@ function CarePlanTemplates({locale,c}:{locale:Locale;c:Copy}) {
 function Toolbar({c,loading,error,load}:{c:Copy;loading:boolean;error:string;load:()=>Promise<void>}){return <div className={styles.toolbar}><div>{loading?<span>{c.loading}</span>:null}{error?<span className={styles.notice}>{error}</span>:null}</div><button onClick={()=>void load()}>{c.refresh}</button></div>;}
 function Metric({label,value}:{label:string;value:any}){return <article><span>{label}</span><strong>{String(value??0)}</strong></article>;}
 function Field({name,label,required=false}:{name:string;label:string;required?:boolean}){return <label>{label}<input name={name} required={required}/></label>;}
-function Table({headers,children}:{headers:string[];children:ReactNode}){return <div className={styles.tableWrap}><table><thead><tr>{headers.map(h=><th key={h}>{h}</th>)}</tr></thead><tbody>{children}</tbody></table></div>;}
+function Table({headers,children}:{headers:string[];children:ReactNode}){const rows=Children.toArray(children);const [page,setPage]=useState(1);const [pageSize,setPageSize]=useState(10);return <><div className={styles.tableWrap}><table><thead><tr>{headers.map(h=><th key={h}>{h}</th>)}</tr></thead><tbody>{paginateItems(rows,page,pageSize)}</tbody></table></div><AdminPagination page={page} pageSize={pageSize} total={rows.length} onPageChange={setPage} onPageSizeChange={(size)=>{setPageSize(size);setPage(1);}}/></>;}
 
 async function api(path:string,options?:{method?:"POST";body?:unknown}) {
   const init:RequestInit={method:options?.method??"GET",cache:"no-store"};

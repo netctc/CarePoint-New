@@ -6,9 +6,40 @@ import { CurrentPrincipal, Public, RequirePermissions } from "../../security/api
 import { PersistentAuthService } from "../../security/persistent-auth.service";
 import { carePointRuntimeFeatures } from "../../infrastructure/release/private-pilot-policy";
 
-interface PatientRegistrationBody { email: string; password: string; firstName: string; lastName: string; phone?: string; }
+interface RegistrationOtpStartBody {
+  kind: "PATIENT" | "DOCTOR" | "OTHER_PROVIDER";
+  firstName: string;
+  lastName: string;
+  phone: string;
+}
+interface RegistrationOtpVerifyBody {
+  challengeId: string;
+  code: string;
+}
+interface PatientRegistrationBody {
+  challengeId: string;
+  registrationToken: string;
+  email?: string;
+  username: string;
+  password: string;
+  dateOfBirth: string;
+  sex: string;
+  reference?: string;
+}
+interface ProfessionalRegistrationBody {
+  challengeId: string;
+  registrationToken: string;
+  kind: "DOCTOR" | "OTHER_PROVIDER";
+  email?: string;
+  username: string;
+  password: string;
+  specialtyId?: string;
+  providerCategoryId?: string;
+  reference?: string;
+}
 interface ManagedAccountBody { email: string; password: string; role: IdentityRole; }
 interface LoginBody { email: string; password: string; }
+interface ChangePasswordBody { currentPassword: string; newPassword: string; }
 interface ConfirmMfaBody { code: string; }
 interface CompleteMfaBody { challengeId: string; code: string; }
 interface BeginRequiredMfaBody { challengeId: string; }
@@ -24,16 +55,129 @@ class IamController {
   ) {}
 
   @Public()
+  @Get("register/options")
+  async registrationOptions() {
+    const [specialties, providerCategories] = await Promise.all([
+      this.prisma.medicalSpecialty.findMany({
+        where: { active: true },
+        orderBy: { code: "asc" },
+        select: { id: true, code: true, labels: true },
+      }),
+      this.prisma.providerCategory.findMany({
+        where: { active: true },
+        orderBy: { slug: "asc" },
+        select: { id: true, slug: true, labels: true, family: true },
+      }),
+    ]);
+    return { specialties, providerCategories };
+  }
+
+  @Public()
+  @Post("register/otp/start")
+  async startRegistrationOtp(
+    @Req() request: RequestIdentity,
+    @Body() body: RegistrationOtpStartBody,
+  ) {
+    if (
+      body.kind === "PATIENT" &&
+      !carePointRuntimeFeatures(process.env).patientSelfRegistration
+    ) {
+      throw new NotFoundException("Patient self-registration is not available.");
+    }
+    const phone = body.phone?.trim() || "missing";
+    await Promise.all([
+      this.rateLimits.assertAllowed({
+        namespace: "iam:register-otp:ip",
+        identity: this.clientIp(request),
+        limit: 50,
+        windowSeconds: 3600,
+      }),
+      this.rateLimits.assertAllowed({
+        namespace: "iam:register-otp:phone",
+        identity: phone,
+        limit: 5,
+        windowSeconds: 3600,
+      }),
+    ]);
+    return this.auth.startRegistrationOtp(body);
+  }
+
+  @Public()
+  @Post("register/otp/verify")
+  async verifyRegistrationOtp(
+    @Req() request: RequestIdentity,
+    @Body() body: RegistrationOtpVerifyBody,
+  ) {
+    await Promise.all([
+      this.rateLimits.assertAllowed({
+        namespace: "iam:register-otp-verify:ip",
+        identity: this.clientIp(request),
+        limit: 100,
+        windowSeconds: 300,
+      }),
+      this.rateLimits.assertAllowed({
+        namespace: "iam:register-otp-verify:challenge",
+        identity: body.challengeId || "missing",
+        limit: 6,
+        windowSeconds: 600,
+      }),
+    ]);
+    return this.auth.verifyRegistrationOtp(body.challengeId, body.code);
+  }
+
+  @Public()
   @Post("register/patient")
-  async registerPatient(@Req() request: RequestIdentity, @Body() body: PatientRegistrationBody) {
+  async registerPatient(
+    @Req() request: RequestIdentity,
+    @Body() body: PatientRegistrationBody,
+  ) {
     if (!carePointRuntimeFeatures(process.env).patientSelfRegistration) {
       throw new NotFoundException("Patient self-registration is not available.");
     }
     await Promise.all([
-      this.rateLimits.assertAllowed({ namespace: "iam:register:ip", identity: this.clientIp(request), limit: 200, windowSeconds: 3600 }),
-      this.rateLimits.assertAllowed({ namespace: "iam:register:account", identity: body.email?.trim().toLowerCase() || "missing", limit: 3, windowSeconds: 3600 }),
+      this.rateLimits.assertAllowed({
+        namespace: "iam:register:ip",
+        identity: this.clientIp(request),
+        limit: 100,
+        windowSeconds: 3600,
+      }),
+      this.rateLimits.assertAllowed({
+        namespace: "iam:register:challenge",
+        identity: body.challengeId || "missing",
+        limit: 3,
+        windowSeconds: 3600,
+      }),
     ]);
-    return this.auth.registerPatient(body);
+    const result = await this.auth.registerPatient(body);
+    await this.captureSessionContext(result.sessionId, request);
+    return result;
+  }
+
+  @Public()
+  @Post("register/professional")
+  async registerProfessional(
+    @Req() request: RequestIdentity,
+    @Body() body: ProfessionalRegistrationBody,
+  ) {
+    await Promise.all([
+      this.rateLimits.assertAllowed({
+        namespace: "iam:register-professional:ip",
+        identity: this.clientIp(request),
+        limit: 100,
+        windowSeconds: 3600,
+      }),
+      this.rateLimits.assertAllowed({
+        namespace: "iam:register-professional:challenge",
+        identity: body.challengeId || "missing",
+        limit: 3,
+        windowSeconds: 3600,
+      }),
+    ]);
+    const result = await this.auth.registerProfessional(body);
+    if ("sessionId" in result) {
+      await this.captureSessionContext(result.sessionId, request);
+    }
+    return result;
   }
 
   @Public()
@@ -91,6 +235,18 @@ class IamController {
   @Get("accounts/me")
   me(@CurrentPrincipal() principal: AuthPrincipal) {
     return this.auth.getAccount(principal, principal.accountId);
+  }
+
+  @Post("accounts/me/password")
+  changeMyPassword(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Body() body: ChangePasswordBody,
+  ) {
+    return this.auth.changeOwnPassword(
+      principal,
+      body.currentPassword,
+      body.newPassword,
+    );
   }
 
   @RequirePermissions("IAM_MANAGE_ACCOUNTS")

@@ -212,7 +212,7 @@ try {
   assert(approvedDoctor.credentials.some((item) => item.id === oldDoctorCredential.id && item.state === "REJECTED"), "Rejected credential history was not preserved after correction.");
   assert(approvedDoctor.credentials.some((item) => item.id === correctedCredential.id && item.state === "VERIFIED"), "Corrected credential was not preserved as verified evidence.");
   assert(activeDoctorProvider.doctorProfile?.licenseNumber === "B2-MED-CORRECTED", "Doctor profile did not use the latest verified medical license.");
-  assert(activeDoctorProvider.credentials.some((item) => item.number === "B2-MED-CORRECTED" && item.status === "VERIFIED"), "Verified onboarding evidence was not promoted to the operational Provider credential register.");
+  assert(activeDoctorProvider.credentials.some((item) => item.number === "B2-MED-CORRECTED" && item.status === "VALID"), "Verified onboarding evidence was not promoted to the operational Provider credential register.");
 
   const requestOtherChanges = await webJson("/api/admin/governance/onboarding/action", {
     method: "POST",
@@ -245,8 +245,9 @@ try {
 
   const finalQueue = await webJson("/api/admin/governance/onboarding", {}, jar);
   assert(finalQueue.response.ok && Array.isArray(finalQueue.payload), "Final B2 queue could not be loaded.");
-  assert(finalQueue.payload.some((item) => item.id === doctorOnboarding.id && item.state === "APPROVED" && item.provider?.status === "ACTIVE"), "Final queue did not reflect approved doctor state.");
-  assert(finalQueue.payload.some((item) => item.id === otherOnboarding.id && item.state === "REJECTED" && item.provider?.status === "REJECTED"), "Final queue did not reflect rejected other-provider state.");
+  assert(!finalQueue.payload.some((item) => item.id === doctorOnboarding.id), "Approved doctor onboarding must leave the active review queue.");
+  assert(!finalQueue.payload.some((item) => item.id === otherOnboarding.id), "Rejected provider onboarding must leave the active review queue.");
+  assert(finalQueue.payload.every((item) => item.state === "PENDING_REVIEW" || item.state === "REQUEST_CHANGES"), "Review queue returned a terminal onboarding state.");
   assertNoBearerMaterial(finalQueue.payload, "Final B2 review queue");
 
   const doctorsPage = await web("/doctors", {}, jar);
@@ -262,6 +263,7 @@ try {
     credentialCorrectionHistory: true,
     requestChanges: true,
     terminalRejection: true,
+    terminalCasesLeaveReviewQueue: true,
     rejectionRevokesSessions: true,
     verifiedCredentialPromotion: true,
     auditableDecisions: true,

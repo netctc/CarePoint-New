@@ -1,6 +1,7 @@
-import { Body, Controller, Get, Module, Param, Post } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Module, Param, Post } from "@nestjs/common";
 import type { AuthPrincipal } from "@carepoint/identity";
 import { CurrentPrincipal, RequirePermissions } from "../../security/api-security.module";
+import { DocumentsModule } from "../documents/documents.module";
 import { PersistentOnboardingService } from "./persistent-onboarding.service";
 import { ProviderCredentialGovernanceService } from "./provider-credential-governance.service";
 import { ProviderSelfOnboardingService } from "./provider-self-onboarding.service";
@@ -8,6 +9,7 @@ import { ProviderSelfOnboardingService } from "./provider-self-onboarding.servic
 interface DoctorOnboardingBody { specialtyId: string; }
 interface OtherProviderOnboardingBody { providerCategoryId: string; }
 interface CredentialBody { type: string; number?: string; issuer?: string; validUntil?: string; documentId?: string; }
+interface CredentialDocumentBody { fileName: string; mediaType?: string; contentBase64: string; }
 interface ReviewCredentialBody { state: "VERIFIED" | "REJECTED"; note?: string; }
 interface GovernanceDecisionBody { note: string; }
 
@@ -49,6 +51,51 @@ class OnboardingController {
   @Post(":onboardingId/credentials")
   addCredential(@CurrentPrincipal() principal: AuthPrincipal, @Param("onboardingId") onboardingId: string, @Body() body: CredentialBody) {
     return this.onboarding.addCredential(principal, onboardingId, body);
+  }
+
+  @RequirePermissions("PROVIDER_SELF_ONBOARD")
+  @Post(":onboardingId/credentials/:credentialId/documents")
+  uploadCredentialDocument(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Param("onboardingId") onboardingId: string,
+    @Param("credentialId") credentialId: string,
+    @Body() body: CredentialDocumentBody,
+  ) {
+    return this.onboarding.uploadCredentialDocument(
+      principal,
+      onboardingId,
+      credentialId,
+      body,
+    );
+  }
+
+  @RequirePermissions("PROVIDER_SELF_ONBOARD")
+  @Delete(":onboardingId/credentials/:credentialId")
+  removeCredential(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Param("onboardingId") onboardingId: string,
+    @Param("credentialId") credentialId: string,
+  ) {
+    return this.onboarding.removeCredential(
+      principal,
+      onboardingId,
+      credentialId,
+    );
+  }
+
+  @Get(":onboardingId/credentials/:credentialId/documents/:documentId/content")
+  credentialDocumentContent(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Param("onboardingId") onboardingId: string,
+    @Param("credentialId") credentialId: string,
+    @Param("documentId") documentId: string,
+  ) {
+    return this.onboarding.credentialDocumentContent(
+      principal,
+      onboardingId,
+      credentialId,
+      documentId,
+    );
   }
 
   @RequirePermissions("PROVIDER_SELF_ONBOARD")
@@ -109,6 +156,7 @@ class OnboardingController {
 }
 
 @Module({
+  imports: [DocumentsModule],
   controllers: [OnboardingController],
   providers: [PersistentOnboardingService, ProviderCredentialGovernanceService, ProviderSelfOnboardingService],
 })

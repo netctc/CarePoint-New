@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/AppShell";
+import { AdminPagination, paginateItems, clampPage } from "@/components/AdminPagination";
 import { useI18n, type Locale } from "@/lib/i18n";
 
 type State="CURRENT"|"EXPIRING"|"EXPIRED"|"MISSING";
@@ -23,7 +24,7 @@ async function api(path:string,method="GET",body?:unknown){
  return payload;
 }
 export default function CredentialExpirationsPage(){
- const {locale}=useI18n();const c=copy[locale];const [data,setData]=useState<Snapshot|null>(null);const [windows,setWindows]=useState("90,30,7");const [enabled,setEnabled]=useState(true);const [message,setMessage]=useState("");const [busy,setBusy]=useState(false);
+ const {locale}=useI18n();const c=copy[locale];const [data,setData]=useState<Snapshot|null>(null);const [windows,setWindows]=useState("90,30,7");const [enabled,setEnabled]=useState(true);const [message,setMessage]=useState("");const [busy,setBusy]=useState(false);const [page,setPage]=useState(1);const [pageSize,setPageSize]=useState(10);
  const load=useCallback(async()=>{try{const next=await api("credential-expirations") as Snapshot;setData(next);setWindows(next.policy.warningDays.join(","));setEnabled(next.policy.notificationsEnabled);setMessage("");}catch(e){setMessage(e instanceof Error?e.message:c.failed);}},[c.failed]);
  useEffect(()=>{void load();},[load]);
  const parsed=useMemo(()=>{const values=windows.split(",").map(v=>Number(v.trim())).filter(Number.isFinite);return{values,valid:values.length>=1&&values.length<=5&&values.every(v=>Number.isInteger(v)&&v>=1&&v<=365)&&new Set(values).size===values.length};},[windows]);
@@ -36,13 +37,14 @@ export default function CredentialExpirationsPage(){
   <div style={{display:"grid",gridTemplateColumns:"repeat(4,minmax(100px,1fr))",gap:10}}>{(["CURRENT","EXPIRING","EXPIRED","MISSING"] as State[]).map(s=><div key={s} style={box}><small>{c[s]}</small><div style={{fontSize:26,fontWeight:800}}>{data?.summary?.[s]??0}</div></div>)}</div>
   <div style={box}><div style={{display:"flex",gap:12,flexWrap:"wrap",alignItems:"end"}}>
    <label style={{display:"grid",gap:5}}>{c.windows}<input value={windows} onChange={e=>setWindows(e.target.value)} style={{padding:9,border:"1px solid #cbd5e1",borderRadius:8}}/></label>
-   <label><input type="checkbox" checked={enabled} onChange={e=>setEnabled(e.target.checked)}/> {c.notify}</label>
+   <label className="admin-form-check"><input type="checkbox" checked={enabled} onChange={e=>setEnabled(e.target.checked)}/> {c.notify}</label>
    <button className="secondary-button" disabled={busy||!parsed.valid} onClick={()=>void save()}>{c.save}</button>
    <button className="secondary-button" disabled={busy} onClick={()=>void run()}>{c.run}</button>
    <button className="secondary-button" disabled={busy} onClick={()=>void load()}>{c.refresh}</button>
   </div></div>
   <div style={{...box,overflow:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",minWidth:850}}><thead><tr>{[c.provider,c.kind,c.credential,c.state,c.expiry,c.days,c.blocked].map(h=><th key={h} style={{textAlign:"start",padding:9,borderBottom:"1px solid #e2e8f0"}}>{h}</th>)}</tr></thead><tbody>
-   {(data?.items??[]).map(item=><tr key={item.providerId+":"+item.credentialType}><td style={{padding:9,borderBottom:"1px solid #e2e8f0"}}><strong>{item.providerDisplayName}</strong><small style={{display:"block",color:"#64748b"}}>{item.providerId}</small></td><td>{item.providerClass}</td><td>{item.credentialType}</td><td>{c[item.state]}</td><td>{item.validUntil?new Date(item.validUntil).toLocaleDateString():"—"}</td><td>{item.daysRemaining??"—"}</td><td>{item.operationallyBlocked?c.yes:c.no}</td></tr>)}
+   {paginateItems(data?.items??[],page,pageSize).map(item=><tr key={item.providerId+":"+item.credentialType}><td style={{padding:9,borderBottom:"1px solid #e2e8f0"}}><strong>{item.providerDisplayName}</strong><small style={{display:"block",color:"#64748b"}}>{item.providerId}</small></td><td>{item.providerClass}</td><td>{item.credentialType}</td><td>{c[item.state]}</td><td>{item.validUntil?new Date(item.validUntil).toLocaleDateString():"—"}</td><td>{item.daysRemaining??"—"}</td><td>{item.operationallyBlocked?c.yes:c.no}</td></tr>)}
   </tbody></table></div>
+  <AdminPagination page={page} pageSize={pageSize} total={data?.items?.length??0} onPageChange={setPage} onPageSizeChange={(size)=>{setPageSize(size);setPage(1);}}/>
  </div></AppShell>;
 }

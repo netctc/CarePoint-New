@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Children, useCallback, useEffect, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { useI18n, type Locale } from "@/lib/i18n";
+import { AdminPagination, paginateItems } from "@/components/AdminPagination";
 import styles from "./B6GovernanceCenter.module.css";
 
 export type B6Section =
@@ -196,7 +197,7 @@ function Terminology({ locale, c }: { locale: Locale; c: B6Copy }) {
         <button className={styles.primary}>{c.create}</button>
       </form>
     </div>
-    <form className={styles.searchBar} onSubmit={search}><input value={query} onChange={e=>setQuery(e.target.value)} placeholder={c.search}/><button>{c.search}</button></form>
+    <form className={styles.searchBar} onSubmit={search}><label className="admin-form-field"><span>{c.search}</span><input value={query} onChange={e=>setQuery(e.target.value)} placeholder={c.search}/></label><button>{c.search}</button></form>
     <section className={styles.panel}><Table headers={[c.system,c.code,c.display,c.version,c.status,c.actions]}>
       {concepts.map(row=><tr key={String(row.id)}><td>{String(row.system)}</td><td>{String(row.code)}</td><td>{String(row.display)}</td><td>{String(row.contentVersion)}</td><td>{String(row.status)}</td><td><button className={styles.linkButton} onClick={()=>setSelected(row)}>{c.publish}</button></td></tr>)}
     </Table></section>
@@ -371,7 +372,7 @@ function Toolbar({loading=false,message,onRefresh,c,children}:{loading?:boolean;
 }
 function Metric({label,value}:{label:string;value:string|number}){return <article><span>{label}</span><strong>{value}</strong></article>;}
 function Field({name,label,required=false,defaultValue="",type="text"}:{name:string;label:string;required?:boolean;defaultValue?:string;type?:string}){return <label>{label}<input name={name} type={type} required={required} defaultValue={defaultValue}/></label>;}
-function Table({headers,children}:{headers:string[];children:ReactNode}){return <div className={styles.tableWrap}><table><thead><tr>{headers.map(h=><th key={h}>{h}</th>)}</tr></thead><tbody>{children}</tbody></table></div>;}
+function Table({headers,children}:{headers:string[];children:ReactNode}){const rows=Children.toArray(children);const [page,setPage]=useState(1);const [pageSize,setPageSize]=useState(10);return <><div className={styles.tableWrap}><table><thead><tr>{headers.map(h=><th key={h}>{h}</th>)}</tr></thead><tbody>{paginateItems(rows,page,pageSize)}</tbody></table></div><AdminPagination page={page} pageSize={pageSize} total={rows.length} onPageChange={setPage} onPageSizeChange={(size)=>{setPageSize(size);setPage(1);}}/></>;}
 
 async function api(path:string,options?:{method?:"POST";body?:unknown}) {
   const init: RequestInit = { method: options?.method ?? "GET", cache: "no-store" };

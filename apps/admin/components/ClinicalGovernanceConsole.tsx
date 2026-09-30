@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useI18n, type Locale } from "@/lib/i18n";
+import { AdminPagination, paginateItems, clampPage } from "@/components/AdminPagination";
 import styles from "./ClinicalGovernanceConsole.module.css";
 
 type ConsentPolicy = {
@@ -165,6 +166,7 @@ export function ClinicalAccessAuditExplorer() {
   const [data,setData]=useState<AuditResponse>({limit:100,candidateLimit:500,items:[]});
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState("");
+  const [page,setPage]=useState(1); const [pageSize,setPageSize]=useState(10);
 
   const query=useMemo(()=>{
     const q=new URLSearchParams({limit:"100"});
@@ -178,7 +180,7 @@ export function ClinicalAccessAuditExplorer() {
       const response=await fetch("/api/admin/clinical-access/audit?"+query,{cache:"no-store"});
       const payload=await response.json() as AuditResponse;
       if(!response.ok) throw new Error(payload.message||t.error);
-      setData(payload);
+      setData(payload);setPage(current=>clampPage(current,payload.items.length,pageSize));
     }catch(value){setError(value instanceof Error?value.message:t.error)}
     finally{setBusy(false)}
   },[query,t.error]);
@@ -225,13 +227,14 @@ export function ClinicalAccessAuditExplorer() {
       <div className={styles.tableWrap}><table><thead><tr>
         <th>{t.occurred}</th><th>{t.actor}</th><th>{t.action}</th><th>{t.object}</th><th>{t.purpose}</th><th>{t.result}</th><th>{t.metadata}</th>
       </tr></thead><tbody>
-        {data.items.map(item=><tr key={item.id}>
+        {paginateItems(data.items,page,pageSize).map(item=><tr key={item.id}>
           <td>{formatDate(item.occurredAt,locale)}</td><td><code>{item.actorId??"—"}</code></td><td>{item.action}</td>
           <td>{item.objectType}<br/><code>{item.objectId??"—"}</code></td><td>{item.purpose??"—"}</td><td>{item.result}</td>
           <td><code>{JSON.stringify(item.metadata??{})}</code></td>
         </tr>)}
       </tbody></table></div>
       {!data.items.length?<div className={styles.empty}>{t.empty}</div>:null}
+      <AdminPagination page={page} pageSize={pageSize} total={data.items.length} onPageChange={setPage} onPageSizeChange={(size)=>{setPageSize(size);setPage(1);}}/>
     </section>
   </div>;
 }

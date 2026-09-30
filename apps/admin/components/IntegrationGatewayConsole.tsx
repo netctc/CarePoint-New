@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { useI18n, type Locale } from "@/lib/i18n";
+import { AdminPagination, paginateItems } from "@/components/AdminPagination";
 import styles from "./B6GovernanceCenter.module.css";
 
 type Row = Record<string, any>;
@@ -26,6 +27,8 @@ export function IntegrationGatewayConsole({kind}:{kind:Kind}) {
   const {locale}=useI18n();
   const c=copy[locale];
   const [data,setData]=useState<Row>({}),[loading,setLoading]=useState(true),[error,setError]=useState("");
+  const [configPage,setConfigPage]=useState(1); const [configPageSize,setConfigPageSize]=useState(10);
+  const [eventPage,setEventPage]=useState(1); const [eventPageSize,setEventPageSize]=useState(10);
   const configs=useMemo(()=>list(data),[data]);
 
   const load=useCallback(async()=>{
@@ -129,7 +132,7 @@ export function IntegrationGatewayConsole({kind}:{kind:Kind}) {
     <section className={styles.panel}>
       <h3>{kind==="fhir"?"FHIR Gateway": "Lab Gateway"}</h3>
       <div className={styles.tableWrap}><table><thead><tr><th>{c.code}</th><th>{c.environment}</th><th>{c.status}</th><th>{c.lastTest}</th><th>{c.mappings}</th><th>Actions</th></tr></thead>
-      <tbody>{configs.map(row=><tr key={String(row.id)}>
+      <tbody>{paginateItems(configs,configPage,configPageSize).map(row=><tr key={String(row.id)}>
         <td><strong>{String(row.displayName)}</strong><small>{String(row.code)} · {String(row.baseUrl)}</small></td>
         <td>{String(row.environment)}</td>
         <td>{row.enabled?"ACTIVE":"INACTIVE"}<small>{String(row.lastErrorCode??"")}</small></td>
@@ -137,12 +140,14 @@ export function IntegrationGatewayConsole({kind}:{kind:Kind}) {
         <td>{Array.isArray(row.mappings)?row.mappings.map((m:Row)=><div key={String(m.id)}><span>{kind==="fhir"?String(m.resourceType):String(m.externalCode)} · v{String(m.version)} · {String(m.status)}</span>{m.status==="DRAFT"?<button type="button" onClick={()=>void mutate("/integrations/"+kind+"/mappings/"+encodeURIComponent(String(m.id))+"/publish")}>{c.publish}</button>:null}</div>):null}</td>
         <td><button type="button" onClick={()=>void mutate("/integrations/"+kind+"/configs/"+encodeURIComponent(String(row.id))+"/test")}>{c.test}</button><button type="button" onClick={()=>void mutate("/integrations/"+kind+"/configs/"+encodeURIComponent(String(row.id))+"/activate")}>{c.activate}</button></td>
       </tr>)}</tbody></table></div>
+      <AdminPagination page={configPage} pageSize={configPageSize} total={configs.length} onPageChange={setConfigPage} onPageSizeChange={(size)=>{setConfigPageSize(size);setConfigPage(1);}}/>
     </section>
 
     {kind==="labs"?<section className={styles.panel}>
       <h3>{c.events}</h3>
       <div className={styles.tableWrap}><table><thead><tr><th>ID</th><th>{c.order}</th><th>{c.sourceSystem}</th><th>{c.status}</th><th>{c.error}</th><th>{c.retry}</th></tr></thead>
-      <tbody>{asList(data.events).map(row=><tr key={String(row.id)}><td><small>{String(row.externalEventId)}</small></td><td>{String(row.clinicalOrderId)}</td><td>{String(row.sourceSystem)}</td><td>{String(row.status)}<small>patientVisible={String(row.patientVisible)}</small></td><td>{String(row.lastErrorCode??"—")}</td><td>{row.status==="QUARANTINED"?<button onClick={()=>void mutate("/integrations/labs/events/"+encodeURIComponent(String(row.id))+"/retry")}>{c.retry}</button>:"—"}</td></tr>)}</tbody></table></div>
+      <tbody>{paginateItems(asList(data.events),eventPage,eventPageSize).map(row=><tr key={String(row.id)}><td><small>{String(row.externalEventId)}</small></td><td>{String(row.clinicalOrderId)}</td><td>{String(row.sourceSystem)}</td><td>{String(row.status)}<small>patientVisible={String(row.patientVisible)}</small></td><td>{String(row.lastErrorCode??"—")}</td><td>{row.status==="QUARANTINED"?<button onClick={()=>void mutate("/integrations/labs/events/"+encodeURIComponent(String(row.id))+"/retry")}>{c.retry}</button>:"—"}</td></tr>)}</tbody></table></div>
+      <AdminPagination page={eventPage} pageSize={eventPageSize} total={asList(data.events).length} onPageChange={setEventPage} onPageSizeChange={(size)=>{setEventPageSize(size);setEventPage(1);}}/>
     </section>:null}
   </div>;
 }

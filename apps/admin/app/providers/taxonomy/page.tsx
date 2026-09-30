@@ -272,7 +272,7 @@ export default function ProviderTaxonomyPage() {
             <CapabilityGroup label="Clinical orders" values={ORDER_CAPS} selected={orderCaps} onToggle={(value) => toggle(orderCaps, value, setOrderCaps)} />
             <CapabilityGroup label="Clinical summary" values={SUMMARY} selected={summary} onToggle={(value) => toggle(summary, value, setSummary)} />
             <CapabilityGroup label="Workflow" values={WORKFLOW} selected={workflow} onToggle={(value) => toggle(workflow, value, setWorkflow)} />
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div className="admin-form-grid">
               <label>{t.observations}<input value={observationCodes} onChange={(event) => setObservationCodes(event.target.value)} placeholder="HEART_RATE, SPO2" /></label>
               <label>{t.questionnaires}<input value={questionnaireCodes} onChange={(event) => setQuestionnaireCodes(event.target.value)} placeholder="INTAKE_GENERAL" /></label>
             </div>
@@ -299,29 +299,29 @@ export default function ProviderTaxonomyPage() {
 
           <section style={box}>
             <h2>{t.newForm}</h2>
-            <div style={{ ...grid, gridTemplateColumns: "1fr 1fr" }}>
+            <div className="admin-form-grid">
               <label>{t.code}<input value={formCode} onChange={(event) => setFormCode(event.target.value)} placeholder="HOME_VISIT_ASSESSMENT" /></label>
               <label>{t.purpose}<select value={purpose} onChange={(event) => setPurpose(event.target.value)}>{PURPOSES.map((item) => <option key={item}>{item}</option>)}</select></label>
             </div>
-            <div style={{ ...grid, gridTemplateColumns: "repeat(4,1fr)" }}>
+            <div className="admin-form-grid">
               {(["en","ar","fr","es"] as const).map((language) => <label key={language}>{t.labels} {language.toUpperCase()}<input value={labels[language]} onChange={(event) => setLabels({ ...labels, [language]: event.target.value })} /></label>)}
             </div>
             <h3>{t.questions}</h3>
             {questions.map((question, index) => <div key={index} style={{ ...box, marginBottom: 12 }}>
-              <div style={{ ...grid, gridTemplateColumns: "1fr 1fr auto" }}>
+              <div className="admin-form-grid">
                 <label>ID<input value={question.id} onChange={(event) => setQuestions((current) => current.map((item, i) => i === index ? { ...item, id: event.target.value } : item))} /></label>
                 <label>Type<select value={question.type} onChange={(event) => setQuestions((current) => current.map((item, i) => i === index ? { ...item, type: event.target.value as QuestionType } : item))}>{TYPES.map((item) => <option key={item}>{item}</option>)}</select></label>
-                <label><input type="checkbox" checked={question.required} onChange={(event) => setQuestions((current) => current.map((item, i) => i === index ? { ...item, required: event.target.checked } : item))} /> {t.required}</label>
+                <label className="admin-form-check"><input type="checkbox" checked={question.required} onChange={(event) => setQuestions((current) => current.map((item, i) => i === index ? { ...item, required: event.target.checked } : item))} /> {t.required}</label>
               </div>
-              <div style={{ ...grid, gridTemplateColumns: "repeat(4,1fr)" }}>
+              <div className="admin-form-grid">
                 {(["en","ar","fr","es"] as const).map((language) => <label key={language}>Label {language.toUpperCase()}<input value={question[language]} onChange={(event) => setQuestions((current) => current.map((item, i) => i === index ? { ...item, [language]: event.target.value } : item))} /></label>)}
               </div>
               {(question.type === "SINGLE_CHOICE" || question.type === "MULTI_CHOICE") && <label>{t.options}<textarea rows={4} value={question.options} onChange={(event) => setQuestions((current) => current.map((item, i) => i === index ? { ...item, options: event.target.value } : item))} placeholder={"VALUE|English|العربية|Français|Español\nVALUE2|..."} /></label>}
-              {question.type === "NUMBER" && <div style={{ ...grid, gridTemplateColumns: "1fr 1fr" }}><label>Min<input value={question.min} onChange={(event) => setQuestions((current) => current.map((item, i) => i === index ? { ...item, min: event.target.value } : item))} /></label><label>Max<input value={question.max} onChange={(event) => setQuestions((current) => current.map((item, i) => i === index ? { ...item, max: event.target.value } : item))} /></label></div>}
+              {question.type === "NUMBER" && <div className="admin-form-grid"><label>Min<input value={question.min} onChange={(event) => setQuestions((current) => current.map((item, i) => i === index ? { ...item, min: event.target.value } : item))} /></label><label>Max<input value={question.max} onChange={(event) => setQuestions((current) => current.map((item, i) => i === index ? { ...item, max: event.target.value } : item))} /></label></div>}
               {question.type === "TEXT" && <label>Max length<input value={question.maxLength} onChange={(event) => setQuestions((current) => current.map((item, i) => i === index ? { ...item, maxLength: event.target.value } : item))} /></label>}
               {questions.length > 1 && <button className="secondary-button" onClick={() => setQuestions((current) => current.filter((_, i) => i !== index))}>Remove question</button>}
             </div>)}
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+            <div className="admin-form-actions" style={{justifyContent:"flex-end"}}>
               <button className="secondary-button" onClick={() => setQuestions((current) => [...current, blankQuestion()])}>{t.addQuestion}</button>
               <button className="primary-button" onClick={() => void createForm()}>{t.create}</button>
             </div>
@@ -337,7 +337,7 @@ function CapabilityGroup({ label, values, selected, onToggle }: { label: string;
   return <fieldset style={{ border: "1px solid #e2e8f0", borderRadius: 12, margin: "12px 0" }}>
     <legend><strong>{label}</strong></legend>
     <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-      {values.map((value) => <label key={value}><input type="checkbox" checked={selected.includes(value)} onChange={() => onToggle(value)} /> {value}</label>)}
+      {values.map((value) => <label key={value} className="admin-form-check"><input type="checkbox" checked={selected.includes(value)} onChange={() => onToggle(value)} /> {value}</label>)}
     </div>
   </fieldset>;
 }

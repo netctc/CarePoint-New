@@ -1,0 +1,103 @@
+CarePoint V2 test runtime variables
+===================================
+
+Do not commit a .env file. Export these values in the deployment shell or configure them in the VPS/CI secret store.
+
+Public test routing
+-------------------
+TEST_API_DOMAIN=api-test.example.com
+TEST_ADMIN_DOMAIN=admin-test.example.com
+TEST_PATIENT_DOMAIN=patient-test.example.com
+TEST_DOCTOR_DOMAIN=doctor-test.example.com
+TEST_PROVIDER_DOMAIN=provider-test.example.com
+CAREPOINT_API_PUBLIC_BASE=https://api-test.example.com/api/v1
+
+Host Nginx / TLS options
+------------------------
+# install-nginx-tls.sh always renders/enables the HTTP reverse-proxy site.
+# Set ISSUE_TLS=true only after all five DNS names resolve to the VPS.
+ISSUE_TLS=false
+CERTBOT_EMAIL=<required only when ISSUE_TLS=true>
+
+Infrastructure secrets
+----------------------
+TEST_POSTGRES_PASSWORD=<URL-safe random secret; recommended: openssl rand -hex 24>
+TEST_REDIS_PASSWORD=<URL-safe random secret; recommended: openssl rand -hex 24>
+
+Registration OTP
+----------------
+REGISTRATION_OTP_DELIVERY_MODE=display
+REGISTRATION_OTP_PEPPER=<independent random secret; minimum 32 characters>
+
+# JSON body limit used by encrypted credential PDF uploads.
+# 12 MiB accommodates one base64-encoded PDF up to the 8 MiB document limit.
+JSON_BODY_LIMIT_BYTES=12582912
+FORM_BODY_LIMIT_BYTES=131072
+
+# Production/SMS mode:
+# REGISTRATION_OTP_DELIVERY_MODE=sms
+# TWILIO_ACCOUNT_SID=<Twilio Account SID>
+# TWILIO_AUTH_TOKEN=<Twilio Auth Token>
+# Set one sender option:
+# TWILIO_FROM_NUMBER=<E.164 Twilio sender>
+# TWILIO_MESSAGING_SERVICE_SID=<Twilio Messaging Service SID>
+
+Local test-only crypto material (all values must be independent)
+----------------------------------------------------------------
+MFA_ENVELOPE_KEY_BASE64=<openssl rand -base64 32>
+CLINICAL_ENVELOPE_KEY_BASE64=<openssl rand -base64 32>
+ORDER_ENVELOPE_KEY_BASE64=<openssl rand -base64 32>
+ORDER_SIGNING_SECRET_BASE64=<openssl rand -base64 32>
+DOCUMENT_ENVELOPE_KEY_BASE64=<openssl rand -base64 32>
+DOCUMENT_SIGNING_SECRET_BASE64=<openssl rand -base64 32>
+MESSAGING_ENVELOPE_KEY_BASE64=<openssl rand -base64 32>
+TELEHEALTH_ENVELOPE_KEY_BASE64=<openssl rand -base64 32>
+TELEHEALTH_MOCK_SIGNING_SECRET=<openssl rand -base64 32>
+
+Synthetic bootstrap admin (recommended for a fresh test DB)
+------------------------------------------------------------
+BOOTSTRAP_ADMIN_EMAIL=<test-only email>
+BOOTSTRAP_ADMIN_PASSWORD=<strong test-only password>
+
+Synthetic integral-test fixtures
+--------------------------------
+# Recommended for entorno-v2. Creates/refreshes dedicated synthetic users,
+# doctors for every active specialty, other providers for every active category,
+# five patients, ~30 days of appointment history and ~30 days of open slots.
+LOAD_SYNTHETIC_TEST_FIXTURES=false
+CAREPOINT_TEST_FIXTURE_PASSWORD=<set manually; minimum 16 characters>
+CAREPOINT_TEST_FIXTURE_EMAIL_DOMAIN=carepoint.test
+CAREPOINT_TEST_FIXTURE_TIMEZONE=Asia/Riyadh
+
+Rich synthetic full-system reset
+--------------------------------
+# Destructive reset guard. Required only when running reset-rich-test-data.sh.
+CAREPOINT_RICH_TEST_DATA_CONFIRM=RESET_AND_CREATE_RICH_SYNTHETIC_DATA
+# Optional scale overrides; defaults shown:
+CAREPOINT_RICH_TEST_PATIENT_COUNT=300
+CAREPOINT_RICH_TEST_DOCTORS_PER_SPECIALTY=2
+CAREPOINT_RICH_TEST_PROVIDERS_PER_CATEGORY=2
+
+# Private-pilot fixtures use a stricter pilot/staging/uat database-name guard and
+# are not the default fixture set for the carepoint_test database.
+LOAD_SYNTHETIC_PILOT_FIXTURES=false
+
+Build identity (optional; deploy.sh fills TEST_RELEASE_SHA automatically when omitted)
+--------------------------------------------------------------------------------------
+TEST_RELEASE_SHA=<git SHA>
+TEST_RELEASE_VERSION=entorno-v2
+
+Optional routing / ETA sandbox variables
+----------------------------------------
+FIELD_ROUTE_MAPS_PROVIDER=DIRECT_DISTANCE_V1
+# For a Mapbox sandbox instead:
+# FIELD_ROUTE_MAPS_PROVIDER=MAPBOX
+# MAPBOX_ACCESS_TOKEN=<sandbox token>
+# FIELD_ROUTE_MAPS_TIMEOUT_MS=5000
+
+Rules
+-----
+- Never reuse production secrets, DB passwords, tokens, signing keys, or provider credentials.
+- Never put real PHI/PII/card data in this synthetic environment.
+- Keep payment, insurance, claims, notification, DICOM and telehealth providers on mock/sandbox unless that integration is explicitly under test.
+- Rotate/remove test secrets when the environment is retired.

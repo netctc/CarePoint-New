@@ -45,6 +45,21 @@ export class ProviderSelfOnboardingService {
           status: true,
           createdAt: true,
           updatedAt: true,
+          otherProviderProfile: {
+            select: {
+              category: {
+                select: {
+                  id: true,
+                  slug: true,
+                  labels: true,
+                  family: true,
+                  active: true,
+                  requiredCredentialTypes: true,
+                  capabilities: true,
+                },
+              },
+            },
+          },
         },
       }),
       this.prisma.providerOnboarding.findFirst({
@@ -72,6 +87,17 @@ export class ProviderSelfOnboardingService {
               reviewedAt: true,
               createdAt: true,
               updatedAt: true,
+              documents: {
+                orderBy: { createdAt: "asc" },
+                select: {
+                  id: true,
+                  fileName: true,
+                  mediaType: true,
+                  byteLength: true,
+                  contentDigest: true,
+                  createdAt: true,
+                },
+              },
             },
           },
           specialty: {

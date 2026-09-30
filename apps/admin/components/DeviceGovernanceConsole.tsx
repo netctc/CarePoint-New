@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { useI18n, type Locale } from "@/lib/i18n";
+import { AdminPagination, paginateItems } from "@/components/AdminPagination";
 import styles from "./DeviceGovernanceConsole.module.css";
 
 type Row = Record<string, any>;
@@ -32,6 +33,7 @@ export function DeviceGovernanceConsole({section}:{section:Section}) {
   const [loading,setLoading]=useState(true);
   const [error,setError]=useState("");
   const [oneTimeKey,setOneTimeKey]=useState<Row|null>(null);
+  const [page,setPage]=useState(1); const [pageSize,setPageSize]=useState(10);
 
   const load=useCallback(async()=>{
     setLoading(true);
@@ -134,7 +136,7 @@ export function DeviceGovernanceConsole({section}:{section:Section}) {
     </form>
     <section className={styles.panel}>
       <Table headers={[c.code,c.providerName,c.status,c.scopes,c.health,c.lastSuccess,c.lastError,c.revoke]}>
-        {integrations.map(row=><tr key={String(row.id)}>
+        {paginateItems(integrations,page,pageSize).map(row=><tr key={String(row.id)}>
           <td><strong>{String(row.code)}</strong><small>{String(row.publicKeyFingerprint??"")}</small></td>
           <td>{String(row.providerName)}</td><td>{String(row.status)}</td>
           <td>{arr(row.observationScopes).join(", ")}</td><td>{String(row.healthState)}</td>
@@ -143,6 +145,7 @@ export function DeviceGovernanceConsole({section}:{section:Section}) {
         </tr>)}
       </Table>
       {!loading&&integrations.length===0?<p>{c.empty}</p>:null}
+      <AdminPagination page={page} pageSize={pageSize} total={integrations.length} onPageChange={setPage} onPageSizeChange={(size)=>{setPageSize(size);setPage(1);}}/>
     </section>
   </div>;
 
@@ -186,7 +189,7 @@ export function DeviceGovernanceConsole({section}:{section:Section}) {
     </form>
     <section className={styles.panel}>
       <Table headers={[c.serial,c.model,c.status,c.patient,c.provider,c.integration,c.version,c.lastSeen,c.credential,c.revoke]}>
-        {devices.map(row=><tr key={String(row.id)}>
+        {paginateItems(devices,page,pageSize).map(row=><tr key={String(row.id)}>
           <td><strong>{String(row.serialNumber)}</strong><small>{String(row.id)}</small></td>
           <td>{String(row.model?.code??"")}</td><td>{String(row.status)}</td>
           <td><small>{String(row.assignedPatientId??"—")}</small></td><td><small>{String(row.assignedProviderId??"—")}</small></td>
@@ -195,6 +198,7 @@ export function DeviceGovernanceConsole({section}:{section:Section}) {
           <td><button disabled={row.status!=="ACTIVE"} onClick={()=>void revokeDevice(row)}>{c.revoke}</button></td>
         </tr>)}
       </Table>
+      <AdminPagination page={page} pageSize={pageSize} total={devices.length} onPageChange={setPage} onPageSizeChange={(size)=>{setPageSize(size);setPage(1);}}/>
     </section>
   </div>;
 }

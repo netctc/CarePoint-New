@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useI18n, type Locale } from "@/lib/i18n";
+import { AdminPagination, paginateItems } from "@/components/AdminPagination";
 import styles from "./ClinicalMetricsManager.module.css";
 
 type Labels = { en?: string; ar?: string; fr?: string; es?: string };
@@ -65,6 +66,9 @@ export function ClinicalMetricsManager() {
   const [catalog,setCatalog]=useState<Catalog>({units:[],conversions:[],metrics:[]});
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState("");
+  const [unitPage,setUnitPage]=useState(1); const [unitPageSize,setUnitPageSize]=useState(10);
+  const [conversionPage,setConversionPage]=useState(1); const [conversionPageSize,setConversionPageSize]=useState(10);
+  const [metricPage,setMetricPage]=useState(1); const [metricPageSize,setMetricPageSize]=useState(10);
 
   const [unitCode,setUnitCode]=useState(""); const [dimension,setDimension]=useState("");
   const [unitEn,setUnitEn]=useState(""); const [unitAr,setUnitAr]=useState(""); const [unitFr,setUnitFr]=useState(""); const [unitEs,setUnitEs]=useState("");
@@ -142,48 +146,50 @@ export function ClinicalMetricsManager() {
       <section className={styles.card}>
         <h2>{t.units}</h2>
         <div className={styles.formGrid}>
-          <input value={unitCode} onChange={e=>setUnitCode(e.target.value)} placeholder={t.code}/>
-          <input value={dimension} onChange={e=>setDimension(e.target.value)} placeholder={t.dimension}/>
-          <input value={unitEn} onChange={e=>setUnitEn(e.target.value)} placeholder="Label EN"/>
-          <input value={unitAr} onChange={e=>setUnitAr(e.target.value)} placeholder="Label AR"/>
-          <input value={unitFr} onChange={e=>setUnitFr(e.target.value)} placeholder="Label FR"/>
-          <input value={unitEs} onChange={e=>setUnitEs(e.target.value)} placeholder="Label ES"/>
+          <label><span>{t.code}</span><input value={unitCode} onChange={e=>setUnitCode(e.target.value)} placeholder={t.code}/></label>
+          <label><span>{t.dimension}</span><input value={dimension} onChange={e=>setDimension(e.target.value)} placeholder={t.dimension}/></label>
+          <label><span>{t.labels} · EN</span><input value={unitEn} onChange={e=>setUnitEn(e.target.value)} placeholder="Label EN"/></label>
+          <label><span>{t.labels} · AR</span><input value={unitAr} onChange={e=>setUnitAr(e.target.value)} placeholder="Label AR"/></label>
+          <label><span>{t.labels} · FR</span><input value={unitFr} onChange={e=>setUnitFr(e.target.value)} placeholder="Label FR"/></label>
+          <label><span>{t.labels} · ES</span><input value={unitEs} onChange={e=>setUnitEs(e.target.value)} placeholder="Label ES"/></label>
         </div>
         <button className={styles.primary} disabled={busy} onClick={()=>void createUnit()}>{t.createUnit}</button>
         <div className={styles.list}>
-          {catalog.units.map(item=><div className={styles.row} key={item.code}><strong>{item.code}</strong><span>{local(item.labels,locale,item.code)}</span><small>{item.dimension}</small></div>)}
+          {paginateItems(catalog.units,unitPage,unitPageSize).map(item=><div className={styles.row} key={item.code}><strong>{item.code}</strong><span>{local(item.labels,locale,item.code)}</span><small>{item.dimension}</small></div>)}
           {!catalog.units.length?<div className={styles.empty}>{t.noUnits}</div>:null}
         </div>
+        <AdminPagination page={unitPage} pageSize={unitPageSize} total={catalog.units.length} onPageChange={setUnitPage} onPageSizeChange={(size)=>{setUnitPageSize(size);setUnitPage(1);}}/>
       </section>
 
       <section className={styles.card}>
         <h2>{t.conversion}</h2>
         <div className={styles.formGrid}>
-          <select value={fromUnit} onChange={e=>setFromUnit(e.target.value)}>{catalog.units.map(u=><option key={u.code} value={u.code}>{u.code}</option>)}</select>
-          <select value={toUnit} onChange={e=>setToUnit(e.target.value)}>{catalog.units.map(u=><option key={u.code} value={u.code}>{u.code}</option>)}</select>
-          <input type="number" step="any" value={multiplier} onChange={e=>setMultiplier(e.target.value)} placeholder={t.multiplier}/>
-          <input type="number" step="any" value={offset} onChange={e=>setOffset(e.target.value)} placeholder={t.offset}/>
+          <label><span>{t.from}</span><select value={fromUnit} onChange={e=>setFromUnit(e.target.value)}>{catalog.units.map(u=><option key={u.code} value={u.code}>{u.code}</option>)}</select></label>
+          <label><span>{t.to}</span><select value={toUnit} onChange={e=>setToUnit(e.target.value)}>{catalog.units.map(u=><option key={u.code} value={u.code}>{u.code}</option>)}</select></label>
+          <label><span>{t.multiplier}</span><input type="number" step="any" value={multiplier} onChange={e=>setMultiplier(e.target.value)} placeholder={t.multiplier}/></label>
+          <label><span>{t.offset}</span><input type="number" step="any" value={offset} onChange={e=>setOffset(e.target.value)} placeholder={t.offset}/></label>
         </div>
         <button className={styles.primary} disabled={busy||!fromUnit||!toUnit} onClick={()=>void createConversion()}>{t.createConversion}</button>
         <div className={styles.list}>
-          {conversions.map(item=><div className={styles.row} key={item.id}><strong>{item.fromUnitCode} → {item.toUnitCode}</strong><span>× {item.multiplier} + {item.offset}</span><small>v{item.version}</small></div>)}
+          {paginateItems(conversions,conversionPage,conversionPageSize).map(item=><div className={styles.row} key={item.id}><strong>{item.fromUnitCode} → {item.toUnitCode}</strong><span>× {item.multiplier} + {item.offset}</span><small>v{item.version}</small></div>)}
         </div>
+        <AdminPagination page={conversionPage} pageSize={conversionPageSize} total={conversions.length} onPageChange={setConversionPage} onPageSizeChange={(size)=>{setConversionPageSize(size);setConversionPage(1);}}/>
       </section>
     </div>
 
     <section className={styles.card}>
       <h2>{t.metrics}</h2>
       <div className={styles.formGridWide}>
-        <input value={metricCode} onChange={e=>setMetricCode(e.target.value)} placeholder={t.code}/>
-        <input value={category} onChange={e=>setCategory(e.target.value)} placeholder={t.category}/>
-        <input value={metricEn} onChange={e=>setMetricEn(e.target.value)} placeholder="Label EN"/>
-        <input value={metricAr} onChange={e=>setMetricAr(e.target.value)} placeholder="Label AR"/>
-        <input value={metricFr} onChange={e=>setMetricFr(e.target.value)} placeholder="Label FR"/>
-        <input value={metricEs} onChange={e=>setMetricEs(e.target.value)} placeholder="Label ES"/>
+        <label><span>{t.code}</span><input value={metricCode} onChange={e=>setMetricCode(e.target.value)} placeholder={t.code}/></label>
+        <label><span>{t.category}</span><input value={category} onChange={e=>setCategory(e.target.value)} placeholder={t.category}/></label>
+        <label><span>{t.labels} · EN</span><input value={metricEn} onChange={e=>setMetricEn(e.target.value)} placeholder="Label EN"/></label>
+        <label><span>{t.labels} · AR</span><input value={metricAr} onChange={e=>setMetricAr(e.target.value)} placeholder="Label AR"/></label>
+        <label><span>{t.labels} · FR</span><input value={metricFr} onChange={e=>setMetricFr(e.target.value)} placeholder="Label FR"/></label>
+        <label><span>{t.labels} · ES</span><input value={metricEs} onChange={e=>setMetricEs(e.target.value)} placeholder="Label ES"/></label>
       </div>
       <button className={styles.primary} disabled={busy} onClick={()=>void createMetric()}>{t.createMetric}</button>
       <div className={styles.metricGrid}>
-        {catalog.metrics.map(metric=><article className={styles.metric} key={metric.id}>
+        {paginateItems(catalog.metrics,metricPage,metricPageSize).map(metric=><article className={styles.metric} key={metric.id}>
           <div className={styles.metricHead}><div><strong>{local(metric.labels,locale,metric.code)}</strong><small>{metric.code} · {metric.category}</small></div><span>{metric.active?"ACTIVE":"INACTIVE"}</span></div>
           <div className={styles.versions}>{metric.versions.slice(0,5).map(version=><div className={styles.version} key={version.id}>
             <div><strong>v{version.version}</strong> · {version.status}</div>
@@ -193,19 +199,21 @@ export function ClinicalMetricsManager() {
         </article>)}
         {!catalog.metrics.length?<div className={styles.empty}>{t.noMetrics}</div>:null}
       </div>
+      <AdminPagination page={metricPage} pageSize={metricPageSize} total={catalog.metrics.length} onPageChange={setMetricPage} onPageSizeChange={(size)=>{setMetricPageSize(size);setMetricPage(1);}}/>
     </section>
 
     <section className={styles.card}>
       <h2>{t.newVersion}</h2>
       <div className={styles.formGridWide}>
-        <select value={metricId} onChange={e=>setMetricId(e.target.value)}>{catalog.metrics.map(m=><option key={m.id} value={m.id}>{m.code} · {local(m.labels,locale,m.code)}</option>)}</select>
-        <select value={canonical} onChange={e=>{setCanonical(e.target.value);setAllowed(prev=>new Set([...prev,e.target.value]))}}>{catalog.units.map(u=><option key={u.code} value={u.code}>{u.code}</option>)}</select>
-        <input type="number" step="any" value={minCanonical} onChange={e=>setMinCanonical(e.target.value)} placeholder={t.min}/>
-        <input type="number" step="any" value={maxCanonical} onChange={e=>setMaxCanonical(e.target.value)} placeholder={t.max}/>
-        <input type="number" min="0" max="6" value={precision} onChange={e=>setPrecision(e.target.value)} placeholder={t.precision}/>
+        <label><span>{t.metric}</span><select value={metricId} onChange={e=>setMetricId(e.target.value)}>{catalog.metrics.map(m=><option key={m.id} value={m.id}>{m.code} · {local(m.labels,locale,m.code)}</option>)}</select></label>
+        <label><span>{t.canonical}</span><select value={canonical} onChange={e=>{setCanonical(e.target.value);setAllowed(prev=>new Set([...prev,e.target.value]))}}>{catalog.units.map(u=><option key={u.code} value={u.code}>{u.code}</option>)}</select></label>
+        <label><span>{t.min}</span><input type="number" step="any" value={minCanonical} onChange={e=>setMinCanonical(e.target.value)} placeholder={t.min}/></label>
+        <label><span>{t.max}</span><input type="number" step="any" value={maxCanonical} onChange={e=>setMaxCanonical(e.target.value)} placeholder={t.max}/></label>
+        <label><span>{t.precision}</span><input type="number" min="0" max="6" value={precision} onChange={e=>setPrecision(e.target.value)} placeholder={t.precision}/></label>
       </div>
+      <div><strong>{t.allowed}</strong></div>
       <div className={styles.checks}>
-        {catalog.units.map(unit=><label key={unit.code}><input type="checkbox" checked={allowed.has(unit.code)} onChange={e=>setAllowed(prev=>{const next=new Set(prev);e.target.checked?next.add(unit.code):next.delete(unit.code);return next})}/>{unit.code}</label>)}
+        {catalog.units.map(unit=><label key={unit.code} className="admin-form-check"><input type="checkbox" checked={allowed.has(unit.code)} onChange={e=>setAllowed(prev=>{const next=new Set(prev);e.target.checked?next.add(unit.code):next.delete(unit.code);return next})}/>{unit.code}</label>)}
       </div>
       <button className={styles.primary} disabled={busy||!selectedMetric||!canonical||allowed.size===0} onClick={()=>void createVersion()}>{t.createVersion}</button>
     </section>

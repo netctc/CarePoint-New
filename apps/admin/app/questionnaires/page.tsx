@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/AppShell";
+import { AdminPagination, paginateItems } from "@/components/AdminPagination";
 import { useI18n, type Locale } from "@/lib/i18n";
 
 type Labels = { en?: string; ar?: string; fr?: string; es?: string };
@@ -108,6 +109,8 @@ export default function QuestionnairesPage() {
   const [dueIfNoResponse,setDueIfNoResponse] = useState(true);
   const [repeatDays,setRepeatDays] = useState("");
   const [askHealthChanged,setAskHealthChanged] = useState(true);
+  const [definitionPage,setDefinitionPage]=useState(1); const [definitionPageSize,setDefinitionPageSize]=useState(10);
+  const [versionPage,setVersionPage]=useState(1); const [versionPageSize,setVersionPageSize]=useState(10);
 
   const selected = useMemo(() => items.find((item) => item.id === selectedId) ?? null,[items,selectedId]);
 
@@ -239,25 +242,26 @@ export default function QuestionnairesPage() {
       <aside style={{...box,...grid,alignContent:"start"}}>
         <h3>{t.definitions}</h3>
         {items.length===0 && <p>{t.empty}</p>}
-        {items.map((item)=><button
+        {paginateItems(items,definitionPage,definitionPageSize).map((item)=><button
           key={item.id}
           className={item.id===selectedId?"primary-button":"secondary-button"}
           onClick={()=>setSelectedId(item.id)}
           style={{textAlign:"start"}}
         >{(item.labels?.[locale] || item.labels?.en || item.code) as string}<br/><small>{item.code}</small></button>)}
+        <AdminPagination page={definitionPage} pageSize={definitionPageSize} total={items.length} onPageChange={setDefinitionPage} onPageSizeChange={(size)=>{setDefinitionPageSize(size);setDefinitionPage(1);}}/>
       </aside>
 
       <div style={grid}>
         <section style={box}>
           <h2>{t.newDefinition}</h2>
-          <div style={{...grid,gridTemplateColumns:"1fr 1fr"}}>
+          <div className="admin-form-grid">
             <label>{t.code}<input value={definition.code} onChange={(e)=>setDefinition({...definition,code:e.target.value})} placeholder="INTAKE_GENERAL"/></label>
             <div/>
           </div>
-          <div style={{...grid,gridTemplateColumns:"repeat(4,1fr)"}}>
+          <div className="admin-form-grid">
             {(["en","ar","fr","es"] as const).map((lang)=><label key={lang}>{t.labels} {lang.toUpperCase()}<input value={definition[lang]} onChange={(e)=>setDefinition({...definition,[lang]:e.target.value})}/></label>)}
           </div>
-          <div style={{...grid,gridTemplateColumns:"repeat(4,1fr)"}}>
+          <div className="admin-form-grid">
             {(["en","ar","fr","es"] as const).map((lang)=>{
               const key = ({ en:"descEn", ar:"descAr", fr:"descFr", es:"descEs" } as const)[lang];
               return <label key={lang}>{t.description} {lang.toUpperCase()}<input value={definition[key]} onChange={(e)=>setDefinition({...definition,[key]:e.target.value})}/></label>;
@@ -284,10 +288,10 @@ export default function QuestionnairesPage() {
             <button className="secondary-button" onClick={()=>setQuestions((current)=>[...current,blankQuestion()])}>{t.addQuestion}</button>
 
             <h3>{t.activation}</h3>
-            <div style={{...grid,gridTemplateColumns:"1fr 1fr 1fr"}}>
-              <label><input type="checkbox" checked={dueIfNoResponse} onChange={(e)=>setDueIfNoResponse(e.target.checked)}/> {t.dueIfNoResponse}</label>
+            <div className="admin-form-grid">
+              <label className="admin-form-check"><input type="checkbox" checked={dueIfNoResponse} onChange={(e)=>setDueIfNoResponse(e.target.checked)}/> {t.dueIfNoResponse}</label>
               <label>{t.repeatDays}<input inputMode="numeric" value={repeatDays} onChange={(e)=>setRepeatDays(e.target.value)} placeholder="30"/></label>
-              <label><input type="checkbox" checked={askHealthChanged} onChange={(e)=>setAskHealthChanged(e.target.checked)}/> {t.askHealthChanged}</label>
+              <label className="admin-form-check"><input type="checkbox" checked={askHealthChanged} onChange={(e)=>setAskHealthChanged(e.target.checked)}/> {t.askHealthChanged}</label>
             </div>
 
             <div style={{marginTop:16,...box,background:"#f8fafc"}}>
@@ -303,13 +307,14 @@ export default function QuestionnairesPage() {
           <section style={box}>
             <h2>{t.versions}</h2>
             {sortedVersions.length===0 && <p>{t.noVersion}</p>}
-            {sortedVersions.map((version)=><div key={version.id} style={{display:"flex",justifyContent:"space-between",gap:12,padding:"12px 0",borderTop:"1px solid #e2e8f0"}}>
+            {paginateItems(sortedVersions,versionPage,versionPageSize).map((version)=><div key={version.id} style={{display:"flex",justifyContent:"space-between",gap:12,padding:"12px 0",borderTop:"1px solid #e2e8f0"}}>
               <div>
                 <strong>v{version.version}</strong> · <span>{version.status}</span>
                 <br/><small>{version.activatedAt ? "Activated "+new Date(version.activatedAt).toLocaleString(locale) : version.createdAt ? new Date(version.createdAt).toLocaleString(locale) : ""}</small>
               </div>
               {version.status==="DRAFT" && <button className="primary-button" onClick={()=>void activate(version.version)}>{t.activate}</button>}
             </div>)}
+            <AdminPagination page={versionPage} pageSize={versionPageSize} total={sortedVersions.length} onPageChange={setVersionPage} onPageSizeChange={(size)=>{setVersionPageSize(size);setVersionPage(1);}}/>
           </section>
         </>}
       </div>
@@ -325,16 +330,16 @@ function QuestionEditor({
 }) {
   const set=<K extends keyof BuilderQuestion>(key:K,value:BuilderQuestion[K])=>onChange({...question,[key]:value});
   return <div style={{border:"1px solid #e2e8f0",borderRadius:14,padding:14,marginBottom:12}}>
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr auto",gap:12}}>
+    <div className="admin-form-grid">
       <label>ID<input value={question.id} onChange={(e)=>set("id",e.target.value)} placeholder={"question_"+(index+1)}/></label>
       <label>Type<select value={question.type} onChange={(e)=>set("type",e.target.value as QuestionType)}>{TYPES.map((type)=><option key={type}>{type}</option>)}</select></label>
-      <label><input type="checkbox" checked={question.required} onChange={(e)=>set("required",e.target.checked)}/> {t.required}</label>
+      <label className="admin-form-check"><input type="checkbox" checked={question.required} onChange={(e)=>set("required",e.target.checked)}/> {t.required}</label>
     </div>
-    <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12}}>
+    <div className="admin-form-grid">
       {(["en","ar","fr","es"] as const).map((lang)=><label key={lang}>{t.labels} {lang.toUpperCase()}<input value={question[lang]} onChange={(e)=>set(lang,e.target.value)}/></label>)}
     </div>
     {(question.type==="SINGLE_CHOICE" || question.type==="MULTI_CHOICE") && <label>{t.options}<textarea rows={4} value={question.options} onChange={(e)=>set("options",e.target.value)} placeholder={"YES|Yes|نعم|Oui|Sí\nNO|No|لا|Non|No"}/></label>}
-    {question.type==="NUMBER" && <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><label>Min<input value={question.min} onChange={(e)=>set("min",e.target.value)}/></label><label>Max<input value={question.max} onChange={(e)=>set("max",e.target.value)}/></label></div>}
+    {question.type==="NUMBER" && <div className="admin-form-grid"><label>Min<input value={question.min} onChange={(e)=>set("min",e.target.value)}/></label><label>Max<input value={question.max} onChange={(e)=>set("max",e.target.value)}/></label></div>}
     {question.type==="TEXT" && <label>Max length<input value={question.maxLength} onChange={(e)=>set("maxLength",e.target.value)}/></label>}
     {canRemove && <button className="secondary-button" onClick={onRemove}>{t.remove}</button>}
   </div>;

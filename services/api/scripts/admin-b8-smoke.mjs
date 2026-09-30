@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
+import { hashPasswordAsync } from "@carepoint/identity";
 
 const prisma = new PrismaClient();
 const apiBase = process.env.CAREPOINT_API_URL || "http://127.0.0.1:4000/api/v1";
@@ -60,8 +61,15 @@ try {
   await cleanup();
   stage="patient-auth";
   console.log(`B8 stage: ${stage}`);
-  const registration=await api("/iam/register/patient",{method:"POST",body:JSON.stringify({email:targetEmail,password:targetPassword,firstName:"B8 Secret",lastName:"Tele Patient"})});
-  assert(registration.response.ok,`B8 patient registration failed: ${registration.text}`);
+  await prisma.user.create({
+    data:{
+      email:targetEmail,
+      username:"b8-tele-patient",
+      passwordHash:await hashPasswordAsync(targetPassword),
+      role:"PATIENT",
+      patientProfile:{create:{firstName:"B8 Secret",lastName:"Tele Patient",dateOfBirth:new Date("1990-01-15T00:00:00.000Z"),sex:"PREFER_NOT_TO_SAY"}},
+    },
+  });
   const patientToken=await login(targetEmail,targetPassword);
   const adminToken=await login(adminEmail,adminPassword);
   const patient=await prisma.user.findUnique({where:{email:targetEmail},select:{id:true,patientProfile:{select:{id:true}}}});

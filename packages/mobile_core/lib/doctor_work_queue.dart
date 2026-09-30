@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'carepoint_api.dart';
 import 'carepoint_localization.dart';
 
 const doctorWorkQueueFilters = <String>[
@@ -28,6 +29,96 @@ Set<String> doctorWorkQueuePatientIds(Map<String, dynamic> payload, String filte
     }
   }
   return result;
+}
+
+class DoctorPrioritizedWorkQueuePage extends StatefulWidget {
+  const DoctorPrioritizedWorkQueuePage({
+    super.key,
+    required this.session,
+    required this.locale,
+    required this.accent,
+  });
+
+  final CarePointSession session;
+  final CarePointLocale locale;
+  final Color accent;
+
+  @override
+  State<DoctorPrioritizedWorkQueuePage> createState() => _DoctorPrioritizedWorkQueuePageState();
+}
+
+class _DoctorPrioritizedWorkQueuePageState extends State<DoctorPrioritizedWorkQueuePage> {
+  bool loading = true;
+  String? error;
+  Map<String, dynamic> payload = const {};
+  String selected = 'ALL';
+
+  @override
+  void initState() {
+    super.initState();
+    load();
+  }
+
+  Future<void> load() async {
+    if (mounted) setState(() { loading = true; error = null; });
+    try {
+      final next = await widget.session.api.doctorWorkQueue();
+      if (mounted) setState(() => payload = next);
+    } catch (value) {
+      if (mounted) setState(() => error = value.toString());
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(
+          title: Text(doctorWorkQueueText(widget.locale, 'prioritizedTitle')),
+          actions: [
+            IconButton(
+              onPressed: loading ? null : load,
+              tooltip: cpText(widget.locale, 'common.refresh'),
+              icon: const Icon(Icons.refresh_rounded),
+            ),
+          ],
+        ),
+        body: loading
+            ? const Center(child: CircularProgressIndicator())
+            : error != null
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(mainAxisSize: MainAxisSize.min, children: [
+                        const Icon(Icons.error_outline_rounded, size: 44, color: Color(0xFFDC2626)),
+                        const SizedBox(height: 12),
+                        Text(error!, textAlign: TextAlign.center),
+                        const SizedBox(height: 12),
+                        FilledButton.icon(
+                          onPressed: load,
+                          icon: const Icon(Icons.refresh_rounded),
+                          label: Text(cpText(widget.locale, 'common.retry')),
+                        ),
+                      ]),
+                    ),
+                  )
+                : RefreshIndicator(
+                    onRefresh: load,
+                    child: ListView(
+                      padding: const EdgeInsets.all(16),
+                      children: [
+                        DoctorWorkQueuePanel(
+                          payload: payload,
+                          locale: widget.locale,
+                          accent: widget.accent,
+                          selected: selected,
+                          onSelected: (value) => setState(() => selected = value),
+                        ),
+                      ],
+                    ),
+                  ),
+      );
+
 }
 
 class DoctorWorkQueuePanel extends StatelessWidget {
@@ -121,6 +212,7 @@ class DoctorWorkQueuePanel extends StatelessWidget {
 String doctorWorkQueueText(CarePointLocale locale, String key) {
   const values = <String, Map<String, String>>{
     'title': {'en':'Follow-up filters','ar':'مرشحات المتابعة','fr':'Filtres de suivi','es':'Filtros de seguimiento'},
+    'prioritizedTitle': {'en':'Prioritized work queue','ar':'قائمة العمل ذات الأولوية','fr':'File de travail priorisée','es':'Cola de trabajo priorizada'},
     'subtitle': {'en':'Roster-only clinical follow-up indicators. Counts never expand your authorized patient list.','ar':'مؤشرات متابعة سريرية ضمن قائمة مرضاك المصرح بها فقط. لا توسّع العدادات نطاق الوصول.','fr':'Indicateurs de suivi clinique limités à votre file autorisée. Les compteurs n’élargissent jamais l’accès.','es':'Indicadores de seguimiento clínico limitados a tu lista autorizada. Los contadores nunca amplían el acceso.'},
     'ALL': {'en':'All','ar':'الكل','fr':'Tous','es':'Todos'},
     'PENDING_QUESTIONNAIRE': {'en':'Questionnaire pending','ar':'استبيان معلّق','fr':'Questionnaire en attente','es':'Cuestionario pendiente'},

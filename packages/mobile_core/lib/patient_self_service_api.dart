@@ -5,6 +5,17 @@ extension CarePointSelfServiceApi on CarePointApi {
   Future<void> revokeAccountSession(String sessionId) async { await _send('DELETE', '/iam/sessions/$sessionId'); }
   Future<void> revokeAllAccountSessions() async { await _send('POST', '/iam/sessions/revoke-all', body: const {}); }
   Future<Map<String, dynamic>> mfaStatus() async => _asMap(await _send('GET', '/iam/mfa/status'));
+  Future<Map<String, dynamic>> changeOwnPassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async => _asMap(await _send(
+    'POST',
+    '/iam/accounts/me/password',
+    body: {
+      'currentPassword': currentPassword,
+      'newPassword': newPassword,
+    },
+  ));
   Future<Map<String, dynamic>> beginMfaEnrollment() async => _asMap(await _send('POST', '/iam/mfa/enroll', body: const {}));
   Future<Map<String, dynamic>> confirmMfaEnrollment(String code) async => _asMap(await _send('POST', '/iam/mfa/confirm', body: {'code': code.trim()}));
   Future<Map<String, dynamic>> patientProfile() async => _asMap(await _send('GET', '/iam/patient-profile'));
@@ -146,6 +157,49 @@ extension CarePointProviderOnboardingApi on CarePointApi {
   Future<Map<String, dynamic>> addProviderOnboardingCredential(String onboardingId, {required String type, String? number, String? issuer, String? validUntil, String? documentId}) async => _asMap(await _send('POST', '/onboarding/$onboardingId/credentials', body: {
     'type': type.trim(), if (number?.trim().isNotEmpty == true) 'number': number!.trim(), if (issuer?.trim().isNotEmpty == true) 'issuer': issuer!.trim(), if (validUntil?.trim().isNotEmpty == true) 'validUntil': validUntil!.trim(), if (documentId?.trim().isNotEmpty == true) 'documentId': documentId!.trim(),
   }));
+  Future<Map<String, dynamic>> uploadProviderOnboardingCredentialPdf(
+    String onboardingId,
+    String credentialId, {
+    required String fileName,
+    required List<int> bytes,
+  }) async => _asMap(await _send(
+    'POST',
+    '/onboarding/' + Uri.encodeComponent(onboardingId) + '/credentials/' + Uri.encodeComponent(credentialId) + '/documents',
+    body: {
+      'fileName': fileName,
+      'mediaType': 'application/pdf',
+      'contentBase64': base64Encode(bytes),
+    },
+  ));
+
+  Future<void> removeProviderOnboardingCredential(
+    String onboardingId,
+    String credentialId,
+  ) async {
+    await _send(
+      'DELETE',
+      '/onboarding/' +
+          Uri.encodeComponent(onboardingId) +
+          '/credentials/' +
+          Uri.encodeComponent(credentialId),
+    );
+  }
+
+  Future<Map<String, dynamic>> providerOnboardingCredentialDocumentContent(
+    String onboardingId,
+    String credentialId,
+    String documentId,
+  ) async => _asMap(await _send(
+    'GET',
+    '/onboarding/' +
+        Uri.encodeComponent(onboardingId) +
+        '/credentials/' +
+        Uri.encodeComponent(credentialId) +
+        '/documents/' +
+        Uri.encodeComponent(documentId) +
+        '/content',
+  ));
+
   Future<Map<String, dynamic>> submitProviderOnboarding(String onboardingId) async => _asMap(await _send('POST', '/onboarding/$onboardingId/submit', body: const {}));
 }
 

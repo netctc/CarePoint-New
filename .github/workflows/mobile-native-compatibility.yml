@@ -43,6 +43,12 @@ jobs:
         run: |
           flutter pub get
           git diff --exit-code -- pubspec.lock
+      - name: Align legacy file_picker Android compile SDK
+        run: |
+          FILE_PICKER_GRADLE="$(find "${PUB_CACHE:-$HOME/.pub-cache}/hosted" -path '*/file_picker-8.3.7/android/build.gradle' -print -quit)"
+          test -n "$FILE_PICKER_GRADLE"
+          sed -i -E 's/compileSdkVersion[[:space:]]+[0-9]+/compileSdkVersion 36/; s/compileSdk[[:space:]]+[0-9]+/compileSdk 36/' "$FILE_PICKER_GRADLE"
+          grep -E 'compileSdk(Version)?[[:space:]]+36' "$FILE_PICKER_GRADLE"
       - name: Generate validation-only Android runner
         working-directory: apps/${{ matrix.app }}
         run: |

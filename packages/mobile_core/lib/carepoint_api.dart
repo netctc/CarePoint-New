@@ -33,8 +33,12 @@ class CarePointSession {
 }
 
 class CarePointApi {
-  CarePointApi({String? baseUrl, http.Client? client, CarePointTokenStore? tokenStore})
-      : baseUrl = (baseUrl ?? const String.fromEnvironment('CAREPOINT_API_BASE', defaultValue: 'http://10.0.2.2:4000/api/v1')).replaceAll(RegExp(r'/+$'), ''),
+  CarePointApi({
+    String? baseUrl,
+    http.Client? client,
+    CarePointTokenStore? tokenStore,
+    this.onSessionInvalidated,
+  }) : baseUrl = (baseUrl ?? const String.fromEnvironment('CAREPOINT_API_BASE', defaultValue: 'http://10.0.2.2:4000/api/v1')).replaceAll(RegExp(r'/+$'), ''),
         _client = client ?? http.Client(),
         _tokenStore = tokenStore ?? SecureCarePointTokenStore();
 
@@ -43,6 +47,7 @@ class CarePointApi {
   final CarePointTokenStore _tokenStore;
   String? accessToken;
   String? refreshToken;
+  void Function()? onSessionInvalidated;
 
   bool get isAuthenticated => accessToken != null;
 
@@ -61,11 +66,114 @@ class CarePointApi {
     }
   }
 
-  Future<CarePointSession> login(String email, String password) async {
-    final result = await _send('POST', '/iam/login', body: {'email': email.trim(), 'password': password}, authenticated: false, retryAuth: false);
+  Future<CarePointSession> login(String identity, String password) async {
+    final result = await _send('POST', '/iam/login', body: {'email': identity.trim(), 'password': password}, authenticated: false, retryAuth: false);
     final map = _asMap(result);
     if (map['requiresMfa'] == true) throw CarePointMfaRequired(map['challengeId'].toString(), map['expiresAt'].toString());
     await _captureTokens(map);
+    return CarePointSession(account: await me(), api: this);
+  }
+
+  Future<Map<String, dynamic>> registrationOptions() async =>
+      _asMap(await _send('GET', '/iam/register/options', authenticated: false, retryAuth: false));
+
+  Future<Map<String, dynamic>> startRegistrationOtp({
+    required String kind,
+    required String firstName,
+    required String lastName,
+    required String phone,
+  }) async => _asMap(await _send(
+    'POST',
+    '/iam/register/otp/start',
+    authenticated: false,
+    retryAuth: false,
+    body: {
+      'kind': kind,
+      'firstName': firstName.trim(),
+      'lastName': lastName.trim(),
+      'phone': phone.trim(),
+    },
+  ));
+
+  Future<Map<String, dynamic>> verifyRegistrationOtp({
+    required String challengeId,
+    required String code,
+  }) async => _asMap(await _send(
+    'POST',
+    '/iam/register/otp/verify',
+    authenticated: false,
+    retryAuth: false,
+    body: {
+      'challengeId': challengeId,
+      'code': code.trim(),
+    },
+  ));
+
+  Future<CarePointSession> registerPatient({
+    required String challengeId,
+    required String registrationToken,
+    String? email,
+    required String username,
+    required String password,
+    required String dateOfBirth,
+    required String sex,
+    String? reference,
+  }) async {
+    final result = _asMap(await _send(
+      'POST',
+      '/iam/register/patient',
+      authenticated: false,
+      retryAuth: false,
+      body: {
+        'challengeId': challengeId,
+        'registrationToken': registrationToken,
+        if (email?.trim().isNotEmpty == true) 'email': email!.trim(),
+        'username': username.trim(),
+        'password': password,
+        'dateOfBirth': dateOfBirth.trim(),
+        'sex': sex.trim(),
+        if (reference?.trim().isNotEmpty == true) 'reference': reference!.trim(),
+      },
+    ));
+    await _captureTokens(result);
+    return CarePointSession(account: await me(), api: this);
+  }
+
+  Future<CarePointSession> registerProfessional({
+    required String challengeId,
+    required String registrationToken,
+    required String kind,
+    String? email,
+    required String username,
+    required String password,
+    String? specialtyId,
+    String? providerCategoryId,
+    String? reference,
+  }) async {
+    final result = _asMap(await _send(
+      'POST',
+      '/iam/register/professional',
+      authenticated: false,
+      retryAuth: false,
+      body: {
+        'challengeId': challengeId,
+        'registrationToken': registrationToken,
+        'kind': kind,
+        if (email?.trim().isNotEmpty == true) 'email': email!.trim(),
+        'username': username.trim(),
+        'password': password,
+        if (specialtyId?.trim().isNotEmpty == true) 'specialtyId': specialtyId!.trim(),
+        if (providerCategoryId?.trim().isNotEmpty == true) 'providerCategoryId': providerCategoryId!.trim(),
+        if (reference?.trim().isNotEmpty == true) 'reference': reference!.trim(),
+      },
+    ));
+    if (result['requiresMfa'] == true) {
+      throw CarePointMfaRequired(
+        result['challengeId'].toString(),
+        result['expiresAt'].toString(),
+      );
+    }
+    await _captureTokens(result);
     return CarePointSession(account: await me(), api: this);
   }
 
@@ -918,9 +1026,15 @@ class CarePointApi {
 
   Future<dynamic> _send(String method, String path, {Map<String, String>? query, Map<String, dynamic>? body, bool authenticated = true, bool retryAuth = true}) async {
     final response = await _raw(method, path, query: query, body: body, authenticated: authenticated);
-    if (response.statusCode == 401 && authenticated && retryAuth && refreshToken != null) {
-      final refreshed = await _refresh();
-      if (refreshed) return _send(method, path, query: query, body: body, authenticated: authenticated, retryAuth: false);
+    if (response.statusCode == 401 && authenticated) {
+      if (retryAuth && refreshToken != null) {
+        final refreshed = await _refresh();
+        if (refreshed) {
+          return _send(method, path, query: query, body: body, authenticated: authenticated, retryAuth: false);
+        }
+      }
+      await logout();
+      onSessionInvalidated?.call();
     }
     return _decode(response);
   }

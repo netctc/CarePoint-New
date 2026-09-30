@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import 'carepoint_api.dart';
 import 'carepoint_localization.dart';
+import 'mfa_setup_panel.dart';
+import 'password_change_dialog.dart';
 
 class ProfessionalAccountWorkspace extends StatefulWidget {
   const ProfessionalAccountWorkspace({
@@ -124,6 +126,12 @@ class _ProfessionalAccountWorkspaceState extends State<ProfessionalAccountWorksp
             _kv(_t('role'), account['role']),
             _kv(_t('status'), account['status']),
             _kv(_t('created'), _dateTime(account['createdAt'])),
+            const Divider(),
+            OutlinedButton.icon(
+              onPressed: _changePassword,
+              icon: const Icon(Icons.password_rounded),
+              label: Text(passwordChangeLabel(widget.locale)),
+            ),
           ]),
         ),
       );
@@ -236,6 +244,18 @@ class _ProfessionalAccountWorkspaceState extends State<ProfessionalAccountWorksp
     );
   }
 
+  Future<void> _changePassword() async {
+    final changed = await showCarePointPasswordChangeDialog(
+      context,
+      session: widget.session,
+      locale: widget.locale,
+    );
+    if (changed && mounted) {
+      _snack(passwordChangedReauthLabel(widget.locale));
+      widget.onSignOut();
+    }
+  }
+
   Future<void> _revokeSession(String id) async {
     if (id.isEmpty) return;
     try {
@@ -280,13 +300,11 @@ class _ProfessionalAccountWorkspaceState extends State<ProfessionalAccountWorksp
           title: Text(_t('enableMfa')),
           content: SingleChildScrollView(
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              Text(_t('mfaSetupHint')),
-              const SizedBox(height: 12),
-              SelectableText(secret, style: const TextStyle(fontFamily: 'monospace', fontWeight: FontWeight.w700)),
-              if (uri.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                SelectableText(uri, style: const TextStyle(fontSize: 11)),
-              ],
+              CarePointMfaSetupPanel(
+                locale: widget.locale,
+                secret: secret,
+                otpauthUri: uri,
+              ),
               const SizedBox(height: 14),
               TextField(controller: code, keyboardType: TextInputType.number, maxLength: 6, decoration: InputDecoration(labelText: _t('mfaCode'), border: const OutlineInputBorder())),
             ]),

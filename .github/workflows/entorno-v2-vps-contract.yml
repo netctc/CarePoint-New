@@ -1,0 +1,84 @@
+name: Entorno V2 VPS Contract
+
+on:
+  push:
+    branches: [entorno-v2]
+    paths:
+      - 'ops/test-v2/**'
+      - '.github/workflows/entorno-v2-vps-contract.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate deployment shell syntax
+        run: |
+          bash -n ops/test-v2/scripts/bootstrap-ubuntu.sh
+          bash -n ops/test-v2/scripts/install-nginx-tls.sh
+          bash -n ops/test-v2/scripts/deploy.sh
+          bash -n ops/test-v2/scripts/smoke.sh
+          bash -n ops/test-v2/scripts/verify-public.sh
+          bash -n ops/test-v2/scripts/load-test-fixtures.sh
+          bash -n ops/test-v2/scripts/reset-rich-test-data.sh
+          bash -n ops/test-v2/scripts/use-nipio-domains.sh
+          bash -n ops/test-v2/scripts/ensure-api-upload-limit.sh
+      - name: Enforce synthetic lane boundaries
+        run: |
+          test -z "$(find ops/test-v2 -type f -name '.env*' -print)"
+          grep -q '127.0.0.1:4200:4200' ops/test-v2/compose.yaml
+          grep -q '127.0.0.1:3200:3200' ops/test-v2/compose.yaml
+          grep -q '127.0.0.1:8280:80' ops/test-v2/compose.yaml
+          grep -q '127.0.0.1:8281:80' ops/test-v2/compose.yaml
+          grep -q '127.0.0.1:8282:80' ops/test-v2/compose.yaml
+          grep -qi 'Synchronization' ops/test-v2/README.md
+          grep -qi 'synthetic' ops/test-v2/README.md
+          ! grep -Eq '0\.0\.0\.0:(5432|6379)' ops/test-v2/compose.yaml
+      - name: Validate Nginx template placeholders
+        run: |
+          for marker in API ADMIN PATIENT DOCTOR PROVIDER; do
+            grep -q "__${marker}_DOMAIN__" ops/test-v2/nginx/carepoint-v2-http.conf.template
+          done
+
+      - name: Validate Flutter release build identity
+        run: |
+          grep -q 'CAREPOINT_BUILD_ENV' ops/test-v2/Dockerfile.flutter-web
+          grep -q 'CAREPOINT_RELEASE_SHA' ops/test-v2/Dockerfile.flutter-web
+          grep -q 'CAREPOINT_BUILD_ENV: staging' ops/test-v2/compose.yaml
+          grep -q 'CAREPOINT_RELEASE_SHA:' ops/test-v2/compose.yaml
+
+      - name: Validate Flutter Dockerfile syntax
+        run: |
+          docker buildx build --check \
+            -f ops/test-v2/Dockerfile.flutter-web \
+            --build-arg APP_PATH=apps/patient-mobile \
+            --build-arg CAREPOINT_API_BASE=https://api-test.example.com/api/v1 \
+            --build-arg CAREPOINT_BUILD_ENV=staging \
+            --build-arg CAREPOINT_RELEASE_SHA=0123456789abcdef0123456789abcdef01234567 \
+            .
+
+      - name: Validate registration OTP contract
+        run: |
+          grep -q 'REGISTRATION_OTP_DELIVERY_MODE:' ops/test-v2/compose.yaml
+          grep -q 'REGISTRATION_OTP_PEPPER:' ops/test-v2/compose.yaml
+          grep -q 'REGISTRATION_OTP_DELIVERY_MODE=display' ops/test-v2/variables.required.txt
+          grep -q 'TWILIO_ACCOUNT_SID' ops/test-v2/variables.required.txt
+
+      - name: Validate credential PDF deployment contract
+        run: |
+          test "$(grep -c 'client_max_body_size 12m;' ops/test-v2/nginx/carepoint-v2-http.conf.template)" -ge 2
+          grep -q 'JSON_BODY_LIMIT_BYTES' ops/test-v2/compose.yaml
+          grep -q 'CAREPOINT_API_MAX_RESPONSE_BYTES: "12582912"' ops/test-v2/compose.yaml
+          grep -q 'TEST_ADMIN_DOMAIN' ops/test-v2/scripts/ensure-api-upload-limit.sh
+          grep -q 'storage-init:' ops/test-v2/compose.yaml
+          grep -q 'chown -R 1000:1000 /documents /bulk-export' ops/test-v2/compose.yaml
+          grep -q 'migrate:' ops/test-v2/compose.yaml
+          grep -q 'rich-test-data:' ops/test-v2/compose.yaml
+          grep -q 'CAREPOINT_RICH_TEST_DATA_CONFIRM' ops/test-v2/compose.yaml
+          test -f ops/test-v2/scripts/reset-rich-test-data.sh
+          grep -Fq 'command: ["npm", "run", "db:deploy"]' ops/test-v2/compose.yaml
+          test -f services/api/prisma/migrations/20260927170500_onboarding_credential_documents/migration.sql

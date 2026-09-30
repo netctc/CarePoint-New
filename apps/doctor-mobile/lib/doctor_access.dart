@@ -1,4 +1,6 @@
 import 'package:carepoint_mobile_core/carepoint_api.dart';
+import 'package:carepoint_mobile_core/credential_pdf_picker.dart';
+import 'package:carepoint_mobile_core/credential_pdf_viewer.dart';
 import 'package:carepoint_mobile_core/carepoint_localization.dart';
 import 'package:flutter/material.dart';
 
@@ -95,10 +97,6 @@ class _DoctorAccessGateState extends State<DoctorAccessGate> {
         title: Text(_t('credentialing')),
         actions: [
           IconButton(onPressed: refresh, tooltip: _t('refresh'), icon: const Icon(Icons.refresh_rounded)),
-          PopupMenuButton<String>(
-            onSelected: (value) { if (value == 'logout') widget.onSignOut(); },
-            itemBuilder: (_) => [PopupMenuItem(value: 'logout', child: Text(cpText(widget.locale, 'auth.signOut')))],
-          ),
         ],
       ),
       body: RefreshIndicator(
@@ -232,8 +230,16 @@ class _DoctorAccessGateState extends State<DoctorAccessGate> {
                   if (item['issuer']?.toString().trim().isNotEmpty == true) '${_t('issuer')}: ${item['issuer']}',
                   if (item['validUntil'] != null) '${_t('validUntil')}: ${_date(item['validUntil'])}',
                   '${_t('reviewState')}: ${item['state'] ?? 'PENDING'}',
+                  if (_credentialDocumentsText(item) != null) _credentialDocumentsText(item)!,
                   if (item['reviewNote']?.toString().trim().isNotEmpty == true) '${_t('reviewNote')}: ${item['reviewNote']}',
                 ].join('\n')),
+                trailing: _list(item['documents']).isEmpty
+                    ? null
+                    : IconButton(
+                        onPressed: () => _openCredentialDocuments(item),
+                        icon: const Icon(Icons.picture_as_pdf_outlined),
+                        tooltip: _t('viewPdfs'),
+                      ),
                 isThreeLine: true,
               )),
             if (canEdit) ...[
@@ -257,9 +263,11 @@ class _DoctorAccessGateState extends State<DoctorAccessGate> {
     final number = TextEditingController();
     final issuer = TextEditingController();
     final validUntil = TextEditingController();
+    var selectedPdfs = <CarePointCredentialPdf>[];
     final accepted = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (_) => StatefulBuilder(
+        builder: (context, setModalState) => AlertDialog(
         title: Text(_t('addLicense')),
         content: SingleChildScrollView(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -276,12 +284,54 @@ class _DoctorAccessGateState extends State<DoctorAccessGate> {
               keyboardType: TextInputType.datetime,
               decoration: InputDecoration(labelText: _t('validUntilOptional'), hintText: 'YYYY-MM-DD', border: const OutlineInputBorder()),
             ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: () async {
+                try {
+                  final remaining = carePointCredentialPdfMaxFiles - selectedPdfs.length;
+                  if (remaining <= 0) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_t('pdfLimitReached'))));
+                    return;
+                  }
+                  final picked = await pickCarePointCredentialPdfs(maxFiles: remaining);
+                  if (picked.isNotEmpty) {
+                    setModalState(() => selectedPdfs = [...selectedPdfs, ...picked]);
+                  }
+                } catch (value) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value.toString())));
+                  }
+                }
+              },
+              icon: const Icon(Icons.picture_as_pdf_outlined),
+              label: Text(_t('attachPdfs')),
+            ),
+            const SizedBox(height: 6),
+            Text(_t('pdfUploadHint'), style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
+            if (selectedPdfs.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              ...selectedPdfs.asMap().entries.map((entry) => ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.picture_as_pdf_outlined),
+                title: Text(entry.value.name),
+                subtitle: Text(carePointCredentialPdfSizeLabel(entry.value.byteLength)),
+                trailing: IconButton(
+                  icon: const Icon(Icons.close_rounded),
+                  onPressed: () => setModalState(() {
+                    final next = [...selectedPdfs]..removeAt(entry.key);
+                    selectedPdfs = next;
+                  }),
+                ),
+              )),
+            ],
           ]),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: Text(_t('cancel'))),
           FilledButton(onPressed: () => Navigator.pop(context, true), child: Text(_t('save'))),
         ],
+      ),
       ),
     );
     if (accepted != true) {
@@ -291,19 +341,45 @@ class _DoctorAccessGateState extends State<DoctorAccessGate> {
     final licenseNumber = number.text.trim();
     final licenseIssuer = issuer.text.trim();
     final expiry = validUntil.text.trim();
+    final pdfs = List<CarePointCredentialPdf>.from(selectedPdfs);
     number.dispose(); issuer.dispose(); validUntil.dispose();
     if (licenseNumber.isEmpty) {
       _snack(_t('licenseRequired'));
       return;
     }
     await _run(
-      () => api.addProviderOnboardingCredential(
-        id,
-        type: 'medical-license',
-        number: licenseNumber,
-        issuer: licenseIssuer.isEmpty ? null : licenseIssuer,
-        validUntil: expiry.isEmpty ? null : expiry,
-      ),
+      () async {
+        final credential = await api.addProviderOnboardingCredential(
+          id,
+          type: 'medical-license',
+          number: licenseNumber,
+          issuer: licenseIssuer.isEmpty ? null : licenseIssuer,
+          validUntil: expiry.isEmpty ? null : expiry,
+        );
+        final credentialId = credential['id']?.toString() ?? '';
+        if (credentialId.isEmpty && pdfs.isNotEmpty) {
+          throw const CarePointApiException('Credential id is missing after save.');
+        }
+        try {
+          for (final pdf in pdfs) {
+            await api.uploadProviderOnboardingCredentialPdf(
+              id,
+              credentialId,
+              fileName: pdf.name,
+              bytes: pdf.bytes,
+            );
+          }
+        } catch (value) {
+          if (credentialId.isNotEmpty) {
+            try {
+              await api.removeProviderOnboardingCredential(id, credentialId);
+            } catch (_) {
+              // Preserve the original upload error; server audit/logs retain cleanup failure.
+            }
+          }
+          rethrow;
+        }
+      },
       success: _t('licenseAdded'),
     );
   }
@@ -363,6 +439,92 @@ class _DoctorAccessGateState extends State<DoctorAccessGate> {
     return value?.trim().isNotEmpty == true ? value! : fallback;
   }
 
+  Future<void> _openCredentialDocuments(
+    Map<String, dynamic> credential,
+  ) async {
+    final onboarding = _map(state['onboarding']);
+    final onboardingId = onboarding['id']?.toString() ?? '';
+    final credentialId = credential['id']?.toString() ?? '';
+    final documents = _list(credential['documents']);
+    if (onboardingId.isEmpty || credentialId.isEmpty || documents.isEmpty) {
+      return;
+    }
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(_t('pdfDocuments')),
+        content: SizedBox(
+          width: 520,
+          child: ListView.separated(
+            shrinkWrap: true,
+            itemCount: documents.length,
+            separatorBuilder: (_, __) => const Divider(),
+            itemBuilder: (_, index) {
+              final document = documents[index];
+              final name = document['fileName']?.toString() ?? 'document.pdf';
+              final size = int.tryParse(document['byteLength']?.toString() ?? '') ?? 0;
+              return ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.picture_as_pdf_outlined),
+                title: Text(name),
+                subtitle: Text(carePointCredentialPdfSizeLabel(size)),
+                trailing: IconButton(
+                  tooltip: _t('viewPdf'),
+                  icon: const Icon(Icons.open_in_new_rounded),
+                  onPressed: () async {
+                    try {
+                      final payload =
+                          await api.providerOnboardingCredentialDocumentContent(
+                        onboardingId,
+                        credentialId,
+                        document['id']?.toString() ?? '',
+                      );
+                      final contentBase64 =
+                          payload['contentBase64']?.toString() ?? '';
+                      if (contentBase64.isEmpty) {
+                        throw const CarePointApiException(
+                          'Credential PDF content is unavailable.',
+                        );
+                      }
+                      await openCarePointCredentialPdf(
+                        fileName: name,
+                        contentBase64: contentBase64,
+                      );
+                    } catch (value) {
+                      if (dialogContext.mounted) {
+                        ScaffoldMessenger.of(dialogContext).showSnackBar(
+                          SnackBar(content: Text(value.toString())),
+                        );
+                      }
+                    }
+                  },
+                ),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(_t('close')),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String? _credentialDocumentsText(Map<String, dynamic> item) {
+    final documents = _list(item['documents']);
+    if (documents.isEmpty) return null;
+    final names = documents
+        .map((document) => document['fileName']?.toString())
+        .whereType<String>()
+        .where((name) => name.trim().isNotEmpty)
+        .toList(growable: false);
+    return _t('pdfDocuments') + ': ' + (names.isEmpty ? documents.length.toString() : names.join(', '));
+  }
+
   String _credentialLabel(String? type) => type == 'medical-license' ? _t('medicalLicense') : (type ?? _t('credential'));
   IconData _credentialIcon(String? state) => state == 'VERIFIED' ? Icons.verified_outlined : state == 'REJECTED' ? Icons.cancel_outlined : Icons.hourglass_empty_rounded;
   Color _credentialColor(String? state) => state == 'VERIFIED' ? const Color(0xFF10B981) : state == 'REJECTED' ? const Color(0xFFEF4444) : const Color(0xFFF59E0B);
@@ -402,7 +564,7 @@ const Map<String, Map<String, String>> _doctorAccessText = {
     'credentialing': 'Doctor credentialing', 'title': 'Professional access', 'subtitle': 'Complete and track your doctor verification before clinical access is enabled.', 'refresh': 'Refresh',
     'accessStatus': 'Access status', 'providerStatus': 'Provider status', 'applicationStatus': 'Application status', 'notCreated': 'Not created', 'notStarted': 'Not started', 'submitted': 'Submitted', 'reviewed': 'Reviewed',
     'startApplication': 'Start doctor application', 'startHint': 'Select your medical specialty. Doctor and Other Provider onboarding remain strictly separated.', 'specialty': 'Medical specialty', 'noSpecialties': 'No active medical specialties are available.', 'applicationStarted': 'Doctor application started.',
-    'credentials': 'Credentials', 'noCredentials': 'Add your medical license before submitting.', 'addLicense': 'Add medical license', 'medicalLicense': 'Medical license', 'credential': 'Credential', 'licenseNumber': 'License number', 'issuer': 'Issuer', 'issuerOptional': 'Issuer (optional)', 'validUntil': 'Valid until', 'validUntilOptional': 'Valid until (optional)', 'reviewState': 'Review state', 'reviewNote': 'Review note', 'licenseRequired': 'A medical license number is required.', 'licenseAdded': 'Medical license added.',
+    'credentials': 'Credentials', 'noCredentials': 'Add your medical license before submitting.', 'addLicense': 'Add medical license', 'medicalLicense': 'Medical license', 'credential': 'Credential', 'licenseNumber': 'License number', 'issuer': 'Issuer', 'issuerOptional': 'Issuer (optional)', 'validUntil': 'Valid until', 'validUntilOptional': 'Valid until (optional)', 'reviewState': 'Review state', 'reviewNote': 'Review note', 'licenseRequired': 'A medical license number is required.', 'licenseAdded': 'Medical license added.', 'attachPdfs': 'Attach PDF documents (optional)', 'pdfUploadHint': 'Up to 10 PDF files, 8 MB each.', 'pdfLimitReached': 'The maximum of 10 PDF documents has been reached.', 'pdfDocuments': 'PDF documents', 'viewPdfs': 'View attached PDFs', 'viewPdf': 'View PDF', 'close': 'Close',
     'submitReview': 'Submit for review', 'submitHint': 'After submission, credentials cannot be edited until the review team requests changes.', 'submittedSuccess': 'Application submitted for review.', 'pendingHint': 'Your application is under review. Clinical workspace access remains locked until approval.',
     'suspendedHint': 'Your provider access is suspended. A new onboarding cannot override a suspension; contact CarePoint support or governance.', 'approvedNotActiveHint': 'Your application is approved but provider activation is not complete. Refresh or contact support if this persists.',
     'cancel': 'Cancel', 'save': 'Save',
@@ -411,7 +573,7 @@ const Map<String, Map<String, String>> _doctorAccessText = {
     'credentialing': 'اعتماد الطبيب', 'title': 'الوصول المهني', 'subtitle': 'أكمل وتابع التحقق المهني قبل تفعيل الوصول السريري.', 'refresh': 'تحديث',
     'accessStatus': 'حالة الوصول', 'providerStatus': 'حالة مقدم الخدمة', 'applicationStatus': 'حالة الطلب', 'notCreated': 'غير منشأ', 'notStarted': 'لم يبدأ', 'submitted': 'تم الإرسال', 'reviewed': 'تمت المراجعة',
     'startApplication': 'بدء طلب طبيب', 'startHint': 'اختر تخصصك الطبي. يبقى مسار الأطباء منفصلاً تماماً عن مقدمي الخدمات الآخرين.', 'specialty': 'التخصص الطبي', 'noSpecialties': 'لا توجد تخصصات طبية نشطة.', 'applicationStarted': 'تم بدء طلب الطبيب.',
-    'credentials': 'الاعتمادات', 'noCredentials': 'أضف الترخيص الطبي قبل الإرسال.', 'addLicense': 'إضافة ترخيص طبي', 'medicalLicense': 'الترخيص الطبي', 'credential': 'اعتماد', 'licenseNumber': 'رقم الترخيص', 'issuer': 'جهة الإصدار', 'issuerOptional': 'جهة الإصدار (اختياري)', 'validUntil': 'صالح حتى', 'validUntilOptional': 'صالح حتى (اختياري)', 'reviewState': 'حالة المراجعة', 'reviewNote': 'ملاحظة المراجعة', 'licenseRequired': 'رقم الترخيص الطبي مطلوب.', 'licenseAdded': 'تمت إضافة الترخيص الطبي.',
+    'credentials': 'الاعتمادات', 'noCredentials': 'أضف الترخيص الطبي قبل الإرسال.', 'addLicense': 'إضافة ترخيص طبي', 'medicalLicense': 'الترخيص الطبي', 'credential': 'اعتماد', 'licenseNumber': 'رقم الترخيص', 'issuer': 'جهة الإصدار', 'issuerOptional': 'جهة الإصدار (اختياري)', 'validUntil': 'صالح حتى', 'validUntilOptional': 'صالح حتى (اختياري)', 'reviewState': 'حالة المراجعة', 'reviewNote': 'ملاحظة المراجعة', 'licenseRequired': 'رقم الترخيص الطبي مطلوب.', 'licenseAdded': 'تمت إضافة الترخيص الطبي.', 'attachPdfs': 'إرفاق مستندات PDF (اختياري)', 'pdfUploadHint': 'حتى 10 ملفات PDF، بحد أقصى 8 ميغابايت لكل ملف.', 'pdfLimitReached': 'تم الوصول إلى الحد الأقصى وهو 10 مستندات PDF.', 'pdfDocuments': 'مستندات PDF', 'viewPdfs': 'عرض ملفات PDF المرفقة', 'viewPdf': 'عرض PDF', 'close': 'إغلاق',
     'submitReview': 'إرسال للمراجعة', 'submitHint': 'بعد الإرسال لا يمكن تعديل الاعتمادات حتى يطلب فريق المراجعة تغييرات.', 'submittedSuccess': 'تم إرسال الطلب للمراجعة.', 'pendingHint': 'طلبك قيد المراجعة. يبقى الوصول السريري مقفلاً حتى الموافقة.',
     'suspendedHint': 'وصول مقدم الخدمة موقوف. لا يمكن لطلب جديد تجاوز الإيقاف؛ تواصل مع الدعم أو الحوكمة.', 'approvedNotActiveHint': 'تمت الموافقة على الطلب لكن التفعيل لم يكتمل. حدّث الصفحة أو تواصل مع الدعم إذا استمرت الحالة.',
     'cancel': 'إلغاء', 'save': 'حفظ',
@@ -420,7 +582,7 @@ const Map<String, Map<String, String>> _doctorAccessText = {
     'credentialing': 'Accréditation médecin', 'title': 'Accès professionnel', 'subtitle': 'Complétez et suivez votre vérification avant l’activation de l’accès clinique.', 'refresh': 'Actualiser',
     'accessStatus': 'État d’accès', 'providerStatus': 'Statut fournisseur', 'applicationStatus': 'Statut du dossier', 'notCreated': 'Non créé', 'notStarted': 'Non démarré', 'submitted': 'Soumis', 'reviewed': 'Révisé',
     'startApplication': 'Démarrer le dossier médecin', 'startHint': 'Choisissez votre spécialité médicale. Les parcours médecin et autre fournisseur restent strictement séparés.', 'specialty': 'Spécialité médicale', 'noSpecialties': 'Aucune spécialité active disponible.', 'applicationStarted': 'Dossier médecin démarré.',
-    'credentials': 'Justificatifs', 'noCredentials': 'Ajoutez votre licence médicale avant de soumettre.', 'addLicense': 'Ajouter la licence médicale', 'medicalLicense': 'Licence médicale', 'credential': 'Justificatif', 'licenseNumber': 'Numéro de licence', 'issuer': 'Émetteur', 'issuerOptional': 'Émetteur (facultatif)', 'validUntil': 'Valide jusqu’au', 'validUntilOptional': 'Valide jusqu’au (facultatif)', 'reviewState': 'État de revue', 'reviewNote': 'Note de revue', 'licenseRequired': 'Le numéro de licence médicale est obligatoire.', 'licenseAdded': 'Licence médicale ajoutée.',
+    'credentials': 'Justificatifs', 'noCredentials': 'Ajoutez votre licence médicale avant de soumettre.', 'addLicense': 'Ajouter la licence médicale', 'medicalLicense': 'Licence médicale', 'credential': 'Justificatif', 'licenseNumber': 'Numéro de licence', 'issuer': 'Émetteur', 'issuerOptional': 'Émetteur (facultatif)', 'validUntil': 'Valide jusqu’au', 'validUntilOptional': 'Valide jusqu’au (facultatif)', 'reviewState': 'État de revue', 'reviewNote': 'Note de revue', 'licenseRequired': 'Le numéro de licence médicale est obligatoire.', 'licenseAdded': 'Licence médicale ajoutée.', 'attachPdfs': 'Joindre des PDF (optionnel)', 'pdfUploadHint': 'Jusqu’à 10 fichiers PDF de 8 Mo chacun.', 'pdfLimitReached': 'La limite de 10 documents PDF est atteinte.', 'pdfDocuments': 'Documents PDF', 'viewPdfs': 'Voir les PDF joints', 'viewPdf': 'Voir le PDF', 'close': 'Fermer',
     'submitReview': 'Soumettre pour revue', 'submitHint': 'Après soumission, les justificatifs restent verrouillés jusqu’à une demande de modification.', 'submittedSuccess': 'Dossier soumis pour revue.', 'pendingHint': 'Votre dossier est en cours de revue. L’accès clinique reste verrouillé jusqu’à approbation.',
     'suspendedHint': 'Votre accès fournisseur est suspendu. Un nouveau dossier ne peut pas contourner la suspension ; contactez le support ou la gouvernance.', 'approvedNotActiveHint': 'Le dossier est approuvé mais l’activation fournisseur n’est pas terminée. Actualisez ou contactez le support.',
     'cancel': 'Annuler', 'save': 'Enregistrer',
@@ -429,7 +591,7 @@ const Map<String, Map<String, String>> _doctorAccessText = {
     'credentialing': 'Acreditación médica', 'title': 'Acceso profesional', 'subtitle': 'Completa y sigue la verificación del médico antes de habilitar el acceso clínico.', 'refresh': 'Actualizar',
     'accessStatus': 'Estado de acceso', 'providerStatus': 'Estado del proveedor', 'applicationStatus': 'Estado de la solicitud', 'notCreated': 'No creado', 'notStarted': 'No iniciada', 'submitted': 'Enviada', 'reviewed': 'Revisada',
     'startApplication': 'Iniciar solicitud de médico', 'startHint': 'Selecciona tu especialidad médica. Los flujos de Doctor y Other Provider permanecen estrictamente separados.', 'specialty': 'Especialidad médica', 'noSpecialties': 'No hay especialidades médicas activas.', 'applicationStarted': 'Solicitud de médico iniciada.',
-    'credentials': 'Credenciales', 'noCredentials': 'Añade tu licencia médica antes de enviar.', 'addLicense': 'Añadir licencia médica', 'medicalLicense': 'Licencia médica', 'credential': 'Credencial', 'licenseNumber': 'Número de licencia', 'issuer': 'Entidad emisora', 'issuerOptional': 'Entidad emisora (opcional)', 'validUntil': 'Válida hasta', 'validUntilOptional': 'Válida hasta (opcional)', 'reviewState': 'Estado de revisión', 'reviewNote': 'Nota de revisión', 'licenseRequired': 'El número de licencia médica es obligatorio.', 'licenseAdded': 'Licencia médica añadida.',
+    'credentials': 'Credenciales', 'noCredentials': 'Añade tu licencia médica antes de enviar.', 'addLicense': 'Añadir licencia médica', 'medicalLicense': 'Licencia médica', 'credential': 'Credencial', 'licenseNumber': 'Número de licencia', 'issuer': 'Entidad emisora', 'issuerOptional': 'Entidad emisora (opcional)', 'validUntil': 'Válida hasta', 'validUntilOptional': 'Válida hasta (opcional)', 'reviewState': 'Estado de revisión', 'reviewNote': 'Nota de revisión', 'licenseRequired': 'El número de licencia médica es obligatorio.', 'licenseAdded': 'Licencia médica añadida.', 'attachPdfs': 'Adjuntar documentos PDF (opcional)', 'pdfUploadHint': 'Hasta 10 PDF de 8 MB cada uno.', 'pdfLimitReached': 'Se ha alcanzado el máximo de 10 documentos PDF.', 'pdfDocuments': 'Documentos PDF', 'viewPdfs': 'Ver PDF adjuntos', 'viewPdf': 'Ver PDF', 'close': 'Cerrar',
     'submitReview': 'Enviar a revisión', 'submitHint': 'Después del envío, las credenciales quedan bloqueadas hasta que el equipo de revisión solicite cambios.', 'submittedSuccess': 'Solicitud enviada a revisión.', 'pendingHint': 'Tu solicitud está en revisión. El acceso al workspace clínico permanece bloqueado hasta la aprobación.',
     'suspendedHint': 'Tu acceso como proveedor está suspendido. Una nueva solicitud no puede saltarse la suspensión; contacta con soporte o gobernanza.', 'approvedNotActiveHint': 'La solicitud está aprobada pero la activación del proveedor no ha terminado. Actualiza o contacta con soporte si persiste.',
     'cancel': 'Cancelar', 'save': 'Guardar',

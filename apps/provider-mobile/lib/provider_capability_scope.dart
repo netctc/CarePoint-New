@@ -1,4 +1,5 @@
 import 'package:carepoint_mobile_core/carepoint_api.dart';
+import 'package:carepoint_mobile_core/carepoint_auth.dart';
 import 'package:carepoint_mobile_core/carepoint_localization.dart';
 import 'package:carepoint_mobile_core/provider_workspace.dart';
 import 'package:carepoint_mobile_core/revenue_cycle_localization.dart';
@@ -19,12 +20,14 @@ class OtherProviderCapabilityScope extends StatefulWidget {
     required this.session,
     required this.locale,
     required this.builder,
+    required this.onSignOut,
     this.accent = const Color(0xFF10B981),
   });
 
   final CarePointSession session;
   final CarePointLocale locale;
   final OtherProviderCapabilityBuilder builder;
+  final VoidCallback onSignOut;
   final Color accent;
 
   @override
@@ -53,7 +56,11 @@ class _OtherProviderCapabilityScopeState extends State<OtherProviderCapabilitySc
         throw const CarePointApiException('Active Other Provider capability context is required.');
       }
       final onboarding = _map(state['onboarding']);
-      final category = _map(onboarding['providerCategory']);
+      final provider = _map(state['provider']);
+      final profile = _map(provider['otherProviderProfile']);
+      final onboardingCategory = _map(onboarding['providerCategory']);
+      final profileCategory = _map(profile['category']);
+      final category = onboardingCategory.isNotEmpty ? onboardingCategory : profileCategory;
       final capabilities = _map(category['capabilities']);
       if (category.isEmpty) throw const CarePointApiException('Other Provider category capability context is unavailable.');
       final nextModalities = _stringSet(capabilities['enabledModalities']);
@@ -87,6 +94,12 @@ class _OtherProviderCapabilityScopeState extends State<OtherProviderCapabilitySc
             Text(error!, textAlign: TextAlign.center),
             const SizedBox(height: 14),
             FilledButton.icon(onPressed: load, icon: const Icon(Icons.refresh), label: Text(cpText(widget.locale, 'common.retry'))),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: widget.onSignOut,
+              icon: const Icon(Icons.logout_rounded),
+              label: Text(cpText(widget.locale, 'auth.signOut')),
+            ),
           ]),
         ),
       );
@@ -105,6 +118,7 @@ class CapabilityAwareProviderWorkspaceWithRevenueCycle extends StatelessWidget {
     required this.onSignOut,
     required this.allowedServiceModalities,
     required this.clinicalOrderCapabilities,
+    required this.sessionUiController,
     this.dark = false,
   });
 
@@ -115,6 +129,7 @@ class CapabilityAwareProviderWorkspaceWithRevenueCycle extends StatelessWidget {
   final VoidCallback onSignOut;
   final Set<String> allowedServiceModalities;
   final Set<String> clinicalOrderCapabilities;
+  final CarePointSessionUiController sessionUiController;
   final bool dark;
 
   @override
@@ -126,6 +141,7 @@ class CapabilityAwareProviderWorkspaceWithRevenueCycle extends StatelessWidget {
             title: title,
             accent: accent,
             onSignOut: onSignOut,
+            sessionUiController: sessionUiController,
             dark: dark,
             allowedServiceModalities: allowedServiceModalities,
             clinicalOrderCapabilities: clinicalOrderCapabilities,

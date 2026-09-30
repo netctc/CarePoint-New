@@ -11,7 +11,7 @@ import { credentialIsCurrent, jsonStringArray } from "../../security/provider-cr
 const POLICY_CODE = "GLOBAL";
 const DAY_MS = 86_400_000;
 const SWEEP_MS = 6 * 60 * 60 * 1000;
-const DEFAULT_WINDOWS = [90, 30, 7];
+const DEFAULT_WINDOWS = [90, 60, 30, 7];
 
 type State = "CURRENT" | "EXPIRING" | "EXPIRED" | "MISSING";
 type ExpiryItem = {
@@ -150,7 +150,7 @@ class CredentialExpiryService implements OnModuleInit, OnModuleDestroy {
       where: { status: "ACTIVE", class: { in: ["DOCTOR","OTHER_PROVIDER"] }, userId: { not: null } },
       select: {
         id: true, userId: true, class: true, displayName: true,
-        credentials: { where: { status: "VERIFIED" }, select: { id:true,type:true,status:true,validFrom:true,validUntil:true,createdAt:true } },
+        credentials: { where: { status: { in: ["VALID", "VERIFIED"] } }, select: { id:true,type:true,status:true,validFrom:true,validUntil:true,createdAt:true } },
         otherProviderProfile: { select: { category: { select: { active:true, requiredCredentialTypes:true } } } },
       },
       orderBy: [{ displayName: "asc" }, { id: "asc" }],

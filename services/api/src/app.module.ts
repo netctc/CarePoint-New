@@ -7,6 +7,8 @@ import { SiemExportModule } from "./infrastructure/siem/siem-export.module";
 import { ApiSecurityModule } from "./security/api-security.module";
 import { AccessNeedsModule } from "./modules/access-needs/access-needs.module";
 import { AdminAnalyticsModule } from "./modules/admin-analytics/admin-analytics.module";
+import { AdminProviderAdministrationModule } from "./modules/admin-provider-administration/admin-provider-administration.module";
+import { AdminMasterDataModule } from "./modules/admin-master-data/admin-master-data.module";
 import { AdminB6OperationsModule } from "./modules/admin-b6-operations/admin-b6-operations.module";
 import { AdminQuestionnaireComplianceModule } from "./modules/admin-questionnaire-compliance/admin-questionnaire-compliance.module";
 import { AdminFinanceModule } from "./modules/admin-finance/admin-finance.module";
@@ -21,6 +23,7 @@ import { BillingModule } from "./modules/billing/billing.module";
 import { ClaimsModule } from "./modules/claims/claims.module";
 import { ClinicalHistoryModule } from "./modules/clinical-history/clinical-history.module";
 import { ClinicalModule } from "./modules/clinical/clinical.module";
+import { ClinicalFactsModule } from "./modules/clinical-facts/clinical-facts.module";
 import { ClinicalProfileModule } from "./modules/clinical-profile/clinical-profile.module";
 import { CommunicationsModule } from "./modules/communications/communications.module";
 import { ConsentModule } from "./modules/consent/consent.module";
@@ -113,6 +116,8 @@ const isolatedSyntheticPilot = isolatedSyntheticPrivatePilotActive(process.env);
     HealthModule,
     AccessNeedsModule,
     AdminAnalyticsModule,
+    AdminProviderAdministrationModule,
+    AdminMasterDataModule,
     AdminB6OperationsModule,
     AdminQuestionnaireComplianceModule,
     ...(runtimeFeatures.payments ? [AdminFinanceModule] : []),
@@ -169,6 +174,7 @@ const isolatedSyntheticPilot = isolatedSyntheticPrivatePilotActive(process.env);
     PatientClinicalExportModule,
     QuestionnaireModule,
     ObservationModule,
+    ClinicalFactsModule,
     OnboardingModule,
     ConsentModule,
     ClinicalGovernanceModule,

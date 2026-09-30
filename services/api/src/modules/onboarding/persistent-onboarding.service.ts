@@ -1,8 +1,14 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
+import { createHash, randomUUID } from "node:crypto";
+import { Prisma } from "@prisma/client";
+import type { EncryptedEnvelope } from "@carepoint/security";
 import { canActOnAccount, canOwnOnboarding, roleHasPermission, type AuthPrincipal } from "@carepoint/identity";
 import { PrismaService } from "../../infrastructure/prisma/prisma.module";
 import { DatabaseAuditService } from "../../infrastructure/audit/audit.service";
 import { PersistentAuthService } from "../../security/persistent-auth.service";
+import { DocumentStorageService } from "../documents/document-storage.service";
+import { DocumentsEnvelopeService } from "../documents/documents-envelope.service";
+import { DocumentMalwareScannerService } from "../documents/document-malware-scanner.service";
 
 const OPEN_STATES = ["DRAFT", "PENDING_REVIEW", "REQUEST_CHANGES"] as const;
 
@@ -12,13 +18,32 @@ export class PersistentOnboardingService {
     private readonly prisma: PrismaService,
     private readonly audit: DatabaseAuditService,
     private readonly auth: PersistentAuthService,
+    private readonly documentStorage: DocumentStorageService,
+    private readonly documentEnvelope: DocumentsEnvelopeService,
+    private readonly documentScanner: DocumentMalwareScannerService,
   ) {}
 
   async list(principal: AuthPrincipal) {
     this.requireReviewPermission(principal);
     const records = await this.prisma.providerOnboarding.findMany({
+      where: { state: { in: ["PENDING_REVIEW", "REQUEST_CHANGES"] } },
       include: {
-        credentials: { orderBy: { createdAt: "asc" } },
+        credentials: {
+          orderBy: { createdAt: "asc" },
+          include: {
+            documents: {
+              orderBy: { createdAt: "asc" },
+              select: {
+                id: true,
+                fileName: true,
+                mediaType: true,
+                byteLength: true,
+                contentDigest: true,
+                createdAt: true,
+              },
+            },
+          },
+        },
         specialty: true,
         providerCategory: true,
         user: { select: { id: true, email: true, role: true, status: true } },
@@ -45,10 +70,21 @@ export class PersistentOnboardingService {
     const result = await this.prisma.$transaction(async (tx) => {
       const existingProvider = await tx.provider.findUnique({ where: { userId: principal.accountId } });
       if (existingProvider && existingProvider.class !== "DOCTOR") throw new ConflictException("Provider domain mismatch.");
-      if (existingProvider) {
-        await tx.provider.update({ where: { id: existingProvider.id }, data: { status: "DRAFT" } });
-      } else {
-        await tx.provider.create({ data: { userId: principal.accountId, class: "DOCTOR", displayName: user.email, status: "DRAFT" } });
+      const provider = existingProvider
+        ? await tx.provider.update({ where: { id: existingProvider.id }, data: { status: "DRAFT" } })
+        : await tx.provider.create({ data: { userId: principal.accountId, class: "DOCTOR", displayName: user.email, status: "DRAFT" } });
+      if (!existingProvider || existingProvider.status !== "DRAFT") {
+        await tx.providerGovernanceHistory.create({
+          data: {
+            providerId: provider.id,
+            domain: "PROVIDER",
+            targetId: provider.id,
+            fromStatus: existingProvider?.status ?? null,
+            toStatus: "DRAFT",
+            reason: "Doctor onboarding started.",
+            actorId: principal.accountId,
+          },
+        });
       }
       return tx.providerOnboarding.create({
         data: { userId: principal.accountId, kind: "DOCTOR", specialtyId },
@@ -77,10 +113,21 @@ export class PersistentOnboardingService {
     const result = await this.prisma.$transaction(async (tx) => {
       const existingProvider = await tx.provider.findUnique({ where: { userId: principal.accountId } });
       if (existingProvider && existingProvider.class !== "OTHER_PROVIDER") throw new ConflictException("Provider domain mismatch.");
-      if (existingProvider) {
-        await tx.provider.update({ where: { id: existingProvider.id }, data: { status: "DRAFT" } });
-      } else {
-        await tx.provider.create({ data: { userId: principal.accountId, class: "OTHER_PROVIDER", displayName: user.email, status: "DRAFT" } });
+      const provider = existingProvider
+        ? await tx.provider.update({ where: { id: existingProvider.id }, data: { status: "DRAFT" } })
+        : await tx.provider.create({ data: { userId: principal.accountId, class: "OTHER_PROVIDER", displayName: user.email, status: "DRAFT" } });
+      if (!existingProvider || existingProvider.status !== "DRAFT") {
+        await tx.providerGovernanceHistory.create({
+          data: {
+            providerId: provider.id,
+            domain: "PROVIDER",
+            targetId: provider.id,
+            fromStatus: existingProvider?.status ?? null,
+            toStatus: "DRAFT",
+            reason: "Other Provider onboarding started.",
+            actorId: principal.accountId,
+          },
+        });
       }
       return tx.providerOnboarding.create({
         data: { userId: principal.accountId, kind: "OTHER_PROVIDER", providerCategoryId },
@@ -127,6 +174,210 @@ export class PersistentOnboardingService {
       metadata: { onboardingId, type: credential.type },
     });
     return credential;
+  }
+
+  async uploadCredentialDocument(
+    principal: AuthPrincipal,
+    onboardingId: string,
+    credentialId: string,
+    input: { fileName: string; mediaType?: string; contentBase64: string },
+  ) {
+    const onboarding = await this.requireOwnedOnboarding(principal, onboardingId);
+    if (onboarding.state !== "DRAFT" && onboarding.state !== "REQUEST_CHANGES") {
+      throw new ConflictException(
+        "Credential documents cannot be changed while onboarding is under review or approved.",
+      );
+    }
+
+    const credential = await this.prisma.onboardingCredential.findFirst({
+      where: { id: credentialId, onboardingId },
+      include: { documents: { select: { id: true } } },
+    });
+    if (!credential) throw new NotFoundException("Credential not found.");
+    if (credential.documents.length >= 10) {
+      throw new BadRequestException("A credential can contain at most 10 PDF documents.");
+    }
+
+    const fileName = input.fileName?.trim();
+    if (!fileName || fileName.length > 180 || !fileName.toLowerCase().endsWith(".pdf")) {
+      throw new BadRequestException("Credential document fileName must be a PDF name up to 180 characters.");
+    }
+    const mediaType = (input.mediaType?.trim().toLowerCase() || "application/pdf");
+    if (mediaType !== "application/pdf") {
+      throw new BadRequestException("Credential documents must use application/pdf.");
+    }
+
+    const compact = input.contentBase64?.replace(/\s+/g, "") ?? "";
+    if (
+      !compact ||
+      compact.length % 4 !== 0 ||
+      !/^[A-Za-z0-9+/]*={0,2}$/.test(compact)
+    ) {
+      throw new BadRequestException("Credential document contentBase64 must be valid base64.");
+    }
+    const bytes = Uint8Array.from(Buffer.from(compact, "base64"));
+    const scan = await this.documentScanner.assertClean(bytes, "application/pdf");
+    const encrypted = await this.documentEnvelope.encryptBytes(bytes);
+    const objectKey = `credentialing/${credentialId}/${randomUUID()}.cpenc`;
+
+    await this.documentStorage.put(objectKey, encrypted.ciphertext);
+    try {
+      const document = await this.prisma.onboardingCredentialDocument.create({
+        data: {
+          credentialId,
+          fileName,
+          mediaType,
+          byteLength: bytes.byteLength,
+          contentDigest: scan.contentDigest,
+          storageProvider: this.documentStorage.storageProviderName(),
+          objectKey,
+          blobAlgorithm: encrypted.envelope.algorithm,
+          blobKeyId: encrypted.envelope.keyId,
+          blobWrappedKey: encrypted.envelope.wrappedKey,
+          blobIv: encrypted.envelope.iv,
+          createdByAccountId: principal.accountId,
+        },
+        select: {
+          id: true,
+          fileName: true,
+          mediaType: true,
+          byteLength: true,
+          contentDigest: true,
+          createdAt: true,
+        },
+      });
+
+      await this.audit.write({
+        actorId: principal.accountId,
+        action: "ONBOARDING_CREDENTIAL_DOCUMENT_UPLOADED",
+        objectType: "PROVIDER_CREDENTIAL_DOCUMENT",
+        objectId: document.id,
+        result: "SUCCESS",
+        metadata: {
+          onboardingId,
+          credentialId,
+          mediaType,
+          byteLength: document.byteLength,
+          scanId: scan.scanId,
+        },
+      });
+      return document;
+    } catch (error) {
+      await this.documentStorage.remove(objectKey).catch(() => undefined);
+      throw error;
+    }
+  }
+
+  async removeCredential(
+    principal: AuthPrincipal,
+    onboardingId: string,
+    credentialId: string,
+  ) {
+    const onboarding = await this.requireOwnedOnboarding(principal, onboardingId);
+    if (onboarding.state !== "DRAFT" && onboarding.state !== "REQUEST_CHANGES") {
+      throw new ConflictException(
+        "Credentials cannot be removed while onboarding is under review or approved.",
+      );
+    }
+
+    const credential = await this.prisma.onboardingCredential.findFirst({
+      where: { id: credentialId, onboardingId },
+      include: { documents: true },
+    });
+    if (!credential) throw new NotFoundException("Credential not found.");
+
+    for (const document of credential.documents) {
+      await this.documentStorage.remove(document.objectKey);
+    }
+
+    await this.prisma.onboardingCredential.delete({
+      where: { id: credentialId },
+    });
+
+    await this.audit.write({
+      actorId: principal.accountId,
+      action: "ONBOARDING_CREDENTIAL_REMOVED",
+      objectType: "PROVIDER_CREDENTIAL",
+      objectId: credentialId,
+      result: "SUCCESS",
+      metadata: {
+        onboardingId,
+        removedDocumentCount: credential.documents.length,
+      },
+    });
+
+    return { id: credentialId, removed: true };
+  }
+
+  async credentialDocumentContent(
+    principal: AuthPrincipal,
+    onboardingId: string,
+    credentialId: string,
+    documentId: string,
+  ) {
+    const onboarding = await this.prisma.providerOnboarding.findUnique({
+      where: { id: onboardingId },
+      select: { id: true, userId: true },
+    });
+    if (!onboarding) throw new NotFoundException("Onboarding not found.");
+
+    const owner = canOwnOnboarding(principal, onboarding.userId);
+    const reviewer = roleHasPermission(principal.role, "PROVIDER_REVIEW");
+    if (!owner && !reviewer) {
+      throw new ForbiddenException("Credential document access denied.");
+    }
+
+    const document = await this.prisma.onboardingCredentialDocument.findFirst({
+      where: {
+        id: documentId,
+        credentialId,
+        credential: { onboardingId },
+      },
+    });
+    if (!document) throw new NotFoundException("Credential document not found.");
+
+    if (document.blobAlgorithm !== "AES-256-GCM") {
+      throw new ConflictException("Credential document encryption algorithm is unsupported.");
+    }
+    const ciphertext = await this.documentStorage.get(document.objectKey);
+    const envelope: EncryptedEnvelope = {
+      version: 1,
+      algorithm: "AES-256-GCM",
+      keyId: document.blobKeyId,
+      wrappedKey: document.blobWrappedKey,
+      iv: document.blobIv,
+      ciphertext,
+    };
+    const bytes = await this.documentEnvelope.decryptBytes(envelope);
+    const digest = createHash("sha256").update(bytes).digest("hex");
+    if (digest !== document.contentDigest) {
+      throw new ConflictException("Credential document integrity check failed.");
+    }
+
+    await this.audit.write({
+      actorId: principal.accountId,
+      action: "ONBOARDING_CREDENTIAL_DOCUMENT_READ",
+      objectType: "PROVIDER_CREDENTIAL_DOCUMENT",
+      objectId: document.id,
+      purpose: reviewer ? "CREDENTIAL_REVIEW" : "PROVIDER_SELF_ONBOARD",
+      result: "SUCCESS",
+      metadata: {
+        onboardingId,
+        credentialId,
+        byteLength: bytes.byteLength,
+      },
+    });
+
+    return {
+      id: document.id,
+      credentialId,
+      fileName: document.fileName,
+      mediaType: document.mediaType,
+      byteLength: document.byteLength,
+      contentDigest: document.contentDigest,
+      createdAt: document.createdAt,
+      contentBase64: Buffer.from(bytes).toString("base64"),
+    };
   }
 
   async submit(principal: AuthPrincipal, onboardingId: string) {
@@ -201,7 +452,22 @@ export class PersistentOnboardingService {
           },
         });
         const provider = await tx.provider.findUnique({ where: { userId: record.userId } });
-        if (provider) await tx.provider.update({ where: { id: provider.id }, data: { status: "DRAFT" } });
+        if (provider) {
+          await tx.provider.update({ where: { id: provider.id }, data: { status: "DRAFT" } });
+          if (provider.status !== "DRAFT") {
+            await tx.providerGovernanceHistory.create({
+              data: {
+                providerId: provider.id,
+                domain: "PROVIDER",
+                targetId: provider.id,
+                fromStatus: provider.status,
+                toStatus: "DRAFT",
+                reason: note?.trim() || "Credential rejected during onboarding review.",
+                actorId: principal.accountId,
+              },
+            });
+          }
+        }
       }
       return reviewed;
     });
@@ -227,7 +493,22 @@ export class PersistentOnboardingService {
 
     const result = await this.prisma.$transaction(async (tx) => {
       const provider = await tx.provider.findUnique({ where: { userId: record.userId } });
-      if (provider) await tx.provider.update({ where: { id: provider.id }, data: { status: "DRAFT" } });
+      if (provider) {
+        await tx.provider.update({ where: { id: provider.id }, data: { status: "DRAFT" } });
+        if (provider.status !== "DRAFT") {
+          await tx.providerGovernanceHistory.create({
+            data: {
+              providerId: provider.id,
+              domain: "PROVIDER",
+              targetId: provider.id,
+              fromStatus: provider.status,
+              toStatus: "DRAFT",
+              reason: reviewNote,
+              actorId: principal.accountId,
+            },
+          });
+        }
+      }
       return tx.providerOnboarding.update({
         where: { id: onboardingId },
         data: {
@@ -255,7 +536,10 @@ export class PersistentOnboardingService {
     this.requireReviewPermission(principal);
     const reviewNote = note?.trim();
     if (!reviewNote) throw new BadRequestException("A rejection note is required.");
-    const record = await this.prisma.providerOnboarding.findUnique({ where: { id: onboardingId } });
+    const record = await this.prisma.providerOnboarding.findUnique({
+      where: { id: onboardingId },
+      include: { credentials: { include: { documents: true } } },
+    });
     if (!record) throw new NotFoundException("Onboarding not found.");
     if (record.state !== "PENDING_REVIEW" && record.state !== "REQUEST_CHANGES") {
       throw new ConflictException("Only onboarding under review can be rejected.");
@@ -263,7 +547,29 @@ export class PersistentOnboardingService {
 
     const result = await this.prisma.$transaction(async (tx) => {
       const provider = await tx.provider.findUnique({ where: { userId: record.userId } });
-      if (provider) await tx.provider.update({ where: { id: provider.id }, data: { status: "REJECTED" } });
+      if (provider) {
+        await this.archiveOnboardingCredentials(
+          tx,
+          provider.id,
+          record.credentials,
+          principal.accountId,
+          "Application rejected during onboarding review.",
+        );
+        await tx.provider.update({ where: { id: provider.id }, data: { status: "REJECTED" } });
+        if (provider.status !== "REJECTED") {
+          await tx.providerGovernanceHistory.create({
+            data: {
+              providerId: provider.id,
+              domain: "PROVIDER",
+              targetId: provider.id,
+              fromStatus: provider.status,
+              toStatus: "REJECTED",
+              reason: reviewNote,
+              actorId: principal.accountId,
+            },
+          });
+        }
+      }
       return tx.providerOnboarding.update({
         where: { id: onboardingId },
         data: {
@@ -292,7 +598,7 @@ export class PersistentOnboardingService {
     this.requireReviewPermission(principal);
     const record = await this.prisma.providerOnboarding.findUnique({
       where: { id: onboardingId },
-      include: { credentials: true, providerCategory: true, specialty: true, user: true },
+      include: { credentials: { include: { documents: true } }, providerCategory: true, specialty: true, user: true },
     });
     if (!record) throw new NotFoundException("Onboarding not found.");
     if (record.state !== "PENDING_REVIEW") throw new ConflictException("Onboarding must be pending review before approval.");
@@ -340,40 +646,26 @@ export class PersistentOnboardingService {
         });
       }
 
-      for (const credential of verifiedCredentials) {
-        const existing = credential.documentId
-          ? await tx.providerCredential.findFirst({ where: { providerId: provider.id, documentId: credential.documentId } })
-          : credential.number
-            ? await tx.providerCredential.findFirst({ where: { providerId: provider.id, type: credential.type, number: credential.number } })
-            : null;
-        if (existing) {
-          await tx.providerCredential.update({
-            where: { id: existing.id },
-            data: {
-              type: credential.type,
-              issuer: credential.issuer,
-              number: credential.number,
-              validUntil: credential.validUntil,
-              documentId: credential.documentId,
-              status: "VERIFIED",
-            },
-          });
-        } else {
-          await tx.providerCredential.create({
-            data: {
-              providerId: provider.id,
-              type: credential.type,
-              issuer: credential.issuer,
-              number: credential.number,
-              validUntil: credential.validUntil,
-              documentId: credential.documentId,
-              status: "VERIFIED",
-            },
-          });
-        }
-      }
+      await this.archiveOnboardingCredentials(
+        tx,
+        provider.id,
+        record.credentials,
+        principal.accountId,
+        "Archived from onboarding review.",
+      );
 
       await tx.provider.update({ where: { id: provider.id }, data: { status: "ACTIVE" } });
+      await tx.providerGovernanceHistory.create({
+        data: {
+          providerId: provider.id,
+          domain: "PROVIDER",
+          targetId: provider.id,
+          fromStatus: provider.status,
+          toStatus: "ACTIVE",
+          reason: "Provider onboarding approved.",
+          actorId: principal.accountId,
+        },
+      });
       return tx.providerOnboarding.update({
         where: { id: onboardingId },
         data: { state: "APPROVED", reviewedAt: new Date(), reviewerActorId: principal.accountId, reviewNote: null },
@@ -387,7 +679,7 @@ export class PersistentOnboardingService {
       objectType: "PROVIDER_ONBOARDING",
       objectId: onboardingId,
       result: "SUCCESS",
-      metadata: { kind: record.kind, providerId: provider.id, promotedCredentials: verifiedCredentials.length },
+      metadata: { kind: record.kind, providerId: provider.id, archivedCredentials: record.credentials.length, verifiedCredentials: verifiedCredentials.length },
     });
     return result;
   }
@@ -406,7 +698,22 @@ export class PersistentOnboardingService {
     this.requireReviewPermission(principal);
     const provider = await this.prisma.provider.findUnique({ where: { userId: accountId } });
     if (!provider) throw new NotFoundException("Provider profile not found.");
-    await this.prisma.provider.update({ where: { id: provider.id }, data: { status: "SUSPENDED" } });
+    await this.prisma.$transaction(async (tx) => {
+      await tx.provider.update({ where: { id: provider.id }, data: { status: "SUSPENDED" } });
+      if (provider.status !== "SUSPENDED") {
+        await tx.providerGovernanceHistory.create({
+          data: {
+            providerId: provider.id,
+            domain: "PROVIDER",
+            targetId: provider.id,
+            fromStatus: provider.status,
+            toStatus: "SUSPENDED",
+            reason: "Provider suspended by governance reviewer.",
+            actorId: principal.accountId,
+          },
+        });
+      }
+    });
     await this.auth.revokeAll(principal, accountId);
     await this.audit.write({
       actorId: principal.accountId,
@@ -450,6 +757,146 @@ export class PersistentOnboardingService {
     const user = await this.prisma.user.findUnique({ where: { id: accountId } });
     if (!user) throw new NotFoundException("Account not found.");
     return user;
+  }
+
+  private async archiveOnboardingCredentials(
+    tx: Prisma.TransactionClient,
+    providerId: string,
+    credentials: Array<{
+      id: string;
+      type: string;
+      issuer: string | null;
+      number: string | null;
+      validUntil: Date | null;
+      documentId: string | null;
+      state: "PENDING" | "VERIFIED" | "REJECTED";
+      reviewNote: string | null;
+      documents: Array<{
+        id: string;
+        fileName: string;
+        mediaType: string;
+        byteLength: number;
+        contentDigest: string;
+        storageProvider: string;
+        objectKey: string;
+        blobAlgorithm: string;
+        blobKeyId: string;
+        blobWrappedKey: string;
+        blobIv: string;
+        createdByAccountId: string;
+        createdAt: Date;
+      }>;
+    }>,
+    actorId: string,
+    fallbackReason: string,
+  ): Promise<void> {
+    for (const credential of credentials) {
+      const targetStatus = credential.state === "VERIFIED"
+        ? "VALID"
+        : credential.state === "REJECTED"
+          ? "REJECTED"
+          : "PENDING";
+      const existing = await tx.providerCredential.findFirst({
+        where: {
+          providerId,
+          OR: [
+            { sourceOnboardingCredentialId: credential.id },
+            ...(credential.documentId ? [{ documentId: credential.documentId }] : []),
+            ...(credential.number ? [{ type: credential.type, number: credential.number }] : []),
+          ],
+        },
+        include: { documents: true },
+      });
+      const reason = credential.reviewNote?.trim() || fallbackReason;
+      const archived = existing
+        ? await tx.providerCredential.update({
+            where: { id: existing.id },
+            data: {
+              type: credential.type,
+              issuer: credential.issuer,
+              number: credential.number,
+              validUntil: credential.validUntil,
+              documentId: credential.documentId,
+              status: targetStatus,
+              sourceOnboardingCredentialId: existing.sourceOnboardingCredentialId ?? credential.id,
+              verifications: {
+                create: { status: targetStatus, note: reason, actorId },
+              },
+            },
+          })
+        : await tx.providerCredential.create({
+            data: {
+              providerId,
+              type: credential.type,
+              issuer: credential.issuer,
+              number: credential.number,
+              validUntil: credential.validUntil,
+              documentId: credential.documentId,
+              status: targetStatus,
+              sourceOnboardingCredentialId: credential.id,
+              verifications: {
+                create: { status: targetStatus, note: reason, actorId },
+              },
+            },
+          });
+
+      for (const document of credential.documents) {
+        const existingDocument = await tx.providerCredentialDocument.findFirst({
+          where: {
+            OR: [
+              { sourceOnboardingDocumentId: document.id },
+              { objectKey: document.objectKey },
+            ],
+          },
+        });
+        if (existingDocument) {
+          if (!existingDocument.sourceOnboardingDocumentId) {
+            await tx.providerCredentialDocument.update({
+              where: { id: existingDocument.id },
+              data: { sourceOnboardingDocumentId: document.id },
+            });
+          }
+          continue;
+        }
+        await tx.providerCredentialDocument.create({
+          data: {
+            credentialId: archived.id,
+            sourceOnboardingDocumentId: document.id,
+            fileName: document.fileName,
+            mediaType: document.mediaType,
+            byteLength: document.byteLength,
+            contentDigest: document.contentDigest,
+            storageProvider: document.storageProvider,
+            objectKey: document.objectKey,
+            blobAlgorithm: document.blobAlgorithm,
+            blobKeyId: document.blobKeyId,
+            blobWrappedKey: document.blobWrappedKey,
+            blobIv: document.blobIv,
+            createdByAccountId: document.createdByAccountId,
+            createdAt: document.createdAt,
+          },
+        });
+      }
+
+      if (!existing || existing.status !== targetStatus) {
+        await tx.providerGovernanceHistory.create({
+          data: {
+            providerId,
+            domain: "CREDENTIAL",
+            targetId: archived.id,
+            fromStatus: existing?.status ?? null,
+            toStatus: targetStatus,
+            reason,
+            actorId,
+            metadata: {
+              onboardingCredentialId: credential.id,
+              credentialType: credential.type,
+              archivedFromOnboarding: true,
+            },
+          },
+        });
+      }
+    }
   }
 
   private requireReviewPermission(principal: AuthPrincipal): void {

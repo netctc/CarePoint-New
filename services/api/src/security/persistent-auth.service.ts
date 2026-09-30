@@ -1,8 +1,10 @@
 import {
+  BadGatewayException,
   BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
+  InternalServerErrorException,
   NotFoundException,
   UnauthorizedException,
 } from "@nestjs/common";
@@ -19,6 +21,7 @@ import {
   type IdentityRole,
 } from "@carepoint/identity";
 import type { EncryptedEnvelope } from "@carepoint/security";
+import { createHmac, randomInt, timingSafeEqual } from "node:crypto";
 import { PrismaService } from "../infrastructure/prisma/prisma.module";
 import { DatabaseAuditService } from "../infrastructure/audit/audit.service";
 import { MfaEnvelopeService } from "../infrastructure/security/mfa-envelope.service";
@@ -27,6 +30,9 @@ import { isMfaAssuredSessionId, isMfaRequiredForRole } from "./privileged-mfa-po
 const ACCESS_TTL_MS = 15 * 60 * 1000;
 const REFRESH_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const MFA_CHALLENGE_TTL_MS = 5 * 60 * 1000;
+const REGISTRATION_OTP_TTL_MS = 5 * 60 * 1000;
+const REGISTRATION_COMPLETION_TTL_MS = 30 * 60 * 1000;
+const REGISTRATION_OTP_MAX_ATTEMPTS = 3;
 const LOCKOUT_TTL_MS = 15 * 60 * 1000;
 const MAX_FAILED_LOGINS = 5;
 
@@ -52,26 +58,360 @@ export class PersistentAuthService {
     private readonly mfaEnvelope: MfaEnvelopeService,
   ) {}
 
-  async registerPatient(input: { email: string; password: string; firstName: string; lastName: string; phone?: string }) {
-    const email = this.normalizeEmail(input.email);
-    if (!input.firstName?.trim() || !input.lastName?.trim()) throw new BadRequestException("firstName and lastName are required.");
-    await this.ensureEmailAvailable(email);
-    const user = await this.prisma.user.create({
+  async startRegistrationOtp(input: {
+    kind: "PATIENT" | "DOCTOR" | "OTHER_PROVIDER";
+    firstName: string;
+    lastName: string;
+    phone: string;
+  }): Promise<{
+    challengeId: string;
+    expiresAt: string;
+    attemptsRemaining: number;
+    deliveryMode: "display" | "sms";
+    testOtp?: string;
+  }> {
+    const firstName = input.firstName?.trim();
+    const lastName = input.lastName?.trim();
+    if (!firstName || !lastName) {
+      throw new BadRequestException("firstName and lastName are required.");
+    }
+    if (!["PATIENT", "DOCTOR", "OTHER_PROVIDER"].includes(input.kind)) {
+      throw new BadRequestException("Unsupported registration kind.");
+    }
+
+    const phone = this.normalizeRegistrationPhone(input.phone);
+    const challengeId = randomId("regotp");
+    const otp = randomInt(0, 1_000_000).toString().padStart(6, "0");
+    const deliveryMode = this.registrationOtpDeliveryMode();
+    const expiresAt = new Date(Date.now() + REGISTRATION_OTP_TTL_MS);
+
+    await this.prisma.registrationOtpChallenge.create({
       data: {
-        email,
-        passwordHash: await hashPasswordAsync(input.password),
-        role: "PATIENT",
-        patientProfile: {
-          create: {
-            firstName: input.firstName.trim(),
-            lastName: input.lastName.trim(),
-            phone: input.phone?.trim() || null,
-          },
-        },
+        id: challengeId,
+        kind: input.kind,
+        firstName,
+        lastName,
+        phone,
+        codeHash: this.registrationOtpHash(challengeId, otp),
+        attempts: 0,
+        maxAttempts: REGISTRATION_OTP_MAX_ATTEMPTS,
+        expiresAt,
+        deliveryMode,
       },
     });
-    await this.audit.write({ action: "PATIENT_ACCOUNT_REGISTERED", objectType: "ACCOUNT", objectId: user.id, result: "SUCCESS" });
-    return this.safeAccount(user);
+
+    try {
+      if (deliveryMode === "sms") {
+        await this.sendRegistrationOtpSms(phone, otp);
+      }
+    } catch (error) {
+      await this.prisma.registrationOtpChallenge.update({
+        where: { id: challengeId },
+        data: { consumedAt: new Date() },
+      }).catch(() => undefined);
+      throw error;
+    }
+
+    await this.audit.write({
+      action: "REGISTRATION_OTP_ISSUED",
+      objectType: "REGISTRATION_OTP",
+      objectId: challengeId,
+      result: "SUCCESS",
+      metadata: { kind: input.kind, deliveryMode },
+    });
+
+    return {
+      challengeId,
+      expiresAt: expiresAt.toISOString(),
+      attemptsRemaining: REGISTRATION_OTP_MAX_ATTEMPTS,
+      deliveryMode,
+      ...(deliveryMode === "display" ? { testOtp: otp } : {}),
+    };
+  }
+
+  async verifyRegistrationOtp(
+    challengeId: string,
+    code: string,
+  ): Promise<{
+    verified: true;
+    registrationToken: string;
+    expiresAt: string;
+    firstName: string;
+    lastName: string;
+    phone: string;
+    kind: string;
+  }> {
+    const challenge = await this.prisma.registrationOtpChallenge.findUnique({
+      where: { id: challengeId },
+    });
+    if (!challenge || challenge.consumedAt) {
+      throw new UnauthorizedException("Registration OTP challenge is invalid.");
+    }
+    if (challenge.verifiedAt) {
+      throw new ConflictException("Registration OTP challenge is already verified.");
+    }
+    if (challenge.expiresAt.getTime() <= Date.now()) {
+      throw new UnauthorizedException("Registration OTP has expired.");
+    }
+    if (challenge.attempts >= challenge.maxAttempts) {
+      throw new UnauthorizedException("Registration OTP attempt limit reached.");
+    }
+
+    const normalizedCode = code?.trim();
+    if (!/^\d{6}$/.test(normalizedCode)) {
+      throw new BadRequestException("Registration OTP must contain exactly 6 digits.");
+    }
+
+    const expected = Buffer.from(challenge.codeHash, "hex");
+    const actual = Buffer.from(this.registrationOtpHash(challenge.id, normalizedCode), "hex");
+    const matches =
+      expected.length === actual.length &&
+      timingSafeEqual(expected, actual);
+
+    if (!matches) {
+      const attempts = challenge.attempts + 1;
+      const exhausted = attempts >= challenge.maxAttempts;
+      await this.prisma.registrationOtpChallenge.update({
+        where: { id: challenge.id },
+        data: {
+          attempts,
+          ...(exhausted ? { consumedAt: new Date() } : {}),
+        },
+      });
+      await this.audit.write({
+        action: "REGISTRATION_OTP_DENIED",
+        objectType: "REGISTRATION_OTP",
+        objectId: challenge.id,
+        result: "DENIED",
+        metadata: {
+          kind: challenge.kind,
+          attempts,
+          attemptsRemaining: Math.max(0, challenge.maxAttempts - attempts),
+        },
+      });
+      throw new UnauthorizedException(
+        exhausted
+          ? "Registration OTP attempt limit reached."
+          : `Invalid registration OTP. ${challenge.maxAttempts - attempts} attempt(s) remaining.`,
+      );
+    }
+
+    const registrationToken = randomToken(48);
+    const verifiedAt = new Date();
+    const completionExpiresAt = new Date(
+      verifiedAt.getTime() + REGISTRATION_COMPLETION_TTL_MS,
+    );
+    await this.prisma.registrationOtpChallenge.update({
+      where: { id: challenge.id },
+      data: {
+        verifiedAt,
+        expiresAt: completionExpiresAt,
+        completionTokenHash: tokenHash(registrationToken),
+      },
+    });
+    await this.audit.write({
+      action: "REGISTRATION_OTP_VERIFIED",
+      objectType: "REGISTRATION_OTP",
+      objectId: challenge.id,
+      result: "SUCCESS",
+      metadata: { kind: challenge.kind },
+    });
+
+    return {
+      verified: true,
+      registrationToken,
+      expiresAt: completionExpiresAt.toISOString(),
+      firstName: challenge.firstName,
+      lastName: challenge.lastName,
+      phone: challenge.phone,
+      kind: challenge.kind,
+    };
+  }
+
+  async registerPatient(input: {
+    challengeId: string;
+    registrationToken: string;
+    email?: string;
+    username: string;
+    password: string;
+    dateOfBirth: string;
+    sex: string;
+    reference?: string;
+  }): Promise<SessionTokens> {
+    const challenge = await this.verifiedRegistrationChallenge(
+      input.challengeId,
+      input.registrationToken,
+      "PATIENT",
+    );
+    const username = this.normalizeUsername(input.username);
+    const email = this.registrationEmail(input.email, username, challenge.id);
+    const dateOfBirth = this.registrationDate(input.dateOfBirth);
+    const sex = this.registrationSex(input.sex);
+    const reference = this.registrationReference(input.reference);
+    this.assertRegistrationPassword(input.password);
+
+    await Promise.all([
+      this.ensureUsernameAvailable(username),
+      ...(this.isSyntheticRegistrationEmail(email)
+        ? []
+        : [this.ensureEmailAvailable(email)]),
+    ]);
+
+    const user = await this.prisma.$transaction(async (tx) => {
+      const consumed = await tx.registrationOtpChallenge.updateMany({
+        where: {
+          id: challenge.id,
+          verifiedAt: { not: null },
+          consumedAt: null,
+          expiresAt: { gt: new Date() },
+          completionTokenHash: tokenHash(input.registrationToken),
+        },
+        data: { consumedAt: new Date() },
+      });
+      if (consumed.count !== 1) {
+        throw new UnauthorizedException("Verified registration challenge is no longer valid.");
+      }
+      return tx.user.create({
+        data: {
+          email,
+          username,
+          registrationReference: reference,
+          passwordHash: await hashPasswordAsync(input.password),
+          role: "PATIENT",
+          patientProfile: {
+            create: {
+              firstName: challenge.firstName,
+              lastName: challenge.lastName,
+              dateOfBirth,
+              sex,
+              phone: challenge.phone,
+            },
+          },
+        },
+      });
+    });
+
+    await this.audit.write({
+      actorId: user.id,
+      action: "PATIENT_SELF_REGISTERED",
+      objectType: "ACCOUNT",
+      objectId: user.id,
+      result: "SUCCESS",
+      metadata: { phoneVerified: true },
+    });
+    return this.issueSession(user.id, false);
+  }
+
+  async registerProfessional(input: {
+    challengeId: string;
+    registrationToken: string;
+    kind: "DOCTOR" | "OTHER_PROVIDER";
+    email?: string;
+    username: string;
+    password: string;
+    specialtyId?: string;
+    providerCategoryId?: string;
+    reference?: string;
+  }): Promise<SessionTokens | MfaChallengeResult> {
+    const challenge = await this.verifiedRegistrationChallenge(
+      input.challengeId,
+      input.registrationToken,
+      input.kind,
+    );
+    const username = this.normalizeUsername(input.username);
+    const email = this.registrationEmail(input.email, username, challenge.id);
+    const reference = this.registrationReference(input.reference);
+    this.assertRegistrationPassword(input.password);
+
+    await Promise.all([
+      this.ensureUsernameAvailable(username),
+      ...(this.isSyntheticRegistrationEmail(email)
+        ? []
+        : [this.ensureEmailAvailable(email)]),
+    ]);
+
+    if (input.kind === "DOCTOR") {
+      if (!input.specialtyId?.trim()) {
+        throw new BadRequestException("A medical specialty is required.");
+      }
+      const specialty = await this.prisma.medicalSpecialty.findUnique({
+        where: { id: input.specialtyId.trim() },
+      });
+      if (!specialty?.active) {
+        throw new BadRequestException("An active medical specialty is required.");
+      }
+    } else {
+      if (!input.providerCategoryId?.trim()) {
+        throw new BadRequestException("A provider category is required.");
+      }
+      const category = await this.prisma.providerCategory.findUnique({
+        where: { id: input.providerCategoryId.trim() },
+      });
+      if (!category?.active) {
+        throw new BadRequestException("An active provider category is required.");
+      }
+    }
+
+    const displayName = `${challenge.firstName} ${challenge.lastName}`;
+    const result = await this.prisma.$transaction(async (tx) => {
+      const consumed = await tx.registrationOtpChallenge.updateMany({
+        where: {
+          id: challenge.id,
+          verifiedAt: { not: null },
+          consumedAt: null,
+          expiresAt: { gt: new Date() },
+          completionTokenHash: tokenHash(input.registrationToken),
+        },
+        data: { consumedAt: new Date() },
+      });
+      if (consumed.count !== 1) {
+        throw new UnauthorizedException("Verified registration challenge is no longer valid.");
+      }
+
+      const user = await tx.user.create({
+        data: {
+          email,
+          username,
+          registrationReference: reference,
+          passwordHash: await hashPasswordAsync(input.password),
+          role: input.kind,
+        },
+      });
+      await tx.provider.create({
+        data: {
+          userId: user.id,
+          class: input.kind,
+          displayName,
+          legalName: displayName,
+          contactPhone: challenge.phone,
+          status: "PENDING_REVIEW",
+        },
+      });
+      const onboarding = await tx.providerOnboarding.create({
+        data: {
+          userId: user.id,
+          kind: input.kind,
+          ...(input.kind === "DOCTOR"
+            ? { specialtyId: input.specialtyId!.trim() }
+            : { providerCategoryId: input.providerCategoryId!.trim() }),
+        },
+      });
+      return { user, onboarding };
+    });
+
+    await this.audit.write({
+      actorId: result.user.id,
+      action:
+        input.kind === "DOCTOR"
+          ? "DOCTOR_SELF_REGISTERED"
+          : "OTHER_PROVIDER_SELF_REGISTERED",
+      objectType: "PROVIDER_ONBOARDING",
+      objectId: result.onboarding.id,
+      result: "SUCCESS",
+      metadata: { kind: input.kind, phoneVerified: true },
+    });
+
+    return this.login(username, input.password);
   }
 
   async createManagedAccount(actorId: string, input: { email: string; password: string; role: IdentityRole }) {
@@ -80,6 +420,64 @@ export class PersistentAuthService {
     const user = await this.prisma.user.create({ data: { email, passwordHash: await hashPasswordAsync(input.password), role: input.role } });
     await this.audit.write({ actorId, action: "ACCOUNT_CREATED", objectType: "ACCOUNT", objectId: user.id, result: "SUCCESS", metadata: { role: user.role } });
     return this.safeAccount(user);
+  }
+
+  async changeOwnPassword(
+    principal: AuthPrincipal,
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<{ changed: true; reauthenticate: true }> {
+    if (!currentPassword || !newPassword) {
+      throw new BadRequestException("Current password and new password are required.");
+    }
+    if (newPassword.length < 12 || newPassword.length > 128) {
+      throw new BadRequestException("New password must contain between 12 and 128 characters.");
+    }
+
+    const user = await this.prisma.user.findUnique({ where: { id: principal.accountId } });
+    if (!user || user.status !== "ACTIVE") {
+      throw new UnauthorizedException("Account is not active.");
+    }
+    if (!(await verifyPasswordAsync(currentPassword, user.passwordHash))) {
+      await this.audit.write({
+        actorId: principal.accountId,
+        action: "PASSWORD_CHANGE_DENIED",
+        objectType: "ACCOUNT",
+        objectId: principal.accountId,
+        result: "DENIED",
+        metadata: { reason: "CURRENT_PASSWORD_INVALID" },
+      });
+      throw new UnauthorizedException("Current password is incorrect.");
+    }
+    if (await verifyPasswordAsync(newPassword, user.passwordHash)) {
+      throw new BadRequestException("New password must be different from the current password.");
+    }
+
+    const nextHash = await hashPasswordAsync(newPassword);
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: principal.accountId },
+        data: {
+          passwordHash: nextHash,
+          failedLoginCount: 0,
+          lockedUntil: null,
+        },
+      }),
+      this.prisma.authSession.updateMany({
+        where: { userId: principal.accountId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      }),
+    ]);
+
+    await this.audit.write({
+      actorId: principal.accountId,
+      action: "PASSWORD_CHANGED",
+      objectType: "ACCOUNT",
+      objectId: principal.accountId,
+      result: "SUCCESS",
+      metadata: { allSessionsRevoked: true },
+    });
+    return { changed: true, reauthenticate: true };
   }
 
   async getAccount(principal: AuthPrincipal, accountId: string) {
@@ -92,9 +490,12 @@ export class PersistentAuthService {
     return this.safeAccount(user);
   }
 
-  async login(emailInput: string, password: string): Promise<SessionTokens | MfaChallengeResult> {
-    const email = this.normalizeEmail(emailInput);
-    const user = await this.prisma.user.findUnique({ where: { email }, include: { mfaEnrollment: true } });
+  async login(identityInput: string, password: string): Promise<SessionTokens | MfaChallengeResult> {
+    const identity = identityInput?.trim().toLowerCase();
+    if (!identity) throw new BadRequestException("Email or username is required.");
+    const user = identity.includes("@")
+      ? await this.prisma.user.findUnique({ where: { email: this.normalizeEmail(identity) }, include: { mfaEnrollment: true } })
+      : await this.prisma.user.findUnique({ where: { username: this.normalizeUsername(identity) }, include: { mfaEnrollment: true } });
     if (!user) throw new UnauthorizedException("Invalid credentials.");
     if (user.status !== "ACTIVE") throw new UnauthorizedException("Account is not active.");
     if (user.lockedUntil && user.lockedUntil.getTime() > Date.now()) throw new UnauthorizedException("Account temporarily locked.");
@@ -434,13 +835,185 @@ export class PersistentAuthService {
   }
 
   private async ensureEmailAvailable(email: string): Promise<void> {
-    if (await this.prisma.user.findUnique({ where: { email }, select: { id: true } })) throw new ConflictException("Account already exists.");
+    if (await this.prisma.user.findUnique({ where: { email }, select: { id: true } })) throw new ConflictException("An account with this email already exists.");
   }
 
-  private safeAccount(user: { id: string; email: string; role: string; status: string; failedLoginCount: number; lockedUntil: Date | null; createdAt: Date; updatedAt: Date }) {
+  private normalizeRegistrationPhone(value: string): string {
+    const normalized = value?.trim().replace(/[\s()-]/g, "");
+    if (!/^\+[1-9]\d{7,14}$/.test(normalized)) {
+      throw new BadRequestException("Phone must use international E.164 format, for example +9665XXXXXXXX.");
+    }
+    return normalized;
+  }
+
+  private registrationOtpDeliveryMode(): "display" | "sms" {
+    const configured = process.env.REGISTRATION_OTP_DELIVERY_MODE?.trim().toLowerCase();
+    const mode = configured || (process.env.NODE_ENV === "production" ? "sms" : "display");
+    if (mode !== "display" && mode !== "sms") {
+      throw new InternalServerErrorException(
+        "REGISTRATION_OTP_DELIVERY_MODE must be 'display' or 'sms'.",
+      );
+    }
+    if (process.env.NODE_ENV === "production" && mode !== "sms") {
+      throw new InternalServerErrorException(
+        "Production registration OTP delivery must use SMS.",
+      );
+    }
+    return mode;
+  }
+
+  private registrationOtpPepper(): string {
+    const value = process.env.REGISTRATION_OTP_PEPPER?.trim();
+    if (!value || value.length < 32) {
+      throw new InternalServerErrorException(
+        "REGISTRATION_OTP_PEPPER must contain at least 32 characters.",
+      );
+    }
+    return value;
+  }
+
+  private registrationOtpHash(challengeId: string, otp: string): string {
+    return createHmac("sha256", this.registrationOtpPepper())
+      .update(`${challengeId}:${otp}`)
+      .digest("hex");
+  }
+
+  private async sendRegistrationOtpSms(phone: string, otp: string): Promise<void> {
+    const accountSid = process.env.TWILIO_ACCOUNT_SID?.trim();
+    const authToken = process.env.TWILIO_AUTH_TOKEN?.trim();
+    const from = process.env.TWILIO_FROM_NUMBER?.trim();
+    const messagingServiceSid =
+      process.env.TWILIO_MESSAGING_SERVICE_SID?.trim();
+    if (!accountSid || !authToken || (!from && !messagingServiceSid)) {
+      throw new InternalServerErrorException(
+        "TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN plus TWILIO_FROM_NUMBER or TWILIO_MESSAGING_SERVICE_SID are required for SMS registration OTP delivery.",
+      );
+    }
+    const payload = new URLSearchParams({
+      To: phone,
+      ...(messagingServiceSid
+        ? { MessagingServiceSid: messagingServiceSid }
+        : { From: from! }),
+      Body: `Your CarePoint registration code is ${otp}. It expires in 5 minutes.`,
+    });
+    let response: Response;
+    try {
+      response = await fetch(
+        `https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(accountSid)}/Messages.json`,
+        {
+          method: "POST",
+          headers: {
+            authorization: `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString("base64")}`,
+            "content-type": "application/x-www-form-urlencoded",
+          },
+          body: payload,
+          redirect: "error",
+          signal: AbortSignal.timeout(10_000),
+        },
+      );
+    } catch {
+      throw new BadGatewayException("Registration OTP SMS transport failed.");
+    }
+    if (!response.ok) {
+      await response.body?.cancel().catch(() => undefined);
+      throw new BadGatewayException(
+        `Registration OTP SMS delivery failed with HTTP ${response.status}.`,
+      );
+    }
+    await response.body?.cancel().catch(() => undefined);
+  }
+
+  private async verifiedRegistrationChallenge(
+    challengeId: string,
+    registrationToken: string,
+    expectedKind: "PATIENT" | "DOCTOR" | "OTHER_PROVIDER",
+  ) {
+    const normalizedChallengeId = challengeId?.trim();
+    const normalizedRegistrationToken = registrationToken?.trim();
+    if (!normalizedChallengeId || !normalizedRegistrationToken) {
+      throw new UnauthorizedException("Verified registration challenge is invalid or expired.");
+    }
+    const challenge = await this.prisma.registrationOtpChallenge.findUnique({
+      where: { id: normalizedChallengeId },
+    });
+    if (
+      !challenge ||
+      challenge.kind !== expectedKind ||
+      !challenge.verifiedAt ||
+      challenge.consumedAt ||
+      challenge.expiresAt.getTime() <= Date.now() ||
+      !challenge.completionTokenHash ||
+      challenge.completionTokenHash !== tokenHash(normalizedRegistrationToken)
+    ) {
+      throw new UnauthorizedException("Verified registration challenge is invalid or expired.");
+    }
+    return challenge;
+  }
+
+  private registrationEmail(
+    value: string | undefined,
+    username: string,
+    challengeId: string,
+  ): string {
+    const provided = value?.trim();
+    if (provided) return this.normalizeEmail(provided);
+    const safeId = challengeId.replace(/[^a-zA-Z0-9]/g, "").slice(-16);
+    return `${username}.${safeId}@noemail.carepoint.invalid`.toLowerCase();
+  }
+
+  private isSyntheticRegistrationEmail(value: string): boolean {
+    return value.endsWith("@noemail.carepoint.invalid");
+  }
+
+  private registrationReference(value: string | undefined): string | null {
+    const reference = value?.trim();
+    if (!reference) return null;
+    if (reference.length > 200) {
+      throw new BadRequestException("Registration reference must not exceed 200 characters.");
+    }
+    return reference;
+  }
+
+  private normalizeUsername(value: string): string {
+    const username = value?.trim().toLowerCase();
+    if (!username || !/^[a-z0-9._-]{3,40}$/.test(username)) {
+      throw new BadRequestException("Username must contain 3 to 40 letters, numbers, dots, underscores or hyphens.");
+    }
+    return username;
+  }
+
+  private async ensureUsernameAvailable(username: string): Promise<void> {
+    if (await this.prisma.user.findUnique({ where: { username }, select: { id: true } })) {
+      throw new ConflictException("This username is already in use.");
+    }
+  }
+
+  private assertRegistrationPassword(password: string): void {
+    if (!password || password.length < 12 || password.length > 128) {
+      throw new BadRequestException("Password must contain between 12 and 128 characters.");
+    }
+  }
+
+  private registrationDate(value: string): Date {
+    const raw = value?.trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) throw new BadRequestException("dateOfBirth must use YYYY-MM-DD.");
+    const date = new Date(`${raw}T00:00:00.000Z`);
+    if (!Number.isFinite(date.getTime()) || date.getTime() > Date.now()) throw new BadRequestException("A valid date of birth is required.");
+    return date;
+  }
+
+  private registrationSex(value: string): string {
+    const normalized = value?.trim().toUpperCase();
+    const allowed = new Set(["FEMALE", "MALE", "INTERSEX", "OTHER", "PREFER_NOT_TO_SAY"]);
+    if (!allowed.has(normalized)) throw new BadRequestException("A supported sex value is required.");
+    return normalized;
+  }
+
+  private safeAccount(user: { id: string; email: string; username?: string | null; role: string; status: string; failedLoginCount: number; lockedUntil: Date | null; createdAt: Date; updatedAt: Date }) {
     return {
       id: user.id,
-      email: user.email,
+      email: this.isSyntheticRegistrationEmail(user.email) ? null : user.email,
+      username: user.username ?? null,
       role: user.role,
       status: user.status,
       failedLoginCount: user.failedLoginCount,

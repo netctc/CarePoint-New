@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'carepoint_api.dart';
+import 'carepoint_auth.dart';
 import 'carepoint_localization.dart';
 import 'clinical_record.dart';
 import 'doctor_offline_clinical_draft.dart';
@@ -17,6 +18,7 @@ class ProviderWorkspace extends StatefulWidget {
     required this.title,
     required this.accent,
     required this.onSignOut,
+    required this.sessionUiController,
     this.dark = false,
     this.allowedServiceModalities,
     this.clinicalOrderCapabilities,
@@ -26,6 +28,7 @@ class ProviderWorkspace extends StatefulWidget {
   final String title;
   final Color accent;
   final VoidCallback onSignOut;
+  final CarePointSessionUiController sessionUiController;
   final bool dark;
   final Set<String>? allowedServiceModalities;
   final Set<String>? clinicalOrderCapabilities;
@@ -61,7 +64,58 @@ class _ProviderWorkspaceState extends State<ProviderWorkspace> {
   }
 
   @override
-  void initState() { super.initState(); refreshAll(); }
+  void initState() {
+    super.initState();
+    refreshAll();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _syncPersistentNavigation());
+  }
+
+  @override
+  void didUpdateWidget(covariant ProviderWorkspace oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.locale != widget.locale ||
+        oldWidget.sessionUiController != widget.sessionUiController) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _syncPersistentNavigation());
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.sessionUiController.clearNavigation();
+    super.dispose();
+  }
+
+  void _syncPersistentNavigation() {
+    if (!mounted) return;
+    widget.sessionUiController.bindNavigation(
+      selectedIndex: tab,
+      onSelected: _selectTab,
+      destinations: [
+        NavigationDestination(
+          icon: const Icon(Icons.calendar_today_outlined),
+          selectedIcon: const Icon(Icons.calendar_today),
+          label: cpText(locale, 'workspace.agenda'),
+        ),
+        NavigationDestination(
+          icon: const Icon(Icons.medical_services_outlined),
+          selectedIcon: const Icon(Icons.medical_services),
+          label: cpText(locale, 'workspace.services'),
+        ),
+        NavigationDestination(
+          icon: const Icon(Icons.schedule_outlined),
+          selectedIcon: const Icon(Icons.schedule),
+          label: cpText(locale, 'workspace.availability'),
+        ),
+      ],
+    );
+  }
+
+  void _selectTab(int value) {
+    if (!mounted) return;
+    Navigator.of(context).popUntil((route) => route.isFirst);
+    setState(() => tab = value);
+    widget.sessionUiController.updateNavigationIndex(value);
+  }
 
   Future<void> refreshAll() async {
     setState(() { busy = true; error = null; });
@@ -90,14 +144,8 @@ class _ProviderWorkspaceState extends State<ProviderWorkspace> {
     backgroundColor: widget.dark ? const Color(0xFF0F172A) : null,
     appBar: AppBar(title: Text(widget.title), actions: [
       IconButton(onPressed: refreshAll, icon: const Icon(Icons.refresh_rounded), tooltip: cpText(locale, 'common.refresh')),
-      PopupMenuButton<String>(onSelected: (value) { if (value == 'logout') widget.onSignOut(); }, itemBuilder: (_) => [PopupMenuItem(value: 'logout', child: Text(cpText(locale, 'auth.signOut')))]),
     ]),
     body: busy ? const Center(child: CircularProgressIndicator()) : error != null ? _ErrorPanel(message: error!, onRetry: refreshAll, locale: locale) : IndexedStack(index: tab, children: [_agenda(), _services(), _availability()]),
-    bottomNavigationBar: NavigationBar(selectedIndex: tab, onDestinationSelected: (value) => setState(() => tab = value), destinations: [
-      NavigationDestination(icon: const Icon(Icons.calendar_today_outlined), selectedIcon: const Icon(Icons.calendar_today), label: cpText(locale, 'workspace.agenda')),
-      NavigationDestination(icon: const Icon(Icons.medical_services_outlined), selectedIcon: const Icon(Icons.medical_services), label: cpText(locale, 'workspace.services')),
-      NavigationDestination(icon: const Icon(Icons.schedule_outlined), selectedIcon: const Icon(Icons.schedule), label: cpText(locale, 'workspace.availability')),
-    ]),
     floatingActionButton: tab == 1
         ? FloatingActionButton.extended(onPressed: _allowedServiceModalities.isEmpty ? null : _createService, icon: const Icon(Icons.add), label: Text(cpText(locale, 'workspace.newService')))
         : tab == 2

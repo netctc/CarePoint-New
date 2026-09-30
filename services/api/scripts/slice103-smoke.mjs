@@ -30,8 +30,32 @@ async function login(email, password) {
   return result.accessToken;
 }
 
+let registrationSequence = 0;
+
 async function registerPatient(email, firstName) {
-  await request("/iam/register/patient", { method: "POST", body: { email, password: patientPassword, firstName, lastName: "FHIR Document Test" } });
+  registrationSequence += 1;
+  const phone = `+966591${String(registrationSequence).padStart(6, "0")}`;
+  const otp = await request("/iam/register/otp/start", {
+    method: "POST",
+    body: { kind: "PATIENT", firstName, lastName: "FHIR Document Test", phone },
+  });
+  const verified = await request("/iam/register/otp/verify", {
+    method: "POST",
+    body: { challengeId: otp.challengeId, code: otp.testOtp },
+  });
+  const username = email.split("@")[0].replace(/[^a-z0-9._-]/gi, "-").toLowerCase().slice(0, 40);
+  await request("/iam/register/patient", {
+    method: "POST",
+    body: {
+      challengeId: otp.challengeId,
+      registrationToken: verified.registrationToken,
+      email,
+      username,
+      password: patientPassword,
+      dateOfBirth: "1990-01-15",
+      sex: "PREFER_NOT_TO_SAY",
+    },
+  });
   return login(email, patientPassword);
 }
 

@@ -47,8 +47,18 @@ async function json(path, { method = "GET", body } = {}) {
   return result.payload;
 }
 
+let registrationSequence = 0;
+
 async function registerPatient(email, firstName) {
-  await json("/iam/register/patient", { method: "POST", body: { email, password, firstName, lastName: "SMART Offline Test" } });
+  registrationSequence += 1;
+  const phone = `+966596${String(registrationSequence).padStart(6, "0")}`;
+  const otp = await json("/iam/register/otp/start", { method: "POST", body: { kind: "PATIENT", firstName, lastName: "SMART Offline Test", phone } });
+  const verified = await json("/iam/register/otp/verify", { method: "POST", body: { challengeId: otp.challengeId, code: otp.testOtp } });
+  const username = email.split("@")[0].replace(/[^a-z0-9._-]/gi, "-").toLowerCase().slice(0, 40);
+  await json("/iam/register/patient", {
+    method: "POST",
+    body: { challengeId: otp.challengeId, registrationToken: verified.registrationToken, email, username, password, dateOfBirth: "1990-01-15", sex: "PREFER_NOT_TO_SAY" },
+  });
   const login = await json("/iam/login", { method: "POST", body: { email, password } });
   if (!login.accessToken) throw new Error(`No CarePoint session token for ${email}`);
   return login.accessToken;

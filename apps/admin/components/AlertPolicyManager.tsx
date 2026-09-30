@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useI18n, type Locale } from "@/lib/i18n";
+import { AdminPagination, paginateItems } from "@/components/AdminPagination";
 import styles from "./AlertPolicyManager.module.css";
 
 type Labels={en?:string;ar?:string;fr?:string;es?:string};
@@ -36,6 +37,7 @@ export function AlertPolicyManager(){
   const {locale}=useI18n();const t=copy[locale];
   const [policies,setPolicies]=useState<Policy[]>([]);const [metrics,setMetrics]=useState<Metric[]>([]);
   const [selectedId,setSelectedId]=useState("");const [busy,setBusy]=useState(false);const [error,setError]=useState("");
+  const [page,setPage]=useState(1); const [pageSize,setPageSize]=useState(10);
   const [code,setCode]=useState("");const [en,setEn]=useState("");const [ar,setAr]=useState("");const [fr,setFr]=useState("");const [es,setEs]=useState("");
   const [metricCodes,setMetricCodes]=useState<Set<string>>(new Set());
   const [severities,setSeverities]=useState<Set<string>>(new Set(["WARNING","CRITICAL"]));
@@ -113,19 +115,20 @@ export function AlertPolicyManager(){
       <section className={styles.card}>
         <h2>{t.newPolicy}</h2>
         <div className={styles.form}>
-          <input value={code} onChange={e=>setCode(e.target.value)} placeholder={t.code}/>
-          <input value={en} onChange={e=>setEn(e.target.value)} placeholder="Label EN"/>
-          <input value={ar} onChange={e=>setAr(e.target.value)} placeholder="Label AR"/>
-          <input value={fr} onChange={e=>setFr(e.target.value)} placeholder="Label FR"/>
-          <input value={es} onChange={e=>setEs(e.target.value)} placeholder="Label ES"/>
+          <label><span>{t.code}</span><input value={code} onChange={e=>setCode(e.target.value)} placeholder={t.code}/></label>
+          <label><span>{t.labels} · EN</span><input value={en} onChange={e=>setEn(e.target.value)} placeholder="Label EN"/></label>
+          <label><span>{t.labels} · AR</span><input value={ar} onChange={e=>setAr(e.target.value)} placeholder="Label AR"/></label>
+          <label><span>{t.labels} · FR</span><input value={fr} onChange={e=>setFr(e.target.value)} placeholder="Label FR"/></label>
+          <label><span>{t.labels} · ES</span><input value={es} onChange={e=>setEs(e.target.value)} placeholder="Label ES"/></label>
         </div>
         <button className={styles.primary} disabled={busy||!code.trim()||!en.trim()} onClick={()=>void createPolicy()}>{t.create}</button>
         <div className={styles.policyList}>
-          {policies.map(policy=><button key={policy.id} className={selectedId===policy.id?styles.selected:styles.policy} onClick={()=>setSelectedId(policy.id)}>
+          {paginateItems(policies,page,pageSize).map(policy=><button key={policy.id} className={selectedId===policy.id?styles.selected:styles.policy} onClick={()=>setSelectedId(policy.id)}>
             <strong>{label(policy.labels,locale,policy.code)}</strong><small>{policy.code} · {policy.versions.length} {t.versions}</small>
           </button>)}
           {!policies.length?<div className={styles.empty}>{t.empty}</div>:null}
         </div>
+        <AdminPagination page={page} pageSize={pageSize} total={policies.length} onPageChange={setPage} onPageSizeChange={(size)=>{setPageSize(size);setPage(1);}}/>
       </section>
 
       <section className={styles.card}>
@@ -147,16 +150,16 @@ export function AlertPolicyManager(){
         <input type="checkbox" checked={metricCodes.has(metric.code)} onChange={e=>toggleMetric(metric.code,e.target.checked)}/>
         <span><strong>{label(metric.labels,locale,metric.code)}</strong><small>{metric.code}</small></span>
         {metricCodes.has(metric.code)?<span className={styles.bound}>
-          <input type="number" step="any" value={bounds[metric.code]?.min??""} onChange={e=>setBounds(current=>({...current,[metric.code]:{min:e.target.value,max:current[metric.code]?.max??""}}))} placeholder={t.min}/>
-          <input type="number" step="any" value={bounds[metric.code]?.max??""} onChange={e=>setBounds(current=>({...current,[metric.code]:{min:current[metric.code]?.min??"",max:e.target.value}}))} placeholder={t.max}/>
+          <span className="admin-form-field"><span>{t.min}</span><input type="number" step="any" value={bounds[metric.code]?.min??""} onChange={e=>setBounds(current=>({...current,[metric.code]:{min:e.target.value,max:current[metric.code]?.max??""}}))} placeholder={t.min}/></span>
+          <span className="admin-form-field"><span>{t.max}</span><input type="number" step="any" value={bounds[metric.code]?.max??""} onChange={e=>setBounds(current=>({...current,[metric.code]:{min:current[metric.code]?.min??"",max:e.target.value}}))} placeholder={t.max}/></span>
         </span>:null}
       </label>)}</div>
 
       <h3>{t.severities}</h3>
-      <div className={styles.checks}>{severityOptions.map(value=><label key={value}><input type="checkbox" checked={severities.has(value)} onChange={e=>setSeverities(current=>{const next=new Set(current);e.target.checked?next.add(value):next.delete(value);return next})}/>{value}</label>)}</div>
+      <div className={styles.checks}>{severityOptions.map(value=><label key={value} className="admin-form-check"><input type="checkbox" checked={severities.has(value)} onChange={e=>setSeverities(current=>{const next=new Set(current);e.target.checked?next.add(value):next.delete(value);return next})}/>{value}</label>)}</div>
 
       <h3>{t.actions}</h3>
-      <input className={styles.wideInput} value={actionKeys} onChange={e=>setActionKeys(e.target.value)} placeholder={t.actionHint}/>
+      <label className="admin-form-field"><span>{t.actions}</span><input className={styles.wideInput} value={actionKeys} onChange={e=>setActionKeys(e.target.value)} placeholder={t.actionHint}/></label>
       <div className={styles.hint}>{defaultActions.join(" · ")}</div>
       <button className={styles.primary} disabled={busy} onClick={()=>void createVersion()}>{t.create}</button>
     </section>:null}

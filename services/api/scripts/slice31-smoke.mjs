@@ -1,3 +1,4 @@
+import { registerTestPatient } from "./support/register-test-patient.mjs";
 import { PrismaClient } from '@prisma/client';
 import { totpCode } from '@carepoint/identity';
 
@@ -98,7 +99,7 @@ async function main() {
   const patientEmail = 'patient-clinical@carepoint.test';
   const patientPassword = process.env.SLICE6_PATIENT_PASSWORD;
   if (!patientPassword) throw new Error('SLICE6_PATIENT_PASSWORD is required for the Slice 3.1 smoke test.');
-  await request('/iam/register/patient', { method: 'POST', body: { email: patientEmail, password: patientPassword, firstName: 'Clinical', lastName: 'Patient' } });
+  await registerTestPatient({ base, email: patientEmail, password: patientPassword, firstName: 'Clinical', lastName: 'Patient' });
   const patientToken = await login(patientEmail, patientPassword);
   const appointment = await request('/bookings', { method: 'POST', token: patientToken, body: { slotId: slots[0].id, idempotencyKey: 'slice31-clinical-booking-0001' } });
   if (appointment.status !== 'CONFIRMED') throw new Error('Clinical appointment was not confirmed.');

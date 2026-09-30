@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/AppShell";
+import { AdminPagination, paginateItems } from "@/components/AdminPagination";
 import { useI18n, type Locale } from "@/lib/i18n";
 
 type TriggerType = "ONBOARDING" | "PERIODIC" | "POST_INTERVENTION" | "PRE_VISIT" | "MANUAL";
@@ -40,6 +41,8 @@ export default function QuestionnaireTriggersPage(){
   const [n1,setN1]=useState("0"),[n2,setN2]=useState("30");
   const [simulation,setSimulation]=useState<unknown>(null);
   const [manual,setManual]=useState({patientId:"",eventId:""});
+  const [rulePage,setRulePage]=useState(1); const [rulePageSize,setRulePageSize]=useState(10);
+  const [versionPage,setVersionPage]=useState(1); const [versionPageSize,setVersionPageSize]=useState(10);
   const selected=useMemo(()=>rules.find((r)=>r.id===selectedId)??null,[rules,selectedId]);
   const activeQuestionnaireVersions=useMemo(()=>questionnaires.flatMap((q)=>q.versions.filter((v)=>v.status==="ACTIVE").map((v)=>({id:v.id,label:`${q.code} · v${v.version}`}))),[questionnaires]);
 
@@ -114,17 +117,18 @@ export default function QuestionnaireTriggersPage(){
     <div style={{display:"grid",gridTemplateColumns:"minmax(260px,320px) 1fr",gap:18}}>
       <aside style={box}>
         <h3>{t.rules}</h3>{rules.length===0&&<p>{t.empty}</p>}
-        {rules.map((rule)=><button key={rule.id} className={rule.id===selectedId?"primary-button":"secondary-button"} style={{display:"block",width:"100%",marginBottom:8,textAlign:"start"}} onClick={()=>setSelectedId(rule.id)}>{rule.labels?.[locale]||rule.labels?.en||rule.code}<br/><small>{rule.code}</small></button>)}
+        {paginateItems(rules,rulePage,rulePageSize).map((rule)=><button key={rule.id} className={rule.id===selectedId?"primary-button":"secondary-button"} style={{display:"block",width:"100%",marginBottom:8,textAlign:"start"}} onClick={()=>setSelectedId(rule.id)}>{rule.labels?.[locale]||rule.labels?.en||rule.code}<br/><small>{rule.code}</small></button>)}
+        <AdminPagination page={rulePage} pageSize={rulePageSize} total={rules.length} onPageChange={setRulePage} onPageSizeChange={(size)=>{setRulePageSize(size);setRulePage(1);}}/>
       </aside>
       <div style={{display:"grid",gap:18}}>
         <section style={box}><h2>{t.newRule}</h2>
           <label>{t.code}<input value={definition.code} onChange={(e)=>setDefinition({...definition,code:e.target.value})}/></label>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>{(["en","ar","fr","es"] as const).map((lang)=><label key={lang}>{t.labels} {lang.toUpperCase()}<input value={definition[lang]} onChange={(e)=>setDefinition({...definition,[lang]:e.target.value})}/></label>)}</div>
+          <div className="admin-form-grid">{(["en","ar","fr","es"] as const).map((lang)=><label key={lang}>{t.labels} {lang.toUpperCase()}<input value={definition[lang]} onChange={(e)=>setDefinition({...definition,[lang]:e.target.value})}/></label>)}</div>
           <button className="primary-button" onClick={()=>void createRule()}>{t.create}</button>
         </section>
         {!selected?<section style={box}>{t.select}</section>:<>
           <section style={box}><h2>{t.version} · {selected.code}</h2><p><small>{t.immutable}</small></p>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+            <div className="admin-form-grid">
               <label>{t.questionnaire}<select value={questionnaireVersionId} onChange={(e)=>setQuestionnaireVersionId(e.target.value)}>{activeQuestionnaireVersions.map((v)=><option key={v.id} value={v.id}>{v.label}</option>)}</select></label>
               <label>{t.type}<select value={triggerType} onChange={(e)=>{setTriggerType(e.target.value as TriggerType);setN1(e.target.value==="PERIODIC"?"30":e.target.value==="PRE_VISIT"?"48":e.target.value==="MANUAL"?"7":"0");}}>{TYPES.map((v)=><option key={v}>{v}</option>)}</select></label>
               <label>{t.config} · {configLabels[0]}<input inputMode="numeric" value={n1} onChange={(e)=>setN1(e.target.value)}/></label>
@@ -133,14 +137,15 @@ export default function QuestionnaireTriggersPage(){
             <button className="primary-button" onClick={()=>void createVersion()} disabled={!questionnaireVersionId}>{t.draft}</button>
           </section>
           <section style={box}><h2>{t.rules}</h2>
-            {[...(selected.versions??[])].sort((a,b)=>b.version-a.version).map((v)=><div key={v.id} style={{padding:"12px 0",borderTop:"1px solid #e2e8f0"}}>
+            {paginateItems([...(selected.versions??[])].sort((a,b)=>b.version-a.version),versionPage,versionPageSize).map((v)=><div key={v.id} style={{padding:"12px 0",borderTop:"1px solid #e2e8f0"}}>
               <strong>v{v.version} · {v.triggerType} · {v.status}</strong><p><small>{JSON.stringify(v.config)}</small></p>
               {v.lastSimulatedAt&&<p><small>{t.simulation}: {new Date(v.lastSimulatedAt).toLocaleString(locale)}</small></p>}
               <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
                 {v.status==="DRAFT"&&<><button className="secondary-button" onClick={()=>void simulate(v)}>{t.simulate}</button><button className="primary-button" disabled={!v.lastSimulatedAt} onClick={()=>void activate(v)}>{t.activate}</button></>}
               </div>
-              {v.status==="ACTIVE"&&v.triggerType==="MANUAL"&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr auto",gap:8,marginTop:10}}><input placeholder={t.patientId} value={manual.patientId} onChange={(e)=>setManual({...manual,patientId:e.target.value})}/><input placeholder={t.eventId} value={manual.eventId} onChange={(e)=>setManual({...manual,eventId:e.target.value})}/><button className="secondary-button" onClick={()=>void dispatch(v)}>{t.dispatch}</button></div>}
+              {v.status==="ACTIVE"&&v.triggerType==="MANUAL"&&<div className="admin-form-grid" style={{marginTop:10}}><label><span>{t.patientId}</span><input placeholder={t.patientId} value={manual.patientId} onChange={(e)=>setManual({...manual,patientId:e.target.value})}/></label><label><span>{t.eventId}</span><input placeholder={t.eventId} value={manual.eventId} onChange={(e)=>setManual({...manual,eventId:e.target.value})}/></label><div className="admin-form-actions"><button className="secondary-button" onClick={()=>void dispatch(v)}>{t.dispatch}</button></div></div>}
             </div>)}
+            <AdminPagination page={versionPage} pageSize={versionPageSize} total={selected.versions?.length??0} onPageChange={setVersionPage} onPageSizeChange={(size)=>{setVersionPageSize(size);setVersionPage(1);}}/>
           </section>
           {simulation!=null&&<section style={{...box,background:"#f8fafc"}}><h3>{t.simulation}</h3><pre style={{whiteSpace:"pre-wrap",overflowWrap:"anywhere"}}>{JSON.stringify(simulation,null,2)}</pre></section>}
         </>}
