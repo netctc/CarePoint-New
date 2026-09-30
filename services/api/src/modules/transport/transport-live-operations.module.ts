@@ -349,7 +349,7 @@ class TransportLiveOperationsService {
           this.severityWeight(b.highestSeverity) -
           this.severityWeight(a.highestSeverity);
         if (severity !== 0) return severity;
-        return new Date(a.scheduledFor).getTime() - new Date(b.scheduledFor).getTime();
+        return a.scheduledFor.getTime() - b.scheduledFor.getTime();
       });
 
     await this.audit.write({
