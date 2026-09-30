@@ -427,6 +427,19 @@ class _ProviderTransportWorkspaceState extends State<ProviderTransportWorkspace>
   Future<void> _tracking(String requestId) async {
     try {
       final state = await api.providerMedicalTransportTracking(requestId);
+      Map<String, dynamic> timeline = <String, dynamic>{};
+      try {
+        timeline = await api.providerMedicalTransportTimeline(requestId);
+      } catch (_) {
+        // Tracking controls remain available if the extended timeline cannot
+        // be loaded.
+      }
+      final milestoneItems = _maps(timeline['items'])
+          .where((row) => row['kind']?.toString() == 'MILESTONE')
+          .toList(growable: false);
+      final latestMilestone = milestoneItems.isEmpty
+          ? <String, dynamic>{}
+          : milestoneItems.last;
       final sharing = state['sharingStatus']?.toString() == 'ACTIVE' &&
           state['shareWithPatient'] == true;
       if (sharing && activeTrackingRequestId == null) {
@@ -460,6 +473,23 @@ class _ProviderTransportWorkspaceState extends State<ProviderTransportWorkspace>
                 transportText(widget.locale, 'etaSeparateNotice'),
                 style: const TextStyle(color: Color(0xFF64748B)),
               ),
+              if (latestMilestone.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Text(
+                  '${transportText(widget.locale, 'latestMilestone')}: ${latestMilestone['code']}',
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+                if (latestMilestone['distanceMeters'] != null)
+                  Text(
+                    '${latestMilestone['distanceMeters']} m',
+                    style: const TextStyle(color: Color(0xFF64748B)),
+                  ),
+                const SizedBox(height: 4),
+                Text(
+                  transportText(widget.locale, 'milestoneAdvisory'),
+                  style: const TextStyle(color: Color(0xFF64748B)),
+                ),
+              ],
             ],
           ),
           actions: [
