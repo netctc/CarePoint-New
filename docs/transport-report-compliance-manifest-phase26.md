@@ -124,7 +124,7 @@ For feature PRs whose base is another feature branch:
 
 ### Full canonical integration lane
 
-The 18 heavy validation workflows now run for PRs targeting:
+The 20 heavy validation workflows now run for PRs targeting:
 
 - `main`
 - `v2/development`
