@@ -248,6 +248,30 @@ export function TransportSmartDispatchPanel() {
     }
   }
 
+  async function notifyProvider(item: SmartDispatchItem, signal: Signal) {
+    if (!item.assignedProvider) return;
+    setWorking("notify:" + item.requestId + ":" + signal.code);
+    setMessage("");
+    try {
+      await request(
+        "/api/admin/transport/live-operations/" +
+          encodeURIComponent(item.requestId) +
+          "/notify-provider",
+        {
+          method: "POST",
+          body: JSON.stringify({ exceptionCode: signal.code }),
+        },
+      );
+      setMessage(
+        "Operational attention sent to the assigned provider using the Phase 7 deduplicated notification flow.",
+      );
+    } catch (error) {
+      setMessage(String(error));
+    } finally {
+      setWorking("");
+    }
+  }
+
   async function assignRecommended(
     item: SmartDispatchItem,
     recommendation: CandidateRecommendation,
@@ -535,6 +559,15 @@ export function TransportSmartDispatchPanel() {
                               justifyContent: "flex-end",
                             }}
                           >
+                            {item.assignedProvider ? (
+                              <button
+                                className="secondary-button"
+                                disabled={working === "notify:" + key}
+                                onClick={() => void notifyProvider(item, signal)}
+                              >
+                                Notify provider
+                              </button>
+                            ) : null}
                             {escalation &&
                             escalation.status === "OPEN" ? (
                               <button
