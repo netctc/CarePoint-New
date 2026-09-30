@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'carepoint_api.dart';
@@ -67,8 +69,14 @@ class PatientMedicalTransportStatusPage extends StatefulWidget {
 class _PatientMedicalTransportStatusPageState extends State<PatientMedicalTransportStatusPage> {
   Map<String, dynamic>? value;
   Map<String, dynamic> tracking = <String, dynamic>{};
+  Map<String, dynamic> timeline = <String, dynamic>{};
   bool busy = true;
+  bool liveRefreshInFlight = false;
   String? error;
+  Timer? fallbackTimer;
+  StreamSubscription<Map<String, dynamic>>? trackingSubscription;
+  StreamSubscription<Map<String, dynamic>>? milestoneSubscription;
+  StreamSubscription<Map<String, dynamic>>? lifecycleSubscription;
 
   Map<String, dynamic> get request => _map(value?['request']);
   String get requestId => widget.requestId.trim();
@@ -85,25 +93,43 @@ class _PatientMedicalTransportStatusPageState extends State<PatientMedicalTransp
       value = null;
       error = patientMedicalTransportText(widget.locale, 'loadFailed');
     } else {
-      refresh();
+      refresh().then((_) => _startRealtimeDelivery());
     }
   }
 
-  Future<void> refresh() async {
+  @override
+  void dispose() {
+    fallbackTimer?.cancel();
+    trackingSubscription?.cancel();
+    milestoneSubscription?.cancel();
+    lifecycleSubscription?.cancel();
+    super.dispose();
+  }
+
+  Future<void> refresh({bool silent = false}) async {
     if (widget.session.account['role'] != 'PATIENT' || requestId.isEmpty) return;
-    if (mounted) setState(() { busy = true; error = null; });
+    if (!silent && mounted) setState(() { busy = true; error = null; });
     try {
       final next = await widget.session.api.medicalTransportRequest(requestId).timeout(const Duration(seconds: 30));
       Map<String, dynamic> nextTracking = <String, dynamic>{};
+      Map<String, dynamic> nextTimeline = <String, dynamic>{};
       try {
         nextTracking = await widget.session.api.medicalTransportTracking(requestId).timeout(const Duration(seconds: 20));
       } catch (_) {
         // Transport status remains usable even when the optional tracking
         // surface is temporarily unavailable.
       }
+      try {
+        nextTimeline = await widget.session.api.medicalTransportTimeline(requestId).timeout(const Duration(seconds: 20));
+      } catch (_) {
+        // The authoritative request response remains usable if the extended
+        // Phase 9 timeline is temporarily unavailable.
+      }
       if (mounted) setState(() {
         value = next;
         tracking = nextTracking;
+        timeline = nextTimeline;
+        if (silent) error = null;
       });
     } catch (_) {
       if (mounted) setState(() {
@@ -111,7 +137,46 @@ class _PatientMedicalTransportStatusPageState extends State<PatientMedicalTransp
         error = patientMedicalTransportText(widget.locale, 'loadFailed');
       });
     } finally {
-      if (mounted) setState(() => busy = false);
+      if (!silent && mounted) setState(() => busy = false);
+    }
+  }
+
+  void _startRealtimeDelivery() {
+    if (!mounted || requestId.isEmpty) return;
+    fallbackTimer?.cancel();
+    trackingSubscription?.cancel();
+    milestoneSubscription?.cancel();
+    lifecycleSubscription?.cancel();
+
+    final replayFrom = DateTime.now().subtract(const Duration(seconds: 5));
+    trackingSubscription = widget.session.api.transportRealtimeEvents(
+      requestId,
+      topic: 'TRANSPORT_TRACKING',
+      after: replayFrom,
+    ).listen((_) => _refreshFromRealtime(), onError: (_) {});
+    milestoneSubscription = widget.session.api.transportRealtimeEvents(
+      requestId,
+      topic: 'TRANSPORT_MILESTONES',
+      after: replayFrom,
+    ).listen((_) => _refreshFromRealtime(), onError: (_) {});
+    lifecycleSubscription = widget.session.api.transportRealtimeEvents(
+      requestId,
+      topic: 'TRANSPORT_LIFECYCLE',
+      after: replayFrom,
+    ).listen((_) => _refreshFromRealtime(), onError: (_) {});
+    fallbackTimer = Timer.periodic(
+      const Duration(seconds: 15),
+      (_) => _refreshFromRealtime(),
+    );
+  }
+
+  Future<void> _refreshFromRealtime() async {
+    if (!mounted || liveRefreshInFlight) return;
+    liveRefreshInFlight = true;
+    try {
+      await refresh(silent: true);
+    } finally {
+      liveRefreshInFlight = false;
     }
   }
 
