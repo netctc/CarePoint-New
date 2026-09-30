@@ -9,7 +9,7 @@ type RouteContext = { params: Promise<{ segments: string[] }> };
 export async function GET(request: NextRequest, context: RouteContext) {
   const path = await backendPath(context);
   if (!path) return invalid("Invalid transport administration route.");
-  return forwardAdminJson(request, path);
+  return forwardAdminJson(request, analyticsQueryPath(request, path));
 }
 
 export async function POST(request: NextRequest, context: RouteContext) {
@@ -60,6 +60,17 @@ async function backendPath(context: RouteContext): Promise<string | null> {
   }
 
   return "/admin/transport/" + segments.map(encodeURIComponent).join("/");
+}
+
+function analyticsQueryPath(request: NextRequest, path: string) {
+  if (path !== "/admin/transport/performance-analytics") return path;
+  const query = new URLSearchParams();
+  for (const key of ["windowDays", "forecastDays"] as const) {
+    const value = request.nextUrl.searchParams.get(key);
+    if (value != null && /^\d{1,3}$/.test(value)) query.set(key, value);
+  }
+  const suffix = query.toString();
+  return suffix ? path + "?" + suffix : path;
 }
 
 async function boundedBody(request: NextRequest): Promise<unknown | NextResponse> {
