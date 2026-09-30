@@ -141,6 +141,8 @@ assert.match(panel, /PHASE 10 · SMART DISPATCH & ESCALATION/);
 assert.match(panel, /\/api\/admin\/transport\/smart-dispatch\/evaluate/);
 assert.match(panel, /setTimeout\(\(\) => void tick\(\), seconds \* 1000\)/);
 assert.match(panel, /Assign recommended provider/);
+assert.match(panel, /Notify provider/);
+assert.match(panel, /\/api\/admin\/transport\/live-operations\//);
 assert.match(panel, /\/api\/admin\/transport\/dispatch\/medical\//);
 assert.match(panel, /providerId:\s*recommendation\.providerId/);
 assert.match(panel, /Acknowledge/);
