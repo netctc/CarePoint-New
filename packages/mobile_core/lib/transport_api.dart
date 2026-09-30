@@ -365,7 +365,8 @@ extension CarePointTransportApi on CarePointApi {
     }
     final normalizedTopic = topic.trim().toUpperCase();
     if (normalizedTopic != 'TRANSPORT_TRACKING' &&
-        normalizedTopic != 'TRANSPORT_MILESTONES') {
+        normalizedTopic != 'TRANSPORT_MILESTONES' &&
+        normalizedTopic != 'TRANSPORT_LIFECYCLE') {
       throw const CarePointApiException('Unsupported transport realtime topic.');
     }
     final uri = Uri.parse('$baseUrl/realtime/stream').replace(
