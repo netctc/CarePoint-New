@@ -151,10 +151,10 @@ assert.match(moduleSource, /machineLearning:\s*false/);
 assert.match(moduleSource, /capacityGuarantee:\s*false/);
 
 // Admin proxy forwards only known analytics query params.
-assert.match(proxy, /analyticsQueryPath\(request, path\)/);
+assert.match(proxy, /transportQueryPath\(request, path\)/);
 assert.match(
   proxy,
-  /path !== "\/admin\/transport\/performance-analytics"/,
+  /path === "\/admin\/transport\/performance-analytics"/,
 );
 assert.match(proxy, /\["windowDays", "forecastDays"\]/);
 assert.match(proxy, /\^\\d\{1,3\}\$/);
