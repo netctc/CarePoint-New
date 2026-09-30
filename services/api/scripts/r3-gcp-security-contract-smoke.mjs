@@ -237,7 +237,7 @@ assert.throws(
 const storageContract = productionObjectStorageContract(env);
 assert.equal(storageContract.provider, "gcp-cloud-storage");
 assert.equal(storageContract.region, region);
-assert.equal(storageContract.domains.length, 2);
+assert.equal(storageContract.domains.length, 3);
 
 const storageInspector = createGcpObjectStorageBucketInspector({
   region,
