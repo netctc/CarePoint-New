@@ -30,6 +30,7 @@ model TransportManagementReportRun {
   createdByAccountId   String
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
+  deliveries           TransportManagementReportDelivery[]
 
   @@unique([scheduleId, scheduledFor])
   @@index([status, leaseExpiresAt])
