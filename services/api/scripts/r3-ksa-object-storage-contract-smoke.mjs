@@ -55,8 +55,10 @@ assert.equal(contract.region, primaryRegion);
 assert.equal(contract.domains.length, 3);
 assert.equal(contract.domains[0].label, "clinical-documents");
 assert.equal(contract.domains[0].bucketRef, documentBucket);
-assert.equal(contract.domains[1].label, "fhir-bulk-export");
-assert.equal(contract.domains[1].lifecycleRetentionDays, 1);
+assert.equal(contract.domains[1].label, "transport-management-reports");
+assert.equal(contract.domains[1].prefix, "carepoint/transport-management-reports");
+assert.equal(contract.domains[2].label, "fhir-bulk-export");
+assert.equal(contract.domains[2].lifecycleRetentionDays, 1);
 for (const domain of contract.domains) {
   assert.doesNotThrow(() => validateProductionObjectStorageBucketInspection(domain, validInspection(domain)));
 }
