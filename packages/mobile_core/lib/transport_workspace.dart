@@ -151,13 +151,13 @@ class _ProviderTransportWorkspaceState extends State<ProviderTransportWorkspace>
         padding: const EdgeInsets.all(14),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           _requestSummary(request, emergency: emergency),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            onPressed: requestId.isEmpty ? null : () => _resources(requestId, emergency: emergency),
+            icon: const Icon(Icons.groups_2_outlined),
+            label: Text(transportText(widget.locale, 'crewUnit')),
+          ),
           if (!emergency) ...[
-            const SizedBox(height: 10),
-            OutlinedButton.icon(
-              onPressed: requestId.isEmpty ? null : () => _resources(requestId),
-              icon: const Icon(Icons.groups_2_outlined),
-              label: Text(transportText(widget.locale, 'crewUnit')),
-            ),
             if (incidentEnabled) ...[
               const SizedBox(height: 10),
               OutlinedButton.icon(
@@ -241,9 +241,11 @@ class _ProviderTransportWorkspaceState extends State<ProviderTransportWorkspace>
         : api.updateProviderMedicalTransportStatus(requestId, status: status));
   }
 
-  Future<void> _resources(String requestId) async {
+  Future<void> _resources(String requestId, {required bool emergency}) async {
     try {
-      final data = await api.providerMedicalTransportResources(requestId);
+      final data = emergency
+          ? await api.providerEmergencyAmbulanceResources(requestId)
+          : await api.providerMedicalTransportResources(requestId);
       if (!mounted) return;
       final changed = await showModalBottomSheet<bool>(
         context: context,
@@ -255,6 +257,7 @@ class _ProviderTransportWorkspaceState extends State<ProviderTransportWorkspace>
           locale: widget.locale,
           accent: widget.accent,
           data: data,
+          emergency: emergency,
         ),
       );
       if (changed == true) await refresh();
@@ -426,6 +429,7 @@ class _TransportResourcesSheet extends StatefulWidget {
     required this.locale,
     required this.accent,
     required this.data,
+    required this.emergency,
   });
 
   final CarePointApi api;
@@ -433,6 +437,7 @@ class _TransportResourcesSheet extends StatefulWidget {
   final CarePointLocale locale;
   final Color accent;
   final Map<String, dynamic> data;
+  final bool emergency;
 
   @override
   State<_TransportResourcesSheet> createState() => _TransportResourcesSheetState();
@@ -566,12 +571,21 @@ class _TransportResourcesSheetState extends State<_TransportResourcesSheet> {
     if (unitId == null || selectedCrewIds.isEmpty) return;
     setState(() { saving = true; error = null; });
     try {
-      await widget.api.updateProviderMedicalTransportResources(
-        widget.requestId,
-        transportUnitId: unitId,
-        crewProviderIds: selectedCrewIds.toList(growable: false),
-        idempotencyKey: 'transport-resources-${widget.requestId}-${DateTime.now().microsecondsSinceEpoch}',
-      );
+      if (widget.emergency) {
+        await widget.api.updateProviderEmergencyAmbulanceResources(
+          widget.requestId,
+          transportUnitId: unitId,
+          crewProviderIds: selectedCrewIds.toList(growable: false),
+          idempotencyKey: 'emergency-transport-resources-${widget.requestId}-${DateTime.now().microsecondsSinceEpoch}',
+        );
+      } else {
+        await widget.api.updateProviderMedicalTransportResources(
+          widget.requestId,
+          transportUnitId: unitId,
+          crewProviderIds: selectedCrewIds.toList(growable: false),
+          idempotencyKey: 'transport-resources-${widget.requestId}-${DateTime.now().microsecondsSinceEpoch}',
+        );
+      }
       if (mounted) Navigator.of(context).pop(true);
     } catch (value) {
       if (mounted) setState(() => error = value.toString());
