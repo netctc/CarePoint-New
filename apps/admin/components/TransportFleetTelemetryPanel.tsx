@@ -36,6 +36,13 @@ type TelemetryItem = {
     receivedAt: string;
     source: string;
   } | null;
+  latestMilestone?: {
+    code: string;
+    source: string;
+    occurredAt: string;
+    distanceMeters?: number | null;
+    automaticLifecycleMutation: false;
+  } | null;
   trackingPositionIsRouteEta: false;
 };
 
@@ -99,7 +106,7 @@ export function TransportFleetTelemetryPanel() {
 
   useEffect(() => {
     void load();
-    const interval = window.setInterval(() => void load(), 30_000);
+    const interval = window.setInterval(() => void load(), 10_000);
     return () => window.clearInterval(interval);
   }, []);
 
@@ -131,13 +138,14 @@ export function TransportFleetTelemetryPanel() {
         >
           <div>
             <span style={{ fontSize: 12, fontWeight: 900, color: "#0369a1" }}>
-              PHASE 8 · FLEET TELEMETRY
+              PHASE 8–9 · FLEET TELEMETRY + MILESTONES
             </span>
             <h2 style={{ margin: "5px 0" }}>Transport Fleet Telemetry</h2>
             <p style={{ maxWidth: 900 }}>
               Foreground provider-device telemetry for active medical transport
               only. Vehicle position and route ETA are intentionally separate
-              signals; this view does not claim background or always-on GPS.
+              signals. Phase 9 adds detected trip milestones without allowing
+              telemetry to mutate the authoritative transport lifecycle.
             </p>
           </div>
           <button className="secondary-button" onClick={() => void load()} disabled={loading}>
@@ -274,12 +282,25 @@ export function TransportFleetTelemetryPanel() {
                       : item.request.routeEtaMinutes + " min"
                   }
                 />
+                <Detail
+                  label="Latest detected milestone"
+                  value={
+                    item.latestMilestone == null
+                      ? "—"
+                      : item.latestMilestone.code +
+                        (item.latestMilestone.distanceMeters == null
+                          ? ""
+                          : " · " + item.latestMilestone.distanceMeters + " m")
+                  }
+                />
               </div>
 
               <p style={{ marginBottom: 0, fontSize: 12, color: "#64748b" }}>
                 Source: {item.location?.source ?? data?.trackingMode ?? "—"}.
                 Coordinates are operational telemetry; route ETA remains a
-                separately calculated estimate.
+                separately calculated estimate. Detected milestones are
+                advisory operational events and never change lifecycle status
+                automatically.
               </p>
             </article>
           ))}
