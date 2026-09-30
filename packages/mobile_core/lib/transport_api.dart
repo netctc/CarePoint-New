@@ -28,6 +28,75 @@ extension CarePointTransportApi on CarePointApi {
         if (biasLongitude != null) 'biasLongitude': biasLongitude,
       }));
 
+  Future<Map<String, dynamic>> transportLocationCapabilities() async =>
+      _asMap(await _send('GET', '/transport/location/capabilities'));
+
+  Future<List<Map<String, dynamic>>> savedTransportLocations() async =>
+      _asList(await _send('GET', '/transport/location/saved'));
+
+  Future<Map<String, dynamic>> createSavedTransportLocation({
+    required String label,
+    required String kind,
+    String? address,
+    double? latitude,
+    double? longitude,
+    String? placeId,
+    String? source,
+  }) async =>
+      _asMap(await _send('POST', '/transport/location/saved', body: {
+        'label': label.trim(),
+        'kind': kind.trim().toUpperCase(),
+        if (address?.trim().isNotEmpty == true) 'address': address!.trim(),
+        if (latitude != null) 'latitude': latitude,
+        if (longitude != null) 'longitude': longitude,
+        if (placeId?.trim().isNotEmpty == true) 'placeId': placeId!.trim(),
+        if (source?.trim().isNotEmpty == true) 'source': source!.trim(),
+      }));
+
+  Future<Map<String, dynamic>> updateSavedTransportLocation(
+    String locationId, {
+    required String label,
+    required String kind,
+    String? address,
+    double? latitude,
+    double? longitude,
+    String? placeId,
+    String? source,
+  }) async =>
+      _asMap(await _send('PATCH', '/transport/location/saved/$locationId', body: {
+        'label': label.trim(),
+        'kind': kind.trim().toUpperCase(),
+        if (address?.trim().isNotEmpty == true) 'address': address!.trim(),
+        if (latitude != null) 'latitude': latitude,
+        if (longitude != null) 'longitude': longitude,
+        if (placeId?.trim().isNotEmpty == true) 'placeId': placeId!.trim(),
+        if (source?.trim().isNotEmpty == true) 'source': source!.trim(),
+      }));
+
+  Future<Map<String, dynamic>> deleteSavedTransportLocation(String locationId) async =>
+      _asMap(await _send('DELETE', '/transport/location/saved/$locationId'));
+
+  Future<List<Map<String, dynamic>>> transportHealthcareCenters({String? query}) async {
+    final suffix = query?.trim().isNotEmpty == true
+        ? '?q=${Uri.encodeQueryComponent(query!.trim())}'
+        : '';
+    final payload = _asMap(await _send('GET', '/transport/location/healthcare-centers$suffix'));
+    return _asList(payload['items']);
+  }
+
+  Future<Map<String, dynamic>> previewTransportRoute({
+    required String mode,
+    required Map<String, dynamic> pickup,
+    required Map<String, dynamic> destination,
+    String? languageCode,
+  }) async =>
+      _asMap(await _send('POST', '/transport/location/route-preview', body: {
+        'mode': mode.trim().toUpperCase(),
+        'pickup': pickup,
+        'destination': destination,
+        if (languageCode?.trim().isNotEmpty == true) 'languageCode': languageCode!.trim(),
+      }));
+
   Future<Map<String, dynamic>> requestEmergencyAmbulance({
     required String clientRequestId,
     double? latitude,
