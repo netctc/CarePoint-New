@@ -1,0 +1,31 @@
+enum PatientClinicalShareScope {
+  OBSERVATIONS
+  MEDICATIONS
+  DEVICES
+  QUESTIONNAIRE
+  CARE_PLAN
+}
+
+model PatientClinicalShare {
+  id             String                    @id @default(uuid())
+  patientId      String
+  accountId      String
+  relationId     String?
+  scope          PatientClinicalShareScope
+  tokenHash      String                    @unique
+  algorithm      String                    @default("")
+  keyId          String                    @default("")
+  wrappedKey     String                    @default("")
+  iv             String                    @default("")
+  ciphertext     String
+  contentDigest  String
+  expiresAt      DateTime
+  revokedAt      DateTime?
+  lastAccessedAt DateTime?
+  accessCount    Int                       @default(0)
+  createdAt      DateTime                  @default(now())
+  updatedAt      DateTime                  @updatedAt
+
+  @@index([accountId, patientId, createdAt])
+  @@index([expiresAt, revokedAt])
+}

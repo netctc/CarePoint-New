@@ -1,0 +1,37 @@
+model NotificationTemplate {
+  id             String   @id @default(uuid())
+  key            String   @unique
+  currentVersion Int      @default(1)
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([active, key])
+}
+
+model NotificationTemplateVersion {
+  id               String   @id @default(uuid())
+  templateId       String
+  version          Int
+  locale           String
+  text             String
+  createdByActorId String
+  createdAt        DateTime @default(now())
+
+  @@unique([templateId, version, locale])
+  @@index([templateId, version])
+  @@index([locale, createdAt])
+}
+
+model NotificationEventTemplateBinding {
+  id           String   @id @default(uuid())
+  notificationId String @unique
+  titleKey     String
+  titleVersion Int?
+  bodyKey      String
+  bodyVersion  Int?
+  createdAt    DateTime @default(now())
+
+  @@index([titleKey, titleVersion])
+  @@index([bodyKey, bodyVersion])
+}

@@ -1,0 +1,44 @@
+enum DataRetentionClass {
+  AUTH_EPHEMERAL
+  IDENTITY_PROFILE
+  CLINICAL_RECORD
+  CLINICAL_DOCUMENT
+  DIAGNOSTIC_REPORT
+  CONSENT
+  FINANCIAL
+  COMMUNICATION
+  AUDIT_SECURITY
+}
+
+enum DataRetentionHoldScope {
+  PATIENT
+  OBJECT
+  DATA_CLASS
+}
+
+enum DataRetentionHoldStatus {
+  ACTIVE
+  RELEASED
+}
+
+model DataRetentionHold {
+  id                String                  @id @default(uuid())
+  scope             DataRetentionHoldScope
+  scopeId           String?
+  objectType        String?
+  dataClass         DataRetentionClass?
+  reasonCode        String
+  approvalReference String
+  status            DataRetentionHoldStatus @default(ACTIVE)
+  placedByActorId   String
+  releasedByActorId String?
+  expiresAt         DateTime?
+  releasedAt        DateTime?
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+
+  @@index([status, expiresAt])
+  @@index([scope, scopeId, status])
+  @@index([dataClass, status])
+  @@index([objectType, scopeId, status])
+}

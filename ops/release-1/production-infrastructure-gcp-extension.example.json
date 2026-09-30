@@ -1,0 +1,101 @@
+{
+  "schema": "carepoint.release-infrastructure-evidence/v1",
+  "productionAcceptance": false,
+  "cloudProvider": {
+    "provider": "gcp",
+    "projectRef": "projects/REPLACE_WITH_GCP_PROJECT_ID",
+    "runtimeServiceAccountRef": "projects/REPLACE_WITH_GCP_PROJECT_ID/serviceAccounts/REPLACE_WITH_RUNTIME_SERVICE_ACCOUNT_EMAIL"
+  },
+  "gcpResources": [
+    {
+      "id": "cloud-run-api",
+      "region": "me-central2",
+      "resourceRef": "projects/REPLACE_WITH_GCP_PROJECT_ID/locations/me-central2/services/REPLACE_WITH_CLOUD_RUN_SERVICE",
+      "evidenceRef": "REPLACE_WITH_SANITIZED_CLOUD_RUN_EVIDENCE_REFERENCE"
+    },
+    {
+      "id": "postgres-primary",
+      "region": "me-central2",
+      "resourceRef": "projects/REPLACE_WITH_GCP_PROJECT_ID/instances/REPLACE_WITH_CLOUD_SQL_INSTANCE",
+      "evidenceRef": "REPLACE_WITH_SANITIZED_CLOUD_SQL_PRIMARY_EVIDENCE_REFERENCE"
+    },
+    {
+      "id": "postgres-ha-replicas",
+      "region": "me-central2",
+      "resourceRef": "projects/REPLACE_WITH_GCP_PROJECT_ID/instances/REPLACE_WITH_CLOUD_SQL_INSTANCE",
+      "evidenceRef": "REPLACE_WITH_SANITIZED_CLOUD_SQL_HA_EVIDENCE_REFERENCE"
+    },
+    {
+      "id": "postgres-backups-pitr",
+      "region": "me-central2",
+      "resourceRef": "projects/REPLACE_WITH_GCP_PROJECT_ID/instances/REPLACE_WITH_CLOUD_SQL_INSTANCE",
+      "evidenceRef": "REPLACE_WITH_SANITIZED_CLOUD_SQL_PITR_EVIDENCE_REFERENCE"
+    },
+    {
+      "id": "redis-primary",
+      "region": "me-central2",
+      "resourceRef": "projects/REPLACE_WITH_GCP_PROJECT_ID/locations/me-central2/instances/REPLACE_WITH_MEMORYSTORE_INSTANCE",
+      "evidenceRef": "REPLACE_WITH_SANITIZED_MEMORYSTORE_PRIMARY_EVIDENCE_REFERENCE"
+    },
+    {
+      "id": "redis-ha-replicas",
+      "region": "me-central2",
+      "resourceRef": "projects/REPLACE_WITH_GCP_PROJECT_ID/locations/me-central2/instances/REPLACE_WITH_MEMORYSTORE_INSTANCE",
+      "evidenceRef": "REPLACE_WITH_SANITIZED_MEMORYSTORE_HA_EVIDENCE_REFERENCE"
+    },
+    {
+      "id": "clinical-object-storage",
+      "region": "me-central2",
+      "resourceRef": "gcs://REPLACE_WITH_CLINICAL_BUCKET",
+      "evidenceRef": "REPLACE_WITH_SANITIZED_CLINICAL_BUCKET_EVIDENCE_REFERENCE"
+    },
+    {
+      "id": "fhir-bulk-artifacts",
+      "region": "me-central2",
+      "resourceRef": "gcs://REPLACE_WITH_FHIR_BULK_BUCKET",
+      "evidenceRef": "REPLACE_WITH_SANITIZED_FHIR_BUCKET_EVIDENCE_REFERENCE"
+    },
+    {
+      "id": "kms-key-material",
+      "region": "me-central2",
+      "resourceRef": "projects/REPLACE_WITH_GCP_PROJECT_ID/locations/me-central2/keyRings/REPLACE_WITH_KEY_RING/cryptoKeys/REPLACE_WITH_DOCUMENT_ENCRYPTION_KEY",
+      "evidenceRef": "REPLACE_WITH_SANITIZED_KMS_ENCRYPTION_EVIDENCE_REFERENCE"
+    },
+    {
+      "id": "document-signing-key",
+      "region": "me-central2",
+      "resourceRef": "projects/REPLACE_WITH_GCP_PROJECT_ID/locations/me-central2/keyRings/REPLACE_WITH_KEY_RING/cryptoKeys/REPLACE_WITH_DOCUMENT_SIGNING_KEY",
+      "evidenceRef": "REPLACE_WITH_SANITIZED_KMS_SIGNING_EVIDENCE_REFERENCE"
+    },
+    {
+      "id": "external-secrets",
+      "region": "me-central2",
+      "resourceRef": "projects/REPLACE_WITH_GCP_PROJECT_ID/locations/me-central2/secrets/REPLACE_WITH_SECRET_RESOURCE",
+      "evidenceRef": "REPLACE_WITH_SANITIZED_SECRET_MANAGER_EVIDENCE_REFERENCE"
+    },
+    {
+      "id": "external-application-load-balancer",
+      "region": "me-central2",
+      "resourceRef": "projects/REPLACE_WITH_GCP_PROJECT_ID/global/backendServices/REPLACE_WITH_EDGE_BACKEND_SERVICE",
+      "evidenceRef": "REPLACE_WITH_SANITIZED_LOAD_BALANCER_EVIDENCE_REFERENCE"
+    },
+    {
+      "id": "managed-tls-certificate",
+      "region": "me-central2",
+      "resourceRef": "projects/REPLACE_WITH_GCP_PROJECT_ID/global/sslCertificates/REPLACE_WITH_MANAGED_CERTIFICATE",
+      "evidenceRef": "REPLACE_WITH_SANITIZED_TLS_CERTIFICATE_EVIDENCE_REFERENCE"
+    },
+    {
+      "id": "cloud-armor-policy",
+      "region": "me-central2",
+      "resourceRef": "projects/REPLACE_WITH_GCP_PROJECT_ID/global/securityPolicies/REPLACE_WITH_CLOUD_ARMOR_POLICY",
+      "evidenceRef": "REPLACE_WITH_SANITIZED_CLOUD_ARMOR_EVIDENCE_REFERENCE"
+    },
+    {
+      "id": "worker-scheduler-model",
+      "region": "me-central2",
+      "resourceRef": "carepoint-contract://release-1/gcp/worker-scheduler-model",
+      "evidenceRef": "REPLACE_WITH_SANITIZED_WORKER_SCHEDULER_VALIDATION_REFERENCE"
+    }
+  ]
+}

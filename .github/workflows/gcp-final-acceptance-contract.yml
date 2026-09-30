@@ -1,0 +1,113 @@
+name: GCP Final Acceptance Contract
+
+on:
+  pull_request:
+    paths:
+      - ".ci/release-gcp-final-acceptance-contract.mjs"
+      - ".github/workflows/gcp-final-acceptance-contract.yml"
+      - "ops/release-1/gcp-final-acceptance-manifest.example.json"
+      - "ops/release-1/gcp-g7-final-acceptance-runbook.md"
+      - ".ci/release-infrastructure-evidence-contract.mjs"
+      - ".ci/release-infrastructure-gcp-evidence-contract.mjs"
+      - ".ci/release-gcp-continuity-bundle-contract.mjs"
+  push:
+    branches:
+      - main
+    paths:
+      - ".ci/release-gcp-final-acceptance-contract.mjs"
+      - ".github/workflows/gcp-final-acceptance-contract.yml"
+      - "ops/release-1/gcp-final-acceptance-manifest.example.json"
+      - "ops/release-1/gcp-g7-final-acceptance-runbook.md"
+
+permissions:
+  contents: read
+
+env:
+  CAREPOINT_CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  contract:
+    name: Validate G7 final acceptance contract
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out exact candidate source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ env.CAREPOINT_CANDIDATE_SHA }}
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+
+      - name: Verify exact checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$CAREPOINT_CANDIDATE_SHA"
+
+      - name: Self-test G7 fail-closed acceptance contract
+        run: node .ci/release-gcp-final-acceptance-contract.mjs --self-test
+
+      - name: Verify non-approved G7 manifest
+        run: >-
+          node .ci/release-gcp-final-acceptance-contract.mjs
+          --validate-manifest ops/release-1/gcp-final-acceptance-manifest.example.json
+
+      - name: Recheck dependent acceptance contracts
+        run: |
+          set -euo pipefail
+          node .ci/release-infrastructure-evidence-contract.mjs --self-test
+          node .ci/release-infrastructure-gcp-evidence-contract.mjs --self-test
+          node .ci/release-gcp-continuity-bundle-contract.mjs --self-test
+
+      - name: Verify G7 runbook boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s ops/release-1/gcp-g7-final-acceptance-runbook.md
+          grep -Fq 'Operations, SRE, Database, Security, Privacy, Product' ops/release-1/gcp-g7-final-acceptance-runbook.md
+          grep -Fq 'productionAcceptance=true' ops/release-1/gcp-g7-final-acceptance-runbook.md
+          grep -Fq 'does not grant production acceptance' ops/release-1/gcp-g7-final-acceptance-runbook.md
+          grep -Fq 'me-central2' ops/release-1/gcp-g7-final-acceptance-runbook.md
+          grep -Fq 'Geographic DR remains unproven' ops/release-1/gcp-g7-final-acceptance-runbook.md
+
+      - name: Emit contract-only evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p gcp-final-acceptance-contract-evidence
+          node .ci/release-gcp-final-acceptance-contract.mjs \
+            --contract-evidence \
+            ops/release-1/gcp-final-acceptance-manifest.example.json \
+            gcp-final-acceptance-contract-evidence/contract.json
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs';
+          const value = JSON.parse(readFileSync('gcp-final-acceptance-contract-evidence/contract.json', 'utf8'));
+          for (const name of ['baseInfrastructureValidated','gcpInfrastructureValidated','g6ContinuityValidated','productionRecoveryEvidence','geographicDrProven','productionAcceptance']) {
+            if (value[name] !== false) throw new Error(`${name} must remain false in CI contract evidence`);
+          }
+          if (value.secondSaudiRegionApproved !== false) throw new Error('secondSaudiRegionApproved must remain false');
+          if (value.workflowPurpose !== 'contract-validation-only') throw new Error('unexpected workflow purpose');
+          NODE
+          sha256sum \
+            .ci/release-gcp-final-acceptance-contract.mjs \
+            .ci/release-infrastructure-evidence-contract.mjs \
+            .ci/release-infrastructure-gcp-evidence-contract.mjs \
+            .ci/release-gcp-continuity-bundle-contract.mjs \
+            .github/workflows/gcp-final-acceptance-contract.yml \
+            ops/release-1/gcp-final-acceptance-manifest.example.json \
+            ops/release-1/gcp-g7-final-acceptance-runbook.md \
+            gcp-final-acceptance-contract-evidence/contract.json \
+            > gcp-final-acceptance-contract-evidence/SHA256SUMS
+          sha256sum --check --strict gcp-final-acceptance-contract-evidence/SHA256SUMS
+
+      - name: Upload contract-only evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: carepoint-gcp-final-acceptance-contract-${{ env.CAREPOINT_CANDIDATE_SHA }}
+          path: gcp-final-acceptance-contract-evidence
+          if-no-files-found: error
+          retention-days: 90

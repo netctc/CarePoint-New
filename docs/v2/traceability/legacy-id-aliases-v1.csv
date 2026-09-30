@@ -1,0 +1,17 @@
+legacy_namespace,legacy_id,legacy_semantics,canonical_target,match_type,pr_refs,notes
+PRELIM-2026-09-18,PAT-001,Home / Health Hub health summary,PAT-083,EXACT,#261,Canonical PAT-083 is the consolidated personal health summary.
+PRELIM-2026-09-18,PAT-042,Patient referral tracking / future-share revocation,,NO_EXACT_CANONICAL_MATCH,#255,Patient-side referral behavior is implemented by PR #255 but the consolidated 230-row Patient inventory has no exact 1:1 referral row. Related canonical requirements: DOC-078 and BE-033.
+PRELIM-2026-09-18,PAT-045,Generic clinical-data correction request,,NO_EXACT_CANONICAL_MATCH,#259,Do not map to PAT-121: PAT-121 is specifically manual-observation correction.
+PRELIM-2026-09-18,DOC-002,Changes since last visit,DOC-090,EXACT,#267,Canonical wording is changes since the same clinician's last encounter.
+PRELIM-2026-09-18,DOC-004,Questionnaire review and comparison,DOC-057;DOC-058,SPLIT_PARTIAL,#269,Canonical inventory separates latest questionnaire and questionnaire changes. PR #269 additionally adds immutable review markers.
+PRELIM-2026-09-18,DOC-005,Allergy reconciliation,DOC-066,EXACT,#274,Canonical DOC-066 covers register/confirm allergy; DOC-054 is the snapshot presentation requirement also touched by #274.
+PRELIM-2026-09-18,DOC-006,Medication reconciliation,DOC-064,EXACT,#271,Canonical DOC-064 is medication reconciliation.
+PRELIM-2026-09-18,DOC-007,Structured problem list,DOC-065,EXACT,#275,Canonical DOC-065 is add/update clinical problem; DOC-055 is the active-problem snapshot requirement also touched by #275.
+PRELIM-2026-09-18,DOC-008,Expanded standardized provider-authored observations,BE-008,BASE_EXTENSION,#263,No exact canonical proposed Doctor row for the write action. It extends the implemented Doctor vitals capture surface and uses canonical BE-008 Observation Service.
+PRELIM-2026-09-18,DOC-009,Longitudinal observation trends,DOC-059,EXACT,#265,Canonical DOC-059 is trends of vital signs/observations.
+PRELIM-2026-09-18,DOC-010,Contextual glucose trends,DOC-060,EXACT,#283,Canonical DOC-060 is glucose trends with context.
+PRELIM-2026-09-18,DOC-018,Create referral,DOC-078,EXACT,#255,Canonical DOC-078 is create referral.
+PRELIM-2026-09-18,DOC-024,Signed addendum to finalized note,DOC-081,EXACT,#257,Raw DOC-024 is already occupied by an implemented baseline function in the consolidated inventory; namespace qualification is mandatory.
+PRELIM-2026-09-18,DOC-027,Validate/correct patient-declared data,DOC-063,PARTIAL,#259,Canonical DOC-063 covers professional verification; the broader clarification/correction state machine in #259 exceeds that single canonical row.
+PRELIM-2026-09-18,BE-038,Referral domain / least-data sharing,BE-033,EXACT,#255,"Canonical BE-038 is follow-up service, so numeric equality must never be used."
+PRELIM-2026-09-18,BE-050,Correction/reconciliation workflow,,NO_EXACT_CANONICAL_MATCH,#259,Canonical BE-050 is encryption of new PHI domains. The preliminary correction workflow cannot claim canonical BE-050.

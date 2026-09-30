@@ -1,0 +1,39 @@
+{
+  "schema": "carepoint.release1-gcp-cloud-run-deployment/v1",
+  "phase": "G5c",
+  "productionAcceptance": false,
+  "release": {
+    "sourceSha": "REPLACE_WITH_EXACT_RC_SOURCE_SHA",
+    "releaseVersion": "REPLACE_WITH_APPROVED_RC_VERSION",
+    "rcFreezeEvidenceRef": "REPLACE_WITH_RESTRICTED_G5A_EVIDENCE_REFERENCE",
+    "artifactRegistryPromotionEvidenceRef": "REPLACE_WITH_RESTRICTED_G5B_EVIDENCE_REFERENCE"
+  },
+  "deployment": {
+    "region": "me-central2",
+    "imageDigest": "REPLACE_WITH_EXACT_API_SHA256_DIGEST",
+    "cloudRunRevisionEvidenceRef": "REPLACE_WITH_RESTRICTED_CLOUD_RUN_REVISION_EVIDENCE_REFERENCE",
+    "deploymentEvidenceRef": "REPLACE_WITH_RESTRICTED_DEPLOYMENT_EVIDENCE_REFERENCE"
+  },
+  "runtime": {
+    "releaseVersion": "REPLACE_WITH_RUNTIME_RELEASE_VERSION",
+    "releaseSha": "REPLACE_WITH_RUNTIME_RELEASE_SHA",
+    "artifactDigest": "REPLACE_WITH_RUNTIME_ARTIFACT_DIGEST",
+    "healthEvidenceRef": "REPLACE_WITH_SANITIZED_HEALTH_EVIDENCE_REFERENCE",
+    "readinessEvidenceRef": "REPLACE_WITH_SANITIZED_READINESS_EVIDENCE_REFERENCE"
+  },
+  "controls": {
+    "rcFrozen": false,
+    "artifactRegistryPromotionVerified": false,
+    "exactDigestDeployment": false,
+    "noRebuild": true,
+    "keylessDeploymentIdentity": false,
+    "runtimeServiceAccountVerified": false,
+    "serviceReconciled": false,
+    "terminalConditionSucceeded": false,
+    "runtimeSourceIdentityVerified": false,
+    "readinessVerified": false,
+    "productionPreflightsPassed": false,
+    "compatibilityBypassUsed": false,
+    "productionDeploymentEvidence": false
+  }
+}

@@ -1,0 +1,85 @@
+model DataQualityRule {
+  id             String                   @id @default(uuid())
+  code           String                   @unique
+  category       String
+  active         Boolean                  @default(true)
+  currentVersion Int                      @default(1)
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+  versions       DataQualityRuleVersion[]
+  issues         DataQualityIssue[]
+
+  @@index([category, active])
+}
+
+model DataQualityRuleVersion {
+  id               String          @id @default(uuid())
+  ruleId           String
+  version          Int
+  severity         String
+  config           Json
+  createdByActorId String?
+  createdAt        DateTime        @default(now())
+  rule             DataQualityRule @relation(fields: [ruleId], references: [id], onDelete: Restrict)
+
+  @@unique([ruleId, version])
+  @@index([ruleId, createdAt])
+}
+
+model DataQualityRun {
+  id                 String             @id @default(uuid())
+  triggeredByActorId String?
+  triggerType        String             @default("MANUAL")
+  status             String             @default("RUNNING")
+  ruleCount          Int                @default(0)
+  issueCount         Int                @default(0)
+  errorCount         Int                @default(0)
+  startedAt          DateTime           @default(now())
+  completedAt        DateTime?
+  createdAt          DateTime           @default(now())
+  issues             DataQualityIssue[]
+
+  @@index([status, startedAt])
+  @@index([triggeredByActorId, startedAt])
+}
+
+model DataQualityIssue {
+  id               String                   @id @default(uuid())
+  fingerprint      String                   @unique
+  ruleId           String
+  ruleVersion      Int
+  runId            String?
+  sourceEntityType String
+  sourceEntityId   String
+  relatedEntityId  String?
+  severity         String
+  status           String                   @default("OPEN")
+  version          Int                      @default(1)
+  evidence         Json
+  firstDetectedAt  DateTime                 @default(now())
+  lastDetectedAt   DateTime                 @default(now())
+  resolvedAt       DateTime?
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+  rule             DataQualityRule          @relation(fields: [ruleId], references: [id], onDelete: Restrict)
+  run              DataQualityRun?          @relation(fields: [runId], references: [id], onDelete: SetNull)
+  actions          DataQualityIssueAction[]
+
+  @@index([status, severity, lastDetectedAt])
+  @@index([ruleId, status, lastDetectedAt])
+  @@index([sourceEntityType, sourceEntityId])
+}
+
+model DataQualityIssueAction {
+  id         String           @id @default(uuid())
+  issueId    String
+  fromStatus String
+  toStatus   String
+  reasonCode String
+  actorId    String
+  createdAt  DateTime         @default(now())
+  issue      DataQualityIssue @relation(fields: [issueId], references: [id], onDelete: Restrict)
+
+  @@index([issueId, createdAt])
+  @@index([actorId, createdAt])
+}

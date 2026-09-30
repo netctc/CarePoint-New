@@ -1,0 +1,60 @@
+{
+  "schema": "carepoint.integrated-test-runtime/v1",
+  "dataMode": "synthetic-only",
+  "infrastructureProfile": "isolated-synthetic",
+  "publicServices": {
+    "api": {
+      "port": 4000,
+      "healthPath": "/api/v1/health"
+    },
+    "admin": {
+      "port": 3000,
+      "runtimeVariableNames": [
+        "CAREPOINT_API_URL"
+      ]
+    },
+    "patientWeb": {
+      "port": 8080
+    },
+    "doctorWeb": {
+      "port": 8080
+    },
+    "providerWeb": {
+      "port": 8080
+    }
+  },
+  "privateDependencies": {
+    "postgresql": {
+      "required": true,
+      "privateNetworkOnly": true,
+      "credentialValueEmbedded": false
+    },
+    "redis": {
+      "required": true,
+      "privateNetworkOnly": true,
+      "credentialValueEmbedded": false
+    }
+  },
+  "apiRuntimeVariableNames": [
+    "NODE_ENV",
+    "CAREPOINT_PRIVATE_PILOT",
+    "CAREPOINT_PRIVATE_PILOT_INFRA_PROFILE",
+    "CAREPOINT_PRIVATE_PILOT_DATA_MODE",
+    "CAREPOINT_PRIVATE_PILOT_AUDIT_MODE",
+    "CAREPOINT_PRIVATE_PILOT_TELEMETRY_MODE",
+    "CAREPOINT_PRIVATE_PILOT_SMART_FHIR_ENABLED",
+    "CAREPOINT_PATIENT_SELF_REGISTRATION_ENABLED",
+    "CAREPOINT_PAYMENTS_ENABLED",
+    "CAREPOINT_TELEHEALTH_ENABLED",
+    "CAREPOINT_EXTERNAL_NOTIFICATIONS_ENABLED",
+    "EMERGENCY_AMBULANCE_ENABLED",
+    "NOTIFICATION_GATEWAY_PROVIDER",
+    "DATABASE_URL",
+    "REDIS_URL",
+    "CAREPOINT_PRIVATE_PILOT_REDIS_NAMESPACE",
+    "CAREPOINT_RELEASE_VERSION"
+  ],
+  "secretValuesEmbedded": false,
+  "envFilesRequired": false,
+  "productionDeployment": false
+}

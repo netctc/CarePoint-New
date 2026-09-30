@@ -1,0 +1,53 @@
+{
+  "schema": "carepoint.release1-gcp-cloud-sql-pitr-rehearsal/v1",
+  "phase": "G6a",
+  "productionAcceptance": false,
+  "release": {
+    "sourceSha": "REPLACE_WITH_FROZEN_RC_SOURCE_SHA",
+    "releaseVersion": "REPLACE_WITH_FROZEN_RC_VERSION",
+    "g5BundleEvidenceRef": "REPLACE_WITH_APPROVED_G5E_BUNDLE_EVIDENCE_REFERENCE"
+  },
+  "topology": {
+    "provider": "gcp",
+    "jurisdiction": "SA",
+    "region": "me-central2",
+    "sourceInstanceEvidenceHash": "REPLACE_WITH_SHA256_SOURCE_INSTANCE_IDENTITY",
+    "restoredInstanceEvidenceHash": "REPLACE_WITH_SHA256_RESTORED_INSTANCE_IDENTITY",
+    "geographicDrProven": false
+  },
+  "recovery": {
+    "pointInTimeUtc": "REPLACE_WITH_RFC3339_PITR_TIMESTAMP",
+    "incidentCutoffUtc": "REPLACE_WITH_RFC3339_INCIDENT_CUTOFF",
+    "latestRecoveredMarkerUtc": "REPLACE_WITH_RFC3339_LATEST_RECOVERED_NON_PHI_MARKER",
+    "recoveryStartedAtUtc": "REPLACE_WITH_RFC3339_RECOVERY_START",
+    "restoreReadyAtUtc": "REPLACE_WITH_RFC3339_RESTORED_INSTANCE_READY",
+    "dataValidationCompletedAtUtc": "REPLACE_WITH_RFC3339_PRIVATE_DATA_VALIDATION_COMPLETE",
+    "cleanupCompletedAtUtc": "REPLACE_WITH_RFC3339_TEMPORARY_CLONE_CLEANUP_COMPLETE"
+  },
+  "metrics": {
+    "rpoSeconds": 0,
+    "rtoSeconds": 0,
+    "rpoObjectiveSeconds": 900,
+    "rtoObjectiveSeconds": 7200
+  },
+  "controls": {
+    "keylessAuthentication": false,
+    "sourcePreflightVerified": false,
+    "pitrCloneCreated": false,
+    "restoredInstanceRunnable": false,
+    "restoredInstancePrivateOnly": false,
+    "sameKsaRegion": false,
+    "dataPlaneValidationPassed": false,
+    "applicationRecoveryValidated": false,
+    "temporaryCloneCleanupVerified": false,
+    "geographicDrClaimed": false,
+    "productionRecoveryEvidence": false
+  },
+  "evidenceRefs": {
+    "sourcePreflight": "REPLACE_WITH_SOURCE_PREFLIGHT_EVIDENCE_REFERENCE",
+    "cloneRun": "REPLACE_WITH_G6A_CLONE_RUN_EVIDENCE_REFERENCE",
+    "privateDataValidation": "REPLACE_WITH_PRIVATE_DATA_PLANE_VALIDATION_REFERENCE",
+    "applicationRecovery": "REPLACE_WITH_APPLICATION_RECOVERY_REFERENCE",
+    "cleanup": "REPLACE_WITH_TEMPORARY_CLONE_CLEANUP_REFERENCE"
+  }
+}

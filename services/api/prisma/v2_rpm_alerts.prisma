@@ -1,0 +1,114 @@
+model AlertPolicy {
+  id        String               @id @default(uuid())
+  code      String               @unique
+  labels    Json
+  active    Boolean              @default(true)
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+  versions  AlertPolicyVersion[]
+
+  @@index([active, code])
+}
+
+model AlertPolicyVersion {
+  id               String      @id @default(uuid())
+  policyId         String
+  version          Int
+  status           String      @default("DRAFT")
+  config           Json
+  createdByActorId String?
+  activatedAt      DateTime?
+  retiredAt        DateTime?
+  createdAt        DateTime    @default(now())
+  policy           AlertPolicy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+
+  @@unique([policyId, version])
+  @@index([status, activatedAt])
+}
+
+model CarePlanAlertRule {
+  id               String   @id @default(uuid())
+  carePlanId       String
+  patientId        String
+  ownerProviderId  String
+  policyVersionId  String
+  metricCode       String
+  severity         String
+  patientActionKey String
+  status           String   @default("ACTIVE")
+  version          Int      @default(1)
+  effectiveFrom    DateTime
+  effectiveUntil   DateTime?
+  algorithm        String
+  keyId            String
+  wrappedKey       String
+  iv               String
+  ciphertext       String
+  createdByActorId String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([patientId, metricCode, status, effectiveFrom])
+  @@index([carePlanId, status])
+  @@index([ownerProviderId, status])
+}
+
+model CarePlanAlertRuleRevision {
+  id               String   @id @default(uuid())
+  ruleId           String
+  version          Int
+  policyVersionId  String
+  severity         String
+  patientActionKey String
+  status           String
+  effectiveFrom    DateTime
+  effectiveUntil   DateTime?
+  algorithm        String
+  keyId            String
+  wrappedKey       String
+  iv               String
+  ciphertext       String
+  authorActorId    String
+  reasonCode       String?
+  createdAt        DateTime @default(now())
+
+  @@unique([ruleId, version])
+  @@index([ruleId, createdAt])
+}
+
+model ClinicalAlert {
+  id                  String   @id @default(uuid())
+  patientId           String
+  carePlanId          String
+  ownerProviderId     String
+  assigneeProviderId  String?
+  ruleId              String
+  ruleVersion         Int
+  sourceObservationId String
+  metricCode          String
+  severity            String
+  patientActionKey    String
+  status              String   @default("OPEN")
+  acknowledgedAt      DateTime?
+  resolvedAt          DateTime?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@unique([ruleId, ruleVersion, sourceObservationId])
+  @@index([ownerProviderId, status, severity, createdAt])
+  @@index([patientId, status, createdAt])
+  @@index([sourceObservationId])
+}
+
+model ClinicalAlertAction {
+  id         String   @id @default(uuid())
+  alertId    String
+  action     String
+  actorId    String
+  actorRole  String
+  reasonCode String?
+  occurredAt DateTime @default(now())
+
+  @@index([alertId, occurredAt])
+  @@index([actorId, occurredAt])
+}

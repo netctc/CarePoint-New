@@ -1,0 +1,265 @@
+name: GCP Cloud SQL PITR Rehearsal
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: "Exact frozen Release Candidate source SHA"
+        required: true
+        type: string
+      release_version:
+        description: "Approved frozen Release Candidate version"
+        required: true
+        type: string
+      g5_bundle_evidence_ref:
+        description: "Approved restricted G5e immutable deployment bundle evidence reference"
+        required: true
+        type: string
+      point_in_time_utc:
+        description: "Cloud SQL PITR target timestamp in RFC3339 UTC"
+        required: true
+        type: string
+      incident_cutoff_utc:
+        description: "Recovery incident/cutoff timestamp in RFC3339 UTC"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: gcp-cloud-sql-pitr-${{ inputs.source_sha }}
+  cancel-in-progress: false
+
+env:
+  GCP_REGION: me-central2
+  SOURCE_SHA: ${{ inputs.source_sha }}
+  RELEASE_VERSION: ${{ inputs.release_version }}
+  G5_BUNDLE_EVIDENCE_REF: ${{ inputs.g5_bundle_evidence_ref }}
+  PITR_TIMESTAMP: ${{ inputs.point_in_time_utc }}
+  INCIDENT_CUTOFF: ${{ inputs.incident_cutoff_utc }}
+
+jobs:
+  clone:
+    name: Create production-equivalent PITR clone for private validation
+    runs-on: ubuntu-24.04
+    environment: gcp-production-equivalent
+    steps:
+      - name: Check out exact frozen RC source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ env.SOURCE_SHA }}
+
+      - name: Validate recovery inputs and exact checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$RELEASE_VERSION" =~ ^[0-9A-Za-z][0-9A-Za-z._+-]{0,63}$ ]]
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          test -n "$G5_BUNDLE_EVIDENCE_REF"
+          node --input-type=module <<'NODE'
+          const pattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/;
+          const pitr = process.env.PITR_TIMESTAMP;
+          const cutoff = process.env.INCIDENT_CUTOFF;
+          if (!pattern.test(pitr) || !pattern.test(cutoff)) throw new Error('Recovery timestamps must be RFC3339 UTC.');
+          const pitrMs = Date.parse(pitr);
+          const cutoffMs = Date.parse(cutoff);
+          if (!Number.isFinite(pitrMs) || !Number.isFinite(cutoffMs) || pitrMs > cutoffMs) throw new Error('Invalid PITR/cutoff ordering.');
+          const targetGapSeconds = Math.floor((cutoffMs - pitrMs) / 1000);
+          if (targetGapSeconds > 900) throw new Error('Selected PITR timestamp exceeds the Release 1 15-minute RPO objective window.');
+          process.stdout.write(`PITR target gap: ${targetGapSeconds}s\n`);
+          NODE
+
+      - name: Authenticate to Google Cloud with Workload Identity Federation
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_RECOVERY_SERVICE_ACCOUNT }}
+          create_credentials_file: true
+          export_environment_variables: true
+
+      - name: Set up Google Cloud CLI
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3
+
+      - name: Validate protected recovery configuration
+        shell: bash
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          SOURCE_INSTANCE: ${{ vars.CAREPOINT_GCP_CLOUD_SQL_INSTANCE }}
+          RECOVERY_SERVICE_ACCOUNT: ${{ vars.GCP_RECOVERY_SERVICE_ACCOUNT }}
+        run: |
+          set -euo pipefail
+          test -n "$GCP_PROJECT_ID"
+          test -n "$SOURCE_INSTANCE"
+          test -n "$RECOVERY_SERVICE_ACCOUNT"
+          [[ "$GCP_PROJECT_ID" =~ ^[a-z][a-z0-9-]{4,28}[a-z0-9]$ ]]
+          [[ "$SOURCE_INSTANCE" =~ ^[a-z]([a-z0-9-]{0,96}[a-z0-9])?$ ]]
+          [[ "$RECOVERY_SERVICE_ACCOUNT" =~ @.*\.iam\.gserviceaccount\.com$ ]]
+
+      - name: Inspect and verify source Cloud SQL production profile
+        shell: bash
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          SOURCE_INSTANCE: ${{ vars.CAREPOINT_GCP_CLOUD_SQL_INSTANCE }}
+        run: |
+          set -euo pipefail
+          mkdir -p gcp-cloud-sql-pitr-evidence
+          gcloud sql instances describe "$SOURCE_INSTANCE" \
+            --project="$GCP_PROJECT_ID" \
+            --format=json > gcp-cloud-sql-pitr-evidence/source.json
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs';
+          const value = JSON.parse(readFileSync('gcp-cloud-sql-pitr-evidence/source.json', 'utf8'));
+          const settings = value.settings ?? {};
+          const backup = settings.backupConfiguration ?? {};
+          const ip = settings.ipConfiguration ?? {};
+          const psc = ip.pscConfig ?? {};
+          if (value.project !== process.env.GCP_PROJECT_ID) throw new Error('Cloud SQL source project mismatch.');
+          if (value.name !== process.env.SOURCE_INSTANCE) throw new Error('Cloud SQL source instance mismatch.');
+          if (String(value.region ?? '').toLowerCase() !== 'me-central2') throw new Error('Cloud SQL source must remain in me-central2.');
+          if (String(value.state ?? '').toUpperCase() !== 'RUNNABLE') throw new Error('Cloud SQL source must be RUNNABLE.');
+          if (!/^POSTGRES_(?:1[6-9]|[2-9][0-9])$/.test(String(value.databaseVersion ?? '').toUpperCase())) throw new Error('Cloud SQL source PostgreSQL version is below 16 or unsupported.');
+          if (String(settings.availabilityType ?? '').toUpperCase() !== 'REGIONAL') throw new Error('Cloud SQL source must use REGIONAL HA.');
+          if (backup.enabled !== true || backup.pointInTimeRecoveryEnabled !== true) throw new Error('Cloud SQL source requires backups and PITR.');
+          if (ip.ipv4Enabled === true) throw new Error('Cloud SQL source public IPv4 must remain disabled.');
+          if (!(String(ip.privateNetwork ?? '') || psc.pscEnabled === true)) throw new Error('Cloud SQL source requires private networking or PSC.');
+          const sslMode = String(ip.sslMode ?? '').toUpperCase();
+          if (!(sslMode === 'ENCRYPTED_ONLY' || sslMode === 'TRUSTED_CLIENT_CERTIFICATE_REQUIRED' || ip.requireSsl === true)) throw new Error('Cloud SQL source must enforce TLS.');
+          NODE
+
+      - name: Create point-in-time recovery clone
+        shell: bash
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          SOURCE_INSTANCE: ${{ vars.CAREPOINT_GCP_CLOUD_SQL_INSTANCE }}
+        run: |
+          set -euo pipefail
+          TARGET_INSTANCE="carepoint-r6a-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          RECOVERY_STARTED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          RECOVERY_STARTED_EPOCH="$(date -u +%s)"
+          printf 'TARGET_INSTANCE=%s\nRECOVERY_STARTED_AT=%s\nRECOVERY_STARTED_EPOCH=%s\n' \
+            "$TARGET_INSTANCE" "$RECOVERY_STARTED_AT" "$RECOVERY_STARTED_EPOCH" >> "$GITHUB_ENV"
+          gcloud sql instances clone "$SOURCE_INSTANCE" "$TARGET_INSTANCE" \
+            --project="$GCP_PROJECT_ID" \
+            --point-in-time="$PITR_TIMESTAMP" \
+            --quiet
+
+      - name: Inspect restored clone and verify production-equivalent controls
+        shell: bash
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          gcloud sql instances describe "$TARGET_INSTANCE" \
+            --project="$GCP_PROJECT_ID" \
+            --format=json > gcp-cloud-sql-pitr-evidence/restored.json
+          RESTORE_READY_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          RESTORE_READY_EPOCH="$(date -u +%s)"
+          CONTROL_PLANE_RESTORE_SECONDS="$((RESTORE_READY_EPOCH - RECOVERY_STARTED_EPOCH))"
+          printf 'RESTORE_READY_AT=%s\nCONTROL_PLANE_RESTORE_SECONDS=%s\n' "$RESTORE_READY_AT" "$CONTROL_PLANE_RESTORE_SECONDS" >> "$GITHUB_ENV"
+          node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from 'node:fs';
+          import { createHash } from 'node:crypto';
+          function verify(value, expectedName, label) {
+            const settings = value.settings ?? {};
+            const backup = settings.backupConfiguration ?? {};
+            const ip = settings.ipConfiguration ?? {};
+            const psc = ip.pscConfig ?? {};
+            if (value.project !== process.env.GCP_PROJECT_ID) throw new Error(`${label} project mismatch.`);
+            if (value.name !== expectedName) throw new Error(`${label} instance identity mismatch.`);
+            if (String(value.region ?? '').toLowerCase() !== 'me-central2') throw new Error(`${label} must remain in me-central2.`);
+            if (String(value.state ?? '').toUpperCase() !== 'RUNNABLE') throw new Error(`${label} must be RUNNABLE.`);
+            if (String(settings.availabilityType ?? '').toUpperCase() !== 'REGIONAL') throw new Error(`${label} must use REGIONAL HA.`);
+            if (backup.enabled !== true || backup.pointInTimeRecoveryEnabled !== true) throw new Error(`${label} backups/PITR settings are not preserved.`);
+            if (ip.ipv4Enabled === true) throw new Error(`${label} public IPv4 must remain disabled.`);
+            if (!(String(ip.privateNetwork ?? '') || psc.pscEnabled === true)) throw new Error(`${label} requires private networking or PSC.`);
+            const sslMode = String(ip.sslMode ?? '').toUpperCase();
+            if (!(sslMode === 'ENCRYPTED_ONLY' || sslMode === 'TRUSTED_CLIENT_CERTIFICATE_REQUIRED' || ip.requireSsl === true)) throw new Error(`${label} must enforce TLS.`);
+          }
+          const source = JSON.parse(readFileSync('gcp-cloud-sql-pitr-evidence/source.json', 'utf8'));
+          const restored = JSON.parse(readFileSync('gcp-cloud-sql-pitr-evidence/restored.json', 'utf8'));
+          verify(restored, process.env.TARGET_INSTANCE, 'restored Cloud SQL clone');
+          const identity = (value) => `${value.project}/${String(value.region ?? '').toLowerCase()}/${value.name}`;
+          const hash = (value) => `sha256:${createHash('sha256').update(identity(value)).digest('hex')}`;
+          writeFileSync('gcp-cloud-sql-pitr-evidence/source-hash.txt', `${hash(source)}\n`, { mode: 0o600 });
+          writeFileSync('gcp-cloud-sql-pitr-evidence/restored-hash.txt', `${hash(restored)}\n`, { mode: 0o600 });
+          NODE
+          rm -f gcp-cloud-sql-pitr-evidence/source.json gcp-cloud-sql-pitr-evidence/restored.json
+
+      - name: Export sanitized G6a control-plane rehearsal evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from 'node:fs';
+          const sourceHash = readFileSync('gcp-cloud-sql-pitr-evidence/source-hash.txt', 'utf8').trim();
+          const restoredHash = readFileSync('gcp-cloud-sql-pitr-evidence/restored-hash.txt', 'utf8').trim();
+          const targetGapSeconds = Math.floor((Date.parse(process.env.INCIDENT_CUTOFF) - Date.parse(process.env.PITR_TIMESTAMP)) / 1000);
+          const runRef = `github://actions/runs/${process.env.GITHUB_RUN_ID}/attempts/${process.env.GITHUB_RUN_ATTEMPT}`;
+          const evidence = {
+            schema: 'carepoint.release1-gcp-cloud-sql-pitr-clone-run/v1',
+            phase: 'G6a',
+            sourceSha: process.env.SOURCE_SHA,
+            releaseVersion: process.env.RELEASE_VERSION,
+            g5BundleEvidenceRef: process.env.G5_BUNDLE_EVIDENCE_REF,
+            region: 'me-central2',
+            pointInTimeUtc: process.env.PITR_TIMESTAMP,
+            incidentCutoffUtc: process.env.INCIDENT_CUTOFF,
+            recoveryStartedAtUtc: process.env.RECOVERY_STARTED_AT,
+            restoreReadyAtUtc: process.env.RESTORE_READY_AT,
+            pitrTargetGapSeconds: targetGapSeconds,
+            controlPlaneRestoreSeconds: Number(process.env.CONTROL_PLANE_RESTORE_SECONDS),
+            sourceInstanceEvidenceHash: sourceHash,
+            restoredInstanceEvidenceHash: restoredHash,
+            requiresPrivateDataPlaneValidation: true,
+            controls: {
+              keylessAuthentication: true,
+              sourcePreflightVerified: true,
+              pitrCloneCreated: true,
+              restoredInstanceRunnable: true,
+              restoredInstancePrivateOnly: true,
+              sameKsaRegion: true,
+              dataPlaneValidationPassed: false,
+              applicationRecoveryValidated: false,
+              temporaryCloneCleanupVerified: false,
+              geographicDrClaimed: false,
+              productionRecoveryEvidence: false,
+              productionAcceptance: false,
+            },
+            workflowRunRef: runRef,
+          };
+          writeFileSync('gcp-cloud-sql-pitr-evidence/clone-run.json', `${JSON.stringify(evidence, null, 2)}\n`, { mode: 0o600 });
+          NODE
+          rm -f gcp-cloud-sql-pitr-evidence/source-hash.txt gcp-cloud-sql-pitr-evidence/restored-hash.txt
+          sha256sum gcp-cloud-sql-pitr-evidence/clone-run.json > gcp-cloud-sql-pitr-evidence/SHA256SUMS
+          sha256sum --check --strict gcp-cloud-sql-pitr-evidence/SHA256SUMS
+
+      - name: Upload sanitized G6a control-plane evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: carepoint-gcp-cloud-sql-pitr-${{ inputs.source_sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: gcp-cloud-sql-pitr-evidence
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Publish sanitized PITR handoff summary
+        shell: bash
+        run: |
+          {
+            echo "### GCP G6a Cloud SQL PITR rehearsal handoff"
+            echo "- Source SHA: \`$SOURCE_SHA\`"
+            echo "- Release version: \`$RELEASE_VERSION\`"
+            echo "- Region: \`me-central2\`"
+            echo "- PITR clone control plane: \`verified\`"
+            echo "- Public IPv4 on restored clone: \`disabled\`"
+            echo "- Private data-plane/application validation still required: \`true\`"
+            echo "- Temporary clone cleanup still required after validation: \`true\`"
+            echo "- Production recovery evidence: \`false\`"
+            echo "- Geographic DR proven: \`false\`"
+            echo "- Production acceptance: \`false\`"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,68 @@
+name: Resilience Rehearsal Contract
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    name: R8 resilience rehearsal contract
+    runs-on: ubuntu-24.04
+    env:
+      CAREPOINT_RESILIENCE_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Check out exact candidate SHA
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          ref: ${{ env.CAREPOINT_RESILIENCE_SOURCE_SHA }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+
+      - name: Verify exact checkout identity
+        run: test "$(git rev-parse HEAD)" = "$CAREPOINT_RESILIENCE_SOURCE_SHA"
+
+      - name: Self-test Release 1 resilience evidence contract
+        run: node .ci/release-resilience-contract.mjs --self-test
+
+      - name: Validate disabled resilience exercise catalog
+        run: node .ci/release-resilience-contract.mjs --validate-draft ops/release-1/resilience-exercise-plan.example.json
+
+      - name: Generate exact-SHA resilience contract evidence
+        run: |
+          mkdir -p resilience-rehearsal-contract
+          node .ci/release-resilience-contract.mjs \
+            --contract-out ops/release-1/resilience-exercise-plan.example.json \
+            resilience-rehearsal-contract/contract.json
+
+      - name: Create and verify evidence checksums
+        run: |
+          (cd resilience-rehearsal-contract && sha256sum contract.json > SHA256SUMS)
+          (cd resilience-rehearsal-contract && sha256sum --check --strict SHA256SUMS)
+
+      - name: Upload immutable resilience-contract evidence
+        id: upload
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: carepoint-resilience-rehearsal-contract-${{ env.CAREPOINT_RESILIENCE_SOURCE_SHA }}
+          path: resilience-rehearsal-contract
+          if-no-files-found: error
+
+      - name: Publish sanitized contract summary
+        run: |
+          {
+            echo "### Release 1 resilience rehearsal contract"
+            echo "- Source SHA: \`$CAREPOINT_RESILIENCE_SOURCE_SHA\`"
+            echo "- Contract self-test: PASS"
+            echo "- Mandatory failure-mode catalog: PASS"
+            echo "- Continuity gates: RPO <= 15 minutes; RTO <= 120 minutes"
+            echo "- Immutable workflow artifact digest: \`${{ steps.upload.outputs.artifact-digest }}\`"
+            echo "- This workflow validates the evidence contract only. It does not inject faults, execute failover/PITR, or close #90."
+          } >> "$GITHUB_STEP_SUMMARY"

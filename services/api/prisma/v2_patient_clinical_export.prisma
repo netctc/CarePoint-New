@@ -1,0 +1,59 @@
+enum PatientClinicalExportFormat {
+  JSON
+  PDF
+}
+
+enum PatientClinicalExportStatus {
+  PENDING
+  PROCESSING
+  READY
+  FAILED
+  EXPIRED
+}
+
+model PatientClinicalExportJob {
+  id              String                      @id @default(uuid())
+  patientId       String
+  accountId       String
+  sessionId       String
+  format          PatientClinicalExportFormat
+  scope           String                      @default("PATIENT_CLINICAL_PORTABILITY")
+  status          PatientClinicalExportStatus @default(PENDING)
+  clientRequestId String
+  requestDigest   String
+  objectKey       String?                     @unique
+  mediaType       String?
+  byteLength      Int?
+  contentDigest   String?
+  algorithm       String                      @default("")
+  keyId           String                      @default("")
+  wrappedKey      String                      @default("")
+  iv              String                      @default("")
+  errorCode       String?
+  expiresAt       DateTime
+  startedAt       DateTime?
+  completedAt     DateTime?
+  cleanedAt       DateTime?
+  createdAt       DateTime                    @default(now())
+  updatedAt       DateTime                    @updatedAt
+  grants          PatientClinicalExportDownloadGrant[]
+
+  @@unique([accountId, clientRequestId])
+  @@index([accountId, createdAt])
+  @@index([status, createdAt])
+  @@index([status, expiresAt])
+}
+
+model PatientClinicalExportDownloadGrant {
+  id          String                   @id @default(uuid())
+  exportJobId String
+  accountId   String
+  tokenHash   String                   @unique
+  expiresAt   DateTime
+  consumedAt  DateTime?
+  createdAt   DateTime                 @default(now())
+  exportJob   PatientClinicalExportJob @relation(fields: [exportJobId], references: [id], onDelete: Restrict)
+
+  @@index([exportJobId, accountId, expiresAt])
+  @@index([expiresAt, consumedAt])
+}

@@ -1,0 +1,56 @@
+name: Release 1 Market Readiness Evidence Contract
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  CAREPOINT_R9_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  contract:
+    name: R9 market readiness evidence contract
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out exact candidate SHA
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          ref: ${{ env.CAREPOINT_R9_SOURCE_SHA }}
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+      - name: Verify exact checkout identity
+        run: test "$(git rev-parse HEAD)" = "$CAREPOINT_R9_SOURCE_SHA"
+      - name: Self-test fail-closed R9 evidence contract
+        run: node .ci/release-market-readiness-evidence-contract.mjs --self-test
+      - name: Verify deliberately blocked R9 evidence template
+        run: >-
+          node .ci/release-market-readiness-evidence-contract.mjs
+          --validate-template ops/release-1/market-readiness-evidence.example.json
+      - name: Capture sanitized R9 contract evidence
+        run: |
+          mkdir -p market-readiness-contract-evidence
+          node .ci/release-market-readiness-evidence-contract.mjs \
+            --contract-evidence \
+            ops/release-1/market-readiness-evidence.example.json \
+            market-readiness-contract-evidence/contract-evidence.json
+          sha256sum \
+            .ci/release-market-readiness-evidence-contract.mjs \
+            ops/release-1/market-readiness-evidence.example.json \
+            market-readiness-contract-evidence/contract-evidence.json \
+            > market-readiness-contract-evidence/SHA256SUMS
+          printf 'sourceSha=%s\nproductionAcceptance=false\nlegalApprovalExecuted=false\nclinicalSafetyApprovalExecuted=false\nworkflowPurpose=contract-validation-only\n' \
+            "$CAREPOINT_R9_SOURCE_SHA" \
+            > market-readiness-contract-evidence/metadata.txt
+      - name: Upload R9 contract evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: carepoint-market-readiness-contract-${{ env.CAREPOINT_R9_SOURCE_SHA }}
+          path: market-readiness-contract-evidence
+          if-no-files-found: error

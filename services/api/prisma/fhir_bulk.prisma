@@ -1,0 +1,19 @@
+model FhirBulkExportJobState {
+  id           String   @id @db.VarChar(128)
+  clientId     String   @db.VarChar(200)
+  status       String   @db.VarChar(32)
+  payload      Json
+  availableAt  DateTime @default(now())
+  leaseOwner   String?  @db.VarChar(160)
+  leaseUntil   DateTime?
+  purgeAt      DateTime
+  attemptCount Int      @default(0)
+  lastError    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([status, availableAt])
+  @@index([leaseUntil])
+  @@index([purgeAt])
+  @@index([clientId, createdAt])
+}

@@ -1,0 +1,62 @@
+model CodingSystem {
+  id        String   @id @default(uuid())
+  uri       String   @unique
+  name      String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([active, name])
+}
+
+model TerminologyConcept {
+  id              String   @id @default(uuid())
+  codingSystemId  String
+  system          String
+  code            String
+  status          String   @default("ACTIVE")
+  currentVersion  Int      @default(1)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([system, code])
+  @@index([codingSystemId, status, code])
+  @@index([system, status, code])
+}
+
+model TerminologyConceptVersion {
+  id               String   @id @default(uuid())
+  conceptId        String
+  version          Int
+  system           String
+  code             String
+  display          String
+  status           String
+  effectiveFrom    DateTime
+  retiredAt        DateTime?
+  createdByActorId String
+  createdAt        DateTime @default(now())
+
+  @@unique([conceptId, version])
+  @@index([system, code, version])
+  @@index([conceptId, createdAt])
+}
+
+model ExternalCatalogMapping {
+  id               String   @id @default(uuid())
+  sourceSystem     String
+  sourceCode       String
+  targetConceptId  String
+  targetSystem     String
+  targetCode       String
+  version          Int
+  status           String   @default("ACTIVE")
+  effectiveFrom    DateTime
+  retiredAt        DateTime?
+  createdByActorId String
+  createdAt        DateTime @default(now())
+
+  @@unique([sourceSystem, sourceCode, version])
+  @@index([sourceSystem, sourceCode, status, version])
+  @@index([targetConceptId, status])
+}

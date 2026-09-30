@@ -1,0 +1,41 @@
+model AuditExportJob {
+  id            String                     @id @default(uuid())
+  accountId     String
+  status        String                     @default("PENDING")
+  filter        Json
+  filterDigest  String
+  objectKey     String?                    @unique
+  mediaType     String?
+  byteLength    Int?
+  contentDigest String?
+  algorithm     String                     @default("")
+  keyId         String                     @default("")
+  wrappedKey    String                     @default("")
+  iv            String                     @default("")
+  errorCode     String?
+  expiresAt     DateTime
+  startedAt     DateTime?
+  completedAt   DateTime?
+  cleanedAt     DateTime?
+  createdAt     DateTime                   @default(now())
+  updatedAt     DateTime                   @updatedAt
+  grants        AuditExportDownloadGrant[]
+
+  @@index([accountId, createdAt])
+  @@index([status, createdAt])
+  @@index([status, expiresAt])
+}
+
+model AuditExportDownloadGrant {
+  id          String         @id @default(uuid())
+  exportJobId String
+  accountId   String
+  tokenHash   String         @unique
+  expiresAt   DateTime
+  consumedAt  DateTime?
+  createdAt   DateTime       @default(now())
+  exportJob   AuditExportJob @relation(fields: [exportJobId], references: [id], onDelete: Restrict)
+
+  @@index([exportJobId, accountId, expiresAt])
+  @@index([expiresAt, consumedAt])
+}

@@ -1,0 +1,33 @@
+model TransportUnit {
+  id               String               @id @default(uuid())
+  providerId       String
+  code             String
+  registrationCode String
+  mode             MedicalTransportMode
+  capabilities     String[]             @default([])
+  active           Boolean              @default(true)
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  @@unique([providerId, code])
+  @@unique([providerId, registrationCode])
+  @@index([providerId, mode, active])
+}
+
+model CrewAssignment {
+  id                 String   @id @default(uuid())
+  transportRequestId String
+  transportUnitId    String?
+  providerId         String
+  crewProviderIds    String[] @default([])
+  revision           Int
+  idempotencyKey     String   @unique
+  payloadHash        String
+  assignedByAccountId String
+  assignedAt         DateTime @default(now())
+
+  @@unique([transportRequestId, revision])
+  @@index([transportRequestId, assignedAt])
+  @@index([providerId, assignedAt])
+  @@index([transportUnitId, assignedAt])
+}

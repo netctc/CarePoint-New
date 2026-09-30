@@ -1,0 +1,30 @@
+model SecondOpinionRequest {
+  id                    String   @id @default(uuid())
+  idempotencyKey        String   @unique
+  patientId             String
+  referringProviderId   String
+  destinationProviderId String
+  referralId            String   @unique
+  scopes                Json
+  consentIds            Json
+  expiresAt             DateTime
+  status                String   @default("REQUESTED")
+  snapshotHash          String
+  snapshotAlgorithm     String
+  snapshotKeyId         String
+  snapshotWrappedKey    String
+  snapshotIv            String
+  snapshotCiphertext    String
+  responseAlgorithm     String?
+  responseKeyId         String?
+  responseWrappedKey    String?
+  responseIv            String?
+  responseCiphertext    String?
+  respondedAt           DateTime?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([patientId, createdAt])
+  @@index([referringProviderId, status, createdAt])
+  @@index([destinationProviderId, status, expiresAt])
+}

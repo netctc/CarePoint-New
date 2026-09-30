@@ -1,0 +1,27 @@
+model CarePlanTemplate {
+  id        String                    @id @default(uuid())
+  code      String                    @unique
+  labels    Json
+  active    Boolean                   @default(true)
+  createdAt DateTime                  @default(now())
+  updatedAt DateTime                  @updatedAt
+  versions  CarePlanTemplateVersion[]
+
+  @@index([active, code])
+}
+
+model CarePlanTemplateVersion {
+  id               String           @id @default(uuid())
+  templateId       String
+  version          Int
+  status           String           @default("DRAFT")
+  schema           Json
+  createdByActorId String?
+  activatedAt      DateTime?
+  retiredAt        DateTime?
+  createdAt        DateTime         @default(now())
+  template         CarePlanTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@unique([templateId, version])
+  @@index([status, activatedAt])
+}

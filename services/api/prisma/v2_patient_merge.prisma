@@ -1,0 +1,48 @@
+model PatientMergeJob {
+  id                  String          @id @default(uuid())
+  sourcePatientId     String
+  targetPatientId     String
+  state               String          @default("PREVIEWED")
+  planVersion         String          @default("patient-merge-v1")
+  planDigest          String
+  domainCount         Int
+  recordCount         Int
+  blockingConflictCount Int
+  createdByActorId    String
+  executedByActorId   String?
+  createdAt           DateTime        @default(now())
+  executedAt          DateTime?
+  updatedAt           DateTime        @updatedAt
+  conflicts           PatientMergeConflict[]
+  aliases             PatientAlias[]
+
+  @@index([sourcePatientId, createdAt])
+  @@index([targetPatientId, createdAt])
+  @@index([state, createdAt])
+}
+
+model PatientMergeConflict {
+  id              String          @id @default(uuid())
+  jobId           String
+  domain          String
+  code            String
+  blocking        Boolean         @default(true)
+  sourceCount     Int
+  targetCount     Int
+  structuralEvidence Json
+  createdAt       DateTime        @default(now())
+  job             PatientMergeJob @relation(fields: [jobId], references: [id], onDelete: Restrict)
+
+  @@index([jobId, blocking, domain])
+}
+
+model PatientAlias {
+  id                 String          @id @default(uuid())
+  aliasPatientId     String          @unique
+  canonicalPatientId String
+  mergeJobId         String
+  createdAt          DateTime        @default(now())
+  mergeJob           PatientMergeJob @relation(fields: [mergeJobId], references: [id], onDelete: Restrict)
+
+  @@index([canonicalPatientId, createdAt])
+}

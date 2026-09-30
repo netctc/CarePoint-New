@@ -1,0 +1,35 @@
+model ConsentPolicyDefinition {
+  id           String                 @id @default(uuid())
+  scopePattern String
+  jurisdiction String                 @default("GLOBAL")
+  active       Boolean                @default(true)
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+  versions     ConsentPolicyVersion[]
+
+  @@unique([scopePattern, jurisdiction])
+  @@index([active, scopePattern, jurisdiction])
+}
+
+model ConsentPolicyVersion {
+  id                 String                  @id @default(uuid())
+  policyId           String
+  version            Int
+  status             String                  @default("DRAFT")
+  titleLabels        Json
+  bodyLabels         Json
+  allowedPurposes    Json
+  eligibleRoles      Json
+  temporaryShareable Boolean                 @default(false)
+  requireExpiry      Boolean                 @default(false)
+  maxGrantMinutes    Int?
+  regrantAllowed     Boolean                 @default(true)
+  createdByActorId   String?
+  activatedAt        DateTime?
+  retiredAt          DateTime?
+  createdAt          DateTime                @default(now())
+  policy             ConsentPolicyDefinition @relation(fields: [policyId], references: [id], onDelete: Cascade)
+
+  @@unique([policyId, version])
+  @@index([status, activatedAt])
+}

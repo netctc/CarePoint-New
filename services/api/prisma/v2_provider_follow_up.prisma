@@ -1,0 +1,20 @@
+model ProviderFollowUpRecommendation {
+  id                 String   @id @default(uuid())
+  idempotencyKey     String   @unique
+  requestDigest      String
+  patientId          String
+  providerId         String
+  appointmentId      String
+  recommendationType String
+  recommendedFor     DateTime?
+  algorithm          String
+  keyId              String
+  wrappedKey         String
+  iv                 String
+  ciphertext         String
+  createdAt          DateTime @default(now())
+
+  @@index([patientId, createdAt])
+  @@index([providerId, patientId, createdAt])
+  @@index([appointmentId, createdAt])
+}

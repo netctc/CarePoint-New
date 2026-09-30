@@ -1,0 +1,84 @@
+model Hospitalization {
+  id             String   @id @default(uuid())
+  patientId      String
+  version        Int      @default(1)
+  status         String   @default("ACTIVE")
+  admittedOn     DateTime @db.Date
+  dischargedOn   DateTime? @db.Date
+  logicalKey     String
+  idempotencyKey String   @unique
+  requestDigest  String
+  sourceType     String
+  sourceActorId  String?
+  algorithm      String
+  keyId          String
+  wrappedKey     String
+  iv             String
+  ciphertext     String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([patientId, logicalKey])
+  @@index([patientId, admittedOn])
+  @@index([patientId, status, admittedOn])
+}
+
+model HospitalizationRevision {
+  id                String   @id @default(uuid())
+  hospitalizationId String
+  version           Int
+  status            String
+  sourceType        String
+  sourceActorId     String?
+  algorithm         String
+  keyId             String
+  wrappedKey        String
+  iv                String
+  ciphertext        String
+  createdAt         DateTime @default(now())
+
+  @@unique([hospitalizationId, version])
+  @@index([hospitalizationId, createdAt])
+}
+
+model Immunization {
+  id             String   @id @default(uuid())
+  patientId      String
+  version        Int      @default(1)
+  status         String   @default("COMPLETED")
+  occurredOn     DateTime @db.Date
+  logicalKey     String
+  idempotencyKey String   @unique
+  requestDigest  String
+  sourceType     String
+  sourceActorId  String?
+  algorithm      String
+  keyId          String
+  wrappedKey     String
+  iv             String
+  ciphertext     String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([patientId, logicalKey])
+  @@index([patientId, occurredOn])
+  @@index([patientId, status, occurredOn])
+}
+
+model ImmunizationRevision {
+  id             String   @id @default(uuid())
+  immunizationId String
+  version        Int
+  status         String
+  sourceType     String
+  sourceActorId  String?
+  algorithm      String
+  keyId          String
+  wrappedKey     String
+  iv             String
+  ciphertext     String
+  createdAt      DateTime @default(now())
+
+  @@unique([immunizationId, version])
+  @@index([immunizationId, createdAt])
+}

@@ -1,0 +1,182 @@
+import 'package:carepoint_mobile_core/carepoint_api.dart';
+import 'package:carepoint_mobile_core/carepoint_auth.dart';
+import 'package:carepoint_mobile_core/carepoint_localization.dart';
+import 'package:carepoint_mobile_core/provider_workspace.dart';
+import 'package:carepoint_mobile_core/revenue_cycle_localization.dart';
+import 'package:carepoint_mobile_core/revenue_cycle_workspace.dart';
+import 'package:flutter/material.dart';
+
+typedef OtherProviderCapabilityBuilder = Widget Function(
+  BuildContext context,
+  Set<String> serviceModalities,
+  Set<String> clinicalOrderCapabilities,
+  Set<String> observationCodes,
+  Set<String> workflowCapabilities,
+);
+
+class OtherProviderCapabilityScope extends StatefulWidget {
+  const OtherProviderCapabilityScope({
+    super.key,
+    required this.session,
+    required this.locale,
+    required this.builder,
+    required this.onSignOut,
+    this.accent = const Color(0xFF10B981),
+  });
+
+  final CarePointSession session;
+  final CarePointLocale locale;
+  final OtherProviderCapabilityBuilder builder;
+  final VoidCallback onSignOut;
+  final Color accent;
+
+  @override
+  State<OtherProviderCapabilityScope> createState() => _OtherProviderCapabilityScopeState();
+}
+
+class _OtherProviderCapabilityScopeState extends State<OtherProviderCapabilityScope> {
+  bool busy = true;
+  String? error;
+  Set<String> serviceModalities = const {};
+  Set<String> clinicalOrderCapabilities = const {};
+  Set<String> observationCodes = const {};
+  Set<String> workflowCapabilities = const {};
+
+  @override
+  void initState() {
+    super.initState();
+    load();
+  }
+
+  Future<void> load() async {
+    if (mounted) setState(() { busy = true; error = null; });
+    try {
+      final state = await widget.session.api.providerOnboardingState();
+      if (state['accessReady'] != true || _map(state['provider'])['status'] != 'ACTIVE') {
+        throw const CarePointApiException('Active Other Provider capability context is required.');
+      }
+      final onboarding = _map(state['onboarding']);
+      final provider = _map(state['provider']);
+      final profile = _map(provider['otherProviderProfile']);
+      final onboardingCategory = _map(onboarding['providerCategory']);
+      final profileCategory = _map(profile['category']);
+      final category = onboardingCategory.isNotEmpty ? onboardingCategory : profileCategory;
+      final capabilities = _map(category['capabilities']);
+      if (category.isEmpty) throw const CarePointApiException('Other Provider category capability context is unavailable.');
+      final nextModalities = _stringSet(capabilities['enabledModalities']);
+      final nextClinical = _stringSet(capabilities['clinicalOrderCapabilities']);
+      final nextObservations = _stringSet(capabilities['observationCodes']);
+      final nextWorkflow = _stringSet(capabilities['workflowCapabilities']);
+      if (!mounted) return;
+      setState(() {
+        serviceModalities = nextModalities;
+        clinicalOrderCapabilities = nextClinical;
+        observationCodes = nextObservations;
+        workflowCapabilities = nextWorkflow;
+      });
+    } catch (value) {
+      if (mounted) setState(() => error = value.toString());
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (busy) return const Center(child: CircularProgressIndicator());
+    if (error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            const Icon(Icons.gpp_bad_outlined, size: 46, color: Color(0xFFDC2626)),
+            const SizedBox(height: 12),
+            Text(error!, textAlign: TextAlign.center),
+            const SizedBox(height: 14),
+            FilledButton.icon(onPressed: load, icon: const Icon(Icons.refresh), label: Text(cpText(widget.locale, 'common.retry'))),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: widget.onSignOut,
+              icon: const Icon(Icons.logout_rounded),
+              label: Text(cpText(widget.locale, 'auth.signOut')),
+            ),
+          ]),
+        ),
+      );
+    }
+    return widget.builder(context, serviceModalities, clinicalOrderCapabilities, observationCodes, workflowCapabilities);
+  }
+}
+
+class CapabilityAwareProviderWorkspaceWithRevenueCycle extends StatelessWidget {
+  const CapabilityAwareProviderWorkspaceWithRevenueCycle({
+    super.key,
+    required this.session,
+    required this.locale,
+    required this.title,
+    required this.accent,
+    required this.onSignOut,
+    required this.allowedServiceModalities,
+    required this.clinicalOrderCapabilities,
+    required this.sessionUiController,
+    this.dark = false,
+  });
+
+  final CarePointSession session;
+  final CarePointLocale locale;
+  final String title;
+  final Color accent;
+  final VoidCallback onSignOut;
+  final Set<String> allowedServiceModalities;
+  final Set<String> clinicalOrderCapabilities;
+  final CarePointSessionUiController sessionUiController;
+  final bool dark;
+
+  @override
+  Widget build(BuildContext context) => Stack(
+        children: [
+          ProviderWorkspace(
+            session: session,
+            locale: locale,
+            title: title,
+            accent: accent,
+            onSignOut: onSignOut,
+            sessionUiController: sessionUiController,
+            dark: dark,
+            allowedServiceModalities: allowedServiceModalities,
+            clinicalOrderCapabilities: clinicalOrderCapabilities,
+          ),
+          PositionedDirectional(
+            end: 18,
+            bottom: 92,
+            child: FloatingActionButton.small(
+              heroTag: 'revenue-cycle-$title',
+              backgroundColor: accent,
+              foregroundColor: dark ? Colors.black : Colors.white,
+              tooltip: revenueText(locale, 'title'),
+              onPressed: () => Navigator.push<void>(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => Directionality(
+                    textDirection: locale.textDirection,
+                    child: ProviderRevenueCyclePage(session: session, locale: locale, accent: accent),
+                  ),
+                ),
+              ),
+              child: const Icon(Icons.request_quote_outlined),
+            ),
+          ),
+        ],
+      );
+}
+
+Map<String, dynamic> _map(dynamic value) {
+  if (value is Map<String, dynamic>) return value;
+  if (value is Map) return value.map((key, item) => MapEntry(key.toString(), item));
+  return <String, dynamic>{};
+}
+
+Set<String> _stringSet(dynamic value) {
+  if (value is! List) return <String>{};
+  return value.whereType<String>().where((item) => item.trim().isNotEmpty).toSet();
+}

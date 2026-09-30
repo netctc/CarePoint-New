@@ -1,0 +1,34 @@
+model NutritionPlan {
+  id             String   @id @default(uuid())
+  idempotencyKey String   @unique
+  requestDigest  String
+  patientId      String
+  providerId     String
+  appointmentId  String
+  carePlanId     String   @unique
+  status         String   @default("ACTIVE")
+  version        Int      @default(1)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([providerId, appointmentId])
+  @@index([patientId, status, createdAt])
+  @@index([providerId, patientId, status])
+}
+
+model NutritionPlanRevision {
+  id              String   @id @default(uuid())
+  nutritionPlanId String
+  version         Int
+  algorithm       String
+  keyId           String
+  wrappedKey      String
+  iv              String
+  ciphertext      String
+  authorActorId   String
+  reasonCode      String?
+  createdAt       DateTime @default(now())
+
+  @@unique([nutritionPlanId, version])
+  @@index([nutritionPlanId, createdAt])
+}

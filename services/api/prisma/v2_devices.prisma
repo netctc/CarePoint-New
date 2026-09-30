@@ -1,0 +1,94 @@
+model DeviceModel {
+  id               String   @id @default(uuid())
+  code             String   @unique
+  manufacturer     String
+  modelName        String
+  deviceType       String
+  observationCodes Json
+  active           Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  devices          Device[]
+
+  @@index([active, deviceType, code])
+}
+
+model DeviceIntegrationConfig {
+  id                String   @id @default(uuid())
+  code              String   @unique
+  providerName      String
+  status            String   @default("ACTIVE")
+  observationScopes Json
+  webhookPublicKey  String
+  publicKeyFingerprint String
+  healthState       String   @default("UNKNOWN")
+  lastSuccessAt     DateTime?
+  lastErrorCode     String?
+  revokedAt         DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  devices           Device[]
+  events            DeviceIngestionEvent[]
+
+  @@index([status, healthState, code])
+}
+
+model Device {
+  id                 String                   @id @default(uuid())
+  modelId            String
+  serialNumber       String
+  status             String                   @default("ACTIVE")
+  assignedPatientId  String?
+  assignedProviderId String?
+  integrationId      String?
+  version            Int                      @default(1)
+  lastSeenAt         DateTime?
+  revokedAt          DateTime?
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+  model              DeviceModel              @relation(fields: [modelId], references: [id], onDelete: Restrict)
+  integration        DeviceIntegrationConfig? @relation(fields: [integrationId], references: [id], onDelete: SetNull)
+  credentials        DeviceCredential[]
+  events             DeviceIngestionEvent[]
+
+  @@unique([modelId, serialNumber])
+  @@index([assignedPatientId, status])
+  @@index([assignedProviderId, status])
+  @@index([integrationId, status])
+}
+
+model DeviceCredential {
+  id                   String   @id @default(uuid())
+  deviceId             String
+  publicKeyPem         String
+  publicKeyFingerprint String   @unique
+  status               String   @default("ACTIVE")
+  expiresAt            DateTime?
+  revokedAt            DateTime?
+  createdAt            DateTime @default(now())
+  device               Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([deviceId, status, createdAt])
+}
+
+model DeviceIngestionEvent {
+  id              String                   @id @default(uuid())
+  deviceId        String
+  integrationId   String?
+  externalEventId String
+  payloadDigest   String
+  sourceKind      String
+  status          String                   @default("PENDING")
+  observedAt      DateTime
+  observationId   String?
+  errorCode       String?
+  receivedAt      DateTime                 @default(now())
+  processedAt     DateTime?
+  device          Device                   @relation(fields: [deviceId], references: [id], onDelete: Restrict)
+  integration     DeviceIntegrationConfig? @relation(fields: [integrationId], references: [id], onDelete: SetNull)
+
+  @@unique([deviceId, externalEventId])
+  @@index([integrationId, receivedAt])
+  @@index([status, receivedAt])
+  @@index([observationId])
+}

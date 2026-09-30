@@ -1,0 +1,57 @@
+name: CarePoint V2 feature
+description: Track an implementation slice from the CarePoint V2 functional inventory.
+title: "[V2] "
+body:
+  - type: input
+    id: functional_ids
+    attributes:
+      label: Functional IDs
+      description: "Comma-separated IDs, e.g. PAT-083, BE-001."
+      placeholder: "PAT-xxx, DOC-xxx, PRV-xxx, ADM-xxx, BE-xxx"
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: Describe the user/system behavior to implement.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: List objective, testable acceptance criteria.
+    validations:
+      required: true
+  - type: textarea
+    id: api_contract
+    attributes:
+      label: API / contract impact
+      description: Endpoints, DTOs, events and compatibility considerations.
+  - type: textarea
+    id: data_migration
+    attributes:
+      label: Data / migration impact
+      description: Models, migrations, backfill, compatibility and recovery.
+  - type: textarea
+    id: privacy_security
+    attributes:
+      label: Privacy / security impact
+      description: PHI/PII, authorization, consent, audit, encryption and threat-model implications.
+    validations:
+      required: true
+  - type: textarea
+    id: tests
+    attributes:
+      label: Required tests
+      description: Unit, integration, E2E, authorization, mobile/web and regression coverage.
+    validations:
+      required: true
+  - type: textarea
+    id: rollback
+    attributes:
+      label: Rollback / compensation
+      description: Safe rollback or forward-compensation procedure.
+    validations:
+      required: true

@@ -1,0 +1,47 @@
+{
+  "schema": "carepoint.release1-gcp-admin-cloud-run-deployment/v1",
+  "phase": "G5d",
+  "productionAcceptance": false,
+  "release": {
+    "sourceSha": "REPLACE_WITH_EXACT_FROZEN_RC_SHA",
+    "releaseVersion": "REPLACE_WITH_APPROVED_RC_VERSION",
+    "rcFreezeEvidenceRef": "REPLACE_WITH_RESTRICTED_G5A_FREEZE_EVIDENCE_REFERENCE",
+    "artifactRegistryPromotionEvidenceRef": "REPLACE_WITH_RESTRICTED_G5B_PROMOTION_EVIDENCE_REFERENCE"
+  },
+  "topology": {
+    "provider": "gcp",
+    "workload": "cloud-run-admin",
+    "region": "me-central2",
+    "adminServiceResourceHash": "REPLACE_WITH_SHA256_OF_ADMIN_CLOUD_RUN_RESOURCE_NAME",
+    "publicRoutePath": "/login",
+    "externalOriginEvidenceRef": "REPLACE_WITH_SANITIZED_ADMIN_EDGE_EVIDENCE_REFERENCE"
+  },
+  "deployment": {
+    "imageDigest": "REPLACE_WITH_EXACT_PROMOTED_ADMIN_SHA256_DIGEST",
+    "cloudRunRevisionEvidenceRef": "REPLACE_WITH_HASHED_ADMIN_CLOUD_RUN_REVISION_REFERENCE",
+    "deploymentEvidenceRef": "REPLACE_WITH_SANITIZED_DEPLOYMENT_RUN_REFERENCE"
+  },
+  "runtime": {
+    "releaseVersion": "REPLACE_WITH_APPROVED_RC_VERSION",
+    "releaseSha": "REPLACE_WITH_EXACT_FROZEN_RC_SHA",
+    "artifactDigest": "REPLACE_WITH_EXACT_PROMOTED_ADMIN_SHA256_DIGEST",
+    "routeSmokeEvidenceRef": "REPLACE_WITH_SANITIZED_ADMIN_LOGIN_ROUTE_SMOKE_REFERENCE"
+  },
+  "controls": {
+    "rcFrozen": false,
+    "artifactRegistryPromotionVerified": false,
+    "explicitAdminCloudRunTopology": true,
+    "exactDigestDeployment": false,
+    "noRebuild": true,
+    "keylessDeploymentIdentity": true,
+    "runtimeServiceAccountVerified": false,
+    "serviceReconciled": false,
+    "terminalConditionSucceeded": false,
+    "loadBalancerOnlyIngress": false,
+    "defaultRunAppUriDisabled": false,
+    "externalHttpsRouteVerified": false,
+    "runtimeSourceIdentityVerified": false,
+    "compatibilityBypassUsed": false,
+    "productionDeploymentEvidence": false
+  }
+}

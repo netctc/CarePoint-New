@@ -1,0 +1,81 @@
+name: GCP Artifact Registry Promotion Contract
+
+on:
+  pull_request:
+    paths:
+      - ".ci/release-gcp-artifact-registry-promotion-contract.mjs"
+      - ".github/workflows/gcp-artifact-registry-promotion.yml"
+      - ".github/workflows/gcp-artifact-registry-promotion-contract.yml"
+      - "ops/release-1/gcp-artifact-registry-promotion.example.json"
+  push:
+    branches: [main]
+    paths:
+      - ".ci/release-gcp-artifact-registry-promotion-contract.mjs"
+      - ".github/workflows/gcp-artifact-registry-promotion.yml"
+      - ".github/workflows/gcp-artifact-registry-promotion-contract.yml"
+      - "ops/release-1/gcp-artifact-registry-promotion.example.json"
+
+permissions:
+  contents: read
+
+env:
+  CAREPOINT_GCP_PROMOTION_CONTRACT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  contract:
+    name: G5b Artifact Registry promotion evidence contract
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out exact candidate SHA
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          ref: ${{ env.CAREPOINT_GCP_PROMOTION_CONTRACT_SHA }}
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+
+      - name: Verify exact checkout identity
+        run: test "$(git rev-parse HEAD)" = "$CAREPOINT_GCP_PROMOTION_CONTRACT_SHA"
+
+      - name: Self-test GCP Artifact Registry promotion evidence contract
+        run: node .ci/release-gcp-artifact-registry-promotion-contract.mjs --self-test
+
+      - name: Verify non-approved G5b evidence template
+        run: >-
+          node .ci/release-gcp-artifact-registry-promotion-contract.mjs
+          --validate-template ops/release-1/gcp-artifact-registry-promotion.example.json
+
+      - name: Verify keyless no-rebuild live promotion workflow
+        run: >-
+          node .ci/release-gcp-artifact-registry-promotion-contract.mjs
+          --validate-workflow .github/workflows/gcp-artifact-registry-promotion.yml
+
+      - name: Capture sanitized G5b contract evidence
+        run: |
+          set -euo pipefail
+          mkdir -p gcp-artifact-registry-promotion-contract-evidence
+          node .ci/release-gcp-artifact-registry-promotion-contract.mjs \
+            --contract-evidence \
+            ops/release-1/gcp-artifact-registry-promotion.example.json \
+            .github/workflows/gcp-artifact-registry-promotion.yml \
+            gcp-artifact-registry-promotion-contract-evidence/contract-evidence.json
+          sha256sum \
+            .ci/release-gcp-artifact-registry-promotion-contract.mjs \
+            .github/workflows/gcp-artifact-registry-promotion.yml \
+            ops/release-1/gcp-artifact-registry-promotion.example.json \
+            gcp-artifact-registry-promotion-contract-evidence/contract-evidence.json \
+            > gcp-artifact-registry-promotion-contract-evidence/SHA256SUMS
+          sha256sum --check --strict gcp-artifact-registry-promotion-contract-evidence/SHA256SUMS
+          printf 'sourceSha=%s\nphase=G5b\nartifactRegistryPromotionEvidence=false\nproductionDeploymentEvidence=false\nproductionAcceptance=false\nworkflowPurpose=contract-validation-only\n' \
+            "$CAREPOINT_GCP_PROMOTION_CONTRACT_SHA" \
+            > gcp-artifact-registry-promotion-contract-evidence/metadata.txt
+
+      - name: Upload G5b contract evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: carepoint-gcp-artifact-registry-promotion-contract-${{ env.CAREPOINT_GCP_PROMOTION_CONTRACT_SHA }}
+          path: gcp-artifact-registry-promotion-contract-evidence
+          if-no-files-found: error

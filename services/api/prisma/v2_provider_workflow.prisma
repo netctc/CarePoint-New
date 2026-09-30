@@ -1,0 +1,17 @@
+model ProviderWorkflowEvent {
+  id             String         @id @default(uuid())
+  providerId     String
+  patientId      String
+  contextType    String
+  contextId      String
+  eventType      String
+  evidence       Json
+  idempotencyKey String?        @unique
+  actorId        String?
+  occurredAt     DateTime       @default(now())
+  provider       Provider       @relation(fields: [providerId], references: [id], onDelete: Restrict)
+  patient        PatientProfile @relation(fields: [patientId], references: [id], onDelete: Restrict)
+
+  @@index([providerId, contextType, contextId, occurredAt])
+  @@index([patientId, eventType, occurredAt])
+}

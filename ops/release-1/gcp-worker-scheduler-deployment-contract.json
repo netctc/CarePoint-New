@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "productionAcceptance": false,
+  "provider": "gcp",
+  "jurisdiction": "SA",
+  "region": "me-central2",
+  "releaseProfile": "release-1-gcp-readiness",
+  "artifactPolicy": {
+    "immutableDigestRequired": true,
+    "sameReleaseCandidateAsApi": true,
+    "mutableTagsAcceptedAsEvidence": false
+  },
+  "backgroundWorkers": {
+    "mode": "api-colocated",
+    "runtime": "cloud-run-service",
+    "scaleToZeroAllowed": false,
+    "minimumWarmInstancesRequired": true,
+    "backgroundCpuRequired": true,
+    "leaseOrIdempotencyRequired": true,
+    "publicUnauthenticatedIngressAllowed": false
+  },
+  "scheduledWork": {
+    "runtime": "cloud-run-job",
+    "scheduler": "cloud-scheduler",
+    "schedulerRegion": "me-central2",
+    "invocationAuth": "oidc-service-account",
+    "publicUnauthenticatedInvocationAllowed": false,
+    "manualCabExecutionSupported": true
+  },
+  "queueing": {
+    "currentDurablePattern": "database-outbox",
+    "cloudTasksAllowedForFutureDiscreteWork": true,
+    "cloudTasksRegion": "me-central2"
+  },
+  "identity": {
+    "runtimeIdentity": "attached-service-account",
+    "staticServiceAccountKeysAllowed": false,
+    "staticAccessTokensAllowed": false
+  },
+  "dataPlane": {
+    "privateDatabaseConnectivityRequired": true,
+    "privateRedisConnectivityRequired": true,
+    "regionalSecretManagerRequired": true,
+    "approvedDataRegion": "me-central2"
+  },
+  "operations": {
+    "structuredLoggingRequired": true,
+    "otlpRequired": true,
+    "siemRequired": true,
+    "boundedRetriesRequired": true,
+    "failedWorkMustRemainRecoverable": true
+  },
+  "acceptance": {
+    "liveDeploymentEvidenceRequired": true,
+    "schedulerInvocationEvidenceRequired": true,
+    "workerLeaseIdempotencyEvidenceRequired": true,
+    "failureRecoveryEvidenceRequired": true,
+    "geographicDrProven": false,
+    "rpoRtoProven": false
+  }
+}

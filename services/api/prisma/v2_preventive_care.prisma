@@ -1,0 +1,54 @@
+model PreventiveCareRule {
+  id        String                      @id @default(uuid())
+  code      String                      @unique
+  active    Boolean                     @default(true)
+  createdAt DateTime                    @default(now())
+  updatedAt DateTime                    @updatedAt
+  versions  PreventiveCareRuleVersion[]
+
+  @@index([active, code])
+}
+
+model PreventiveCareRuleVersion {
+  id               String             @id @default(uuid())
+  ruleId           String
+  version          Int
+  status           String             @default("DRAFT")
+  labels           Json
+  descriptionLabels Json
+  sourceLabels     Json
+  sourceReference  String
+  jurisdiction     String             @default("GLOBAL")
+  triggerType      String
+  minAgeYears      Int?
+  maxAgeYears      Int?
+  vaccineCodeSystem String?
+  vaccineCode      String?
+  intervalDays     Int?
+  allowDismiss     Boolean            @default(true)
+  allowPostpone    Boolean            @default(true)
+  maxPostponeDays  Int                @default(365)
+  createdByActorId String?
+  publishedAt      DateTime?
+  retiredAt        DateTime?
+  createdAt        DateTime           @default(now())
+  rule             PreventiveCareRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@unique([ruleId, version])
+  @@index([status, jurisdiction, publishedAt])
+}
+
+model PreventiveCareAction {
+  id              String   @id @default(uuid())
+  patientId       String
+  actorAccountId  String
+  ruleVersionId   String
+  action          String
+  postponedUntil  DateTime?
+  idempotencyKey  String
+  requestDigest   String
+  createdAt       DateTime @default(now())
+
+  @@unique([patientId, idempotencyKey])
+  @@index([patientId, ruleVersionId, createdAt])
+}

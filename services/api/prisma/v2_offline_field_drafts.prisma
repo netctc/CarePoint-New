@@ -1,0 +1,65 @@
+model OfflineFieldDraft {
+  id             String   @id @default(uuid())
+  providerId     String
+  patientId      String
+  appointmentId  String
+  currentVersion Int      @default(0)
+  lastSyncedAt   DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([providerId, appointmentId])
+  @@index([providerId, updatedAt])
+  @@index([patientId, updatedAt])
+}
+
+model OfflineFieldDraftRevision {
+  id               String   @id @default(uuid())
+  draftId          String
+  version          Int
+  clientDraftId    String
+  clientRevision   Int
+  idempotencyKey   String   @unique
+  requestDigest    String
+  sourceConflictId String?
+  algorithm        String
+  keyId            String
+  wrappedKey       String
+  iv               String
+  ciphertext       String
+  authorActorId    String?
+  createdAt        DateTime @default(now())
+
+  @@unique([draftId, version])
+  @@index([draftId, createdAt])
+  @@index([clientDraftId, clientRevision])
+}
+
+model OfflineFieldSyncConflict {
+  id                      String   @id @default(uuid())
+  draftId                 String
+  providerId              String
+  patientId               String
+  appointmentId           String
+  clientDraftId           String
+  clientRevision          Int
+  baseServerVersion       Int
+  serverVersionAtConflict Int
+  idempotencyKey          String   @unique
+  requestDigest           String
+  algorithm               String
+  keyId                   String
+  wrappedKey              String
+  iv                      String
+  ciphertext              String
+  actorId                 String?
+  status                  String   @default("PENDING")
+  resolution              String?
+  resolvedByActorId       String?
+  resolvedAt              DateTime?
+  createdAt               DateTime @default(now())
+
+  @@index([providerId, status, createdAt])
+  @@index([draftId, status, createdAt])
+  @@index([clientDraftId, clientRevision])
+}

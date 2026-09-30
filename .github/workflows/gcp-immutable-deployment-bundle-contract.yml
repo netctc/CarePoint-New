@@ -1,0 +1,123 @@
+name: GCP Immutable Deployment Bundle Contract
+
+on:
+  pull_request:
+    paths:
+      - ".ci/release-gcp-immutable-deployment-bundle-contract.mjs"
+      - "ops/release-1/gcp-immutable-deployment-bundle.example.json"
+      - ".github/workflows/gcp-immutable-deployment-bundle-contract.yml"
+      - ".ci/release-gcp-immutable-rc-freeze-contract.mjs"
+      - ".ci/release-gcp-artifact-registry-promotion-contract.mjs"
+      - ".ci/release-gcp-cloud-run-deployment-contract.mjs"
+      - ".ci/release-gcp-admin-cloud-run-deployment-contract.mjs"
+      - ".github/workflows/gcp-artifact-registry-promotion.yml"
+      - ".github/workflows/gcp-cloud-run-deployment.yml"
+      - ".github/workflows/gcp-admin-cloud-run-deployment.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - ".ci/release-gcp-immutable-deployment-bundle-contract.mjs"
+      - "ops/release-1/gcp-immutable-deployment-bundle.example.json"
+      - ".github/workflows/gcp-immutable-deployment-bundle-contract.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gcp-immutable-deployment-bundle-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: false
+
+env:
+  CAREPOINT_EXACT_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  contract:
+    name: Validate G5 immutable deployment bundle contract
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out exact candidate SHA
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ env.CAREPOINT_EXACT_SOURCE_SHA }}
+
+      - name: Verify exact checkout identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$CAREPOINT_EXACT_SOURCE_SHA"
+          test -z "$(git status --porcelain)"
+
+      - name: Revalidate G5 phase contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node .ci/release-gcp-immutable-rc-freeze-contract.mjs --self-test
+          node .ci/release-gcp-artifact-registry-promotion-contract.mjs --self-test
+          node .ci/release-gcp-cloud-run-deployment-contract.mjs --self-test
+          node .ci/release-gcp-admin-cloud-run-deployment-contract.mjs --self-test
+          node .ci/release-gcp-immutable-deployment-bundle-contract.mjs --self-test
+
+      - name: Revalidate live workflow boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          node .ci/release-gcp-artifact-registry-promotion-contract.mjs \
+            --validate-workflow .github/workflows/gcp-artifact-registry-promotion.yml
+          node .ci/release-gcp-cloud-run-deployment-contract.mjs \
+            --validate-workflow .github/workflows/gcp-cloud-run-deployment.yml
+          node .ci/release-gcp-admin-cloud-run-deployment-contract.mjs \
+            --validate-workflow .github/workflows/gcp-admin-cloud-run-deployment.yml
+
+      - name: Validate non-approved G5e bundle manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          node .ci/release-gcp-immutable-deployment-bundle-contract.mjs \
+            --validate-manifest ops/release-1/gcp-immutable-deployment-bundle.example.json
+
+      - name: Generate sanitized G5e contract evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p gcp-immutable-deployment-bundle-contract-evidence
+          node .ci/release-gcp-immutable-deployment-bundle-contract.mjs \
+            --contract-evidence \
+            ops/release-1/gcp-immutable-deployment-bundle.example.json \
+            gcp-immutable-deployment-bundle-contract-evidence/contract.json
+          cat > gcp-immutable-deployment-bundle-contract-evidence/metadata.txt <<EOF
+          sourceSha=$CAREPOINT_EXACT_SOURCE_SHA
+          phase=G5e
+          bundleComplete=false
+          productionDeploymentEvidence=false
+          productionAcceptance=false
+          workflowPurpose=contract-validation-only
+          EOF
+          sha256sum \
+            gcp-immutable-deployment-bundle-contract-evidence/contract.json \
+            gcp-immutable-deployment-bundle-contract-evidence/metadata.txt \
+            > gcp-immutable-deployment-bundle-contract-evidence/SHA256SUMS
+          sha256sum --check --strict gcp-immutable-deployment-bundle-contract-evidence/SHA256SUMS
+
+      - name: Upload sanitized G5e contract evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: carepoint-gcp-g5e-bundle-contract-${{ env.CAREPOINT_EXACT_SOURCE_SHA }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: gcp-immutable-deployment-bundle-contract-evidence
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Publish contract-only summary
+        shell: bash
+        run: |
+          {
+            echo "### GCP G5e immutable deployment bundle contract"
+            echo "- Source SHA: \`$CAREPOINT_EXACT_SOURCE_SHA\`"
+            echo "- Cross-slice contract: G5a freeze + G5b promotion + G5c API deploy + G5d Admin deploy"
+            echo "- Live bundle complete: \`false\`"
+            echo "- Production deployment evidence: \`false\`"
+            echo "- Production acceptance: \`false\`"
+            echo "- Live completion requires the four real restricted evidence files validated on the exact frozen RC checkout."
+          } >> "$GITHUB_STEP_SUMMARY"

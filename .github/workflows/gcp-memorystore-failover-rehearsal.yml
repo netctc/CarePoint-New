@@ -1,0 +1,257 @@
+name: GCP Memorystore Failover Rehearsal
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: "Exact frozen Release Candidate source SHA"
+        required: true
+        type: string
+      release_version:
+        description: "Approved frozen Release Candidate version"
+        required: true
+        type: string
+      g5_bundle_evidence_ref:
+        description: "Approved restricted G5e immutable deployment bundle evidence reference"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: gcp-memorystore-failover-${{ inputs.source_sha }}
+  cancel-in-progress: false
+
+env:
+  GCP_REGION: me-central2
+  SOURCE_SHA: ${{ inputs.source_sha }}
+  RELEASE_VERSION: ${{ inputs.release_version }}
+  G5_BUNDLE_EVIDENCE_REF: ${{ inputs.g5_bundle_evidence_ref }}
+
+jobs:
+  failover:
+    name: Exercise Standard HA failover for production-equivalent Memorystore
+    runs-on: ubuntu-24.04
+    environment: gcp-production-equivalent
+    steps:
+      - name: Check out exact frozen RC source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ env.SOURCE_SHA }}
+
+      - name: Validate rehearsal inputs and exact checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$RELEASE_VERSION" =~ ^[0-9A-Za-z][0-9A-Za-z._+-]{0,63}$ ]]
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          test -n "$G5_BUNDLE_EVIDENCE_REF"
+
+      - name: Authenticate to Google Cloud with Workload Identity Federation
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_RECOVERY_SERVICE_ACCOUNT }}
+          create_credentials_file: true
+          export_environment_variables: true
+
+      - name: Set up Google Cloud CLI
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3
+
+      - name: Validate protected Memorystore rehearsal configuration
+        shell: bash
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          REDIS_INSTANCE: ${{ vars.CAREPOINT_GCP_REDIS_INSTANCE }}
+          REDIS_NETWORK: ${{ vars.CAREPOINT_GCP_REDIS_NETWORK }}
+          RECOVERY_SERVICE_ACCOUNT: ${{ vars.GCP_RECOVERY_SERVICE_ACCOUNT }}
+        run: |
+          set -euo pipefail
+          test -n "$GCP_PROJECT_ID"
+          test -n "$REDIS_INSTANCE"
+          test -n "$REDIS_NETWORK"
+          test -n "$RECOVERY_SERVICE_ACCOUNT"
+          [[ "$GCP_PROJECT_ID" =~ ^[a-z][a-z0-9-]{4,28}[a-z0-9]$ ]]
+          [[ "$REDIS_INSTANCE" =~ ^[a-z]([a-z0-9-]{0,38}[a-z0-9])?$ ]]
+          [[ "$REDIS_NETWORK" == "projects/$GCP_PROJECT_ID/global/networks/"* ]]
+          [[ "$RECOVERY_SERVICE_ACCOUNT" =~ @.*\.iam\.gserviceaccount\.com$ ]]
+
+      - name: Inspect and verify source Memorystore production profile
+        shell: bash
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          REDIS_INSTANCE: ${{ vars.CAREPOINT_GCP_REDIS_INSTANCE }}
+          REDIS_NETWORK: ${{ vars.CAREPOINT_GCP_REDIS_NETWORK }}
+        run: |
+          set -euo pipefail
+          mkdir -p gcp-memorystore-failover-evidence
+          gcloud redis instances describe "$REDIS_INSTANCE" \
+            --project="$GCP_PROJECT_ID" \
+            --region="$GCP_REGION" \
+            --format=json > gcp-memorystore-failover-evidence/before.json
+          node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from 'node:fs';
+          import { createHash } from 'node:crypto';
+          const value = JSON.parse(readFileSync('gcp-memorystore-failover-evidence/before.json', 'utf8'));
+          const expectedName = `projects/${process.env.GCP_PROJECT_ID}/locations/me-central2/instances/${process.env.REDIS_INSTANCE}`;
+          if (value.name !== expectedName) throw new Error('Memorystore source identity mismatch.');
+          if (String(value.state ?? '').toUpperCase() !== 'READY') throw new Error('Memorystore source must be READY.');
+          if (String(value.tier ?? '').toUpperCase() !== 'STANDARD_HA') throw new Error('Memorystore source must use STANDARD_HA.');
+          if (Number(value.replicaCount ?? 0) < 1) throw new Error('Memorystore source requires a replica.');
+          if (String(value.readReplicasMode ?? '').toUpperCase() === 'READ_REPLICAS_ENABLED') throw new Error('Manual failover rehearsal does not support read-replica mode.');
+          if (value.authEnabled !== true) throw new Error('Memorystore source requires Redis AUTH.');
+          if (String(value.transitEncryptionMode ?? '').toUpperCase() !== 'SERVER_AUTHENTICATION') throw new Error('Memorystore source requires TLS server authentication.');
+          if (String(value.connectMode ?? '').toUpperCase() !== 'PRIVATE_SERVICE_ACCESS') throw new Error('Memorystore source requires private service access.');
+          if (value.authorizedNetwork !== process.env.REDIS_NETWORK) throw new Error('Memorystore source network mismatch.');
+          if (!Array.isArray(value.serverCaCerts) || value.serverCaCerts.length < 1) throw new Error('Memorystore source requires a server CA certificate.');
+          if (Number(value.port ?? 0) !== 6378) throw new Error('Memorystore source TLS port must be 6378.');
+          const zone = String(value.currentLocationId ?? '').toLowerCase();
+          if (!/^me-central2-[a-z]$/.test(zone)) throw new Error('Memorystore current primary zone is invalid.');
+          const identityHash = `sha256:${createHash('sha256').update(value.name).digest('hex')}`;
+          writeFileSync('gcp-memorystore-failover-evidence/source-hash.txt', `${identityHash}\n`, { mode: 0o600 });
+          NODE
+
+      - name: Initiate limited-data-loss manual failover
+        shell: bash
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          REDIS_INSTANCE: ${{ vars.CAREPOINT_GCP_REDIS_INSTANCE }}
+        run: |
+          set -euo pipefail
+          FAILOVER_STARTED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          FAILOVER_STARTED_EPOCH="$(date -u +%s)"
+          printf 'FAILOVER_STARTED_AT=%s\nFAILOVER_STARTED_EPOCH=%s\n' "$FAILOVER_STARTED_AT" "$FAILOVER_STARTED_EPOCH" >> "$GITHUB_ENV"
+          gcloud redis instances failover "$REDIS_INSTANCE" \
+            --project="$GCP_PROJECT_ID" \
+            --region="$GCP_REGION" \
+            --data-protection-mode=limited-data-loss \
+            --quiet
+
+      - name: Verify Memorystore recovered on the alternate primary zone
+        shell: bash
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          REDIS_INSTANCE: ${{ vars.CAREPOINT_GCP_REDIS_INSTANCE }}
+          REDIS_NETWORK: ${{ vars.CAREPOINT_GCP_REDIS_NETWORK }}
+        run: |
+          set -euo pipefail
+          gcloud redis instances describe "$REDIS_INSTANCE" \
+            --project="$GCP_PROJECT_ID" \
+            --region="$GCP_REGION" \
+            --format=json > gcp-memorystore-failover-evidence/after.json
+          CONTROL_PLANE_READY_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          CONTROL_PLANE_READY_EPOCH="$(date -u +%s)"
+          CONTROL_PLANE_RECOVERY_SECONDS="$((CONTROL_PLANE_READY_EPOCH - FAILOVER_STARTED_EPOCH))"
+          printf 'CONTROL_PLANE_READY_AT=%s\nCONTROL_PLANE_RECOVERY_SECONDS=%s\n' "$CONTROL_PLANE_READY_AT" "$CONTROL_PLANE_RECOVERY_SECONDS" >> "$GITHUB_ENV"
+          node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from 'node:fs';
+          import { createHash } from 'node:crypto';
+          const before = JSON.parse(readFileSync('gcp-memorystore-failover-evidence/before.json', 'utf8'));
+          const after = JSON.parse(readFileSync('gcp-memorystore-failover-evidence/after.json', 'utf8'));
+          const expectedName = `projects/${process.env.GCP_PROJECT_ID}/locations/me-central2/instances/${process.env.REDIS_INSTANCE}`;
+          if (after.name !== expectedName || before.name !== after.name) throw new Error('Logical Memorystore instance identity changed.');
+          if (String(after.state ?? '').toUpperCase() !== 'READY') throw new Error('Memorystore did not return to READY.');
+          if (String(after.tier ?? '').toUpperCase() !== 'STANDARD_HA') throw new Error('STANDARD_HA was not preserved.');
+          if (Number(after.replicaCount ?? 0) < 1) throw new Error('Replica availability was not preserved.');
+          if (String(after.readReplicasMode ?? '').toUpperCase() === 'READ_REPLICAS_ENABLED') throw new Error('Unsupported read-replica mode became enabled.');
+          if (after.authEnabled !== true) throw new Error('Redis AUTH was not preserved.');
+          if (String(after.transitEncryptionMode ?? '').toUpperCase() !== 'SERVER_AUTHENTICATION') throw new Error('TLS was not preserved.');
+          if (String(after.connectMode ?? '').toUpperCase() !== 'PRIVATE_SERVICE_ACCESS') throw new Error('Private networking was not preserved.');
+          if (after.authorizedNetwork !== process.env.REDIS_NETWORK) throw new Error('Authorized network changed.');
+          if (!Array.isArray(after.serverCaCerts) || after.serverCaCerts.length < 1) throw new Error('Server CA certificate is unavailable after failover.');
+          if (Number(after.port ?? 0) !== 6378) throw new Error('TLS port changed after failover.');
+          const beforeZone = String(before.currentLocationId ?? '').toLowerCase();
+          const afterZone = String(after.currentLocationId ?? '').toLowerCase();
+          if (!/^me-central2-[a-z]$/.test(afterZone)) throw new Error('Post-failover primary zone is invalid.');
+          if (beforeZone === afterZone) throw new Error('Manual failover did not switch the primary zone.');
+          const beforeEndpoint = `${String(before.host ?? '')}:${Number(before.port ?? 0)}`;
+          const afterEndpoint = `${String(after.host ?? '')}:${Number(after.port ?? 0)}`;
+          if (!beforeEndpoint || beforeEndpoint !== afterEndpoint) throw new Error('Memorystore client endpoint changed unexpectedly.');
+          const hash = `sha256:${createHash('sha256').update(after.name).digest('hex')}`;
+          writeFileSync('gcp-memorystore-failover-evidence/post-hash.txt', `${hash}\n`, { mode: 0o600 });
+          NODE
+          rm -f gcp-memorystore-failover-evidence/before.json gcp-memorystore-failover-evidence/after.json
+
+      - name: Export sanitized G6b control-plane failover evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from 'node:fs';
+          const sourceHash = readFileSync('gcp-memorystore-failover-evidence/source-hash.txt', 'utf8').trim();
+          const postHash = readFileSync('gcp-memorystore-failover-evidence/post-hash.txt', 'utf8').trim();
+          if (sourceHash !== postHash) throw new Error('Pre/post logical instance hashes differ.');
+          const evidence = {
+            schema: 'carepoint.release1-gcp-memorystore-failover-run/v1',
+            phase: 'G6b',
+            sourceSha: process.env.SOURCE_SHA,
+            releaseVersion: process.env.RELEASE_VERSION,
+            g5BundleEvidenceRef: process.env.G5_BUNDLE_EVIDENCE_REF,
+            region: 'me-central2',
+            cacheRole: 'ephemeral-non-authoritative',
+            authoritativeDataStored: false,
+            cacheStateMayBeLost: true,
+            dataProtectionMode: 'limited-data-loss',
+            sourceInstanceEvidenceHash: sourceHash,
+            postFailoverInstanceEvidenceHash: postHash,
+            failoverStartedAtUtc: process.env.FAILOVER_STARTED_AT,
+            controlPlaneReadyAtUtc: process.env.CONTROL_PLANE_READY_AT,
+            controlPlaneRecoverySeconds: Number(process.env.CONTROL_PLANE_RECOVERY_SECONDS),
+            requiresPrivateApplicationValidation: true,
+            controls: {
+              keylessAuthentication: true,
+              sourcePreflightVerified: true,
+              manualFailoverInvoked: true,
+              limitedDataLossMode: true,
+              instanceReadyAfterFailover: true,
+              sameInstanceIdentity: true,
+              sameKsaRegion: true,
+              primaryZoneChanged: true,
+              privateTlsAuthControlsPreserved: true,
+              applicationReconnectValidated: false,
+              healthReadinessRecovered: false,
+              redisBackedSecurityCanaryValidated: false,
+              rateLimitPathValidated: false,
+              geographicDrClaimed: false,
+              productionRecoveryEvidence: false,
+              productionAcceptance: false,
+            },
+            workflowRunRef: `github://actions/runs/${process.env.GITHUB_RUN_ID}/attempts/${process.env.GITHUB_RUN_ATTEMPT}`,
+          };
+          writeFileSync('gcp-memorystore-failover-evidence/failover-run.json', `${JSON.stringify(evidence, null, 2)}\n`, { mode: 0o600 });
+          NODE
+          rm -f gcp-memorystore-failover-evidence/source-hash.txt gcp-memorystore-failover-evidence/post-hash.txt
+          sha256sum gcp-memorystore-failover-evidence/failover-run.json > gcp-memorystore-failover-evidence/SHA256SUMS
+          sha256sum --check --strict gcp-memorystore-failover-evidence/SHA256SUMS
+
+      - name: Upload sanitized G6b control-plane evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: carepoint-gcp-memorystore-failover-${{ inputs.source_sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: gcp-memorystore-failover-evidence
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Publish sanitized Memorystore failover handoff summary
+        shell: bash
+        run: |
+          {
+            echo "### GCP G6b Memorystore failover handoff"
+            echo "- Source SHA: \`$SOURCE_SHA\`"
+            echo "- Release version: \`$RELEASE_VERSION\`"
+            echo "- Region: \`me-central2\`"
+            echo "- Data protection mode: \`limited-data-loss\`"
+            echo "- STANDARD_HA control-plane failover: \`verified\`"
+            echo "- Private TLS/AUTH profile preserved: \`true\`"
+            echo "- Private application reconnect validation still required: \`true\`"
+            echo "- Cache state is authoritative: \`false\`"
+            echo "- Production recovery evidence: \`false\`"
+            echo "- Geographic DR proven: \`false\`"
+            echo "- Production acceptance: \`false\`"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,39 @@
+model LocalizationCatalog {
+  id             String   @id @default(uuid())
+  code           String   @unique
+  currentVersion Int      @default(1)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([code, currentVersion])
+}
+
+model TranslationKey {
+  id             String               @id @default(uuid())
+  key            String               @unique
+  namespace      String               @default("common")
+  active         Boolean              @default(true)
+  currentVersion Int                  @default(1)
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  versions       TranslationVersion[]
+
+  @@index([namespace, active, key])
+}
+
+model TranslationVersion {
+  id               String         @id @default(uuid())
+  translationKeyId String
+  version          Int
+  textEn           String
+  textAr           String?
+  textFr           String?
+  textEs           String?
+  createdByActorId String?
+  reasonCode       String?
+  createdAt        DateTime       @default(now())
+  translationKey   TranslationKey @relation(fields: [translationKeyId], references: [id], onDelete: Restrict)
+
+  @@unique([translationKeyId, version])
+  @@index([translationKeyId, createdAt])
+}

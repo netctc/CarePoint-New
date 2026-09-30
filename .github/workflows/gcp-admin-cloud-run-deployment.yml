@@ -1,0 +1,301 @@
+name: GCP Admin Cloud Run Immutable Deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: "Exact frozen Release Candidate source SHA"
+        required: true
+        type: string
+      release_version:
+        description: "Approved frozen Release Candidate version"
+        required: true
+        type: string
+      admin_image_digest:
+        description: "Exact promoted Admin sha256 digest"
+        required: true
+        type: string
+      admin_artifact_registry_immutable_ref:
+        description: "Exact me-central2 Artifact Registry Admin image reference including @sha256 digest"
+        required: true
+        type: string
+      rc_freeze_evidence_ref:
+        description: "Approved restricted G5a freeze evidence reference"
+        required: true
+        type: string
+      artifact_registry_promotion_evidence_ref:
+        description: "Approved restricted G5b promotion evidence reference"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: gcp-admin-cloud-run-deployment-${{ inputs.source_sha }}
+  cancel-in-progress: false
+
+env:
+  GCP_REGION: me-central2
+
+jobs:
+  deploy:
+    name: Deploy exact Admin digest to explicit Cloud Run topology
+    runs-on: ubuntu-24.04
+    environment: gcp-production-equivalent
+    steps:
+      - name: Validate immutable Admin deployment inputs
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          RELEASE_VERSION: ${{ inputs.release_version }}
+          IMAGE_DIGEST: ${{ inputs.admin_image_digest }}
+          ARTIFACT_REGISTRY_IMMUTABLE_REF: ${{ inputs.admin_artifact_registry_immutable_ref }}
+          RC_FREEZE_EVIDENCE_REF: ${{ inputs.rc_freeze_evidence_ref }}
+          ARTIFACT_REGISTRY_PROMOTION_EVIDENCE_REF: ${{ inputs.artifact_registry_promotion_evidence_ref }}
+        run: |
+          set -euo pipefail
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$RELEASE_VERSION" =~ ^[0-9A-Za-z][0-9A-Za-z._+-]{0,63}$ ]]
+          [[ "$IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+          [[ "$ARTIFACT_REGISTRY_IMMUTABLE_REF" =~ ^me-central2-docker\.pkg\.dev/[^[:space:]@]+/carepoint-new-admin@sha256:[0-9a-f]{64}$ ]]
+          test "${ARTIFACT_REGISTRY_IMMUTABLE_REF##*@}" = "$IMAGE_DIGEST"
+          test -n "$RC_FREEZE_EVIDENCE_REF"
+          test -n "$ARTIFACT_REGISTRY_PROMOTION_EVIDENCE_REF"
+
+      - name: Authenticate to Google Cloud with GitHub OIDC and Workload Identity Federation
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_CLOUD_RUN_DEPLOYER_SERVICE_ACCOUNT }}
+          create_credentials_file: true
+          export_environment_variables: true
+
+      - name: Set up Google Cloud CLI
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3
+
+      - name: Validate protected Admin Cloud Run configuration
+        shell: bash
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          ADMIN_SERVICE: ${{ vars.CAREPOINT_GCP_ADMIN_CLOUD_RUN_SERVICE }}
+          EXPECTED_RUNTIME_SERVICE_ACCOUNT: ${{ vars.CAREPOINT_GCP_ADMIN_SERVICE_ACCOUNT_EMAIL }}
+          PUBLIC_ADMIN_ORIGIN: ${{ vars.CAREPOINT_PUBLIC_ADMIN_ORIGIN }}
+        run: |
+          set -euo pipefail
+          test -n "$GCP_PROJECT_ID"
+          test -n "$ADMIN_SERVICE"
+          test -n "$EXPECTED_RUNTIME_SERVICE_ACCOUNT"
+          test -n "$PUBLIC_ADMIN_ORIGIN"
+          [[ "$GCP_PROJECT_ID" =~ ^[a-z][a-z0-9-]{4,28}[a-z0-9]$ ]]
+          [[ "$ADMIN_SERVICE" =~ ^[a-z][a-z0-9-]{0,62}$ ]]
+          [[ "$EXPECTED_RUNTIME_SERVICE_ACCOUNT" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.iam\.gserviceaccount\.com$ ]]
+          [[ "$PUBLIC_ADMIN_ORIGIN" =~ ^https://[^/]+$ ]]
+          [[ ! "$PUBLIC_ADMIN_ORIGIN" =~ \.run\.app$ ]]
+
+      - name: Deploy exact promoted Admin digest without rebuild
+        shell: bash
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          ADMIN_SERVICE: ${{ vars.CAREPOINT_GCP_ADMIN_CLOUD_RUN_SERVICE }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          RELEASE_VERSION: ${{ inputs.release_version }}
+          IMAGE_DIGEST: ${{ inputs.admin_image_digest }}
+          ARTIFACT_REGISTRY_IMMUTABLE_REF: ${{ inputs.admin_artifact_registry_immutable_ref }}
+        run: |
+          set -euo pipefail
+          gcloud run services update "$ADMIN_SERVICE" \
+            --project="$GCP_PROJECT_ID" \
+            --region="$GCP_REGION" \
+            --image="$ARTIFACT_REGISTRY_IMMUTABLE_REF" \
+            --update-env-vars="CAREPOINT_RELEASE_VERSION=$RELEASE_VERSION,CAREPOINT_RELEASE_SHA=$SOURCE_SHA,CAREPOINT_RELEASE_ARTIFACT_DIGEST=$IMAGE_DIGEST" \
+            --quiet
+          gcloud run services update-traffic "$ADMIN_SERVICE" \
+            --project="$GCP_PROJECT_ID" \
+            --region="$GCP_REGION" \
+            --to-latest \
+            --quiet
+
+      - name: Inspect exact Admin service through Cloud Run v2 API
+        shell: bash
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          ADMIN_SERVICE: ${{ vars.CAREPOINT_GCP_ADMIN_CLOUD_RUN_SERVICE }}
+        run: |
+          set -euo pipefail
+          mkdir -p gcp-admin-cloud-run-deployment-evidence
+          access_token="$(gcloud auth print-access-token)"
+          test -n "$access_token"
+          curl --fail --silent --show-error \
+            --connect-timeout 10 --max-time 30 \
+            -H "Authorization: Bearer $access_token" \
+            -H 'Accept: application/json' \
+            "https://run.googleapis.com/v2/projects/$GCP_PROJECT_ID/locations/$GCP_REGION/services/$ADMIN_SERVICE" \
+            -o gcp-admin-cloud-run-deployment-evidence/service.json
+          unset access_token
+
+      - name: Verify explicit Admin topology, exact digest and runtime identity
+        shell: bash
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          ADMIN_SERVICE: ${{ vars.CAREPOINT_GCP_ADMIN_CLOUD_RUN_SERVICE }}
+          EXPECTED_RUNTIME_SERVICE_ACCOUNT: ${{ vars.CAREPOINT_GCP_ADMIN_SERVICE_ACCOUNT_EMAIL }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          RELEASE_VERSION: ${{ inputs.release_version }}
+          IMAGE_DIGEST: ${{ inputs.admin_image_digest }}
+          ARTIFACT_REGISTRY_IMMUTABLE_REF: ${{ inputs.admin_artifact_registry_immutable_ref }}
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { createHash } from 'node:crypto';
+          import { readFileSync, writeFileSync } from 'node:fs';
+          const service = JSON.parse(readFileSync('gcp-admin-cloud-run-deployment-evidence/service.json', 'utf8'));
+          const expectedName = `projects/${process.env.GCP_PROJECT_ID}/locations/me-central2/services/${process.env.ADMIN_SERVICE}`;
+          if (service.name !== expectedName) throw new Error('Admin Cloud Run resource identity mismatch.');
+          if (service.reconciling === true) throw new Error('Admin Cloud Run service is still reconciling.');
+          if (service.terminalCondition?.state !== 'CONDITION_SUCCEEDED') throw new Error('Admin Cloud Run terminal condition has not succeeded.');
+          if (service.ingress !== 'INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER') throw new Error('Admin Cloud Run ingress must allow only internal/load-balancer traffic.');
+          if (service.defaultUriDisabled !== true) throw new Error('Admin Cloud Run default run.app URI must be disabled.');
+          const template = service.template ?? {};
+          if (String(template.serviceAccount ?? '').toLowerCase() !== process.env.EXPECTED_RUNTIME_SERVICE_ACCOUNT.toLowerCase()) {
+            throw new Error('Admin Cloud Run runtime service account mismatch.');
+          }
+          const container = template.containers?.[0] ?? {};
+          if (container.image !== process.env.ARTIFACT_REGISTRY_IMMUTABLE_REF) throw new Error('Admin Cloud Run image does not exactly match promoted immutable reference.');
+          if (!container.image.endsWith(`@${process.env.IMAGE_DIGEST}`)) throw new Error('Admin Cloud Run image digest mismatch.');
+          const env = new Map((container.env ?? []).map((entry) => [entry.name, entry.value]));
+          if (env.get('NODE_ENV') !== 'production') throw new Error('Admin Cloud Run NODE_ENV must remain production.');
+          if (env.get('CAREPOINT_RELEASE_VERSION') !== process.env.RELEASE_VERSION) throw new Error('Admin Cloud Run release version mismatch.');
+          if (env.get('CAREPOINT_RELEASE_SHA') !== process.env.SOURCE_SHA) throw new Error('Admin Cloud Run release SHA mismatch.');
+          if (env.get('CAREPOINT_RELEASE_ARTIFACT_DIGEST') !== process.env.IMAGE_DIGEST) throw new Error('Admin Cloud Run artifact digest mismatch.');
+          const latestReadyRevision = String(service.latestReadyRevision ?? '');
+          if (!latestReadyRevision) throw new Error('Admin Cloud Run latest ready revision is missing.');
+          const serviceHash = createHash('sha256').update(expectedName).digest('hex');
+          const revisionHash = createHash('sha256').update(latestReadyRevision).digest('hex');
+          writeFileSync('gcp-admin-cloud-run-deployment-evidence/identity-hashes.txt', `service=sha256:${serviceHash}\nrevision=sha256:${revisionHash}\n`, { mode: 0o600 });
+          NODE
+          rm -f gcp-admin-cloud-run-deployment-evidence/service.json
+
+      - name: Verify approved external Admin HTTPS route
+        shell: bash
+        env:
+          PUBLIC_ADMIN_ORIGIN: ${{ vars.CAREPOINT_PUBLIC_ADMIN_ORIGIN }}
+        run: |
+          set -euo pipefail
+          headers="$(mktemp)"
+          body="$(mktemp)"
+          trap 'rm -f "$headers" "$body"' EXIT
+          success=false
+          for attempt in $(seq 1 12); do
+            if curl --fail --silent --show-error \
+              --connect-timeout 10 --max-time 30 \
+              -D "$headers" \
+              "$PUBLIC_ADMIN_ORIGIN/login" \
+              -o "$body"; then
+              success=true
+              break
+            fi
+            sleep 5
+          done
+          test "$success" = true
+          grep -Eiq '^x-robots-tag:[[:space:]]*noindex, nofollow, noarchive([[:space:]]|\r)*$' "$headers"
+          test -s "$body"
+
+      - name: Export sanitized G5d Admin deployment evidence
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          RELEASE_VERSION: ${{ inputs.release_version }}
+          IMAGE_DIGEST: ${{ inputs.admin_image_digest }}
+          RC_FREEZE_EVIDENCE_REF: ${{ inputs.rc_freeze_evidence_ref }}
+          ARTIFACT_REGISTRY_PROMOTION_EVIDENCE_REF: ${{ inputs.artifact_registry_promotion_evidence_ref }}
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from 'node:fs';
+          const identity = Object.fromEntries(
+            readFileSync('gcp-admin-cloud-run-deployment-evidence/identity-hashes.txt', 'utf8')
+              .trim().split('\n').map((line) => line.split('=')),
+          );
+          const runRef = `github://actions/runs/${process.env.GITHUB_RUN_ID}/attempts/${process.env.GITHUB_RUN_ATTEMPT}`;
+          const evidence = {
+            schema: 'carepoint.release1-gcp-admin-cloud-run-deployment/v1',
+            phase: 'G5d',
+            productionAcceptance: false,
+            release: {
+              sourceSha: process.env.SOURCE_SHA,
+              releaseVersion: process.env.RELEASE_VERSION,
+              rcFreezeEvidenceRef: process.env.RC_FREEZE_EVIDENCE_REF,
+              artifactRegistryPromotionEvidenceRef: process.env.ARTIFACT_REGISTRY_PROMOTION_EVIDENCE_REF,
+            },
+            topology: {
+              provider: 'gcp',
+              workload: 'cloud-run-admin',
+              region: 'me-central2',
+              adminServiceResourceHash: identity.service,
+              publicRoutePath: '/login',
+              externalOriginEvidenceRef: `${runRef}#admin-edge`,
+            },
+            deployment: {
+              imageDigest: process.env.IMAGE_DIGEST,
+              cloudRunRevisionEvidenceRef: identity.revision,
+              deploymentEvidenceRef: runRef,
+            },
+            runtime: {
+              releaseVersion: process.env.RELEASE_VERSION,
+              releaseSha: process.env.SOURCE_SHA,
+              artifactDigest: process.env.IMAGE_DIGEST,
+              routeSmokeEvidenceRef: `${runRef}#admin-login`,
+            },
+            controls: {
+              rcFrozen: true,
+              artifactRegistryPromotionVerified: true,
+              explicitAdminCloudRunTopology: true,
+              exactDigestDeployment: true,
+              noRebuild: true,
+              keylessDeploymentIdentity: true,
+              runtimeServiceAccountVerified: true,
+              serviceReconciled: true,
+              terminalConditionSucceeded: true,
+              loadBalancerOnlyIngress: true,
+              defaultRunAppUriDisabled: true,
+              externalHttpsRouteVerified: true,
+              runtimeSourceIdentityVerified: true,
+              compatibilityBypassUsed: false,
+              productionDeploymentEvidence: true,
+            },
+          };
+          writeFileSync('gcp-admin-cloud-run-deployment-evidence/live-evidence.json', `${JSON.stringify(evidence, null, 2)}\n`, { mode: 0o600 });
+          NODE
+          rm -f gcp-admin-cloud-run-deployment-evidence/identity-hashes.txt
+          sha256sum gcp-admin-cloud-run-deployment-evidence/live-evidence.json > gcp-admin-cloud-run-deployment-evidence/SHA256SUMS
+          sha256sum --check --strict gcp-admin-cloud-run-deployment-evidence/SHA256SUMS
+
+      - name: Upload sanitized G5d Admin deployment evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: carepoint-gcp-admin-cloud-run-deployment-${{ inputs.source_sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: gcp-admin-cloud-run-deployment-evidence
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Publish sanitized Admin deployment summary
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          RELEASE_VERSION: ${{ inputs.release_version }}
+          IMAGE_DIGEST: ${{ inputs.admin_image_digest }}
+        run: |
+          {
+            echo "### GCP G5d immutable Admin Cloud Run deployment"
+            echo "- Source SHA: \`$SOURCE_SHA\`"
+            echo "- Release version: \`$RELEASE_VERSION\`"
+            echo "- Admin digest: \`$IMAGE_DIGEST\`"
+            echo "- Region: \`me-central2\`"
+            echo "- Explicit Admin Cloud Run topology: \`true\`"
+            echo "- Exact digest deployment: \`true\`"
+            echo "- External Admin /login smoke: \`verified\`"
+            echo "- Production deployment evidence: \`true\`"
+            echo "- Production acceptance: \`false\`"
+          } >> "$GITHUB_STEP_SUMMARY"

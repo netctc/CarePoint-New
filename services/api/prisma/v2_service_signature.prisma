@@ -1,0 +1,28 @@
+model ServiceSignature {
+  id                    String   @id @default(uuid())
+  idempotencyKey        String   @unique
+  requestDigest         String
+  patientId             String
+  providerId            String
+  appointmentId         String
+  completionEventId     String
+  formResponseId        String
+  formResponseSequence  Int
+  signerType            String
+  confirmationMethod    String
+  serviceSummaryDigest  String
+  appointmentDigest     String
+  algorithm             String
+  keyId                 String
+  wrappedKey            String
+  iv                     String
+  ciphertext             String
+  confirmedAt            DateTime
+  createdAt              DateTime @default(now())
+
+  @@index([appointmentId, createdAt])
+  @@index([completionEventId])
+  @@index([formResponseId])
+  @@index([patientId, createdAt])
+  @@index([providerId, patientId, createdAt])
+}

@@ -1,0 +1,53 @@
+name: Mobile Release Evidence Contract
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  CAREPOINT_MOBILE_RELEASE_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  contract:
+    name: R5 signed mobile release evidence contract
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out exact candidate SHA
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          ref: ${{ env.CAREPOINT_MOBILE_RELEASE_SOURCE_SHA }}
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "24"
+
+      - name: Verify exact checkout identity
+        run: test "$(git rev-parse HEAD)" = "$CAREPOINT_MOBILE_RELEASE_SOURCE_SHA"
+
+      - name: Self-test fail-closed mobile release evidence contract
+        run: node .ci/release-mobile-evidence-contract.mjs --self-test
+
+      - name: Verify non-approved mobile release evidence template
+        run: node .ci/release-mobile-evidence-contract.mjs --check-template ops/release-1/mobile-release-evidence.example.json
+
+      - name: Capture sanitized mobile release contract evidence
+        run: |
+          mkdir -p mobile-release-contract-evidence
+          node .ci/release-mobile-evidence-contract.mjs --fingerprint \
+            ops/release-1/mobile-release-evidence.example.json \
+            mobile-release-contract-evidence/contract-fingerprint.json
+          printf 'sourceSha=%s\ncontract=carepoint.release-mobile-evidence/v1\nproductionSigningPerformed=false\nphysicalDeviceAcceptancePerformed=false\nproductionReleaseEvidence=false\n' \
+            "$CAREPOINT_MOBILE_RELEASE_SOURCE_SHA" > mobile-release-contract-evidence/metadata.txt
+
+      - name: Upload mobile release contract evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: carepoint-mobile-release-contract-${{ env.CAREPOINT_MOBILE_RELEASE_SOURCE_SHA }}
+          path: mobile-release-contract-evidence
+          if-no-files-found: error

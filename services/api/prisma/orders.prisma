@@ -1,0 +1,72 @@
+enum ClinicalOrderType {
+  PRESCRIPTION
+  LABORATORY
+}
+
+enum ClinicalOrderStatus {
+  SIGNED
+  CANCELLED
+  FULFILLED
+}
+
+enum LaboratoryResultStatus {
+  ENTERED
+  VALIDATED
+  RELEASED
+}
+
+model ClinicalOrder {
+  id                 String              @id @default(uuid())
+  idempotencyKey     String?             @unique
+  type               ClinicalOrderType
+  status             ClinicalOrderStatus @default(SIGNED)
+  patientId          String
+  providerId         String
+  encounterRef       String
+  algorithm          String
+  keyId              String
+  wrappedKey         String
+  iv                 String
+  ciphertext         String
+  payloadDigest      String
+  signatureAlgorithm String
+  signatureKeyId     String
+  signature          String
+  signedAt           DateTime
+  cancelledAt        DateTime?
+  completedAt        DateTime?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  labResult          LaboratoryResult?
+
+  @@index([patientId, createdAt])
+  @@index([providerId, createdAt])
+  @@index([encounterRef, type, status])
+}
+
+model LaboratoryResult {
+  id                      String                 @id @default(uuid())
+  orderId                 String                 @unique
+  status                  LaboratoryResultStatus @default(ENTERED)
+  enteredByProviderId     String
+  algorithm               String
+  keyId                   String
+  wrappedKey              String
+  iv                      String
+  ciphertext              String
+  payloadDigest           String
+  validationDigest        String?
+  validationAlgorithm     String?
+  validationKeyId         String?
+  validationSignature     String?
+  validatedByProviderId   String?
+  validatedAt             DateTime?
+  releasedByProviderId    String?
+  releasedAt              DateTime?
+  createdAt               DateTime               @default(now())
+  updatedAt               DateTime               @updatedAt
+  order                   ClinicalOrder          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@index([enteredByProviderId, createdAt])
+}

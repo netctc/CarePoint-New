@@ -1,0 +1,105 @@
+{
+  "schema": "carepoint.release-market-readiness-evidence/v1",
+  "approved": false,
+  "overallStatus": "BLOCKED",
+  "sensitiveDataIncluded": false,
+  "release": {
+    "sourceSha": "0000000000000000000000000000000000000000",
+    "releaseVersion": "TO-BE-SET-FROM-EXACT-RC",
+    "rcEvidenceDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "rcEvidenceRef": "restricted-evidence:TO-BE-SET"
+  },
+  "environment": {
+    "id": "TO-BE-SET",
+    "classification": "production-equivalent"
+  },
+  "dependencies": [
+    { "id": "R3", "status": "BLOCKED", "evidenceRef": "release-gate:R3-TO-BE-SET" },
+    { "id": "R4", "status": "BLOCKED", "evidenceRef": "release-gate:R4-TO-BE-SET" },
+    { "id": "R5", "status": "BLOCKED", "evidenceRef": "release-gate:R5-TO-BE-SET" },
+    { "id": "R6", "status": "BLOCKED", "evidenceRef": "release-gate:R6-TO-BE-SET" },
+    { "id": "R7", "status": "BLOCKED", "evidenceRef": "release-gate:R7-TO-BE-SET" },
+    { "id": "R8", "status": "BLOCKED", "evidenceRef": "release-gate:R8-TO-BE-SET" }
+  ],
+  "scope": {
+    "jurisdiction": "KSA",
+    "launchEntityApprovalRef": "approval:TO-BE-SET",
+    "activationDecisionRef": "release-scope:TO-BE-SET",
+    "telemedicineEnabled": false,
+    "emergencyAmbulanceEnabled": false,
+    "paymentsEnabled": false,
+    "insuranceClaimsEnabled": false,
+    "fhirSmartEnabled": false,
+    "communicationsEnabled": false,
+    "interoperabilityObligationDecisionRef": "decision:TO-BE-SET",
+    "providerPolicyVersionRef": "policy:TO-BE-SET",
+    "privacyPolicyVersionRef": "policy:TO-BE-SET"
+  },
+  "telemedicine": {
+    "decision": "DISABLED",
+    "decisionRef": "decision:TO-BE-SET",
+    "recordingEnabled": false,
+    "recordingDisabledEvidenceRef": "evidence:TO-BE-SET"
+  },
+  "emergencyAmbulance": {
+    "decision": "DISABLED",
+    "decisionRef": "decision:TO-BE-SET",
+    "routesDisabledEvidenceRef": "evidence:TO-BE-SET"
+  },
+  "controls": [
+    { "id": "R9-PRI-01", "applicability": "APPLICABLE", "status": "BLOCKED" },
+    { "id": "R9-PRI-02", "applicability": "APPLICABLE", "status": "BLOCKED" },
+    { "id": "R9-PRI-03", "applicability": "APPLICABLE", "status": "BLOCKED" },
+    { "id": "R9-PRI-04", "applicability": "APPLICABLE", "status": "BLOCKED" },
+    { "id": "R9-PRI-05", "applicability": "APPLICABLE", "status": "BLOCKED" },
+    { "id": "R9-PRI-06", "applicability": "APPLICABLE", "status": "BLOCKED" },
+    { "id": "R9-PRI-07", "applicability": "APPLICABLE", "status": "BLOCKED" },
+
+    { "id": "R9-CLN-01", "applicability": "APPLICABLE", "status": "BLOCKED" },
+    { "id": "R9-CLN-02", "applicability": "APPLICABLE", "status": "BLOCKED" },
+    { "id": "R9-CLN-03", "applicability": "APPLICABLE", "status": "BLOCKED" },
+    { "id": "R9-CLN-04", "applicability": "APPLICABLE", "status": "BLOCKED" },
+    { "id": "R9-CLN-05", "applicability": "APPLICABLE", "status": "BLOCKED" },
+    { "id": "R9-CLN-06", "applicability": "APPLICABLE", "status": "BLOCKED" },
+
+    { "id": "R9-TEL-01", "applicability": "NOT_APPLICABLE", "status": "NOT_APPLICABLE" },
+    { "id": "R9-TEL-02", "applicability": "NOT_APPLICABLE", "status": "NOT_APPLICABLE" },
+    { "id": "R9-TEL-03", "applicability": "NOT_APPLICABLE", "status": "NOT_APPLICABLE" },
+    { "id": "R9-TEL-04", "applicability": "NOT_APPLICABLE", "status": "NOT_APPLICABLE" },
+    { "id": "R9-TEL-05", "applicability": "NOT_APPLICABLE", "status": "NOT_APPLICABLE" },
+    { "id": "R9-TEL-06", "applicability": "NOT_APPLICABLE", "status": "NOT_APPLICABLE" },
+
+    { "id": "R9-EMS-01", "applicability": "APPLICABLE", "status": "BLOCKED" },
+    { "id": "R9-EMS-02", "applicability": "APPLICABLE", "status": "BLOCKED" },
+    { "id": "R9-EMS-03", "applicability": "NOT_APPLICABLE", "status": "NOT_APPLICABLE" },
+    { "id": "R9-EMS-04", "applicability": "NOT_APPLICABLE", "status": "NOT_APPLICABLE" },
+    { "id": "R9-EMS-05", "applicability": "NOT_APPLICABLE", "status": "NOT_APPLICABLE" },
+    { "id": "R9-EMS-06", "applicability": "NOT_APPLICABLE", "status": "NOT_APPLICABLE" },
+    { "id": "R9-EMS-07", "applicability": "NOT_APPLICABLE", "status": "NOT_APPLICABLE" },
+    { "id": "R9-EMS-08", "applicability": "APPLICABLE", "status": "BLOCKED" },
+
+    { "id": "R9-MKT-01", "applicability": "NOT_APPLICABLE", "status": "NOT_APPLICABLE" },
+    { "id": "R9-MKT-02", "applicability": "APPLICABLE", "status": "BLOCKED" },
+    { "id": "R9-MKT-03", "applicability": "NOT_APPLICABLE", "status": "NOT_APPLICABLE" },
+    { "id": "R9-MKT-04", "applicability": "APPLICABLE", "status": "BLOCKED" },
+    { "id": "R9-MKT-05", "applicability": "APPLICABLE", "status": "BLOCKED" },
+    { "id": "R9-MKT-06", "applicability": "APPLICABLE", "status": "BLOCKED" }
+  ],
+  "blockingIssues": [
+    { "id": "#92", "status": "BLOCKED", "evidenceRef": "issue:92" },
+    { "id": "#93", "status": "BLOCKED", "evidenceRef": "issue:93" },
+    { "id": "#94", "status": "BLOCKED", "evidenceRef": "issue:94" }
+  ],
+  "waivers": [],
+  "approvals": [
+    { "role": "Legal/Regulatory", "decision": "PENDING" },
+    { "role": "Privacy/Compliance", "decision": "PENDING" },
+    { "role": "Clinical Safety", "decision": "PENDING" },
+    { "role": "Operations", "decision": "PENDING" },
+    { "role": "Provider Governance", "decision": "PENDING" },
+    { "role": "Product/Market", "decision": "PENDING" },
+    { "role": "Release Authority", "decision": "PENDING" }
+  ],
+  "finalDecisionRef": "decision:TO-BE-SET",
+  "acceptedAt": null
+}

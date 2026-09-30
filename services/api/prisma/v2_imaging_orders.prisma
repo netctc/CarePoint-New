@@ -1,0 +1,26 @@
+model ImagingOrder {
+  id                 String   @id @default(uuid())
+  idempotencyKey     String   @unique
+  patientId          String
+  providerId         String
+  appointmentId      String?
+  status             String   @default("ORDERED")
+  version            Int      @default(1)
+  algorithm          String
+  keyId              String
+  wrappedKey         String
+  iv                 String
+  ciphertext         String
+  payloadDigest      String
+  signatureAlgorithm String
+  signatureKeyId     String
+  signature          String
+  signedAt           DateTime
+  cancelledAt        DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([patientId, createdAt])
+  @@index([providerId, status, createdAt])
+  @@index([appointmentId])
+}

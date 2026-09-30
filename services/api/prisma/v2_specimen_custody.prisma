@@ -1,0 +1,40 @@
+model Specimen {
+  id                    String                 @id @default(uuid())
+  specimenIdentifier    String                 @unique
+  barcode               String                 @unique
+  orderId               String
+  patientId             String
+  collectedByProviderId String
+  specimenTypeCode      String
+  conditionCode         String
+  collectionLocation    String?
+  collectedAt           DateTime
+  status                String                 @default("COLLECTED")
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  custodyEvents         SpecimenCustodyEvent[]
+
+  @@index([orderId, collectedAt])
+  @@index([patientId, collectedAt])
+  @@index([collectedByProviderId, collectedAt])
+}
+
+model SpecimenCustodyEvent {
+  id              String   @id @default(uuid())
+  specimenId      String
+  sequence        Int
+  eventType       String
+  actorProviderId String
+  receiverRef     String?
+  occurredAt      DateTime
+  location        String?
+  conditionCode   String
+  previousHash    String?
+  eventHash       String
+  createdAt       DateTime @default(now())
+  specimen        Specimen @relation(fields: [specimenId], references: [id], onDelete: Restrict)
+
+  @@unique([specimenId, sequence])
+  @@index([specimenId, occurredAt])
+  @@index([actorProviderId, occurredAt])
+}

@@ -1,0 +1,278 @@
+name: Integrated Test Version Bundle
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/integrated-test-version.yml"
+      - ".ci/integrated-test-version-contract.mjs"
+      - "Dockerfile"
+      - "apps/admin/**"
+      - "apps/patient-mobile/**"
+      - "apps/doctor-mobile/**"
+      - "apps/provider-mobile/**"
+      - "packages/mobile_core/**"
+      - "services/api/**"
+      - "packages/contracts/**"
+      - "packages/identity/**"
+      - "packages/security/**"
+  workflow_dispatch:
+    inputs:
+      api_base:
+        description: "HTTPS CarePoint test API base, including /api/v1"
+        required: true
+        type: string
+      artifact_label:
+        description: "Human-readable integrated test bundle label"
+        required: false
+        default: "integrated-test"
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  CAREPOINT_TEST_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  contract:
+    name: Integrated test bundle contract
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out exact candidate SHA
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          ref: ${{ env.CAREPOINT_TEST_SOURCE_SHA }}
+
+      - name: Verify exact checkout
+        run: test "$(git rev-parse HEAD)" = "$CAREPOINT_TEST_SOURCE_SHA"
+
+      - name: Validate integrated test workflow policy
+        run: |
+          node --check ops/test-version/static-server.mjs
+          node .ci/integrated-test-version-contract.mjs
+
+  bundle:
+    name: Build integrated test version
+    if: github.event_name == 'workflow_dispatch'
+    needs: contract
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    env:
+      CAREPOINT_TEST_API_BASE: ${{ inputs.api_base }}
+      CAREPOINT_TEST_ARTIFACT_LABEL: ${{ inputs.artifact_label }}
+      API_IMAGE: ghcr.io/netctc/carepoint-new-api
+      ADMIN_IMAGE: ghcr.io/netctc/carepoint-new-admin
+      PATIENT_WEB_IMAGE: ghcr.io/netctc/carepoint-new-patient-web
+      DOCTOR_WEB_IMAGE: ghcr.io/netctc/carepoint-new-doctor-web
+      PROVIDER_WEB_IMAGE: ghcr.io/netctc/carepoint-new-provider-web
+    steps:
+      - name: Check out exact candidate SHA
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          ref: ${{ env.CAREPOINT_TEST_SOURCE_SHA }}
+
+      - name: Validate exact source and public API base
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$CAREPOINT_TEST_SOURCE_SHA"
+          test -z "$(git status --porcelain)"
+          node <<'NODE'
+          const raw = process.env.CAREPOINT_TEST_API_BASE || "";
+          let url;
+          try { url = new URL(raw); } catch { throw new Error("CAREPOINT_TEST_API_BASE must be a valid URL."); }
+          if (url.protocol !== "https:") throw new Error("Integrated test API must use HTTPS.");
+          if (url.username || url.password || url.search || url.hash) {
+            throw new Error("Integrated test API base must not contain credentials, query parameters, or a fragment.");
+          }
+          if (!url.pathname.replace(/\/+$/, "").endsWith("/api/v1")) {
+            throw new Error("Integrated test API base must end with /api/v1.");
+          }
+          NODE
+
+      - name: Verify existing container supply-chain policy
+        run: |
+          node .ci/verify-container-supply-chain.mjs --self-test
+          node .ci/verify-container-supply-chain.mjs
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Authenticate to GHCR
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and publish immutable test API image
+        id: api
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          target: api
+          platforms: linux/amd64
+          push: true
+          provenance: mode=max
+          sbom: true
+          tags: ${{ env.API_IMAGE }}:test-${{ env.CAREPOINT_TEST_SOURCE_SHA }}-${{ github.run_id }}-${{ github.run_attempt }}
+          build-args: |
+            RELEASE_SHA=${{ env.CAREPOINT_TEST_SOURCE_SHA }}
+            RELEASE_VERSION=test-${{ env.CAREPOINT_TEST_SOURCE_SHA }}
+
+      - name: Build and publish immutable test Admin image
+        id: admin
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          target: admin
+          platforms: linux/amd64
+          push: true
+          provenance: mode=max
+          sbom: true
+          tags: ${{ env.ADMIN_IMAGE }}:test-${{ env.CAREPOINT_TEST_SOURCE_SHA }}-${{ github.run_id }}-${{ github.run_attempt }}
+          build-args: |
+            RELEASE_SHA=${{ env.CAREPOINT_TEST_SOURCE_SHA }}
+            RELEASE_VERSION=test-${{ env.CAREPOINT_TEST_SOURCE_SHA }}
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: "3.47.2"
+          channel: stable
+
+      - name: Build all Flutter Web test clients
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p integrated-test/web integrated-test/evidence
+          for pair in "patient-mobile:patient" "doctor-mobile:doctor" "provider-mobile:provider"; do
+            app="${pair%%:*}"
+            label="${pair##*:}"
+            pushd "apps/${app}"
+            flutter pub get
+            git diff --exit-code -- pubspec.lock
+            flutter analyze
+            flutter build web --release               --dart-define=CAREPOINT_BUILD_ENV=test               --dart-define=CAREPOINT_API_BASE="$CAREPOINT_TEST_API_BASE"               --dart-define=CAREPOINT_RELEASE_SHA="$CAREPOINT_TEST_SOURCE_SHA"
+            popd
+            mkdir -p "integrated-test/web/${label}"
+            cp -R "apps/${app}/build/web/." "integrated-test/web/${label}/"
+          done
+
+      - name: Build and publish immutable Flutter Web images
+        shell: bash
+        run: |
+          set -euo pipefail
+          for spec in             "patient:$PATIENT_WEB_IMAGE"             "doctor:$DOCTOR_WEB_IMAGE"             "provider:$PROVIDER_WEB_IMAGE"; do
+            label="${spec%%:*}"
+            image="${spec#*:}"
+            tag="$image:test-$CAREPOINT_TEST_SOURCE_SHA-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+            metadata="integrated-test/evidence/${label}-web-image.json"
+            docker buildx build               --file ops/test-version/web.Dockerfile               --build-arg "WEB_ROOT=integrated-test/web/${label}"               --build-arg "RELEASE_SHA=$CAREPOINT_TEST_SOURCE_SHA"               --platform linux/amd64               --push               --provenance=mode=max               --sbom=true               --tag "$tag"               --metadata-file "$metadata"               .
+            digest="$(node --input-type=module -e 'import {readFileSync} from "node:fs"; const m=JSON.parse(readFileSync(process.argv[1],"utf8")); process.stdout.write(m["containerimage.digest"]||"");' "$metadata")"
+            [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+            case "$label" in
+              patient) echo "PATIENT_WEB_DIGEST=$digest" >> "$GITHUB_ENV" ;;
+              doctor) echo "DOCTOR_WEB_DIGEST=$digest" >> "$GITHUB_ENV" ;;
+              provider) echo "PROVIDER_WEB_DIGEST=$digest" >> "$GITHUB_ENV" ;;
+            esac
+          done
+
+      - name: Create content-addressed integrated test manifest
+        env:
+          API_DIGEST: ${{ steps.api.outputs.digest }}
+          ADMIN_DIGEST: ${{ steps.admin.outputs.digest }}
+          PATIENT_WEB_DIGEST: ${{ env.PATIENT_WEB_DIGEST }}
+          DOCTOR_WEB_DIGEST: ${{ env.DOCTOR_WEB_DIGEST }}
+          PROVIDER_WEB_DIGEST: ${{ env.PROVIDER_WEB_DIGEST }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$API_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+          [[ "$ADMIN_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+          [[ "$PATIENT_WEB_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+          [[ "$DOCTOR_WEB_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+          [[ "$PROVIDER_WEB_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+
+          find integrated-test/web -type f -print | LC_ALL=C sort | while IFS= read -r file; do
+            sha256sum "$file"
+          done > integrated-test/evidence/web-files.sha256
+
+          node --input-type=module <<'NODE'
+          import { writeFileSync } from "node:fs";
+          const apiBase = new URL(process.env.CAREPOINT_TEST_API_BASE);
+          const manifest = {
+            schema: "carepoint.integrated-test-version/v1",
+            sourceSha: process.env.CAREPOINT_TEST_SOURCE_SHA,
+            label: process.env.CAREPOINT_TEST_ARTIFACT_LABEL || "integrated-test",
+            buildEnvironment: "test",
+            syntheticDataOnly: true,
+            productionReleaseEvidence: false,
+            api: {
+              immutableImage: process.env.API_IMAGE + "@" + process.env.API_DIGEST,
+              publicBase: process.env.CAREPOINT_TEST_API_BASE,
+              requiredInfrastructureProfile: "isolated-synthetic"
+            },
+            admin: {
+              immutableImage: process.env.ADMIN_IMAGE + "@" + process.env.ADMIN_DIGEST,
+              runtimeVariableNames: ["CAREPOINT_API_URL"],
+              embeddedSecrets: false
+            },
+            webClients: {
+              patient: {
+                artifactPath: "web/patient",
+                immutableImage: process.env.PATIENT_WEB_IMAGE + "@" + process.env.PATIENT_WEB_DIGEST
+              },
+              doctor: {
+                artifactPath: "web/doctor",
+                immutableImage: process.env.DOCTOR_WEB_IMAGE + "@" + process.env.DOCTOR_WEB_DIGEST
+              },
+              provider: {
+                artifactPath: "web/provider",
+                immutableImage: process.env.PROVIDER_WEB_IMAGE + "@" + process.env.PROVIDER_WEB_DIGEST
+              }
+            },
+            runtimeContract: "ops/test-version/runtime-contract.json",
+            apiOrigin: apiBase.origin,
+            apiPath: apiBase.pathname,
+            controls: {
+              singleSourceSha: true,
+              immutableContainerDigests: true,
+              webContentChecksums: true,
+              noEnvFiles: true,
+              noEmbeddedSecrets: true,
+              privatePilotProfileRequired: true
+            }
+          };
+          writeFileSync("integrated-test/manifest.json", JSON.stringify(manifest, null, 2) + "\n", { mode: 0o600 });
+          NODE
+
+          cp ops/test-version/runtime-contract.json integrated-test/runtime-contract.json
+          sha256sum integrated-test/manifest.json integrated-test/runtime-contract.json > integrated-test/evidence/manifest.sha256
+          sha256sum --check --strict integrated-test/evidence/manifest.sha256
+          ! find integrated-test -type f \( -name '.env' -o -name '.env.*' \) -print -quit | grep -q .
+
+      - name: Upload integrated test bundle
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: carepoint-integrated-test-${{ env.CAREPOINT_TEST_SOURCE_SHA }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: integrated-test
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Publish test bundle summary
+        shell: bash
+        run: |
+          {
+            echo "### CarePoint integrated test version"
+            echo "- Source SHA: $CAREPOINT_TEST_SOURCE_SHA"
+            echo "- OCI images: API, Admin, Patient Web, Doctor Web, Other Provider Web"
+            echo "- All five immutable GHCR digests are recorded in the manifest"
+            echo "- API base: $CAREPOINT_TEST_API_BASE"
+            echo "- Runtime profile: isolated-synthetic"
+            echo "- Production release evidence: false"
+          } >> "$GITHUB_STEP_SUMMARY"

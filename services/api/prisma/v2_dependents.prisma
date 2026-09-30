@@ -1,0 +1,54 @@
+model DependentRelation {
+  id                 String                   @id @default(uuid())
+  guardianAccountId  String
+  dependentPatientId String
+  relationshipType   String
+  status             String                   @default("PENDING_REVIEW")
+  scopes             Json
+  validFrom          DateTime                 @default(now())
+  validUntil         DateTime?
+  verifiedAt         DateTime?
+  verifiedByActorId  String?
+  revokedAt          DateTime?
+  reasonCode         String?
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+  evidence           LegalAuthorityEvidence[]
+
+  @@unique([guardianAccountId, dependentPatientId])
+  @@index([guardianAccountId, status, validUntil])
+  @@index([dependentPatientId, status, validUntil])
+}
+
+model LegalAuthorityEvidence {
+  id                String            @id @default(uuid())
+  relationId        String
+  evidenceType      String
+  referenceId       String
+  status            String            @default("PENDING")
+  issuedAt          DateTime?
+  expiresAt         DateTime?
+  reviewedAt        DateTime?
+  reviewedByActorId String?
+  reasonCode        String?
+  createdAt         DateTime          @default(now())
+  relation          DependentRelation @relation(fields: [relationId], references: [id], onDelete: Cascade)
+
+  @@index([relationId, status])
+  @@index([referenceId])
+}
+
+model PatientContextSession {
+  sessionId         String   @id
+  guardianAccountId String
+  patientId         String
+  relationId        String?
+  mode              String
+  selectedAt        DateTime @default(now())
+  expiresAt         DateTime
+  updatedAt         DateTime @updatedAt
+
+  @@index([guardianAccountId, expiresAt])
+  @@index([patientId, expiresAt])
+  @@index([relationId])
+}

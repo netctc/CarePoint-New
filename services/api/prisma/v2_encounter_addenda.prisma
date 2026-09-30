@@ -1,0 +1,22 @@
+model EncounterAddendum {
+  id                 String   @id @default(uuid())
+  encounterId        String
+  patientId          String
+  providerId         String
+  sequence           Int
+  algorithm          String
+  keyId              String
+  wrappedKey         String
+  iv                 String
+  ciphertext         String
+  payloadDigest      String
+  signatureAlgorithm String
+  signatureKeyId     String
+  signature          String
+  signedAt           DateTime
+  createdAt          DateTime @default(now())
+
+  @@unique([encounterId, sequence])
+  @@index([patientId, createdAt])
+  @@index([providerId, createdAt])
+}

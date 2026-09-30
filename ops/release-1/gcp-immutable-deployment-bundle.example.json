@@ -1,0 +1,27 @@
+{
+  "schema": "carepoint.release1-gcp-immutable-deployment-bundle-manifest/v1",
+  "phase": "G5e",
+  "productionAcceptance": false,
+  "productionDeploymentEvidence": false,
+  "bundleComplete": false,
+  "release": {
+    "sourceSha": "REPLACE_WITH_EXACT_FROZEN_RC_SHA",
+    "releaseVersion": "REPLACE_WITH_FROZEN_RC_VERSION"
+  },
+  "evidenceFiles": {
+    "g5aFreeze": "REPLACE_WITH_RESTRICTED_G5A_FREEZE_EVIDENCE_PATH",
+    "g5bPromotion": "REPLACE_WITH_RESTRICTED_G5B_PROMOTION_EVIDENCE_PATH",
+    "g5cApiDeployment": "REPLACE_WITH_RESTRICTED_G5C_API_DEPLOYMENT_EVIDENCE_PATH",
+    "g5dAdminDeployment": "REPLACE_WITH_RESTRICTED_G5D_ADMIN_DEPLOYMENT_EVIDENCE_PATH"
+  },
+  "controls": {
+    "exactRcIdentityAcrossSlices": false,
+    "apiDigestChainVerified": false,
+    "adminDigestChainVerified": false,
+    "bothWorkloadsDeployed": false,
+    "noRebuildAcrossPromotionAndDeployment": false,
+    "noCompatibilityBypass": false,
+    "runtimeIdentityBound": false,
+    "phaseComplete": false
+  }
+}
