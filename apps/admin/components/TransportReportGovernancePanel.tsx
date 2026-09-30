@@ -146,6 +146,43 @@ export function TransportReportGovernancePanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  async function exportComplianceManifest() {
+    if (!selectedRunId) return;
+    setBusy(true);
+    setMessage("");
+    try {
+      const body = await request(
+        "/api/admin/transport/report-runs/" +
+          encodeURIComponent(selectedRunId) +
+          "/compliance-manifest",
+      );
+      const blob = new Blob([JSON.stringify(body, null, 2) + "\n"], {
+        type: "application/json",
+      });
+      const objectUrl = URL.createObjectURL(blob);
+      try {
+        const anchor = document.createElement("a");
+        anchor.href = objectUrl;
+        anchor.download =
+          "carepoint-transport-compliance-manifest-" +
+          selectedRunId +
+          ".json";
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+      } finally {
+        URL.revokeObjectURL(objectUrl);
+      }
+      setMessage(
+        "Compliance manifest exported. SHA-256 integrity evidence included; cryptographic signing remains external.",
+      );
+    } catch (error) {
+      setMessage(String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function selectRun(runId: string) {
     setSelectedRunId(runId);
     setBusy(true);
@@ -162,13 +199,14 @@ export function TransportReportGovernancePanel() {
   return (
     <section style={{ ...card, marginTop: 24, border: "2px solid #334155" }}>
       <span style={{ fontSize: 12, fontWeight: 900, color: "#334155" }}>
-        PHASE 23 · GOVERNANCE EVIDENCE + HOLD/PURGE TIMELINE
+        PHASE 26 · COMPLIANCE EVIDENCE + GOVERNANCE MANIFEST
       </span>
       <h2 style={{ margin: "5px 0" }}>Report Governance Evidence</h2>
       <p>
-        Read-only lifecycle evidence from the immutable audit chain. Raw audit
-        metadata, private object keys, CSV content and patient data are not
-        returned by this view.
+        Read-only lifecycle evidence from the immutable audit chain. The JSON
+        compliance export includes a canonical SHA-256 manifest digest and audit-chain
+        evidence. Cryptographic signing is explicitly left to an approved external signer;
+        raw audit metadata, private object keys, CSV content and patient data are excluded.
       </p>
 
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "end" }}>
@@ -188,6 +226,13 @@ export function TransportReportGovernancePanel() {
         </label>
         <button className="secondary-button" disabled={busy} onClick={() => void load()}>
           {busy ? "Refreshing…" : "Refresh evidence"}
+        </button>
+        <button
+          className="secondary-button"
+          disabled={busy || !selectedRunId}
+          onClick={() => void exportComplianceManifest()}
+        >
+          Export compliance manifest
         </button>
       </div>
 

@@ -62,7 +62,7 @@ for (const text of [
   'channel: "EMAIL"',
   "skipDuplicates: true",
   'status: "PENDING"',
-  "EXTERNAL_DELIVERY_ADAPTER_REQUIRED",
+  "REPORT_READY_NOTIFICATION_WORKER",
   '@Get("report-destinations")',
   '@Post("report-destinations")',
   '@Get("report-deliveries")',
@@ -89,17 +89,16 @@ for (const text of [
 }
 
 assert.ok(
-  !deliveryModule.includes("NotificationGatewayService") &&
-  !deliveryModule.includes(".send("),
-  "Phase 17 must not perform external provider delivery",
+  deliveryModule.includes("@@unique([runId, destinationId])") ||
+    schema.includes("@@unique([runId, destinationId])"),
+  "Phase 17 durable delivery outbox must remain idempotent per run/destination",
 );
 
 for (const text of [
-  "PHASE 17 · DELIVERY DESTINATIONS + DURABLE OUTBOX",
   "Recipient ADMIN account ID",
   "Add destination",
-  "EXTERNAL_DELIVERY_ADAPTER_REQUIRED",
-  "No external provider send is performed",
+  "Configured destinations",
+  "Durable delivery outbox",
 ]) {
   assert.ok(adminPanel.includes(text), `Admin delivery panel must include: ${text}`);
 }

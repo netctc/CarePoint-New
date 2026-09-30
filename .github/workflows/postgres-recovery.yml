@@ -2,6 +2,11 @@ name: PostgreSQL Recovery
 
 on:
   pull_request:
+    branches:
+      - main
+      - v2/development
+      - entorno-v2
+      - "release/**"
   push:
     branches: [main]
   schedule:
@@ -9,6 +14,10 @@ on:
 
 permissions:
   contents: read
+
+concurrency:
+  group: postgres-recovery-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   recovery-drill:

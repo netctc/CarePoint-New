@@ -46,7 +46,10 @@ for (const text of [
   "recipientAccountId: principal.accountId",
   "downloadedAt: true",
   "downloadedByAccountId: true",
-  "artifactAvailable: Boolean(item.run.artifactSha256)",
+  "artifactAvailable: Boolean(",
+  "item.run.artifactSha256",
+  "!item.run.artifactDeletedAt",
+  'item.run.artifactIntegrityStatus !== "MISMATCH"',
   'patientIdentityIncluded: false',
   'patientLocationIncluded: false',
   'objectStorageKeyIncluded: false',
@@ -85,7 +88,6 @@ assert.ok(
 );
 
 for (const text of [
-  "PHASE 20 · RECIPIENT REPORT INBOX + DOWNLOAD RECEIPTS",
   "My Report Inbox",
   "/api/admin/transport/report-inbox",
   "NOT YET DOWNLOADED",

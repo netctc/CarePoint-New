@@ -7,6 +7,7 @@ import {
   Param,
 } from "@nestjs/common";
 import type { AuthPrincipal } from "@carepoint/identity";
+import { createHash } from "node:crypto";
 import { DatabaseAuditService } from "../../infrastructure/audit/audit.service";
 import { PrismaService } from "../../infrastructure/prisma/prisma.module";
 import {
@@ -231,6 +232,108 @@ export class TransportReportGovernanceService {
     return payload;
   }
 
+  async complianceManifest(principal: AuthPrincipal, runIdRaw: string) {
+    const evidence = await this.timeline(principal, runIdRaw);
+    const generatedAt = new Date().toISOString();
+    const manifest = {
+      schemaVersion: "carepoint.transport.governance-manifest.v1",
+      generatedAt,
+      run: evidence.run,
+      governance: evidence.governance,
+      timeline: evidence.timeline,
+      sensitiveDataPolicy: evidence.sensitiveDataPolicy,
+    };
+    const canonicalJson = this.stableJson(manifest);
+    const manifestSha256 = createHash("sha256")
+      .update(canonicalJson, "utf8")
+      .digest("hex");
+    const integrityEvents = evidence.timeline.filter(
+      (event) => event.integrityEvidenceAvailable,
+    );
+    const missingIntegrityRecords =
+      evidence.timeline.length - integrityEvents.length;
+    const firstIntegrity = integrityEvents[0] ?? null;
+    const lastIntegrity =
+      integrityEvents.length > 0
+        ? integrityEvents[integrityEvents.length - 1]
+        : null;
+
+    const result = {
+      manifest,
+      integrity: {
+        algorithm: "SHA-256",
+        canonicalization: "SORTED_JSON_KEYS_V1",
+        manifestSha256,
+        auditChain: {
+          eventCount: evidence.timeline.length,
+          integrityEventCount: integrityEvents.length,
+          missingIntegrityRecords,
+          firstSequence: firstIntegrity?.sequence ?? null,
+          lastSequence: lastIntegrity?.sequence ?? null,
+          lastEventHash: lastIntegrity?.eventHash ?? null,
+        },
+      },
+      signature: {
+        status: "EXTERNAL_SIGNING_REQUIRED",
+        cryptographicSignaturePerformed: false,
+        approvedSignerConfigured: false,
+        signingKeyReferenceIncluded: false,
+      },
+      exportPolicy: {
+        rawAuditMetadataIncluded: false,
+        objectStorageKeyIncluded: false,
+        csvContentIncluded: false,
+        patientIdentityIncluded: false,
+        patientContactIncluded: false,
+        patientLocationIncluded: false,
+      },
+    };
+
+    await this.audit.write({
+      actorId: principal.accountId,
+      action: "ADMIN_TRANSPORT_REPORT_COMPLIANCE_MANIFEST_EXPORTED",
+      objectType: "TRANSPORT_REPORT_GOVERNANCE",
+      objectId: evidence.run.id,
+      purpose: "COMPLIANCE_EVIDENCE",
+      result: "SUCCESS",
+      metadata: {
+        schemaVersion: manifest.schemaVersion,
+        manifestSha256,
+        eventCount: evidence.timeline.length,
+        missingIntegrityRecords,
+        cryptographicSignaturePerformed: false,
+        externalSigningRequired: true,
+        rawAuditMetadataIncluded: false,
+        objectStorageKeyIncluded: false,
+        patientIdentityIncluded: false,
+        patientLocationIncluded: false,
+      },
+    });
+
+    return result;
+  }
+
+  private stableJson(value: unknown): string {
+    if (value === null || typeof value !== "object") {
+      return JSON.stringify(value);
+    }
+    if (Array.isArray(value)) {
+      return "[" + value.map((item) => this.stableJson(item)).join(",") + "]";
+    }
+    const record = value as Record<string, unknown>;
+    return (
+      "{" +
+      Object.keys(record)
+        .sort()
+        .map(
+          (key) =>
+            JSON.stringify(key) + ":" + this.stableJson(record[key]),
+        )
+        .join(",") +
+      "}"
+    );
+  }
+
   private category(action: string) {
     if (action.includes("INTEGRITY")) return "INTEGRITY";
     if (action.includes("LEGAL_HOLD")) return "LEGAL_HOLD";
@@ -261,6 +364,14 @@ class TransportReportGovernanceController {
     @Param("runId") runId: string,
   ) {
     return this.service.timeline(principal, runId);
+  }
+
+  @Get("report-runs/:runId/compliance-manifest")
+  complianceManifest(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Param("runId") runId: string,
+  ) {
+    return this.service.complianceManifest(principal, runId);
   }
 }
 

@@ -2,6 +2,15 @@ name: Slice 10 FHIR
 
 on:
   pull_request:
+    branches:
+      - main
+      - v2/development
+      - entorno-v2
+      - "release/**"
+
+concurrency:
+  group: slice10-fhir-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   fhir:

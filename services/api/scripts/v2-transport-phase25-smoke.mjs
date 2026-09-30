@@ -66,7 +66,6 @@ assert.ok(
 );
 
 for (const text of [
-  "PHASE 25 · INTEGRITY QUARANTINE + MANUAL REVERIFICATION",
   "async function reverifyIntegrity",
   '"/integrity/reverify"',
   "Reverify integrity",

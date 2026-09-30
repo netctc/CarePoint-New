@@ -113,7 +113,10 @@ assert.ok(
   "Transport Providers page must surface the execution ledger",
 );
 for (const text of [
-  "PHASE 14 · DURABLE REPORT EXECUTION LEDGER",
+  "Scheduled Report Execution",
+  "Queue due",
+  "Recover stale",
+  "Lease: 5 min · Retry limit: 5",
   "/api/admin/transport/report-runs/queue-due",
   "/api/admin/transport/report-runs/recover-stale",
   "/execute",
