@@ -8,6 +8,7 @@ type Provider = {
   legalName?: string | null;
   status: string;
   family?: string | null;
+  dispatchReady?: boolean;
 };
 
 type Unit = {
@@ -83,6 +84,7 @@ const card = {
 export function TransportCompanyPanel() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [providers, setProviders] = useState<Provider[]>([]);
+  const [dispatchProviders, setDispatchProviders] = useState<Provider[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
   const [medical, setMedical] = useState<DispatchRow[]>([]);
   const [emergency, setEmergency] = useState<DispatchRow[]>([]);
@@ -90,6 +92,7 @@ export function TransportCompanyPanel() {
   const [busy, setBusy] = useState(true);
   const [working, setWorking] = useState("");
   const [message, setMessage] = useState("");
+  const [assignments, setAssignments] = useState<Record<string, { providerId: string; eta: string }>>({});
 
   const emptyCompany = {
     id: "",
@@ -152,13 +155,15 @@ export function TransportCompanyPanel() {
     setBusy(true);
     setMessage("");
     try {
-      const [companyBody, dispatchBody] = await Promise.all([
+      const [companyBody, dispatchBody, providerBody] = await Promise.all([
         request("/api/admin/transport/companies"),
         request("/api/admin/transport/dispatch"),
+        request("/api/admin/transport/providers"),
       ]);
       const nextCompanies = Array.isArray(companyBody?.items) ? companyBody.items : [];
       setCompanies(nextCompanies);
       setProviders(Array.isArray(companyBody?.catalog?.providers) ? companyBody.catalog.providers : []);
+      setDispatchProviders(Array.isArray(providerBody?.items) ? providerBody.items : []);
       setUnits(Array.isArray(companyBody?.catalog?.units) ? companyBody.catalog.units : []);
       setMedical(Array.isArray(dispatchBody?.medical) ? dispatchBody.medical : []);
       setEmergency(Array.isArray(dispatchBody?.emergency) ? dispatchBody.emergency : []);
@@ -301,6 +306,49 @@ export function TransportCompanyPanel() {
       );
       await load();
       setSelectedId(row.companyId);
+    } catch (error) {
+      setMessage(String(error));
+    } finally {
+      setWorking("");
+    }
+  }
+
+  async function assignDispatch(row: DispatchRow, kind: "medical" | "emergency") {
+    const key = kind + ":" + row.id;
+    const draft = assignments[key] ?? { providerId: "", eta: "" };
+    if (!draft.providerId) {
+      setMessage("Select a dispatch-ready Transport Provider.");
+      return;
+    }
+    const eta = draft.eta.trim() === "" ? undefined : Number(draft.eta);
+    if (eta !== undefined && (!Number.isInteger(eta) || eta < 0 || eta > 1440)) {
+      setMessage("ETA must be an integer between 0 and 1440 minutes.");
+      return;
+    }
+    setWorking("assign:" + key);
+    setMessage("");
+    try {
+      await request(
+        "/api/admin/transport/dispatch/" +
+          kind +
+          "/" +
+          encodeURIComponent(row.id) +
+          "/assign",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            providerId: draft.providerId,
+            ...(eta !== undefined ? { etaMinutes: eta } : {}),
+          }),
+        },
+      );
+      setAssignments((current) => {
+        const next = { ...current };
+        delete next[key];
+        return next;
+      });
+      await load();
+      setMessage("Transport job assigned.");
     } catch (error) {
       setMessage(String(error));
     } finally {
@@ -466,33 +514,129 @@ export function TransportCompanyPanel() {
 
       <section style={card}>
         <h3 style={{ marginTop: 0 }}>Dispatch Board</h3>
-        <p>Read-only operational board in this slice. Assignment continues to use the existing transport lifecycle and will be wired through a dedicated adapter next.</p>
+        <p>
+          Assign unallocated jobs through the existing transport lifecycle. Only compatible,
+          dispatch-ready providers are offered; backend lifecycle rules remain authoritative.
+        </p>
         <h4>Emergency ambulance</h4>
-        <DispatchTable rows={emergency} kind="Emergency" />
+        <DispatchTable
+          rows={emergency}
+          kind="emergency"
+          providers={dispatchProviders}
+          assignments={assignments}
+          setAssignments={setAssignments}
+          onAssign={assignDispatch}
+          working={working}
+        />
         <h4 style={{ marginTop: 22 }}>Scheduled medical transport</h4>
-        <DispatchTable rows={medical} kind="Scheduled" />
+        <DispatchTable
+          rows={medical}
+          kind="medical"
+          providers={dispatchProviders}
+          assignments={assignments}
+          setAssignments={setAssignments}
+          onAssign={assignDispatch}
+          working={working}
+        />
       </section>
     </section>
   );
 }
 
-function DispatchTable({ rows, kind }: { rows: DispatchRow[]; kind: string }) {
-  if (rows.length === 0) return <p>No active {kind.toLowerCase()} jobs.</p>;
+function DispatchTable({
+  rows,
+  kind,
+  providers,
+  assignments,
+  setAssignments,
+  onAssign,
+  working,
+}: {
+  rows: DispatchRow[];
+  kind: "medical" | "emergency";
+  providers: Provider[];
+  assignments: Record<string, { providerId: string; eta: string }>;
+  setAssignments: React.Dispatch<React.SetStateAction<Record<string, { providerId: string; eta: string }>>>;
+  onAssign: (row: DispatchRow, kind: "medical" | "emergency") => Promise<void>;
+  working: string;
+}) {
+  if (rows.length === 0) return <p>No active {kind} jobs.</p>;
+
   return (
     <div style={{ overflowX: "auto" }}>
       <table style={{ width: "100%", borderCollapse: "collapse" }}>
         <thead><tr><th align="left">Job</th><th align="left">Status</th><th align="left">Timing</th><th align="left">Location</th><th align="left">Assignment</th><th align="left">ETA</th></tr></thead>
         <tbody>
-          {rows.map((row) => (
-            <tr key={row.id} style={{ borderTop: "1px solid #e2e8f0" }}>
-              <td style={{ padding: "10px 8px" }}><strong>{kind}</strong><br /><small>{row.id}</small></td>
-              <td style={{ padding: "10px 8px" }}>{row.status}{row.mode ? <><br /><small>{row.mode}</small></> : null}</td>
-              <td style={{ padding: "10px 8px" }}>{displayDate(row.scheduledFor ?? row.requestedAt)}</td>
-              <td style={{ padding: "10px 8px" }}>{row.pickupAddress ?? "Coordinates / address pending"}{row.destinationAddress ? <><br /><small>→ {row.destinationAddress}</small></> : null}</td>
-              <td style={{ padding: "10px 8px" }}>{row.company?.displayName ?? "Unassigned"}{row.provider?.displayName ? <><br /><small>{row.provider.displayName}</small></> : null}</td>
-              <td style={{ padding: "10px 8px" }}>{row.etaMinutes == null ? "—" : row.etaMinutes + " min"}</td>
-            </tr>
-          ))}
+          {rows.map((row) => {
+            const key = kind + ":" + row.id;
+            const draft = assignments[key] ?? { providerId: "", eta: "" };
+            const expectedFamily = kind === "emergency"
+              ? "EMERGENCY_AMBULANCE"
+              : row.mode === "AIR"
+                ? "MEDICAL_TRANSPORT_AIR"
+                : "MEDICAL_TRANSPORT_GROUND";
+            const eligible = providers.filter(
+              (provider) => provider.dispatchReady === true && provider.family === expectedFamily,
+            );
+            const canAssign = !row.assignedProviderId &&
+              (kind === "medical" ? row.status === "REQUESTED" : ["REQUESTED", "DISPATCHING"].includes(row.status));
+
+            return (
+              <tr key={row.id} style={{ borderTop: "1px solid #e2e8f0" }}>
+                <td style={{ padding: "10px 8px" }}><strong>{kind === "emergency" ? "Emergency" : "Scheduled"}</strong><br /><small>{row.id}</small></td>
+                <td style={{ padding: "10px 8px" }}>{row.status}{row.mode ? <><br /><small>{row.mode}</small></> : null}</td>
+                <td style={{ padding: "10px 8px" }}>{displayDate(row.scheduledFor ?? row.requestedAt)}</td>
+                <td style={{ padding: "10px 8px" }}>{row.pickupAddress ?? "Coordinates / address pending"}{row.destinationAddress ? <><br /><small>→ {row.destinationAddress}</small></> : null}</td>
+                <td style={{ padding: "10px 8px", minWidth: 250 }}>
+                  {row.assignedProviderId ? (
+                    <>{row.company?.displayName ?? "No company"}{row.provider?.displayName ? <><br /><small>{row.provider.displayName}</small></> : null}</>
+                  ) : canAssign ? (
+                    <div style={{ display: "grid", gap: 6 }}>
+                      <select
+                        value={draft.providerId}
+                        onChange={(event) => setAssignments((current) => ({
+                          ...current,
+                          [key]: { ...draft, providerId: event.target.value },
+                        }))}
+                      >
+                        <option value="">Select provider…</option>
+                        {eligible.map((provider) => (
+                          <option key={provider.id} value={provider.id}>{provider.displayName}</option>
+                        ))}
+                      </select>
+                      {eligible.length === 0 && <small>No dispatch-ready provider for {expectedFamily}.</small>}
+                    </div>
+                  ) : "Unassigned"}
+                </td>
+                <td style={{ padding: "10px 8px", minWidth: 150 }}>
+                  {row.assignedProviderId ? (
+                    row.etaMinutes == null ? "—" : row.etaMinutes + " min"
+                  ) : canAssign ? (
+                    <div style={{ display: "grid", gap: 6 }}>
+                      <input
+                        type="number"
+                        min={0}
+                        max={1440}
+                        placeholder="ETA min"
+                        value={draft.eta}
+                        onChange={(event) => setAssignments((current) => ({
+                          ...current,
+                          [key]: { ...draft, eta: event.target.value },
+                        }))}
+                      />
+                      <button
+                        className="primary-button"
+                        disabled={!draft.providerId || working === "assign:" + key}
+                        onClick={() => void onAssign(row, kind)}
+                      >
+                        {working === "assign:" + key ? "Assigning…" : "Assign"}
+                      </button>
+                    </div>
+                  ) : "—"}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
