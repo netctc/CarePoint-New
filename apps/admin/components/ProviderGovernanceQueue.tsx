@@ -107,8 +107,10 @@ const COPY: Record<Locale, Copy> = {
   }
 };
 
-export function ProviderGovernanceQueue({ kind }: { kind: ProviderKind }) {
+export function ProviderGovernanceQueue({ kind, includeFamilies = [], excludeFamilies = [] }: { kind: ProviderKind; includeFamilies?: readonly string[]; excludeFamilies?: readonly string[] }) {
   const { locale } = useI18n();
+  const includeFamiliesParam = includeFamilies.join(",");
+  const excludeFamiliesParam = excludeFamilies.join(",");
   const copy = COPY[locale];
   const [rows, setRows] = useState<Onboarding[]>([]);
   const [loading, setLoading] = useState(true);
@@ -132,7 +134,15 @@ export function ProviderGovernanceQueue({ kind }: { kind: ProviderKind }) {
       }
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || !Array.isArray(payload)) throw new Error(messageOf(payload, copy.actionFailed));
-      const next=(payload as Onboarding[]).filter((item) => item.kind === kind);
+      const includeSet = new Set(includeFamiliesParam.split(",").filter(Boolean));
+      const excludeSet = new Set(excludeFamiliesParam.split(",").filter(Boolean));
+      const next=(payload as Onboarding[]).filter((item) => {
+        if (item.kind !== kind) return false;
+        const family = item.providerCategory?.family ?? "";
+        if (includeSet.size > 0 && !includeSet.has(family)) return false;
+        if (excludeSet.has(family)) return false;
+        return true;
+      });
       setRows(next);
       setPage((value)=>clampPage(value,next.length,pageSize));
     } catch (cause) {
@@ -142,7 +152,7 @@ export function ProviderGovernanceQueue({ kind }: { kind: ProviderKind }) {
     }
   }
 
-  useEffect(() => { void load(); }, [kind]);
+  useEffect(() => { void load(); }, [kind, includeFamiliesParam, excludeFamiliesParam]);
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
