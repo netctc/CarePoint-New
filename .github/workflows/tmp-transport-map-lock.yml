@@ -1,0 +1,42 @@
+name: Temporary Transport Map Lock
+
+on:
+  pull_request:
+    paths:
+      - "apps/patient-mobile/pubspec.yaml"
+      - ".github/workflows/tmp-transport-map-lock.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  generate-patient-lock:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out candidate
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: "3.47.2"
+          channel: stable
+
+      - name: Resolve shared dependency lock
+        working-directory: packages/mobile_core
+        run: flutter pub get
+
+      - name: Resolve Patient dependency lock
+        working-directory: apps/patient-mobile
+        run: flutter pub get
+
+      - name: Show Patient lock diff
+        run: git diff -- apps/patient-mobile/pubspec.lock
+
+      - name: Upload generated Patient lock
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: transport-map-patient-pubspec-lock
+          path: apps/patient-mobile/pubspec.lock
+          if-no-files-found: error
+          retention-days: 1
