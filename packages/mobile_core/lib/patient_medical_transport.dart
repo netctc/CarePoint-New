@@ -170,16 +170,6 @@ class _PatientMedicalTransportStatusPageState extends State<PatientMedicalTransp
                               label: '${transportText(widget.locale, 'status')}: ${patientMedicalTransportStatusText(widget.locale, status)}',
                               child: Chip(label: Text(patientMedicalTransportStatusText(widget.locale, status), style: const TextStyle(fontWeight: FontWeight.w800))),
                             )),
-                             const SizedBox(height: 14),
-                             _tripProgress(status),
-                             const SizedBox(height: 10),
-                             Center(
-                               child: Text(
-                                 patientMedicalTransportText(widget.locale, 'milestoneTrackingOnly'),
-                                 textAlign: TextAlign.center,
-                                 style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
-                               ),
-                             ),
                              const SizedBox(height: 16),
                             _detail(transportText(widget.locale, 'scheduledFor'), patientMedicalTransportDateTime(request['scheduledFor'])),
                             _detail(transportText(widget.locale, 'mode'), patientMedicalTransportModeText(widget.locale, request['mode'])),
@@ -236,6 +226,16 @@ class _PatientMedicalTransportStatusPageState extends State<PatientMedicalTransp
                                  );
                                }),
                              ],
+                             const SizedBox(height: 20),
+                             _tripProgress(status),
+                             const SizedBox(height: 8),
+                             Center(
+                               child: Text(
+                                 patientMedicalTransportText(widget.locale, 'milestoneTrackingOnly'),
+                                 textAlign: TextAlign.center,
+                                 style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                               ),
+                             ),
                           ],
                         ),
                       ),
