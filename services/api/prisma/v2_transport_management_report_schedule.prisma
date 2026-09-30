@@ -18,6 +18,7 @@ model TransportManagementReportSchedule {
   updatedByAccountId String
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
+  runs               TransportManagementReportRun[]
 
   @@index([enabled, nextRunAt])
   @@index([cadence, enabled])
