@@ -461,7 +461,8 @@ export class TransportReportExecutionService {
       existing.status !== "SUCCEEDED" ||
       !existing.artifactObjectKey ||
       !existing.artifactSha256 ||
-      !existing.artifactStoredAt
+      !existing.artifactStoredAt ||
+      existing.artifactIntegrityStatus === "MISMATCH"
     ) {
       throw new BadRequestException(
         "Transport report artifact is not ready for delivery handoff.",
