@@ -1,0 +1,363 @@
+{
+  "schemaVersion": 1,
+  "scope": "transport-end-to-end-phases-5-27",
+  "productionAcceptance": false,
+  "fullMatrixStillRequired": true,
+  "liveUatEvidenceStillRequired": true,
+  "scenarios": [
+    {
+      "id": "T28-01-patient-request",
+      "order": 1,
+      "actor": "PATIENT",
+      "permission": "PATIENT_TRANSPORT_REQUEST",
+      "dependsOn": [],
+      "sources": [
+        {
+          "path": "services/api/src/modules/transport/transport.module.ts",
+          "mustContain": [
+            "@RequirePermissions(\"PATIENT_TRANSPORT_REQUEST\")",
+            "@Controller(\"medical-transport\")",
+            "@Post()",
+            "patientId_clientRequestId",
+            "toStatus: \"REQUESTED\"",
+            "action: \"MEDICAL_TRANSPORT_REQUESTED\"",
+            "Pickup requires an address or a complete latitude/longitude pair.",
+            "Destination requires an address or a complete latitude/longitude pair."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "T28-02-location-route-preview",
+      "order": 2,
+      "actor": "PATIENT",
+      "permission": "PATIENT_TRANSPORT_REQUEST",
+      "dependsOn": [
+        "T28-01-patient-request"
+      ],
+      "sources": [
+        {
+          "path": "services/api/src/modules/transport/transport-saved-locations.module.ts",
+          "mustContain": [
+            "@Controller(\"transport/location\")",
+            "@Get(\"saved\")",
+            "@Post(\"saved\")",
+            "@Post(\"route-preview\")",
+            "action: \"TRANSPORT_SAVED_LOCATION_CREATED\"",
+            "action: \"TRANSPORT_ROUTE_PREVIEW\""
+          ]
+        }
+      ]
+    },
+    {
+      "id": "T28-03-operations-dispatch",
+      "order": 3,
+      "actor": "ADMIN",
+      "permission": "TRANSPORT_OPERATE",
+      "dependsOn": [
+        "T28-01-patient-request"
+      ],
+      "sources": [
+        {
+          "path": "services/api/src/modules/transport/transport.module.ts",
+          "mustContain": [
+            "@RequirePermissions(\"TRANSPORT_OPERATE\")",
+            "@Controller(\"operations/medical-transport\")",
+            "@Post(\":id/assign\")",
+            "current.status !== \"REQUESTED\"",
+            "assignedProviderId: null",
+            "status: \"ASSIGNED\"",
+            "action: \"MEDICAL_TRANSPORT_ASSIGNED\""
+          ]
+        }
+      ]
+    },
+    {
+      "id": "T28-04-provider-resources-lifecycle",
+      "order": 4,
+      "actor": "PROVIDER",
+      "permission": "TRANSPORT_RESPOND",
+      "dependsOn": [
+        "T28-03-operations-dispatch"
+      ],
+      "sources": [
+        {
+          "path": "services/api/src/modules/transport/transport-resources.module.ts",
+          "mustContain": [
+            "@RequirePermissions(\"TRANSPORT_RESPOND\")",
+            "@Controller(\"provider/medical-transport\")",
+            "@Patch(\":id/resources\")",
+            "action: \"MEDICAL_TRANSPORT_RESOURCES_CHANGED\""
+          ]
+        },
+        {
+          "path": "services/api/src/modules/transport/transport.module.ts",
+          "mustContain": [
+            "ASSIGNED: \"EN_ROUTE\"",
+            "EN_ROUTE: \"ARRIVED\"",
+            "ARRIVED: \"TRANSPORTING\"",
+            "TRANSPORTING: \"COMPLETED\"",
+            "@Post(\":id/accept\")",
+            "@Post(\":id/status\")",
+            "RESPONDER_NEXT[current.status] !== target"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "T28-05-telemetry-milestones",
+      "order": 5,
+      "actor": "PROVIDER",
+      "permission": "TRANSPORT_RESPOND",
+      "dependsOn": [
+        "T28-04-provider-resources-lifecycle"
+      ],
+      "sources": [
+        {
+          "path": "services/api/src/modules/transport/transport-telemetry.module.ts",
+          "mustContain": [
+            "@Post(\":requestId/tracking/start\")",
+            "@Post(\":requestId/tracking/heartbeat\")",
+            "@Post(\":requestId/tracking/stop\")",
+            "action: \"MEDICAL_TRANSPORT_TRACKING_STARTED\"",
+            "action: \"MEDICAL_TRANSPORT_TELEMETRY_RECEIVED\"",
+            "action: \"MEDICAL_TRANSPORT_TRACKING_STOPPED\"",
+            "coordinateValuesExcludedFromAudit: true"
+          ]
+        },
+        {
+          "path": "services/api/src/modules/transport/transport-trip-milestones.module.ts",
+          "mustContain": [
+            "action: \"MEDICAL_TRANSPORT_MILESTONE_DETECTED\"",
+            "@Get(\":requestId/timeline\")",
+            "automaticLifecycleMutation: false"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "T28-06-smart-dispatch-live-ops",
+      "order": 6,
+      "actor": "ADMIN",
+      "permission": "TRANSPORT_OPERATE",
+      "dependsOn": [
+        "T28-03-operations-dispatch",
+        "T28-05-telemetry-milestones"
+      ],
+      "sources": [
+        {
+          "path": "services/api/src/modules/transport/transport-smart-dispatch.module.ts",
+          "mustContain": [
+            "@Controller(\"admin/transport/smart-dispatch\")",
+            "@Post(\"evaluate\")",
+            "@Post(\":requestId/escalations/:code/acknowledge\")",
+            "@Post(\":requestId/escalations/:code/resolve\")",
+            "action: \"ADMIN_TRANSPORT_SMART_DISPATCH_EVALUATED\""
+          ]
+        },
+        {
+          "path": "services/api/src/modules/transport/transport-live-operations.module.ts",
+          "mustContain": [
+            "@Controller(\"admin/transport/live-operations\")",
+            "@Post(\":requestId/notify-provider\")",
+            "action: \"ADMIN_TRANSPORT_PROVIDER_ATTENTION_SENT\""
+          ]
+        }
+      ]
+    },
+    {
+      "id": "T28-07-management-analytics",
+      "order": 7,
+      "actor": "ADMIN",
+      "permission": "TRANSPORT_OPERATE",
+      "dependsOn": [
+        "T28-06-smart-dispatch-live-ops"
+      ],
+      "sources": [
+        {
+          "path": "services/api/src/modules/transport/transport-performance-analytics.module.ts",
+          "mustContain": [
+            "@Controller(\"admin/transport/performance-analytics\")",
+            "action: \"ADMIN_TRANSPORT_PERFORMANCE_ANALYTICS_READ\""
+          ]
+        },
+        {
+          "path": "services/api/src/modules/transport/transport-command-center.module.ts",
+          "mustContain": [
+            "@Get(\"command-center\")",
+            "@Get(\"management-report\")",
+            "action: \"ADMIN_TRANSPORT_COMMAND_CENTER_READ\"",
+            "action: \"ADMIN_TRANSPORT_MANAGEMENT_REPORT_EXPORTED\""
+          ]
+        }
+      ]
+    },
+    {
+      "id": "T28-08-report-schedule-execution",
+      "order": 8,
+      "actor": "ADMIN_SYSTEM",
+      "permission": "TRANSPORT_OPERATE",
+      "dependsOn": [
+        "T28-07-management-analytics"
+      ],
+      "sources": [
+        {
+          "path": "services/api/src/modules/transport/transport-executive-kpi.module.ts",
+          "mustContain": [
+            "@Get(\"report-schedules\")",
+            "@Post(\"report-schedules\")",
+            "@Patch(\"report-schedules/:scheduleId\")",
+            "action: \"ADMIN_TRANSPORT_REPORT_SCHEDULE_CREATED\""
+          ]
+        },
+        {
+          "path": "services/api/src/modules/transport/transport-report-execution.module.ts",
+          "mustContain": [
+            "@Post(\"report-runs/queue-due\")",
+            "@Post(\"report-runs/:runId/execute\")",
+            "@Post(\"report-runs/:runId/retry\")",
+            "action: \"ADMIN_TRANSPORT_REPORT_RUN_SUCCEEDED\"",
+            "action: \"SYSTEM_TRANSPORT_REPORT_WORKER_CYCLE\"",
+            "workerCycle(principal"
+          ]
+        },
+        {
+          "path": "services/api/src/scripts/run-transport-report-scheduler.ts",
+          "mustContain": [
+            "createApplicationContext(AppModule",
+            "worker.workerCycle(principal, 25)",
+            "deliveryWorker.runOnce(25)",
+            "artifactDeliveryPerformed: false"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "T28-09-private-artifact-delivery",
+      "order": 9,
+      "actor": "ADMIN_SYSTEM",
+      "permission": "TRANSPORT_OPERATE",
+      "dependsOn": [
+        "T28-08-report-schedule-execution"
+      ],
+      "sources": [
+        {
+          "path": "services/api/src/modules/transport/transport-report-execution.module.ts",
+          "mustContain": [
+            "await this.artifacts.putCsv(artifactObjectKey, csv)",
+            "artifactSha256",
+            "@Post(\"report-runs/:runId/prepare-delivery-handoff\")",
+            "\"DELIVERY_OUTBOX_READY\"",
+            "\"READY_FOR_EXTERNAL_DELIVERY\"",
+            "publicUrlIssued: false",
+            "reportDeliveryPerformed: false"
+          ]
+        },
+        {
+          "path": "services/api/src/modules/transport/transport-report-delivery.module.ts",
+          "mustContain": [
+            "class TransportReportDeliveryOutboxService",
+            "@@unique([runId, destinationId])",
+            "@Get(\"report-destinations\")",
+            "@Get(\"report-inbox\")",
+            "REPORT_READY_NOTIFICATION_WORKER",
+            "artifactDeliveryPerformed: false"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "T28-10-secure-download",
+      "order": 10,
+      "actor": "ADMIN",
+      "permission": "TRANSPORT_OPERATE",
+      "dependsOn": [
+        "T28-09-private-artifact-delivery"
+      ],
+      "sources": [
+        {
+          "path": "services/api/src/modules/transport/transport-report-download.module.ts",
+          "mustContain": [
+            "GRANT_TTL_MS = 5 * 60_000",
+            "randomBytes(32).toString(\"base64url\")",
+            "const tokenHash = this.tokenHash(grantToken)",
+            "@Post(\"report-runs/:runId/download-grant\")",
+            "@Post(\"report-runs/:runId/download\")",
+            "createHash(\"sha256\").update(bytes).digest(\"hex\")",
+            "tokenPersistedPlaintext: false",
+            "publicUrlIssued: false"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "T28-11-retention-integrity-governance",
+      "order": 11,
+      "actor": "ADMIN_SYSTEM",
+      "permission": "TRANSPORT_OPERATE",
+      "dependsOn": [
+        "T28-09-private-artifact-delivery",
+        "T28-10-secure-download"
+      ],
+      "sources": [
+        {
+          "path": "services/api/src/modules/transport/transport-report-retention.module.ts",
+          "mustContain": [
+            "@Post(\"report-runs/:runId/legal-hold\")",
+            "@Post(\"report-runs/:runId/legal-hold/clear\")",
+            "action: \"ADMIN_TRANSPORT_REPORT_ARTIFACT_LEGAL_HOLD_SET\"",
+            "action: \"SYSTEM_TRANSPORT_REPORT_ARTIFACT_PURGED\""
+          ]
+        },
+        {
+          "path": "services/api/src/modules/transport/transport-report-integrity.module.ts",
+          "mustContain": [
+            "@Post(\"report-runs/:runId/integrity/reverify\")",
+            "action: \"SYSTEM_TRANSPORT_REPORT_ARTIFACT_INTEGRITY_MISMATCH\"",
+            "action: \"ADMIN_TRANSPORT_REPORT_ARTIFACT_REVERIFY_REQUESTED\"",
+            "quarantineActive: status === \"MISMATCH\""
+          ]
+        },
+        {
+          "path": "services/api/src/modules/transport/transport-report-governance.module.ts",
+          "mustContain": [
+            "@Get(\"report-runs/:runId/governance-timeline\")",
+            "action: \"ADMIN_TRANSPORT_REPORT_GOVERNANCE_TIMELINE_READ\"",
+            "rawAuditMetadataIncluded: false",
+            "objectStorageKeyIncluded: false",
+            "patientIdentityIncluded: false",
+            "patientLocationIncluded: false"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "T28-12-compliance-manifest",
+      "order": 12,
+      "actor": "ADMIN",
+      "permission": "TRANSPORT_OPERATE",
+      "dependsOn": [
+        "T28-11-retention-integrity-governance"
+      ],
+      "sources": [
+        {
+          "path": "services/api/src/modules/transport/transport-report-governance.module.ts",
+          "mustContain": [
+            "@Get(\"report-runs/:runId/compliance-manifest\")",
+            "\"carepoint.transport.governance-manifest.v1\"",
+            "\"SORTED_JSON_KEYS_V1\"",
+            "createHash(\"sha256\")",
+            "\"EXTERNAL_SIGNING_REQUIRED\"",
+            "cryptographicSignaturePerformed: false",
+            "rawAuditMetadataIncluded: false",
+            "objectStorageKeyIncluded: false",
+            "csvContentIncluded: false",
+            "patientIdentityIncluded: false",
+            "patientContactIncluded: false",
+            "patientLocationIncluded: false"
+          ]
+        }
+      ]
+    }
+  ]
+}
