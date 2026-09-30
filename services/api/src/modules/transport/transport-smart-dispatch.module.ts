@@ -494,7 +494,13 @@ export class TransportSmartDispatchService {
       const assignment = latestAssignment.get(request.id) as any;
       const route = latestRoute.get(request.id) as any;
       const session = sessionsByRequest.get(request.id);
-      const latestTelemetry = latestTelemetryByRequest.get(request.id);
+      const telemetryCandidate = latestTelemetryByRequest.get(request.id);
+      const latestTelemetry =
+        session &&
+        telemetryCandidate?.sessionId === session.id &&
+        telemetryCandidate.capturedAt.getTime() >= session.startedAt.getTime()
+          ? telemetryCandidate
+          : undefined;
       const requestMilestones = milestonesByRequest.get(request.id) ?? [];
       const requestIncidents = incidentsByRequest.get(request.id) ?? [];
       const signals: Signal[] = [];
