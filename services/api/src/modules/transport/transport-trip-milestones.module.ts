@@ -21,6 +21,7 @@ import { NotificationsService } from "../communications/notifications.service";
 
 const SAFE_ID = /^[A-Za-z0-9_.:-]{1,180}$/;
 const TRACKING_SOURCE = "TRACKING_SESSION";
+const TELEMETRY_SOURCE = "TELEMETRY_HEARTBEAT";
 const GEOFENCE_SOURCE = "TELEMETRY_GEOFENCE";
 
 export const TRANSPORT_TRIP_MILESTONE_CODES = [
@@ -108,7 +109,7 @@ export class TransportTripMilestoneService {
       providerId: input.providerId,
       transportUnitId: input.transportUnitId,
       code: "FIRST_POSITION_RECEIVED",
-      source: GEOFENCE_SOURCE,
+      source: TELEMETRY_SOURCE,
       distanceMeters: null,
       telemetryCapturedAt: input.capturedAt,
       occurredAt: input.capturedAt,
@@ -326,8 +327,7 @@ export class TransportTripMilestoneService {
         suggestedAction: this.suggestedAction(row.code),
       })),
     ].sort((left, right) => {
-      const delta =
-        new Date(left.occurredAt).getTime() - new Date(right.occurredAt).getTime();
+      const delta = left.occurredAt.getTime() - right.occurredAt.getTime();
       return delta || left.id.localeCompare(right.id);
     });
 
