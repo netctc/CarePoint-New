@@ -11,6 +11,7 @@ import { TransportCompanyPanel } from "@/components/TransportCompanyPanel";
 import { TransportAnalyticsPanel } from "@/components/TransportAnalyticsPanel";
 import { TransportPerformanceAnalyticsPanel } from "@/components/TransportPerformanceAnalyticsPanel";
 import { TransportCommandCenterPanel } from "@/components/TransportCommandCenterPanel";
+import { TransportExecutiveKpiPanel } from "@/components/TransportExecutiveKpiPanel";
 import { adminRuntimeFeatures } from "@/lib/runtime-features";
 import { TRANSPORT_PROVIDER_FAMILIES } from "@/lib/transport-provider-scope";
 
@@ -43,6 +44,7 @@ export default function TransportProvidersPage() {
       <TransportDispatchBoard />
       <TransportOperationsPanel />
       <TransportCompanyPanel />
+      <TransportExecutiveKpiPanel />
       <TransportCommandCenterPanel />
       <TransportPerformanceAnalyticsPanel />
       <TransportAnalyticsPanel />
