@@ -145,8 +145,8 @@ class _PatientMedicalTransportPageState extends State<PatientMedicalTransportPag
           ]),
           const SizedBox(height: 8),
           Text('${transportText(widget.locale, 'scheduledFor')}: ${patientMedicalTransportDateTime(item['scheduledFor'])}'),
-          Text('${transportText(widget.locale, 'pickup')}: ${item['pickupAddress'] ?? '${item['pickupLatitude']}, ${item['pickupLongitude']}'}'),
-          Text('${transportText(widget.locale, 'destination')}: ${item['destinationAddress'] ?? '${item['destinationLatitude']}, ${item['destinationLongitude']}'}'),
+          Text('${transportText(widget.locale, 'pickup')}: ${_locationText(item, pickup: true)}'),
+          Text('${transportText(widget.locale, 'destination')}: ${_locationText(item, pickup: false)}'),
           Text('${transportText(widget.locale, 'companions')}: ${item['companionCount'] ?? 0}'),
           Text('${transportText(widget.locale, 'equipment')}: ${_equipmentText(widget.locale, item['equipment'])}'),
           if (provider['displayName'] != null) Text(provider['displayName'].toString(), style: const TextStyle(fontWeight: FontWeight.w700)),
@@ -428,6 +428,15 @@ class _TransportDialogState extends State<_TransportDialog> {
       destinationAddress: destinationAddressValue.isEmpty ? null : destinationAddressValue,
     ));
   }
+}
+
+String _locationText(Map<String, dynamic> row, {required bool pickup}) {
+  final address = row[pickup ? 'pickupAddress' : 'destinationAddress']?.toString().trim() ?? '';
+  if (address.isNotEmpty) return address;
+  final latitude = row[pickup ? 'pickupLatitude' : 'destinationLatitude'];
+  final longitude = row[pickup ? 'pickupLongitude' : 'destinationLongitude'];
+  if (latitude == null || longitude == null) return '—';
+  return '$latitude, $longitude';
 }
 
 String _equipmentText(CarePointLocale locale, dynamic raw) {
