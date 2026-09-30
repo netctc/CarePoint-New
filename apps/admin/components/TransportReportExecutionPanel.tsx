@@ -148,6 +148,15 @@ export function TransportReportExecutionPanel() {
     }
   }
 
+  async function reverifyIntegrity(run: Run) {
+    await action(
+      "integrity-reverify-" + run.id,
+      "/api/admin/transport/report-runs/" +
+        encodeURIComponent(run.id) +
+        "/integrity/reverify",
+    );
+  }
+
   async function changeLegalHold(run: Run, enabled: boolean) {
     if (enabled) {
       const reason = window.prompt(
@@ -247,7 +256,7 @@ export function TransportReportExecutionPanel() {
       >
         <div>
           <span style={{ fontSize: 12, fontWeight: 900, color: "#0f766e" }}>
-            PHASE 22 · LEGAL HOLD + PURGE GOVERNANCE
+            PHASE 25 · INTEGRITY QUARANTINE + MANUAL REVERIFICATION
           </span>
           <h2 style={{ margin: "5px 0" }}>Scheduled Report Execution</h2>
           <p style={{ maxWidth: 960, marginBottom: 0 }}>
@@ -348,6 +357,9 @@ export function TransportReportExecutionPanel() {
                       <div>{run.artifactStorageProvider ?? "PRIVATE_STORAGE"}</div>
                       <div>
                         Integrity: <strong>{run.artifactIntegrityStatus}</strong>
+                        {run.artifactIntegrityStatus === "MISMATCH" ? (
+                          <div><strong>QUARANTINED</strong></div>
+                        ) : null}
                       </div>
                       <div>{run.artifactSha256.slice(0, 16) + "…"}</div>
                       <div>{run.artifactBytes == null ? "—" : String(run.artifactBytes) + " bytes"}</div>
@@ -408,7 +420,8 @@ export function TransportReportExecutionPanel() {
                     run.artifactSha256 &&
                     !run.artifactDeletedAt ? (
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                      {!run.deliveryHandoffPreparedAt ? (
+                      {!run.deliveryHandoffPreparedAt &&
+                      run.artifactIntegrityStatus !== "MISMATCH" ? (
                         <button
                           className="secondary-button"
                           disabled={Boolean(busy)}
@@ -424,13 +437,25 @@ export function TransportReportExecutionPanel() {
                           Prepare handoff
                         </button>
                       ) : null}
-                      <button
-                        className="secondary-button"
-                        disabled={Boolean(busy)}
-                        onClick={() => void secureDownload(run)}
-                      >
-                        Secure download
-                      </button>
+                      {run.artifactIntegrityStatus !== "MISMATCH" ? (
+                        <button
+                          className="secondary-button"
+                          disabled={Boolean(busy)}
+                          onClick={() => void secureDownload(run)}
+                        >
+                          Secure download
+                        </button>
+                      ) : null}
+                      {run.artifactIntegrityStatus === "MISMATCH" ||
+                      run.artifactIntegrityStatus === "CHECK_FAILED" ? (
+                        <button
+                          className="secondary-button"
+                          disabled={Boolean(busy)}
+                          onClick={() => void reverifyIntegrity(run)}
+                        >
+                          Reverify integrity
+                        </button>
+                      ) : null}
                       <button
                         className="secondary-button"
                         disabled={Boolean(busy)}
