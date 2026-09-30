@@ -283,7 +283,7 @@ class AdminTransportOperationsService {
         : null,
       requiredCredentialTypes: requiredCredentials,
       missingCredentialTypes: missingCredentials,
-      units: {
+      fleet: {
         total: units.length,
         active: activeUnits.length,
         expectedMode,
