@@ -488,6 +488,21 @@ class _TransportDialogState extends State<_TransportDialog> {
                     icon: const Icon(Icons.search_outlined),
                     label: Text(transportText(widget.locale, 'searchLocation')),
                   ),
+                  OutlinedButton.icon(
+                    onPressed: () => _selectSavedLocation(pickup: true),
+                    icon: const Icon(Icons.bookmark_outline),
+                    label: Text(transportText(widget.locale, 'savedLocations')),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () => _selectHealthcareCenter(pickup: true),
+                    icon: const Icon(Icons.local_hospital_outlined),
+                    label: Text(transportText(widget.locale, 'healthcareCenters')),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () => _saveCurrentLocation(pickup: true),
+                    icon: const Icon(Icons.bookmark_add_outlined),
+                    label: Text(transportText(widget.locale, 'saveLocation')),
+                  ),
                   if (mapConfig != null)
                     OutlinedButton.icon(
                       onPressed: () => _pickOnMap(pickup: true),
@@ -513,6 +528,21 @@ class _TransportDialogState extends State<_TransportDialog> {
                     icon: const Icon(Icons.search_outlined),
                     label: Text(transportText(widget.locale, 'searchLocation')),
                   ),
+                  OutlinedButton.icon(
+                    onPressed: () => _selectSavedLocation(pickup: false),
+                    icon: const Icon(Icons.bookmark_outline),
+                    label: Text(transportText(widget.locale, 'savedLocations')),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () => _selectHealthcareCenter(pickup: false),
+                    icon: const Icon(Icons.local_hospital_outlined),
+                    label: Text(transportText(widget.locale, 'healthcareCenters')),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () => _saveCurrentLocation(pickup: false),
+                    icon: const Icon(Icons.bookmark_add_outlined),
+                    label: Text(transportText(widget.locale, 'saveLocation')),
+                  ),
                   if (mapConfig != null)
                     OutlinedButton.icon(
                       onPressed: () => _pickOnMap(pickup: false),
@@ -525,6 +555,14 @@ class _TransportDialogState extends State<_TransportDialog> {
               TextField(controller: destinationLatitude, keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true), decoration: InputDecoration(labelText: '${transportText(widget.locale, 'destination')} · ${transportText(widget.locale, 'latitude')}')),
               const SizedBox(height: 10),
               TextField(controller: destinationLongitude, keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true), decoration: InputDecoration(labelText: '${transportText(widget.locale, 'destination')} · ${transportText(widget.locale, 'longitude')}')),
+              if (routePreviewAvailable && mode == 'GROUND') ...[
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: _previewRoute,
+                  icon: const Icon(Icons.route_outlined),
+                  label: Text(transportText(widget.locale, 'routePreview')),
+                ),
+              ],
               const SizedBox(height: 12),
               ListTile(
                 contentPadding: EdgeInsets.zero,
