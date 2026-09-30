@@ -22,7 +22,9 @@ const heavyWorkflows = [
   ".github/workflows/postgres-recovery.yml",
   ".github/workflows/mobile-release-evidence-contract.yml",
   ".github/workflows/integrated-test-version.yml",
-  ".github/workflows/release1-container-compatibility.yml"
+  ".github/workflows/release1-container-compatibility.yml",
+".github/workflows/gcp-admin-cloud-run-deployment-contract.yml",
+".github/workflows/gcp-immutable-rc-freeze-contract.yml"
 ];
 
 const [
@@ -119,7 +121,7 @@ assert.ok(pkg.scripts.test.includes("npm run v2:transport-phase26"));
 for (const text of [
   "Compliance Evidence Export + Governance Manifest",
   "EXTERNAL_SIGNING_REQUIRED",
-  "18 heavy validation workflows",
+  "20 heavy validation workflows",
   "Fast stacked-PR lane",
   "No new environment variables",
   "No database migration is required",
