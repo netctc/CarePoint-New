@@ -329,11 +329,15 @@ export class TransportCommandCenterService {
         const provider = request.assignedProviderId
           ? providerById.get(request.assignedProviderId)
           : undefined;
-        const breachCount = [assignment, readiness, departure].filter(
+        const metrics = [assignment, readiness, departure];
+        const breachCount = metrics.filter(
           (row) => row.state === "BREACHED",
         ).length;
-        const pendingCount = [assignment, readiness, departure].filter(
+        const pendingCount = metrics.filter(
           (row) => row.state === "PENDING",
+        ).length;
+        const applicableCount = metrics.filter(
+          (row) => row.state !== "NOT_APPLICABLE",
         ).length;
 
         return {
@@ -358,11 +362,13 @@ export class TransportCommandCenterService {
             breachCount,
             pendingCount,
             overall:
-              breachCount > 0
-                ? "BREACHED"
-                : pendingCount > 0
-                  ? "PENDING"
-                  : "COMPLIANT",
+              applicableCount === 0
+                ? "NOT_APPLICABLE"
+                : breachCount > 0
+                  ? "BREACHED"
+                  : pendingCount > 0
+                    ? "PENDING"
+                    : "COMPLIANT",
           },
           etaEvidence:
             request.mode === "GROUND" &&
@@ -439,6 +445,9 @@ export class TransportCommandCenterService {
         slaCompliant: items.filter(
           (row) => row.sla.overall === "COMPLIANT",
         ).length,
+        slaNotApplicable: items.filter(
+          (row) => row.sla.overall === "NOT_APPLICABLE",
+        ).length,
         requestsWithCriticalIncidents: items.filter(
           (row) => row.incidents.critical > 0,
         ).length,
@@ -464,7 +473,7 @@ export class TransportCommandCenterService {
     now: Date,
     threshold: number,
   ) {
-    if (request.status === "CANCELLED" && !request.assignedAt) {
+    if (request.status === "CANCELLED") {
       return this.metric("NOT_APPLICABLE", null, threshold);
     }
     if (request.assignedAt) {
