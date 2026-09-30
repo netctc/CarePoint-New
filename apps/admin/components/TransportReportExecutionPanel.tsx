@@ -33,6 +33,7 @@ type Run = {
   artifactContentType: string | null;
   artifactStorageProvider: string | null;
   artifactStoredAt: string | null;
+  artifactDeletedAt: string | null;
   deliveryStatus: string;
   deliveryHandoffPreparedAt: string | null;
   automaticDeliveryAvailable: false;
@@ -300,7 +301,13 @@ export function TransportReportExecutionPanel() {
                 <td align="right">{run.attemptCount}</td>
                 <td align="right">{run.rowCount ?? "—"}</td>
                 <td style={{ fontSize: 12 }}>
-                  {run.artifactSha256 ? (
+                  {run.artifactDeletedAt ? (
+                    <>
+                      <strong>PURGED</strong>
+                      <div>{new Date(run.artifactDeletedAt).toLocaleString()}</div>
+                      <div>{run.artifactSha256?.slice(0, 16) ?? "hash retained"}…</div>
+                    </>
+                  ) : run.artifactSha256 ? (
                     <>
                       <div>{run.artifactStorageProvider ?? "PRIVATE_STORAGE"}</div>
                       <div>{run.artifactSha256.slice(0, 16) + "…"}</div>
@@ -350,7 +357,9 @@ export function TransportReportExecutionPanel() {
                     >
                       Requeue
                     </button>
-                  ) : run.status === "SUCCEEDED" && run.artifactSha256 ? (
+                  ) : run.status === "SUCCEEDED" &&
+                    run.artifactSha256 &&
+                    !run.artifactDeletedAt ? (
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                       {!run.deliveryHandoffPreparedAt ? (
                         <button

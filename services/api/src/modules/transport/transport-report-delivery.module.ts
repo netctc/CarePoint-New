@@ -291,6 +291,7 @@ export class TransportReportDeliveryOutboxService {
             artifactSha256: true,
             artifactBytes: true,
             artifactStoredAt: true,
+            artifactDeletedAt: true,
           },
         },
       },
@@ -323,7 +324,9 @@ export class TransportReportDeliveryOutboxService {
       },
       items: items.map((item) => ({
         ...item,
-        artifactAvailable: Boolean(item.run.artifactSha256),
+        artifactAvailable: Boolean(
+          item.run.artifactSha256 && !item.run.artifactDeletedAt,
+        ),
       })),
     };
   }

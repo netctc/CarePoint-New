@@ -72,6 +72,7 @@ type ReportSchedule = {
   hourUtc: number;
   minuteUtc: number;
   windowDays: number;
+  artifactRetentionDays: number;
   mode: "ALL" | "GROUND" | "AIR";
   sla: "ALL" | "BREACHED" | "COMPLIANT" | "PENDING";
   providerId: string | null;
@@ -110,6 +111,7 @@ export function TransportExecutiveKpiPanel() {
     hourUtc: 7,
     minuteUtc: 0,
     windowDays: 30,
+    artifactRetentionDays: 90,
     mode: "ALL",
     sla: "ALL",
   });
@@ -209,6 +211,29 @@ export function TransportExecutiveKpiPanel() {
         {
           method: "PATCH",
           body: JSON.stringify({ enabled: !schedule.enabled }),
+        },
+      );
+      await loadSchedules();
+    } catch (error) {
+      setMessage(String(error));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function updateRetention(
+    schedule: ReportSchedule,
+    artifactRetentionDays: number,
+  ) {
+    setSaving(true);
+    setMessage("");
+    try {
+      await jsonRequest(
+        "/api/admin/transport/report-schedules/" +
+          encodeURIComponent(schedule.id),
+        {
+          method: "PATCH",
+          body: JSON.stringify({ artifactRetentionDays }),
         },
       );
       await loadSchedules();
@@ -507,6 +532,24 @@ export function TransportExecutiveKpiPanel() {
             </select>
           </label>
           <label>
+            Artifact retention
+            <select
+              value={form.artifactRetentionDays}
+              onChange={(event) =>
+                setForm((value) => ({
+                  ...value,
+                  artifactRetentionDays: Number(event.target.value),
+                }))
+              }
+            >
+              <option value={30}>30 days</option>
+              <option value={90}>90 days</option>
+              <option value={180}>180 days</option>
+              <option value={365}>365 days</option>
+              <option value={730}>730 days</option>
+            </select>
+          </label>
+          <label>
             Mode
             <select
               value={form.mode}
@@ -546,12 +589,13 @@ export function TransportExecutiveKpiPanel() {
 
       <section style={{ ...card, overflowX: "auto" }}>
         <h3 style={{ marginTop: 0 }}>Report schedules</h3>
-        <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1050 }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1150 }}>
           <thead>
             <tr>
               <th align="left">Name</th>
               <th align="left">Cadence</th>
               <th align="left">Window</th>
+              <th align="left">Retention</th>
               <th align="left">Filters</th>
               <th align="left">Next run</th>
               <th align="left">Last run</th>
@@ -565,6 +609,24 @@ export function TransportExecutiveKpiPanel() {
                 <td style={{ padding: "8px 6px" }}>{schedule.name}</td>
                 <td>{schedule.cadence}</td>
                 <td>{schedule.windowDays}d</td>
+                <td>
+                  <select
+                    value={schedule.artifactRetentionDays}
+                    disabled={saving}
+                    onChange={(event) =>
+                      void updateRetention(
+                        schedule,
+                        Number(event.target.value),
+                      )
+                    }
+                  >
+                    <option value={30}>30d</option>
+                    <option value={90}>90d</option>
+                    <option value={180}>180d</option>
+                    <option value={365}>365d</option>
+                    <option value={730}>730d</option>
+                  </select>
+                </td>
                 <td>
                   {schedule.mode} · {schedule.sla}
                 </td>

@@ -5,6 +5,7 @@ import type { AuthPrincipal } from "@carepoint/identity";
 import { AppModule } from "../app.module";
 import { TransportReportExecutionService } from "../modules/transport/transport-report-execution.module";
 import { TransportReportDeliveryWorkerService } from "../modules/transport/transport-report-delivery.module";
+import { TransportReportRetentionService } from "../modules/transport/transport-report-retention.module";
 
 const principal: AuthPrincipal = {
   accountId: "system:transport-report-scheduler",
@@ -19,15 +20,22 @@ async function main(): Promise<void> {
   try {
     const worker = app.get(TransportReportExecutionService);
     const deliveryWorker = app.get(TransportReportDeliveryWorkerService);
+    const retentionWorker = app.get(TransportReportRetentionService);
     const reportResult = await worker.workerCycle(principal, 25);
     const deliveryResult = await deliveryWorker.runOnce(25);
+    const retentionResult = await retentionWorker.runOnce(principal, 100);
     process.stdout.write(JSON.stringify({
       event: "transport-report-worker-cycle",
       report: reportResult,
       deliveryNotification: deliveryResult,
+      retention: retentionResult,
       artifactDeliveryPerformed: false,
     }) + "\n");
-    if (reportResult.failed > 0 || deliveryResult.failed > 0) {
+    if (
+      reportResult.failed > 0 ||
+      deliveryResult.failed > 0 ||
+      retentionResult.failed > 0
+    ) {
       process.exitCode = 1;
     }
   } finally {
