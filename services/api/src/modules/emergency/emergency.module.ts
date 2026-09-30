@@ -48,6 +48,10 @@ class EmergencyAmbulanceService {
     const patient = await this.patientForAccount(principal.accountId);
     const clientRequestId = this.requiredText(input.clientRequestId, 8, 180, "clientRequestId");
     assertValidEmergencyLocation(input.latitude, input.longitude);
+    const pickupAddress = input.pickupAddress?.trim().slice(0, 500) || null;
+    if (input.latitude == null && input.longitude == null && pickupAddress === null) {
+      throw new BadRequestException("Emergency pickup requires an address or a complete latitude/longitude pair.");
+    }
 
     const existing = await this.prisma.emergencyRequestIdempotency.findUnique({
       where: { patientId_clientRequestId: { patientId: patient.id, clientRequestId } },
@@ -60,9 +64,9 @@ class EmergencyAmbulanceService {
         const request = await tx.emergencyAmbulanceRequest.create({
           data: {
             patientId: patient.id,
-            latitude: input.latitude,
-            longitude: input.longitude,
-            ...(input.pickupAddress?.trim() ? { pickupAddress: input.pickupAddress.trim().slice(0, 500) } : {}),
+            latitude: input.latitude ?? null,
+            longitude: input.longitude ?? null,
+            ...(pickupAddress ? { pickupAddress } : {}),
             ...(input.callbackPhone?.trim() ? { callbackPhone: input.callbackPhone.trim().slice(0, 80) } : {}),
             ...(input.note?.trim() ? { note: input.note.trim().slice(0, 500) } : {}),
           },
@@ -266,8 +270,8 @@ class EmergencyAmbulanceService {
       id: row.id,
       patientId: row.patientId,
       status: row.status,
-      latitude: Number(row.latitude),
-      longitude: Number(row.longitude),
+      latitude: row.latitude == null ? null : Number(row.latitude),
+      longitude: row.longitude == null ? null : Number(row.longitude),
       pickupAddress: row.pickupAddress ?? null,
       callbackPhone: row.callbackPhone ?? null,
       note: row.note ?? null,
