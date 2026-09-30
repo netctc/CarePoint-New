@@ -34,6 +34,10 @@ type GovernancePayload = {
     artifactStorageProvider: string | null;
     artifactStoredAt: string | null;
     artifactDeletedAt: string | null;
+    artifactIntegrityStatus: string;
+    artifactIntegrityLastCheckedAt: string | null;
+    artifactIntegrityFailureAt: string | null;
+    artifactIntegrityFailureCode: string | null;
     artifactRetentionDays: number;
     legalHold: boolean;
     legalHoldReason: string | null;
@@ -219,6 +223,17 @@ export function TransportReportGovernancePanel() {
           <div style={{ marginTop: 14, fontSize: 13 }}>
             <strong>SHA-256 evidence:</strong>{" "}
             {payload.governance.artifactSha256 ?? "—"}
+            {payload.governance.artifactIntegrityLastCheckedAt ? (
+              <div>
+                <strong>Integrity checked:</strong>{" "}
+                {new Date(
+                  payload.governance.artifactIntegrityLastCheckedAt,
+                ).toLocaleString()}
+                {payload.governance.artifactIntegrityFailureCode
+                  ? " · " + payload.governance.artifactIntegrityFailureCode
+                  : ""}
+              </div>
+            ) : null}
             {payload.governance.legalHold ? (
               <div>
                 <strong>Legal hold:</strong>{" "}

@@ -44,6 +44,7 @@ export class TransportReportDownloadService {
         artifactObjectKey: true,
         artifactSha256: true,
         artifactStoredAt: true,
+        artifactIntegrityStatus: true,
       },
     });
     if (
@@ -51,7 +52,8 @@ export class TransportReportDownloadService {
       run.status !== "SUCCEEDED" ||
       !run.artifactObjectKey ||
       !run.artifactSha256 ||
-      !run.artifactStoredAt
+      !run.artifactStoredAt ||
+      run.artifactIntegrityStatus === "MISMATCH"
     ) {
       throw new BadRequestException(
         "Transport report artifact is not available for download.",
@@ -214,6 +216,21 @@ export class TransportReportDownloadService {
         "Transport report artifact integrity validation failed.",
       );
     }
+
+    const verifiedAt = new Date();
+    await this.prisma.transportManagementReportRun.updateMany({
+      where: {
+        id: runId,
+        artifactObjectKey: grant.run.artifactObjectKey,
+        artifactDeletedAt: null,
+      },
+      data: {
+        artifactIntegrityStatus: "VERIFIED",
+        artifactIntegrityLastCheckedAt: verifiedAt,
+        artifactIntegrityFailureAt: null,
+        artifactIntegrityFailureCode: null,
+      },
+    });
 
     const recipientReceipts =
       await this.prisma.transportManagementReportDelivery.updateMany({

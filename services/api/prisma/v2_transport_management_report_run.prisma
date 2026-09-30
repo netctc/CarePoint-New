@@ -30,6 +30,10 @@ model TransportManagementReportRun {
   artifactLegalHoldSetAt DateTime?
   artifactLegalHoldSetByAccountId String?
   artifactPurgeClaimedAt DateTime?
+  artifactIntegrityStatus String   @default("PENDING")
+  artifactIntegrityLastCheckedAt DateTime?
+  artifactIntegrityFailureAt DateTime?
+  artifactIntegrityFailureCode String?
   deliveryStatus       String   @default("NOT_READY")
   deliveryHandoffPreparedAt DateTime?
   deliveryHandoffPreparedByAccountId String?
@@ -44,4 +48,5 @@ model TransportManagementReportRun {
   @@index([scheduleId, createdAt])
   @@index([deliveryStatus, artifactStoredAt])
   @@index([artifactLegalHold, artifactDeletedAt, artifactStoredAt])
+  @@index([artifactIntegrityStatus, artifactIntegrityLastCheckedAt])
 }

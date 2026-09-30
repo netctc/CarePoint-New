@@ -34,6 +34,10 @@ type Run = {
   artifactStorageProvider: string | null;
   artifactStoredAt: string | null;
   artifactDeletedAt: string | null;
+  artifactIntegrityStatus: string;
+  artifactIntegrityLastCheckedAt: string | null;
+  artifactIntegrityFailureAt: string | null;
+  artifactIntegrityFailureCode: string | null;
   artifactLegalHold: boolean;
   artifactLegalHoldReason: string | null;
   artifactLegalHoldSetAt: string | null;
@@ -342,6 +346,9 @@ export function TransportReportExecutionPanel() {
                   ) : run.artifactSha256 ? (
                     <>
                       <div>{run.artifactStorageProvider ?? "PRIVATE_STORAGE"}</div>
+                      <div>
+                        Integrity: <strong>{run.artifactIntegrityStatus}</strong>
+                      </div>
                       <div>{run.artifactSha256.slice(0, 16) + "…"}</div>
                       <div>{run.artifactBytes == null ? "—" : String(run.artifactBytes) + " bytes"}</div>
                     </>
