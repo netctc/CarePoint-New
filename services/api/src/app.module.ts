@@ -99,6 +99,7 @@ import { TransportResourcesModule } from "./modules/transport/transport-resource
 import { TransportHandoffModule } from "./modules/transport/transport-handoff.module";
 import { TransportIncidentsModule } from "./modules/transport/transport-incidents.module";
 import { TransportAdvancedLifecycleModule } from "./modules/transport/transport-advanced-lifecycle.module";
+import { TransportLocationModule } from "./modules/transport/transport-location.module";
 import { isolatedSyntheticPrivatePilotActive } from "./infrastructure/release/private-pilot-infrastructure-profile";
 import { carePointRuntimeFeatures } from "./infrastructure/release/private-pilot-policy";
 
@@ -167,6 +168,7 @@ const isolatedSyntheticPilot = isolatedSyntheticPrivatePilotActive(process.env);
     TransportHandoffModule,
     TransportIncidentsModule,
     TransportAdvancedLifecycleModule,
+    TransportLocationModule,
     IamModule,
     LocalizationModule,
     PatientProfileModule,
