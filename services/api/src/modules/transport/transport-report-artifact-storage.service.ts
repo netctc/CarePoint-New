@@ -4,7 +4,7 @@ import {
   type OnModuleDestroy,
 } from "@nestjs/common";
 import { createHash } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import {
   createProductionGcpObjectStorageRuntime,
@@ -89,6 +89,44 @@ export class TransportReportArtifactStorageService implements OnModuleDestroy {
         "transport-management-reports",
         objectKey,
       );
+    }
+    throw new InternalServerErrorException(
+      "Transport report artifact storage requires the approved production cloud object-storage runtime.",
+    );
+  }
+
+  async deleteCsv(objectKey: string): Promise<void> {
+    this.assertSafeObjectKey(objectKey);
+    if (process.env.NODE_ENV !== "production") {
+      try {
+        await unlink(this.localPath(objectKey));
+      } catch (error) {
+        if (
+          !error ||
+          typeof error !== "object" ||
+          !("code" in error) ||
+          error.code !== "ENOENT"
+        ) {
+          throw error;
+        }
+      }
+      return;
+    }
+
+    const cloud = process.env.CAREPOINT_CLOUD_PROVIDER?.trim();
+    if (cloud === "gcp") {
+      await (await this.gcpRuntime()).delete(
+        "transport-management-reports",
+        objectKey,
+      );
+      return;
+    }
+    if (cloud === "oci") {
+      await (await this.ociRuntime()).delete(
+        "transport-management-reports",
+        objectKey,
+      );
+      return;
     }
     throw new InternalServerErrorException(
       "Transport report artifact storage requires the approved production cloud object-storage runtime.",
