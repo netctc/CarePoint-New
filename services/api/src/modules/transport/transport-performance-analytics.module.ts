@@ -224,51 +224,79 @@ export class TransportPerformanceAnalyticsService {
     const departureDelayMinutes: number[] = [];
     const totalCompletionMinutes: number[] = [];
     const transportMinutes: number[] = [];
-    let assignmentEligible = 0;
+    let assignmentEvaluated = 0;
+    let assignmentPendingWithinSla = 0;
     let assignmentWithinSla = 0;
     let assignmentBreached = 0;
-    let resourceReadyEligible = 0;
+    let resourceReadyEvaluated = 0;
     let resourceReadyWithinSla = 0;
-    let departureEligible = 0;
+    let resourceReadyBreached = 0;
+    let departureEvaluated = 0;
+    let departurePendingWithinGrace = 0;
     let departureWithinSla = 0;
+    let departureBreached = 0;
     let etaGroundAssigned = 0;
     let etaGroundPresent = 0;
 
     for (const request of historical) {
       if (request.status !== "CANCELLED") {
-        assignmentEligible += 1;
         if (request.assignedAt) {
+          assignmentEvaluated += 1;
           const minutes = this.minutes(request.requestedAt, request.assignedAt);
           assignmentMinutes.push(minutes);
           if (minutes <= thresholds.assignmentSlaMinutes) assignmentWithinSla += 1;
           else assignmentBreached += 1;
         } else {
           const elapsed = this.minutes(request.requestedAt, now);
-          if (elapsed > thresholds.assignmentSlaMinutes) assignmentBreached += 1;
-        }
-      }
-
-      if (request.assignedAt) {
-        const ready = firstReadyAssignmentByRequest.get(request.id);
-        if (ready) {
-          resourceReadyEligible += 1;
-          const minutes = this.minutes(request.assignedAt, ready.assignedAt);
-          resourceReadyMinutes.push(minutes);
-          if (minutes <= thresholds.resourceReadySlaMinutes) {
-            resourceReadyWithinSla += 1;
+          if (elapsed > thresholds.assignmentSlaMinutes) {
+            assignmentEvaluated += 1;
+            assignmentBreached += 1;
+          } else {
+            assignmentPendingWithinSla += 1;
           }
         }
       }
 
-      if (request.enRouteAt) {
-        departureEligible += 1;
-        const delayMinutes = Math.max(
-          0,
-          this.minutes(request.scheduledFor, request.enRouteAt),
-        );
-        departureDelayMinutes.push(delayMinutes);
-        if (delayMinutes <= thresholds.departureGraceMinutes) {
-          departureWithinSla += 1;
+      if (request.assignedAt && request.status !== "CANCELLED") {
+        const ready = firstReadyAssignmentByRequest.get(request.id);
+        if (ready) {
+          resourceReadyEvaluated += 1;
+          const minutes = this.minutes(request.assignedAt, ready.assignedAt);
+          resourceReadyMinutes.push(minutes);
+          if (minutes <= thresholds.resourceReadySlaMinutes) {
+            resourceReadyWithinSla += 1;
+          } else {
+            resourceReadyBreached += 1;
+          }
+        } else if (
+          this.minutes(request.assignedAt, now) > thresholds.resourceReadySlaMinutes
+        ) {
+          resourceReadyEvaluated += 1;
+          resourceReadyBreached += 1;
+        }
+      }
+
+      if (request.status !== "CANCELLED") {
+        if (request.enRouteAt) {
+          departureEvaluated += 1;
+          const delayMinutes = Math.max(
+            0,
+            this.minutes(request.scheduledFor, request.enRouteAt),
+          );
+          departureDelayMinutes.push(delayMinutes);
+          if (delayMinutes <= thresholds.departureGraceMinutes) {
+            departureWithinSla += 1;
+          } else {
+            departureBreached += 1;
+          }
+        } else {
+          const overdue = this.minutes(request.scheduledFor, now);
+          if (now.getTime() > request.scheduledFor.getTime() + thresholds.departureGraceMinutes * 60_000) {
+            departureEvaluated += 1;
+            departureBreached += 1;
+          } else if (request.scheduledFor.getTime() <= now.getTime()) {
+            departurePendingWithinGrace += 1;
+          }
         }
       }
 
@@ -387,31 +415,37 @@ export class TransportPerformanceAnalyticsService {
       },
       sla: {
         assignment: {
-          eligible: assignmentEligible,
-          measurable: assignmentMinutes.length,
+          evaluated: assignmentEvaluated,
+          pendingWithinSla: assignmentPendingWithinSla,
+          measurableAssigned: assignmentMinutes.length,
           withinSla: assignmentWithinSla,
           breached: assignmentBreached,
           compliancePercent: this.rate(
             assignmentWithinSla,
-            assignmentEligible,
+            assignmentEvaluated,
           ),
           minutes: this.distribution(assignmentMinutes),
         },
         resourceReadiness: {
-          measurable: resourceReadyEligible,
+          evaluated: resourceReadyEvaluated,
+          measurableReady: resourceReadyMinutes.length,
           withinSla: resourceReadyWithinSla,
+          breached: resourceReadyBreached,
           compliancePercent: this.rate(
             resourceReadyWithinSla,
-            resourceReadyEligible,
+            resourceReadyEvaluated,
           ),
           minutes: this.distribution(resourceReadyMinutes),
         },
         departure: {
-          measurable: departureEligible,
+          evaluated: departureEvaluated,
+          pendingWithinGrace: departurePendingWithinGrace,
+          measurableDepartures: departureDelayMinutes.length,
           withinGrace: departureWithinSla,
+          breached: departureBreached,
           compliancePercent: this.rate(
             departureWithinSla,
-            departureEligible,
+            departureEvaluated,
           ),
           delayMinutes: this.distribution(departureDelayMinutes),
         },
