@@ -281,6 +281,14 @@ extension CarePointTransportApi on CarePointApi {
         'status': status,
         if (etaMinutes != null) 'etaMinutes': etaMinutes,
       }));
+  Future<Map<String, dynamic>> recalculateProviderMedicalTransportEta(
+    String requestId, {
+    required String idempotencyKey,
+  }) async =>
+      _asMap(await _send('POST', '/provider/medical-transport/$requestId/recalculate-eta', body: {
+        'idempotencyKey': idempotencyKey,
+      }));
+
   Future<Map<String, dynamic>> changeProviderTransportDestination(
     String requestId, {
     double? destinationLatitude,
