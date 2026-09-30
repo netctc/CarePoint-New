@@ -22,6 +22,10 @@ import {
   TransportCommandCenterService,
 } from "./transport-command-center.module";
 import { TransportReportArtifactStorageService } from "./transport-report-artifact-storage.service";
+import {
+  TransportReportDeliveryModule,
+  TransportReportDeliveryOutboxService,
+} from "./transport-report-delivery.module";
 
 type RunStatus = "ALL" | "QUEUED" | "RUNNING" | "SUCCEEDED" | "FAILED";
 
@@ -35,6 +39,7 @@ export class TransportReportExecutionService {
     private readonly audit: DatabaseAuditService,
     private readonly commandCenter: TransportCommandCenterService,
     private readonly artifacts: TransportReportArtifactStorageService,
+    private readonly deliveries: TransportReportDeliveryOutboxService,
   ) {}
 
   async queueDue(principal: AuthPrincipal) {
@@ -459,16 +464,23 @@ export class TransportReportExecutionService {
     }
 
     const preparedAt = existing.deliveryHandoffPreparedAt ?? new Date();
-    const row = existing.deliveryHandoffPreparedAt
-      ? existing
-      : await this.prisma.transportManagementReportRun.update({
-          where: { id: runId },
-          data: {
-            deliveryStatus: "READY_FOR_EXTERNAL_DELIVERY",
-            deliveryHandoffPreparedAt: preparedAt,
-            deliveryHandoffPreparedByAccountId: principal.accountId,
-          },
-        });
+    const outbox = await this.deliveries.enqueueForRun(principal, {
+      id: existing.id,
+      scheduleId: existing.scheduleId,
+    });
+    const deliveryStatus =
+      outbox.configuredDestinations > 0
+        ? "DELIVERY_OUTBOX_READY"
+        : "READY_FOR_EXTERNAL_DELIVERY";
+    const row = await this.prisma.transportManagementReportRun.update({
+      where: { id: runId },
+      data: {
+        deliveryStatus,
+        deliveryHandoffPreparedAt: preparedAt,
+        deliveryHandoffPreparedByAccountId:
+          existing.deliveryHandoffPreparedByAccountId ?? principal.accountId,
+      },
+    });
 
     await this.audit.write({
       actorId: principal.accountId,
@@ -484,6 +496,8 @@ export class TransportReportExecutionService {
         publicUrlIssued: false,
         externalDeliveryRequired: true,
         reportDeliveryPerformed: false,
+        configuredDestinations: outbox.configuredDestinations,
+        newlyQueuedDeliveries: outbox.newlyQueued,
       },
     });
 
@@ -500,6 +514,7 @@ export class TransportReportExecutionService {
         storageProvider: row.artifactStorageProvider,
         storedAt: row.artifactStoredAt,
       },
+      deliveryOutbox: outbox,
       externalDeliveryRequired: true,
       automaticDeliveryAvailable: false,
       reportDeliveryPerformed: false,
@@ -754,7 +769,7 @@ class TransportReportExecutionController {
 }
 
 @Module({
-  imports: [TransportCommandCenterModule],
+  imports: [TransportCommandCenterModule, TransportReportDeliveryModule],
   controllers: [TransportReportExecutionController],
   providers: [
     TransportReportExecutionService,
