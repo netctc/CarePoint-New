@@ -109,9 +109,15 @@ for (const moduleName of modules) {
   );
 }
 
+const telemetryModule = await readApi("src/modules/transport/transport-telemetry.module.ts");
+assert.ok(
+  telemetryModule.includes("TransportTripMilestonesModule") &&
+    telemetryModule.includes("imports: [CommunicationsModule, TransportTripMilestonesModule]"),
+  "TransportTripMilestonesModule must remain nested under TransportTelemetryModule",
+);
+
 for (const moduleName of [
   "TransportTelemetryModule",
-  "TransportTripMilestonesModule",
   "TransportSmartDispatchModule",
   "TransportPerformanceAnalyticsModule",
   "TransportCommandCenterModule",
