@@ -142,7 +142,9 @@ export class RealtimeService {
       action: "REALTIME_SUBSCRIPTION_OPENED",
       objectType: "REALTIME_SUBSCRIPTION",
       objectId: row.id,
-      purpose: "TREATMENT",
+      purpose: query.topic.startsWith("TRANSPORT_")
+        ? "TRANSPORT_OPERATIONS"
+        : "TREATMENT",
       result: "SUCCESS",
       metadata: {
         topic: query.topic,
@@ -536,7 +538,9 @@ export class RealtimeService {
       action: "REALTIME_SUBSCRIPTION_CLOSED",
       objectType: "REALTIME_SUBSCRIPTION",
       objectId: subscriptionId,
-      purpose: "TREATMENT",
+      purpose: row?.topic?.startsWith("TRANSPORT_")
+        ? "TRANSPORT_OPERATIONS"
+        : "TREATMENT",
       result: "SUCCESS",
       metadata: {
         topic: row?.topic ?? null,
