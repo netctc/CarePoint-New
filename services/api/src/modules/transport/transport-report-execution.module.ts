@@ -304,7 +304,7 @@ export class TransportReportExecutionService {
         objectType: "TRANSPORT_REPORT_RUN",
         objectId: runId,
         purpose: "TRANSPORT_OPERATIONS",
-        result: "FAILURE",
+        result: "FAILED",
         metadata: {
           scheduleId: run.scheduleId,
           scheduledFor: run.scheduledFor.toISOString(),
