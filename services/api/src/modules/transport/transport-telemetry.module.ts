@@ -471,7 +471,7 @@ class TransportTelemetryService {
     const providerIds = [...new Set(sessions.map((row) => row.providerId))];
     const unitIds = [...new Set(sessions.map((row) => row.transportUnitId))];
 
-    const [requests, providers, units, telemetryRows] = await Promise.all([
+    const [requests, providers, units, telemetryRows, milestoneRows] = await Promise.all([
       requestIds.length
         ? this.prisma.medicalTransportRequest.findMany({
             where: { id: { in: requestIds } },
@@ -512,6 +512,13 @@ class TransportTelemetryService {
             take: 4000,
           })
         : [],
+      requestIds.length
+        ? this.prisma.transportTripMilestone.findMany({
+            where: { transportRequestId: { in: requestIds } },
+            orderBy: [{ occurredAt: "desc" }, { id: "desc" }],
+            take: 1000,
+          })
+        : [],
     ]);
 
     const requestById = new Map(requests.map((row) => [row.id, row]));
@@ -521,12 +528,22 @@ class TransportTelemetryService {
     for (const row of telemetryRows) {
       if (!latestBySession.has(row.sessionId)) latestBySession.set(row.sessionId, row);
     }
+    const latestMilestoneByRequest = new Map<
+      string,
+      (typeof milestoneRows)[number]
+    >();
+    for (const row of milestoneRows) {
+      if (!latestMilestoneByRequest.has(row.transportRequestId)) {
+        latestMilestoneByRequest.set(row.transportRequestId, row);
+      }
+    }
 
     const items = sessions
       .map((session) => {
         const request = requestById.get(session.transportRequestId);
         if (!request || !TRACKING_STATUSES.has(request.status)) return null;
         const latest = latestBySession.get(session.id);
+        const latestMilestone = latestMilestoneByRequest.get(session.transportRequestId);
         const ageSeconds = latest ? this.ageSeconds(latest.capturedAt, now) : null;
         return {
           sessionId: session.id,
@@ -549,6 +566,15 @@ class TransportTelemetryService {
             : "NO_HEARTBEAT",
           ageSeconds,
           location: latest ? this.telemetry(latest) : null,
+          latestMilestone: latestMilestone
+            ? {
+                code: latestMilestone.code,
+                source: latestMilestone.source,
+                occurredAt: latestMilestone.occurredAt,
+                distanceMeters: latestMilestone.distanceMeters,
+                automaticLifecycleMutation: false,
+              }
+            : null,
           trackingPositionIsRouteEta: false,
         };
       })
