@@ -257,11 +257,17 @@
           "path": "services/api/src/modules/transport/transport-report-delivery.module.ts",
           "mustContain": [
             "class TransportReportDeliveryOutboxService",
-            "@@unique([runId, destinationId])",
             "@Get(\"report-destinations\")",
             "@Get(\"report-inbox\")",
             "REPORT_READY_NOTIFICATION_WORKER",
             "artifactDeliveryPerformed: false"
+          ]
+        },
+        {
+          "path": "services/api/prisma/v2_transport_management_report_delivery.prisma",
+          "mustContain": [
+            "@@unique([runId, destinationId])",
+            "@@index([status, availableAt, leaseUntil])"
           ]
         }
       ]
