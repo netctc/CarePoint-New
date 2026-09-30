@@ -17,6 +17,7 @@ type ReverseGeocodeBody = {
   latitude?: unknown;
   longitude?: unknown;
   languageCode?: unknown;
+  source?: unknown;
 };
 
 type SearchLocationBody = {
@@ -31,7 +32,7 @@ type NormalizedLocation = {
   latitude: number | null;
   longitude: number | null;
   placeId: string | null;
-  source: "GPS" | "ADDRESS_SEARCH";
+  source: "GPS" | "ADDRESS_SEARCH" | "MAP_PICKER";
 };
 
 type GoogleGeocodeResult = {
@@ -77,6 +78,7 @@ class TransportLocationService {
     const latitude = this.coordinate(input.latitude, "latitude", -90, 90);
     const longitude = this.coordinate(input.longitude, "longitude", -180, 180);
     const languageCode = this.languageCode(input.languageCode);
+    const source = this.reverseSource(input.source);
     const config = this.config();
 
     if (!config.reverseGeocodingAvailable) {
@@ -88,7 +90,7 @@ class TransportLocationService {
           latitude,
           longitude,
           placeId: null,
-          source: "GPS",
+          source,
         }),
       };
     }
@@ -116,7 +118,7 @@ class TransportLocationService {
           latitude,
           longitude,
           placeId: null,
-          source: "GPS",
+          source,
         }),
       };
     }
@@ -132,7 +134,7 @@ class TransportLocationService {
         latitude: resultLatitude,
         longitude: resultLongitude,
         placeId: this.text(first.placeId),
-        source: "GPS",
+        source,
       }),
     };
   }
@@ -278,6 +280,12 @@ class TransportLocationService {
       throw new BadRequestException("query must contain between 2 and 160 characters.");
     }
     return query;
+  }
+
+  private reverseSource(value: unknown): "GPS" | "MAP_PICKER" {
+    if (value == null || value === "" || value === "GPS") return "GPS";
+    if (value === "MAP_PICKER") return "MAP_PICKER";
+    throw new BadRequestException("source must be GPS or MAP_PICKER.");
   }
 
   private languageCode(value: unknown): string | null {
