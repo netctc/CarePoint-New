@@ -890,6 +890,304 @@ class _TransportLocationSearchDialogState
       );
 }
 
+class _TransportRasterMapPickerDialog extends StatefulWidget {
+  const _TransportRasterMapPickerDialog({
+    required this.session,
+    required this.locale,
+    required this.config,
+    this.initialLocation,
+  });
+
+  final CarePointSession session;
+  final CarePointLocale locale;
+  final _TransportRasterMapConfig config;
+  final TransportLocation? initialLocation;
+
+  @override
+  State<_TransportRasterMapPickerDialog> createState() =>
+      _TransportRasterMapPickerDialogState();
+}
+
+class _TransportRasterMapPickerDialogState
+    extends State<_TransportRasterMapPickerDialog> {
+  static const double _tileSize = 256;
+  static const double _maxMercatorLatitude = 85.05112878;
+
+  late double latitude;
+  late double longitude;
+  late int zoom;
+  bool resolving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final initial = widget.initialLocation;
+    final hasInitial = initial?.hasCoordinates == true;
+    final hasDefault = widget.config.defaultLatitude != null &&
+        widget.config.defaultLongitude != null;
+    latitude = hasInitial
+        ? initial!.latitude!
+        : hasDefault
+            ? widget.config.defaultLatitude!
+            : 0;
+    longitude = hasInitial
+        ? initial!.longitude!
+        : hasDefault
+            ? widget.config.defaultLongitude!
+            : 0;
+    zoom = hasInitial || hasDefault
+        ? widget.config.initialZoom
+        : widget.config.minZoom;
+  }
+
+  double get _worldSize => _tileSize * math.pow(2, zoom).toDouble();
+
+  Offset _project(double lat, double lng) {
+    final safeLat =
+        lat.clamp(-_maxMercatorLatitude, _maxMercatorLatitude).toDouble();
+    final x = (lng + 180) / 360 * _worldSize;
+    final sinLat = math.sin(safeLat * math.pi / 180);
+    final y =
+        (0.5 - math.log((1 + sinLat) / (1 - sinLat)) / (4 * math.pi)) *
+            _worldSize;
+    return Offset(x, y);
+  }
+
+  ({double latitude, double longitude}) _unproject(Offset world) {
+    final wrappedX = ((world.dx % _worldSize) + _worldSize) % _worldSize;
+    final clampedY = world.dy.clamp(0.0, _worldSize).toDouble();
+    final lng = wrappedX / _worldSize * 360 - 180;
+    final mercator = math.pi - 2 * math.pi * clampedY / _worldSize;
+    final lat = 180 / math.pi * math.atan(math.sinh(mercator));
+    return (latitude: lat, longitude: lng);
+  }
+
+  void _panBy(Offset delta) {
+    final current = _project(latitude, longitude);
+    final next = _unproject(
+      Offset(current.dx - delta.dx, current.dy - delta.dy),
+    );
+    setState(() {
+      latitude = next.latitude;
+      longitude = next.longitude;
+    });
+  }
+
+  void _selectAt(Offset localPosition, Size size) {
+    final current = _project(latitude, longitude);
+    final nextWorld = Offset(
+      current.dx + localPosition.dx - size.width / 2,
+      current.dy + localPosition.dy - size.height / 2,
+    );
+    final next = _unproject(nextWorld);
+    setState(() {
+      latitude = next.latitude;
+      longitude = next.longitude;
+    });
+  }
+
+  void _changeZoom(int delta) {
+    final next = (zoom + delta)
+        .clamp(widget.config.minZoom, widget.config.maxZoom)
+        .toInt();
+    if (next == zoom) return;
+    setState(() => zoom = next);
+  }
+
+  String _tileUrl(int z, int x, int y) => widget.config.tileUrlTemplate
+      .replaceAll('{z}', '$z')
+      .replaceAll('{x}', '$x')
+      .replaceAll('{y}', '$y');
+
+  List<Widget> _tiles(Size size) {
+    final center = _project(latitude, longitude);
+    final centerTileX = (center.dx / _tileSize).floor();
+    final centerTileY = (center.dy / _tileSize).floor();
+    final tileCount = math.pow(2, zoom).toInt();
+    final result = <Widget>[];
+
+    for (var dy = -2; dy <= 2; dy++) {
+      final tileY = centerTileY + dy;
+      if (tileY < 0 || tileY >= tileCount) continue;
+      for (var dx = -2; dx <= 2; dx++) {
+        final rawTileX = centerTileX + dx;
+        final tileX = ((rawTileX % tileCount) + tileCount) % tileCount;
+        final left = size.width / 2 + rawTileX * _tileSize - center.dx;
+        final top = size.height / 2 + tileY * _tileSize - center.dy;
+
+        result.add(Positioned(
+          left: left,
+          top: top,
+          width: _tileSize,
+          height: _tileSize,
+          child: Image.network(
+            _tileUrl(zoom, tileX, tileY),
+            fit: BoxFit.cover,
+            gaplessPlayback: true,
+            errorBuilder: (_, __, ___) => Container(
+              color: const Color(0xFFE2E8F0),
+              alignment: Alignment.center,
+              child: const Icon(
+                Icons.broken_image_outlined,
+                color: Color(0xFF64748B),
+              ),
+            ),
+          ),
+        ));
+      }
+    }
+    return result;
+  }
+
+  Future<void> _confirm() async {
+    setState(() => resolving = true);
+    try {
+      final selected = TransportLocation(
+        latitude: latitude,
+        longitude: longitude,
+        source: TransportLocationSource.mapPicker,
+      );
+      final resolved = await _resolveTransportLocation(
+        widget.session,
+        widget.locale,
+        selected,
+      );
+      final result = TransportLocation(
+        address: resolved.address,
+        latitude: latitude,
+        longitude: longitude,
+        placeId: resolved.placeId,
+        source: TransportLocationSource.mapPicker,
+      );
+      if (mounted) Navigator.pop(context, result);
+    } finally {
+      if (mounted) setState(() => resolving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+        title: Text(transportText(widget.locale, 'mapPickerTitle')),
+        content: SizedBox(
+          width: 520,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: Text(transportText(widget.locale, 'mapPickerHint')),
+              ),
+              const SizedBox(height: 10),
+              AspectRatio(
+                aspectRatio: 1,
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final size =
+                        Size(constraints.maxWidth, constraints.maxHeight);
+                    return ClipRRect(
+                      borderRadius: BorderRadius.circular(14),
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onPanUpdate: (details) => _panBy(details.delta),
+                        onTapDown: (details) =>
+                            _selectAt(details.localPosition, size),
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            Container(color: const Color(0xFFE2E8F0)),
+                            ..._tiles(size),
+                            const IgnorePointer(
+                              child: Center(
+                                child: Icon(
+                                  Icons.location_pin,
+                                  size: 44,
+                                  color: Color(0xFFE11D48),
+                                  shadows: [
+                                    Shadow(
+                                      blurRadius: 4,
+                                      color: Colors.white,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            PositionedDirectional(
+                              top: 10,
+                              end: 10,
+                              child: Column(
+                                children: [
+                                  FloatingActionButton.small(
+                                    heroTag: null,
+                                    onPressed: zoom < widget.config.maxZoom
+                                        ? () => _changeZoom(1)
+                                        : null,
+                                    child: const Icon(Icons.add),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  FloatingActionButton.small(
+                                    heroTag: null,
+                                    onPressed: zoom > widget.config.minZoom
+                                        ? () => _changeZoom(-1)
+                                        : null,
+                                    child: const Icon(Icons.remove),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            PositionedDirectional(
+                              start: 6,
+                              bottom: 6,
+                              child: Container(
+                                constraints:
+                                    BoxConstraints(maxWidth: size.width - 12),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 3,
+                                ),
+                                color: const Color(0xE0FFFFFF),
+                                child: Text(
+                                  widget.config.attribution,
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    color: Color(0xFF334155),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '\${latitude.toStringAsFixed(6)}, \${longitude.toStringAsFixed(6)}',
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: resolving ? null : () => Navigator.pop(context),
+            child: Text(cpText(widget.locale, 'common.cancel')),
+          ),
+          FilledButton.icon(
+            onPressed: resolving ? null : _confirm,
+            icon: resolving
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.check),
+            label: Text(transportText(widget.locale, 'confirmLocation')),
+          ),
+        ],
+      );
+}
+
 String _locationText(Map<String, dynamic> row, {required bool pickup}) {
   final address = row[pickup ? 'pickupAddress' : 'destinationAddress']?.toString().trim() ?? '';
   if (address.isNotEmpty) return address;
