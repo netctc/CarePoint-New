@@ -10,6 +10,7 @@ on:
       - "apps/patient-mobile/**"
       - "apps/doctor-mobile/**"
       - "apps/provider-mobile/**"
+      - "apps/transport-provider-mobile/**"
       - "packages/mobile_core/**"
       - "services/api/**"
       - "packages/contracts/**"
@@ -68,6 +69,7 @@ jobs:
       PATIENT_WEB_IMAGE: ghcr.io/netctc/carepoint-new-patient-web
       DOCTOR_WEB_IMAGE: ghcr.io/netctc/carepoint-new-doctor-web
       PROVIDER_WEB_IMAGE: ghcr.io/netctc/carepoint-new-provider-web
+      TRANSPORT_PROVIDER_WEB_IMAGE: ghcr.io/netctc/carepoint-new-transport-provider-web
     steps:
       - name: Check out exact candidate SHA
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -150,7 +152,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p integrated-test/web integrated-test/evidence
-          for pair in "patient-mobile:patient" "doctor-mobile:doctor" "provider-mobile:provider"; do
+          for pair in "patient-mobile:patient" "doctor-mobile:doctor" "provider-mobile:provider" "transport-provider-mobile:transport-provider"; do
             app="${pair%%:*}"
             label="${pair##*:}"
             pushd "apps/${app}"
@@ -167,7 +169,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for spec in             "patient:$PATIENT_WEB_IMAGE"             "doctor:$DOCTOR_WEB_IMAGE"             "provider:$PROVIDER_WEB_IMAGE"; do
+          for spec in             "patient:$PATIENT_WEB_IMAGE"             "doctor:$DOCTOR_WEB_IMAGE"             "provider:$PROVIDER_WEB_IMAGE"             "transport-provider:$TRANSPORT_PROVIDER_WEB_IMAGE"; do
             label="${spec%%:*}"
             image="${spec#*:}"
             tag="$image:test-$CAREPOINT_TEST_SOURCE_SHA-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
@@ -179,6 +181,7 @@ jobs:
               patient) echo "PATIENT_WEB_DIGEST=$digest" >> "$GITHUB_ENV" ;;
               doctor) echo "DOCTOR_WEB_DIGEST=$digest" >> "$GITHUB_ENV" ;;
               provider) echo "PROVIDER_WEB_DIGEST=$digest" >> "$GITHUB_ENV" ;;
+              transport-provider) echo "TRANSPORT_PROVIDER_WEB_DIGEST=$digest" >> "$GITHUB_ENV" ;;
             esac
           done
 
@@ -189,6 +192,7 @@ jobs:
           PATIENT_WEB_DIGEST: ${{ env.PATIENT_WEB_DIGEST }}
           DOCTOR_WEB_DIGEST: ${{ env.DOCTOR_WEB_DIGEST }}
           PROVIDER_WEB_DIGEST: ${{ env.PROVIDER_WEB_DIGEST }}
+          TRANSPORT_PROVIDER_WEB_DIGEST: ${{ env.TRANSPORT_PROVIDER_WEB_DIGEST }}
         shell: bash
         run: |
           set -euo pipefail
@@ -197,6 +201,7 @@ jobs:
           [[ "$PATIENT_WEB_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
           [[ "$DOCTOR_WEB_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
           [[ "$PROVIDER_WEB_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+          [[ "$TRANSPORT_PROVIDER_WEB_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
 
           find integrated-test/web -type f -print | LC_ALL=C sort | while IFS= read -r file; do
             sha256sum "$file"
@@ -234,6 +239,10 @@ jobs:
               provider: {
                 artifactPath: "web/provider",
                 immutableImage: process.env.PROVIDER_WEB_IMAGE + "@" + process.env.PROVIDER_WEB_DIGEST
+              },
+              transportProvider: {
+                artifactPath: "web/transport-provider",
+                immutableImage: process.env.TRANSPORT_PROVIDER_WEB_IMAGE + "@" + process.env.TRANSPORT_PROVIDER_WEB_DIGEST
               }
             },
             runtimeContract: "ops/test-version/runtime-contract.json",
@@ -270,8 +279,8 @@ jobs:
           {
             echo "### CarePoint integrated test version"
             echo "- Source SHA: $CAREPOINT_TEST_SOURCE_SHA"
-            echo "- OCI images: API, Admin, Patient Web, Doctor Web, Other Provider Web"
-            echo "- All five immutable GHCR digests are recorded in the manifest"
+            echo "- OCI images: API, Admin, Patient Web, Doctor Web, Other Provider Web, Transport Provider Web"
+            echo "- All six immutable GHCR digests are recorded in the manifest"
             echo "- API base: $CAREPOINT_TEST_API_BASE"
             echo "- Runtime profile: isolated-synthetic"
             echo "- Production release evidence: false"
