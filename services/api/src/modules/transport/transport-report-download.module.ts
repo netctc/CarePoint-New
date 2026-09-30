@@ -96,6 +96,7 @@ export class TransportReportDownloadService {
         oneTime: true,
         tokenPersistedPlaintext: false,
         publicUrlIssued: false,
+        recipientDeliveryReceiptsRecorded: recipientReceipts.count,
       },
     });
 
@@ -214,6 +215,22 @@ export class TransportReportDownloadService {
         "Transport report artifact integrity validation failed.",
       );
     }
+
+    const recipientReceipts =
+      await this.prisma.transportManagementReportDelivery.updateMany({
+        where: {
+          runId,
+          status: "SENT",
+          downloadedAt: null,
+          destination: {
+            recipientAccountId: principal.accountId,
+          },
+        },
+        data: {
+          downloadedAt: new Date(),
+          downloadedByAccountId: principal.accountId,
+        },
+      });
 
     await this.audit.write({
       actorId: principal.accountId,
