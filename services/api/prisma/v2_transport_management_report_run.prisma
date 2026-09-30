@@ -18,6 +18,15 @@ model TransportManagementReportRun {
   truncatedSource      Boolean  @default(false)
   snapshotHash         String?
   snapshotJson         String?
+  artifactObjectKey    String?
+  artifactSha256       String?
+  artifactBytes        Int?
+  artifactContentType  String?
+  artifactStorageProvider String?
+  artifactStoredAt     DateTime?
+  deliveryStatus       String   @default("NOT_READY")
+  deliveryHandoffPreparedAt DateTime?
+  deliveryHandoffPreparedByAccountId String?
   createdByAccountId   String
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
@@ -25,4 +34,5 @@ model TransportManagementReportRun {
   @@unique([scheduleId, scheduledFor])
   @@index([status, leaseExpiresAt])
   @@index([scheduleId, createdAt])
+  @@index([deliveryStatus, artifactStoredAt])
 }
