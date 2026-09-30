@@ -1,11 +1,13 @@
+import { randomBytes } from "node:crypto";
 import { totpCode } from "@carepoint/identity";
 
 const base = process.env.CAREPOINT_API_URL || "http://127.0.0.1:4000/api/v1";
 const password = process.env.SLICE6_PATIENT_PASSWORD;
 if (!password) throw new Error("SLICE6_PATIENT_PASSWORD is required for Patient P1 acceptance.");
-const stamp = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+const entropy = randomBytes(8).toString("hex");
+const stamp = `${Date.now()}-${entropy}`;
 const email = `patient-p1-${stamp}@carepoint.test`;
-const username = `p1${Date.now().toString(36)}${Math.random().toString(36).slice(2,8)}`;
+const username = `p1${Date.now().toString(36)}${entropy.slice(0, 8)}`;
 const endpointRef = `p1-endpoint-${stamp}`;
 
 function assert(ok, message) { if (!ok) throw new Error(message); }
