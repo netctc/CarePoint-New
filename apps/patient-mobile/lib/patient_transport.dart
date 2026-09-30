@@ -879,7 +879,7 @@ class _TransportDialogState extends State<_TransportDialog> {
         address: location.address,
         latitude: location.latitude,
         longitude: location.longitude,
-        source: location.source.name.toUpperCase(),
+        source: location.toJson()['source']?.toString(),
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
