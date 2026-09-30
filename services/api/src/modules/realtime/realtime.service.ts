@@ -14,6 +14,8 @@ export const REALTIME_TOPICS = [
   "QUESTIONNAIRE_COMPLETIONS",
   "OBSERVATIONS",
   "PROVIDER_JOB_STATUS",
+  "TRANSPORT_TRACKING",
+  "TRANSPORT_MILESTONES",
 ] as const;
 
 export type RealtimeTopic = (typeof REALTIME_TOPICS)[number];
@@ -21,6 +23,7 @@ export type RealtimeTopic = (typeof REALTIME_TOPICS)[number];
 export interface RealtimeStreamQuery {
   topic?: string;
   patientId?: string;
+  transportRequestId?: string;
   after?: string;
 }
 
@@ -29,8 +32,20 @@ export interface RealtimeMessage {
   type: string;
   data: {
     topic: RealtimeTopic;
-    eventType: "ALERT_RAISED" | "QUESTIONNAIRE_COMPLETED" | "OBSERVATION_RECORDED" | "JOB_STATUS_CHANGED";
-    entityType: "CLINICAL_ALERT" | "QUESTIONNAIRE_RESPONSE" | "OBSERVATION" | "PROVIDER_WORKFLOW_EVENT";
+    eventType:
+      | "ALERT_RAISED"
+      | "QUESTIONNAIRE_COMPLETED"
+      | "OBSERVATION_RECORDED"
+      | "JOB_STATUS_CHANGED"
+      | "TELEMETRY_UPDATED"
+      | "TRANSPORT_MILESTONE_DETECTED";
+    entityType:
+      | "CLINICAL_ALERT"
+      | "QUESTIONNAIRE_RESPONSE"
+      | "OBSERVATION"
+      | "PROVIDER_WORKFLOW_EVENT"
+      | "TRANSPORT_TELEMETRY"
+      | "TRANSPORT_TRIP_MILESTONE";
     entityId: string;
     occurredAt: string;
   };
@@ -41,20 +56,25 @@ type SubscriptionContext = {
   id: string;
   topic: RealtimeTopic;
   scopeKey: string;
-  subjectType: "PATIENT" | "PROVIDER";
+  subjectType: "PATIENT" | "PROVIDER" | "TRANSPORT_REQUEST";
   subjectId: string;
   principal: AuthPrincipal;
   cursor: Cursor;
   lastEvidenceTouchAt: number;
 };
 
-const TOPIC_PROVIDER_SCOPE: Record<Exclude<RealtimeTopic, "PROVIDER_JOB_STATUS">, Permission> = {
+type ClinicalRealtimeTopic = Exclude<
+  RealtimeTopic,
+  "PROVIDER_JOB_STATUS" | "TRANSPORT_TRACKING" | "TRANSPORT_MILESTONES"
+>;
+
+const TOPIC_PROVIDER_SCOPE: Record<ClinicalRealtimeTopic, Permission> = {
   CLINICAL_ALERTS: "CLINICAL_RECORD_READ",
   QUESTIONNAIRE_COMPLETIONS: "CLINICAL_QUESTIONNAIRE_READ",
   OBSERVATIONS: "CLINICAL_OBSERVATION_READ",
 };
 
-const TOPIC_PATIENT_SCOPE: Record<Exclude<RealtimeTopic, "PROVIDER_JOB_STATUS">, Permission> = {
+const TOPIC_PATIENT_SCOPE: Record<ClinicalRealtimeTopic, Permission> = {
   CLINICAL_ALERTS: "PATIENT_READ_CLINICAL_RECORD",
   QUESTIONNAIRE_COMPLETIONS: "PATIENT_MANAGE_QUESTIONNAIRE",
   OBSERVATIONS: "PATIENT_MANAGE_OBSERVATIONS",
@@ -88,9 +108,19 @@ export class RealtimeService {
 
   private async createSubscription(
     principal: AuthPrincipal,
-    query: { topic: RealtimeTopic; patientId: string | null; after: Date },
+    query: {
+      topic: RealtimeTopic;
+      patientId: string | null;
+      transportRequestId: string | null;
+      after: Date;
+    },
   ): Promise<SubscriptionContext> {
-    const authorization = await this.authorize(principal, query.topic, query.patientId);
+    const authorization = await this.authorize(
+      principal,
+      query.topic,
+      query.patientId,
+      query.transportRequestId,
+    );
     const row = await this.prisma.realtimeSubscription.create({
       data: {
         actorId: principal.accountId,
@@ -132,6 +162,7 @@ export class RealtimeService {
         context.principal,
         context.topic,
         context.subjectType === "PATIENT" ? context.subjectId : null,
+        context.subjectType === "TRANSPORT_REQUEST" ? context.subjectId : null,
       );
       if (
         authorization.scopeKey !== context.scopeKey
@@ -162,8 +193,75 @@ export class RealtimeService {
     }
   }
 
-  private async authorize(principal: AuthPrincipal, topic: RealtimeTopic, patientIdInput: string | null) {
+  private async authorize(
+    principal: AuthPrincipal,
+    topic: RealtimeTopic,
+    patientIdInput: string | null,
+    transportRequestIdInput: string | null,
+  ) {
     await this.assertLiveSession(principal);
+
+    if (topic === "TRANSPORT_TRACKING" || topic === "TRANSPORT_MILESTONES") {
+      const requestId = this.identifier(transportRequestIdInput, "transportRequestId");
+      const request = await this.prisma.medicalTransportRequest.findUnique({
+        where: { id: requestId },
+        select: { id: true, patientId: true, assignedProviderId: true },
+      });
+      if (!request) throw new ForbiddenException("Transport realtime scope is unavailable.");
+
+      if (principal.role === "PATIENT") {
+        if (!principalHasAnyPermission(principal, ["PATIENT_TRANSPORT_REQUEST"])) {
+          throw new ForbiddenException("Patient transport realtime access denied.");
+        }
+        const patient = await this.prisma.patientProfile.findUnique({
+          where: { userId: principal.accountId },
+          select: { id: true },
+        });
+        if (!patient || patient.id !== request.patientId) {
+          throw new ForbiddenException("Transport realtime patient scope mismatch.");
+        }
+        return {
+          scopeKey: "PATIENT_TRANSPORT_REQUEST",
+          subjectType: "TRANSPORT_REQUEST" as const,
+          subjectId: request.id,
+        };
+      }
+
+      if (principal.role === "ADMIN") {
+        if (!principalHasAnyPermission(principal, ["TRANSPORT_OPERATE"])) {
+          throw new ForbiddenException("Transport operations realtime access denied.");
+        }
+        return {
+          scopeKey: "TRANSPORT_OPERATE",
+          subjectType: "TRANSPORT_REQUEST" as const,
+          subjectId: request.id,
+        };
+      }
+
+      if (principal.role === "OTHER_PROVIDER") {
+        if (!principalHasAnyPermission(principal, ["TRANSPORT_RESPOND"])) {
+          throw new ForbiddenException("Transport provider realtime access denied.");
+        }
+        const provider = await this.prisma.provider.findUnique({
+          where: { userId: principal.accountId },
+          select: { id: true, status: true },
+        });
+        if (
+          !provider ||
+          provider.status !== "ACTIVE" ||
+          request.assignedProviderId !== provider.id
+        ) {
+          throw new ForbiddenException("Assigned transport provider required.");
+        }
+        return {
+          scopeKey: "TRANSPORT_RESPOND",
+          subjectType: "TRANSPORT_REQUEST" as const,
+          subjectId: request.id,
+        };
+      }
+
+      throw new ForbiddenException("Transport realtime access denied.");
+    }
 
     if (topic === "PROVIDER_JOB_STATUS") {
       if (principal.role !== "OTHER_PROVIDER" || !principalHasAnyPermission(principal, ["OTHER_PROVIDER_WORKFLOW_EXECUTE"])) {
@@ -238,6 +336,52 @@ export class RealtimeService {
   }
 
   private async readTopic(context: SubscriptionContext): Promise<RealtimeMessage[]> {
+    if (context.topic === "TRANSPORT_TRACKING") {
+      const rows = await this.prisma.transportUnitTelemetry.findMany({
+        where: {
+          transportRequestId: context.subjectId,
+          receivedAt: { gte: context.cursor.at },
+        },
+        select: { id: true, receivedAt: true },
+        orderBy: [{ receivedAt: "asc" }, { id: "asc" }],
+        take: 100,
+      });
+      return this.afterCursor(
+        rows.map((row) => ({ id: row.id, createdAt: row.receivedAt })),
+        context.cursor,
+      ).map((row) =>
+        this.message(
+          context.topic,
+          row.id,
+          row.createdAt,
+          "TELEMETRY_UPDATED",
+          "TRANSPORT_TELEMETRY",
+        ),
+      );
+    }
+    if (context.topic === "TRANSPORT_MILESTONES") {
+      const rows = await this.prisma.transportTripMilestone.findMany({
+        where: {
+          transportRequestId: context.subjectId,
+          occurredAt: { gte: context.cursor.at },
+        },
+        select: { id: true, occurredAt: true },
+        orderBy: [{ occurredAt: "asc" }, { id: "asc" }],
+        take: 100,
+      });
+      return this.afterCursor(
+        rows.map((row) => ({ id: row.id, createdAt: row.occurredAt })),
+        context.cursor,
+      ).map((row) =>
+        this.message(
+          context.topic,
+          row.id,
+          row.createdAt,
+          "TRANSPORT_MILESTONE_DETECTED",
+          "TRANSPORT_TRIP_MILESTONE",
+        ),
+      );
+    }
     if (context.topic === "CLINICAL_ALERTS") {
       const rows = await this.prisma.clinicalAlert.findMany({
         where: { patientId: context.subjectId, createdAt: { gte: context.cursor.at } },
@@ -338,6 +482,7 @@ export class RealtimeService {
     return {
       topic: topicInput as RealtimeTopic,
       patientId: query?.patientId?.trim() || null,
+      transportRequestId: query?.transportRequestId?.trim() || null,
       after,
     };
   }
