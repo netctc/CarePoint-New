@@ -44,6 +44,7 @@ import 'package:flutter/material.dart';
 import 'clinical_timeline.dart';
 import 'patient_account.dart';
 import 'patient_transport.dart';
+import 'runtime_features.dart';
 
 void main() => runApp(const CarePointPatientApp());
 class CarePointPatientApp extends StatefulWidget {
@@ -297,6 +298,7 @@ class _PatientShellState extends State<PatientShell> {
         spacing: spacing,
         runSpacing: spacing,
         children: [
+          if (transportModuleEnabled) ...[
           item(FilledButton.icon(
             onPressed: () => openEmergencyAmbulanceFlow(
               context,
@@ -322,9 +324,11 @@ class _PatientShellState extends State<PatientShell> {
             icon: const Icon(Icons.local_shipping_outlined),
             label: Text(transportText(widget.locale, 'schedule')),
           )),
+          ],
           item(PatientNotificationCentreEntryButton(
             session: widget.session,
             locale: widget.locale,
+            transportModuleEnabled: transportModuleEnabled,
           )),
           item(PatientMessagesEntryButton(
             session: widget.session,
@@ -380,13 +384,15 @@ class _PatientShellState extends State<PatientShell> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(cpText(widget.locale, 'patient.emergencyHint')),
-              const SizedBox(height: 8),
-              PatientActiveEmergencyEntryButton(
-                session: widget.session,
-                locale: widget.locale,
-              ),
-              const SizedBox(height: 8),
+              if (transportModuleEnabled) ...[
+                Text(cpText(widget.locale, 'patient.emergencyHint')),
+                const SizedBox(height: 8),
+                PatientActiveEmergencyEntryButton(
+                  session: widget.session,
+                  locale: widget.locale,
+                ),
+                const SizedBox(height: 8),
+              ],
               _homeQuickActions(),
             ],
           ),
