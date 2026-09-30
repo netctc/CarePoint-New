@@ -129,7 +129,10 @@ export class TransportPerformanceAnalyticsService {
     ]);
 
     const activeJobsByProvider = new Map<string, number>();
-    for (const request of [...historical, ...future]) {
+    const activeRequestById = new Map(
+      [...historical, ...future].map((request) => [request.id, request]),
+    );
+    for (const request of activeRequestById.values()) {
       if (
         request.assignedProviderId &&
         ["ASSIGNED", "EN_ROUTE", "ARRIVED", "TRANSPORTING"].includes(
@@ -326,11 +329,17 @@ export class TransportPerformanceAnalyticsService {
       .filter((row) => row.resolvedAt)
       .map((row) => this.minutes(row.firstTriggeredAt, row.resolvedAt!));
 
+    const historicalByProvider = new Map<string, typeof historical>();
+    for (const request of historical) {
+      if (!request.assignedProviderId) continue;
+      const list = historicalByProvider.get(request.assignedProviderId) ?? [];
+      list.push(request);
+      historicalByProvider.set(request.assignedProviderId, list);
+    }
+
     const providerPerformance = providers
       .map((provider) => {
-        const requests = historical.filter(
-          (row) => row.assignedProviderId === provider.id,
-        );
+        const requests = historicalByProvider.get(provider.id) ?? [];
         if (requests.length === 0) return null;
         const completed = requests.filter((row) => row.status === "COMPLETED");
         const cancelled = requests.filter((row) => row.status === "CANCELLED");
@@ -388,6 +397,7 @@ export class TransportPerformanceAnalyticsService {
       historical,
       future,
       units,
+      since,
       now,
       forecastDays,
     );
@@ -561,6 +571,7 @@ export class TransportPerformanceAnalyticsService {
     historical: any[],
     future: any[],
     units: any[],
+    since: Date,
     now: Date,
     forecastDays: number,
   ) {
@@ -581,12 +592,7 @@ export class TransportPerformanceAnalyticsService {
     }
 
     const historicalDates = this.dateRange(
-      new Date(
-        Math.min(
-          ...historical.map((row) => row.requestedAt.getTime()),
-          now.getTime(),
-        ),
-      ),
+      since,
       new Date(now.getTime() - 24 * 60 * 60 * 1000),
     );
     for (const date of historicalDates) {
