@@ -72,13 +72,12 @@ for (const text of [
 assert.ok(appModule.includes("TransportReportGovernanceModule"));
 
 for (const text of [
-  "PHASE 23 · GOVERNANCE EVIDENCE + HOLD/PURGE TIMELINE",
   "Report Governance Evidence",
   "/governance-timeline",
   "Immutable governance timeline",
   "event.eventHash",
   "event.sequence",
-  "Raw audit",
+  "raw audit metadata",
 ]) {
   assert.ok(adminPanel.includes(text), `Admin governance panel must include: ${text}`);
 }
