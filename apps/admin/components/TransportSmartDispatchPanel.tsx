@@ -152,10 +152,12 @@ export function TransportSmartDispatchPanel() {
 
   useEffect(() => {
     let cancelled = false;
+    let first = true;
     let timer: ReturnType<typeof setTimeout> | null = null;
 
     const tick = async () => {
-      const payload = await evaluate({ silent: data !== null });
+      const payload = await evaluate({ silent: !first });
+      first = false;
       if (cancelled) return;
       const seconds = Math.max(
         15,
