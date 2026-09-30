@@ -27,6 +27,14 @@ type Run = {
   rowCount: number | null;
   truncatedSource: boolean;
   snapshotHash: string | null;
+  artifactObjectKey: string | null;
+  artifactSha256: string | null;
+  artifactBytes: number | null;
+  artifactContentType: string | null;
+  artifactStorageProvider: string | null;
+  artifactStoredAt: string | null;
+  deliveryStatus: string;
+  deliveryHandoffPreparedAt: string | null;
   automaticDeliveryAvailable: false;
   reportDeliveryPerformed: false;
 };
@@ -139,13 +147,14 @@ export function TransportReportExecutionPanel() {
       >
         <div>
           <span style={{ fontSize: 12, fontWeight: 900, color: "#0f766e" }}>
-            PHASE 14 · DURABLE REPORT EXECUTION LEDGER
+            PHASE 16 · SECURE REPORT ARTIFACT + DELIVERY HANDOFF
           </span>
           <h2 style={{ margin: "5px 0" }}>Scheduled Report Execution</h2>
           <p style={{ maxWidth: 960, marginBottom: 0 }}>
-            Queues due schedules idempotently, claims executions with a bounded
-            lease, records sanitized report snapshots and supports stale-run
-            recovery. Report delivery remains external and is not claimed here.
+            Durable report runs now persist a sanitized CSV artifact in private
+            object storage. Delivery remains external: this panel can prepare an
+            auditable handoff descriptor but does not create public links or claim
+            that delivery occurred.
           </p>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -198,7 +207,8 @@ export function TransportReportExecutionPanel() {
               <th align="left">Status</th>
               <th align="right">Attempts</th>
               <th align="right">Rows</th>
-              <th align="left">Snapshot</th>
+              <th align="left">Artifact</th>
+              <th align="left">Delivery</th>
               <th align="left">Action</th>
             </tr>
           </thead>
@@ -227,8 +237,24 @@ export function TransportReportExecutionPanel() {
                 <td align="right">{run.attemptCount}</td>
                 <td align="right">{run.rowCount ?? "—"}</td>
                 <td style={{ fontSize: 12 }}>
-                  {run.snapshotHash ? run.snapshotHash.slice(0, 16) + "…" : "—"}
+                  {run.artifactSha256 ? (
+                    <>
+                      <div>{run.artifactStorageProvider ?? "PRIVATE_STORAGE"}</div>
+                      <div>{run.artifactSha256.slice(0, 16) + "…"}</div>
+                      <div>{run.artifactBytes == null ? "—" : String(run.artifactBytes) + " bytes"}</div>
+                    </>
+                  ) : run.snapshotHash ? (
+                    run.snapshotHash.slice(0, 16) + "…"
+                  ) : (
+                    "—"
+                  )}
                   {run.truncatedSource ? <div>source capped</div> : null}
+                </td>
+                <td style={{ fontSize: 12 }}>
+                  <strong>{run.deliveryStatus}</strong>
+                  {run.deliveryHandoffPreparedAt ? (
+                    <div>{new Date(run.deliveryHandoffPreparedAt).toLocaleString()}</div>
+                  ) : null}
                 </td>
                 <td>
                   {run.status === "QUEUED" ? (
@@ -260,6 +286,23 @@ export function TransportReportExecutionPanel() {
                       }
                     >
                       Requeue
+                    </button>
+                  ) : run.status === "SUCCEEDED" &&
+                    run.artifactSha256 &&
+                    !run.deliveryHandoffPreparedAt ? (
+                    <button
+                      className="secondary-button"
+                      disabled={Boolean(busy)}
+                      onClick={() =>
+                        void action(
+                          "handoff-" + run.id,
+                          "/api/admin/transport/report-runs/" +
+                            encodeURIComponent(run.id) +
+                            "/prepare-delivery-handoff",
+                        )
+                      }
+                    >
+                      Prepare handoff
                     </button>
                   ) : run.reportFilename ? (
                     <span style={{ fontSize: 12 }}>{run.reportFilename}</span>
