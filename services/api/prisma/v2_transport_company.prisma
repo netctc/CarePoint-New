@@ -29,7 +29,7 @@ model TransportCrewMember {
   updatedAt         DateTime         @updatedAt
   company           TransportCompany @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
-  @@unique([companyId, providerId])
+  @@index([companyId, providerId])
   @@index([companyId, active, role])
   @@index([providerId])
 }
