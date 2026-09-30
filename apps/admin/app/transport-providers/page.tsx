@@ -4,6 +4,7 @@ import { ProfessionalAdministrationCenter } from "@/components/ProfessionalAdmin
 import { ProviderGovernanceQueue } from "@/components/ProviderGovernanceQueue";
 import { TransportOperationsPanel } from "@/components/TransportOperationsPanel";
 import { TransportDispatchBoard } from "@/components/TransportDispatchBoard";
+import { TransportLiveOperationsPanel } from "@/components/TransportLiveOperationsPanel";
 import { TransportCompanyPanel } from "@/components/TransportCompanyPanel";
 import { TransportAnalyticsPanel } from "@/components/TransportAnalyticsPanel";
 import { adminRuntimeFeatures } from "@/lib/runtime-features";
@@ -32,6 +33,7 @@ export default function TransportProvidersPage() {
         </div>
       </section>
 
+      <TransportLiveOperationsPanel />
       <TransportDispatchBoard />
       <TransportOperationsPanel />
       <TransportCompanyPanel />
