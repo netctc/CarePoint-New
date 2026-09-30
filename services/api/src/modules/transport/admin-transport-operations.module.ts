@@ -12,7 +12,6 @@ import {
   Post,
 } from "@nestjs/common";
 import type { AuthPrincipal } from "@carepoint/identity";
-import { Prisma } from "@prisma/client";
 import { CurrentPrincipal, RequirePermissions } from "../../security/api-security.module";
 import { PrismaService } from "../../infrastructure/prisma/prisma.module";
 import { DatabaseAuditService } from "../../infrastructure/audit/audit.service";
