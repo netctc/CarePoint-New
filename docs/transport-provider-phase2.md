@@ -14,7 +14,8 @@ Implemented in this phase:
 - Recent crew-assignment visibility.
 - Transport Company administration with provider/fleet grouping.
 - Transport Crew administration with role, optional provider linkage, license metadata and assignment-readiness calculation.
-- Unified read-only Dispatch Board for scheduled medical transport and emergency ambulance work.
+- Unified Dispatch Board for scheduled medical transport and emergency ambulance work.
+- Admin dispatch assignment reusing the existing scheduled/emergency lifecycle endpoints.
 - Optional latitude/longitude across transport location contracts.
 - Nullable transport coordinates in PostgreSQL with a non-destructive migration.
 
@@ -126,7 +127,7 @@ A linked Provider must already belong to the company. This preserves compatibili
 
 ## Dispatch Board
 
-Admin now has a single read-only operational board containing:
+Admin now has a single operational board containing:
 
 - active scheduled medical transport requests;
 - active emergency ambulance requests;
@@ -136,14 +137,13 @@ Admin now has a single read-only operational board containing:
 - resolved Transport Company;
 - current ETA.
 
-The board is intentionally read-only in this slice. Assignment must reuse the existing Medical Transport and Emergency lifecycle invariants through a dedicated adapter rather than duplicating state-transition logic.
+For unassigned jobs, Admin can select a compatible dispatch-ready provider and an optional ETA. The Admin proxy routes assignment to the existing Medical Transport or Emergency operations endpoint, so concurrency protection, eligibility checks, lifecycle transitions, audit events and notifications remain authoritative in the existing domain services.
 
 ## Next Phase 2 slices
 
 Remaining work should be split into small reviewable slices:
 
-1. Dispatch assignment adapter that reuses existing lifecycle services without forcing Emergency enablement.
-2. Crew-to-job selection using TransportCrewMember readiness and existing CrewAssignment revisions.
-3. Transport Provider mobile company/crew context.
-4. GPS + place search + geocoding abstraction.
-5. Transport-specific analytics and operational audit views.
+1. Crew-to-job selection using TransportCrewMember readiness and existing CrewAssignment revisions.
+2. Transport Provider mobile company/crew context.
+3. GPS + place search + geocoding abstraction.
+4. Transport-specific analytics and operational audit views.
