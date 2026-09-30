@@ -130,6 +130,8 @@ No provider GPS/proximity signal is used.
 
 The Admin button **Assign recommended provider** calls the existing Phase 6 assignment endpoint and requires an explicit operator click.
 
+For assigned requests, **Notify provider** reuses the existing Phase 7 operational-attention endpoint. Notification remains an explicit Admin action and keeps the existing 15-minute deduplication behavior.
+
 The response also states:
 
 `autoAssignmentPerformed: false`
