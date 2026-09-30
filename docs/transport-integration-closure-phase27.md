@@ -46,7 +46,6 @@ The closure contract verifies that declared Transport modules exist in source.
 Critical top-level modules must also remain registered in `AppModule`, including:
 
 - telemetry
-- trip milestones
 - smart dispatch
 - performance analytics
 - command center
@@ -57,8 +56,9 @@ Critical top-level modules must also remain registered in `AppModule`, including
 - governance/compliance evidence
 - artifact integrity/quarantine
 
-Nested modules such as report delivery may remain imported by their owning Transport module rather
-than being registered twice at application root.
+Nested modules remain validated at their owning boundary rather than being registered twice at
+application root. In particular, `TransportTripMilestonesModule` must remain imported by
+`TransportTelemetryModule`, and report delivery may remain owned by report execution.
 
 ## Admin surface validation
 
