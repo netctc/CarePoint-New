@@ -9,7 +9,9 @@ import {
   Post,
   ServiceUnavailableException,
 } from "@nestjs/common";
-import { RequirePermissions } from "../../security/api-security.module";
+import type { AuthPrincipal } from "@carepoint/identity";
+import { CurrentPrincipal, RequirePermissions } from "../../security/api-security.module";
+import { DatabaseAuditService } from "../../infrastructure/audit/audit.service";
 
 type TransportLocationProviderName = "manual" | "google";
 
@@ -60,6 +62,8 @@ const LANGUAGE_CODE = /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})?$/;
 
 @Injectable()
 class TransportLocationService {
+  constructor(private readonly audit: DatabaseAuditService) {}
+
   config() {
     const provider = this.provider();
     const configured = provider === "google" && Boolean(this.googleApiKey());
@@ -73,13 +77,14 @@ class TransportLocationService {
     };
   }
 
-  async reverseGeocode(input: ReverseGeocodeBody) {
+  async reverseGeocode(principal: AuthPrincipal, input: ReverseGeocodeBody) {
     const latitude = this.coordinate(input.latitude, "latitude", -90, 90);
     const longitude = this.coordinate(input.longitude, "longitude", -180, 180);
     const languageCode = this.languageCode(input.languageCode);
     const config = this.config();
 
     if (!config.reverseGeocodingAvailable) {
+      await this.auditOperation(principal, "REVERSE", config.provider, false, 0);
       return {
         ...config,
         resolved: false,
@@ -97,6 +102,8 @@ class TransportLocationService {
     url.searchParams.set("location.latitude", String(latitude));
     url.searchParams.set("location.longitude", String(longitude));
     if (languageCode) url.searchParams.set("languageCode", languageCode);
+    const regionCode = this.regionCode();
+    if (regionCode) url.searchParams.set("regionCode", regionCode);
 
     const payload = await this.googleJson(url, {
       method: "GET",
@@ -108,6 +115,7 @@ class TransportLocationService {
     const first = results.find((row) => this.text(row?.formattedAddress));
 
     if (!first) {
+      await this.auditOperation(principal, "REVERSE", config.provider, false, results.length);
       return {
         ...config,
         resolved: false,
@@ -121,29 +129,28 @@ class TransportLocationService {
       };
     }
 
-    const resultLatitude = this.optionalCoordinate(first.location?.latitude, -90, 90) ?? latitude;
-    const resultLongitude = this.optionalCoordinate(first.location?.longitude, -180, 180) ?? longitude;
-
+    await this.auditOperation(principal, "REVERSE", config.provider, true, results.length);
     return {
       ...config,
       resolved: true,
       location: this.location({
         address: this.text(first.formattedAddress),
-        latitude: resultLatitude,
-        longitude: resultLongitude,
+        latitude,
+        longitude,
         placeId: this.text(first.placeId),
         source: "GPS",
       }),
     };
   }
 
-  async search(input: SearchLocationBody) {
+  async search(principal: AuthPrincipal, input: SearchLocationBody) {
     const query = this.searchQuery(input.query);
     const languageCode = this.languageCode(input.languageCode);
     const bias = this.optionalCoordinatePair(input.biasLatitude, input.biasLongitude);
     const config = this.config();
 
     if (!config.placeSearchAvailable) {
+      await this.auditOperation(principal, "SEARCH", config.provider, false, 0);
       return {
         ...config,
         query,
@@ -155,6 +162,7 @@ class TransportLocationService {
       textQuery: query,
       pageSize: 8,
       ...(languageCode ? { languageCode } : {}),
+      ...(this.regionCode() ? { regionCode: this.regionCode() } : {}),
     };
 
     if (bias) {
@@ -201,10 +209,18 @@ class TransportLocationService {
       })
       .filter((row): row is { label: string; location: NormalizedLocation } => Boolean(row));
 
+    const limitedItems = items.slice(0, 8);
+    await this.auditOperation(
+      principal,
+      "SEARCH",
+      config.provider,
+      limitedItems.length > 0,
+      limitedItems.length,
+    );
     return {
       ...config,
       query,
-      items,
+      items: limitedItems,
     };
   }
 
@@ -214,8 +230,15 @@ class TransportLocationService {
   }
 
   private googleApiKey(): string | null {
-    const value = process.env.GOOGLE_MAPS_API_KEY?.trim();
+    const value =
+      process.env.GOOGLE_MAPS_SERVER_API_KEY?.trim() ||
+      process.env.GOOGLE_MAPS_API_KEY?.trim();
     return value ? value : null;
+  }
+
+  private regionCode(): string | null {
+    const value = process.env.TRANSPORT_LOCATION_REGION_CODE?.trim().toUpperCase();
+    return value && /^[A-Z]{2}$/.test(value) ? value : null;
   }
 
   private async googleJson(url: URL, init: RequestInit): Promise<Record<string, any>> {
@@ -322,6 +345,28 @@ class TransportLocationService {
     const text = value.trim();
     return text ? text.slice(0, 500) : null;
   }
+
+  private async auditOperation(
+    principal: AuthPrincipal,
+    operation: "SEARCH" | "REVERSE",
+    provider: TransportLocationProviderName,
+    resolved: boolean,
+    resultCount: number,
+  ) {
+    await this.audit.write({
+      actorId: principal.accountId,
+      action: `TRANSPORT_LOCATION_${operation}`,
+      objectType: "TRANSPORT_LOCATION_SERVICE",
+      objectId: provider.toUpperCase(),
+      purpose: "MEDICAL_TRANSPORT",
+      result: "SUCCESS",
+      metadata: {
+        provider,
+        resolved,
+        resultCount,
+      },
+    });
+  }
 }
 
 @RequirePermissions("PATIENT_TRANSPORT_REQUEST")
@@ -337,14 +382,20 @@ class TransportLocationController {
 
   @Post("reverse-geocode")
   @Header("Cache-Control", "no-store")
-  reverseGeocode(@Body() body: ReverseGeocodeBody) {
-    return this.locations.reverseGeocode(body ?? {});
+  reverseGeocode(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Body() body: ReverseGeocodeBody,
+  ) {
+    return this.locations.reverseGeocode(principal, body ?? {});
   }
 
   @Post("search")
   @Header("Cache-Control", "no-store")
-  search(@Body() body: SearchLocationBody) {
-    return this.locations.search(body ?? {});
+  search(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Body() body: SearchLocationBody,
+  ) {
+    return this.locations.search(principal, body ?? {});
   }
 }
 
