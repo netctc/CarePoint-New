@@ -2,6 +2,11 @@ name: Release Candidate Evidence
 
 on:
   pull_request:
+    branches:
+      - main
+      - v2/development
+      - entorno-v2
+      - "release/**"
     paths:
       - ".ci/generate-rc-evidence.mjs"
       - ".ci/generate-release-change-inventory.mjs"
@@ -36,6 +41,10 @@ on:
 
 permissions:
   contents: read
+
+concurrency:
+  group: release-candidate-evidence-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   evidence:
