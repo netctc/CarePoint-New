@@ -76,6 +76,8 @@ Only when an explicit Phase 8 tracking session is already active:
 - `TELEMETRY_HEARTBEAT_MISSING`
 - `TELEMETRY_STALE`
 
+Telemetry must belong to the current tracking session and must not predate that session's `startedAt`. Retained telemetry from an older session is ignored.
+
 Phase 10 does not treat a provider who never opted into Phase 8 tracking as automatically non-compliant.
 
 ### Phase 9 milestones
