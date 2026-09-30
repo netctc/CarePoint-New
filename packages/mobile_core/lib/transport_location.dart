@@ -2,6 +2,8 @@ enum TransportLocationSource {
   gps,
   addressSearch,
   mapPicker,
+  savedLocation,
+  healthcareCenter,
   manual,
 }
 
@@ -57,7 +59,14 @@ class TransportLocation {
         if (latitude != null) 'latitude': latitude,
         if (longitude != null) 'longitude': longitude,
         if (placeId?.trim().isNotEmpty == true) 'placeId': placeId!.trim(),
-        'source': source.name.toUpperCase(),
+        'source': switch (source) {
+          TransportLocationSource.gps => 'GPS',
+          TransportLocationSource.addressSearch => 'ADDRESS_SEARCH',
+          TransportLocationSource.mapPicker => 'MAP_PICKER',
+          TransportLocationSource.savedLocation => 'SAVED_LOCATION',
+          TransportLocationSource.healthcareCenter => 'HEALTHCARE_CENTER',
+          TransportLocationSource.manual => 'MANUAL',
+        },
       };
 }
 
@@ -129,6 +138,8 @@ TransportLocationSource? _transportLocationSource(dynamic value) {
     'GPS' => TransportLocationSource.gps,
     'ADDRESS_SEARCH' => TransportLocationSource.addressSearch,
     'MAP_PICKER' => TransportLocationSource.mapPicker,
+    'SAVED_LOCATION' => TransportLocationSource.savedLocation,
+    'HEALTHCARE_CENTER' => TransportLocationSource.healthcareCenter,
     'MANUAL' => TransportLocationSource.manual,
     _ => null,
   };

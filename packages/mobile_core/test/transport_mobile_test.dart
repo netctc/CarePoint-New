@@ -3,12 +3,74 @@ import 'dart:convert';
 import 'package:carepoint_mobile_core/carepoint_api.dart';
 import 'package:carepoint_mobile_core/carepoint_localization.dart';
 import 'package:carepoint_mobile_core/transport_workspace.dart';
+import 'package:carepoint_mobile_core/transport_location.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
+  test('phase 5 transport location wire values preserve saved and healthcare sources', () {
+    final saved = const TransportLocation(
+      address: 'Saved home',
+      source: TransportLocationSource.savedLocation,
+    );
+    final healthcare = const TransportLocation(
+      address: 'Clinic entrance',
+      source: TransportLocationSource.healthcareCenter,
+    );
+
+    expect(saved.toJson()['source'], 'SAVED_LOCATION');
+    expect(healthcare.toJson()['source'], 'HEALTHCARE_CENTER');
+    expect(
+      TransportLocation.fromJson(saved.toJson()).source,
+      TransportLocationSource.savedLocation,
+    );
+    expect(
+      TransportLocation.fromJson(healthcare.toJson()).source,
+      TransportLocationSource.healthcareCenter,
+    );
+  });
+
+  test('phase 5 route preview supports address-only pickup and destination', () async {
+    late Map<String, dynamic> body;
+    final client = MockClient((request) async {
+      expect(request.headers['authorization'], 'Bearer phase5-route');
+      expect(request.method, 'POST');
+      expect(request.url.path, '/api/v1/transport/location/route-preview');
+      body = jsonDecode(request.body) as Map<String, dynamic>;
+      return http.Response(
+        jsonEncode({
+          'available': true,
+          'mode': 'GROUND',
+          'distanceMeters': 4200,
+          'durationSeconds': 720,
+          'etaMinutes': 12,
+        }),
+        200,
+        headers: {'content-type': 'application/json'},
+      );
+    });
+    final api = CarePointApi(baseUrl: 'https://carepoint.test/api/v1', client: client)
+      ..accessToken = 'phase5-route'
+      ..refreshToken = 'phase5-route-refresh';
+
+    final response = await api.previewTransportRoute(
+      mode: 'GROUND',
+      pickup: const {'address': 'Patient home'},
+      destination: const {'address': 'CarePoint clinic'},
+      languageCode: 'en',
+    );
+
+    expect(response['etaMinutes'], 12);
+    expect((body['pickup'] as Map)['address'], 'Patient home');
+    expect((body['destination'] as Map)['address'], 'CarePoint clinic');
+    expect((body['pickup'] as Map).containsKey('latitude'), false);
+    expect((body['pickup'] as Map).containsKey('longitude'), false);
+    expect((body['destination'] as Map).containsKey('latitude'), false);
+    expect((body['destination'] as Map).containsKey('longitude'), false);
+  });
+
   test('patient emergency and transport requests never send authoritative patient identity', () async {
     final requests = <http.Request>[];
     final client = MockClient((request) async {

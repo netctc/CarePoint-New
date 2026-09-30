@@ -1,0 +1,23 @@
+enum TransportSavedLocationKind {
+  HOME
+  WORK
+  HEALTHCARE
+  OTHER
+}
+
+model TransportSavedLocation {
+  id          String                     @id @default(uuid())
+  patientId   String
+  label       String
+  kind        TransportSavedLocationKind @default(OTHER)
+  address     String?
+  latitude    Decimal?                   @db.Decimal(9, 6)
+  longitude   Decimal?                   @db.Decimal(9, 6)
+  placeId     String?
+  source      String?
+  createdAt   DateTime                   @default(now())
+  updatedAt   DateTime                   @updatedAt
+
+  @@index([patientId, updatedAt])
+  @@index([patientId, kind])
+}
