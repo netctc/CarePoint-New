@@ -146,11 +146,14 @@ Cancelled-before-departure requests are `NOT_APPLICABLE`.
 
 A request is:
 
-- `BREACHED` if any measured SLA is breached
+- `NOT_APPLICABLE` if none of the three SLA dimensions is applicable
+- otherwise `BREACHED` if any measured SLA is breached
 - otherwise `PENDING` if any SLA is pending
 - otherwise `COMPLIANT`
 
-This overall state powers the Admin SLA filter.
+Cancelled/non-measurable requests therefore do not inflate the compliant count.
+
+The Admin SLA filter exposes Breached / Compliant / Pending. `NOT_APPLICABLE` remains visible under All.
 
 ## Command-center summary
 
@@ -163,6 +166,7 @@ For the filtered request set:
 - SLA breached
 - SLA pending
 - SLA compliant
+- SLA not applicable
 - requests with critical incidents
 - requests with active open/acknowledged escalations
 - distinct assigned providers
@@ -181,6 +185,7 @@ The management report contains only these operational columns:
 - assignedAt
 - enRouteAt
 - completedAt
+- overallSlaState
 - assignmentSlaState
 - assignmentMinutes
 - resourceReadinessSlaState
