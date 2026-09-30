@@ -32,7 +32,7 @@ CREATE UNIQUE INDEX "TransportCompany_code_key" ON "TransportCompany"("code");
 CREATE UNIQUE INDEX "TransportCompany_registrationNumber_key" ON "TransportCompany"("registrationNumber");
 CREATE INDEX "TransportCompany_active_displayName_idx" ON "TransportCompany"("active", "displayName");
 
-CREATE UNIQUE INDEX "TransportCrewMember_companyId_providerId_key"
+CREATE INDEX "TransportCrewMember_companyId_providerId_idx"
   ON "TransportCrewMember"("companyId", "providerId");
 CREATE INDEX "TransportCrewMember_companyId_active_role_idx"
   ON "TransportCrewMember"("companyId", "active", "role");
