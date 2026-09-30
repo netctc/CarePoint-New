@@ -61,6 +61,9 @@ assert.doesNotMatch(model, /latitude\s+Decimal\s+/);
 assert.doesNotMatch(model, /longitude\s+Decimal\s+/);
 
 // Healthcare centers reuse existing validated clinic locations.
+assert.match(backend, /serviceModality\.findMany/);
+assert.match(backend, /modality:\s*"CLINIC"/);
+assert.match(backend, /service:\s*\{\s*active:\s*true/);
 assert.match(backend, /serviceDeliveryContext\.findMany/);
 assert.match(backend, /providerLocation\.findMany/);
 assert.match(backend, /addressValidatedAt:\s*\{\s*not:\s*null\s*\}/);
@@ -95,6 +98,8 @@ assert.match(patientTransport, /routePreviewAvailable && mode == 'GROUND'/);
 assert.match(patientTransport, /_previewRoute/);
 assert.match(locationModel, /savedLocation/);
 assert.match(locationModel, /healthcareCenter/);
+assert.match(locationModel, /TransportLocationSource\.savedLocation => 'SAVED_LOCATION'/);
+assert.match(locationModel, /TransportLocationSource\.healthcareCenter => 'HEALTHCARE_CENTER'/);
 
 // Phase 5 introduces no client mapping dependency and commits no environment file.
 assert.doesNotMatch(patientPubspec, /google_maps_flutter|mapbox|here_sdk|maplibre/i);
