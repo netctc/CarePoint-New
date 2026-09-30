@@ -39,9 +39,14 @@ type ResourcePatchBody = {
   idempotencyKey?: string;
 };
 
+type TransportFamily =
+  | "MEDICAL_TRANSPORT_GROUND"
+  | "MEDICAL_TRANSPORT_AIR"
+  | "EMERGENCY_AMBULANCE";
+
 type Responder = {
   id: string;
-  family: "MEDICAL_TRANSPORT_GROUND" | "MEDICAL_TRANSPORT_AIR";
+  family: TransportFamily;
   mode: "GROUND" | "AIR";
 };
 
@@ -213,20 +218,229 @@ class TransportResourcesService {
     return this.get(principal, requestId);
   }
 
-  private async requireResponder(principal: AuthPrincipal): Promise<Responder> {
+  async emergencyGet(principal: AuthPrincipal, requestIdRaw: string) {
+    const responder = await this.requireResponder(principal, ["EMERGENCY_AMBULANCE"]);
+    const requestId = this.requiredId(requestIdRaw, "requestId");
+    const request = await this.prisma.emergencyAmbulanceRequest.findFirst({
+      where: { id: requestId, assignedProviderId: responder.id },
+    });
+    if (!request) throw new NotFoundException("Assigned emergency ambulance job not found.");
+
+    const current = await this.prisma.emergencyCrewAssignment.findFirst({
+      where: { emergencyRequestId: request.id, providerId: responder.id },
+      orderBy: { revision: "desc" },
+    });
+    const company = await this.activeCompanyForProvider(responder.id);
+    const units = await this.compatibleUnits(
+      responder.id,
+      { mode: "GROUND", assistance: "STANDARD", equipment: [] },
+      company?.unitIds,
+    );
+    const crew = await this.compatibleCrew(responder.family, company?.crewMembers);
+    const currentUnit = current?.transportUnitId
+      ? await this.prisma.transportUnit.findUnique({ where: { id: current.transportUnitId } })
+      : null;
+    const currentCrewRows = current?.crewProviderIds.length
+      ? await this.prisma.provider.findMany({
+          where: { id: { in: current.crewProviderIds } },
+          select: { id: true, displayName: true, status: true },
+        })
+      : [];
+    const currentCrewById = new Map(currentCrewRows.map((row) => [row.id, row]));
+
+    return {
+      requestId: request.id,
+      status: request.status,
+      mode: "GROUND",
+      requiredAssistance: "STANDARD",
+      requiredEquipment: [],
+      mutable: MUTABLE_STATUSES.has(request.status),
+      current: current
+        ? {
+            assignmentId: current.id,
+            revision: current.revision,
+            assignedAt: current.assignedAt,
+            transportUnit: currentUnit ? this.presentUnit(currentUnit) : null,
+            crew: current.crewProviderIds.map((id) => {
+              const row = currentCrewById.get(id);
+              return { id, displayName: row?.displayName ?? null, status: row?.status ?? null };
+            }),
+          }
+        : null,
+      company: company
+        ? {
+            id: company.id,
+            code: company.code,
+            displayName: company.displayName,
+          }
+        : null,
+      options: {
+        units: units.map((unit) => this.presentUnit(unit)),
+        crew: crew.map((provider) => ({ id: provider.id, displayName: provider.displayName })),
+      },
+    };
+  }
+
+  async emergencyPatch(
+    principal: AuthPrincipal,
+    requestIdRaw: string,
+    input: ResourcePatchBody,
+  ) {
+    const responder = await this.requireResponder(principal, ["EMERGENCY_AMBULANCE"]);
+    const requestId = this.requiredId(requestIdRaw, "requestId");
+    const transportUnitId = this.requiredId(input.transportUnitId, "transportUnitId");
+    const crewProviderIds = this.crewIds(input.crewProviderIds);
+    const idempotencyKey = this.idempotencyKey(input.idempotencyKey);
+
+    const request = await this.prisma.emergencyAmbulanceRequest.findFirst({
+      where: { id: requestId, assignedProviderId: responder.id },
+    });
+    if (!request) throw new NotFoundException("Assigned emergency ambulance job not found.");
+    if (!MUTABLE_STATUSES.has(request.status)) {
+      throw new ConflictException("Crew and unit can only be changed before patient transport starts.");
+    }
+
+    const company = await this.activeCompanyForProvider(responder.id);
+    const unit = await this.prisma.transportUnit.findFirst({
+      where: {
+        id: transportUnitId,
+        providerId: responder.id,
+        mode: "GROUND",
+        active: true,
+        ...(company ? { id: { equals: transportUnitId, in: company.unitIds } } : {}),
+      },
+    });
+    if (!unit) {
+      throw new BadRequestException("Selected emergency transport unit is inactive or outside the provider scope.");
+    }
+
+    const compatibleCrew = await this.compatibleCrew(responder.family, company?.crewMembers);
+    const compatibleCrewIds = new Set(compatibleCrew.map((provider) => provider.id));
+    if (crewProviderIds.some((id) => !compatibleCrewIds.has(id))) {
+      throw new BadRequestException("Crew contains an inactive, expired-credential, or incompatible provider.");
+    }
+
+    const normalizedCrew = [...crewProviderIds].sort();
+    const payloadHash = this.digest({
+      domain: "EMERGENCY_AMBULANCE",
+      requestId,
+      providerId: responder.id,
+      transportUnitId,
+      crewProviderIds: normalizedCrew,
+    });
+    const existing = await this.prisma.emergencyCrewAssignment.findUnique({
+      where: { idempotencyKey },
+    });
+    if (existing) {
+      if (
+        existing.emergencyRequestId !== requestId ||
+        existing.providerId !== responder.id ||
+        existing.payloadHash !== payloadHash
+      ) {
+        throw new ConflictException(
+          "idempotencyKey was already used with different emergency transport resources.",
+        );
+      }
+      return this.emergencyGet(principal, requestId);
+    }
+
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        await this.audit.reserveIntegrityChainForSerializableTransaction(tx);
+        await tx.$queryRaw(
+          Prisma.sql`SELECT id FROM "EmergencyAmbulanceRequest" WHERE id = ${requestId} FOR UPDATE`,
+        );
+        const locked = await tx.emergencyAmbulanceRequest.findUnique({
+          where: { id: requestId },
+        });
+        if (!locked || locked.assignedProviderId !== responder.id) {
+          throw new NotFoundException("Assigned emergency ambulance job not found.");
+        }
+        if (!MUTABLE_STATUSES.has(locked.status)) {
+          throw new ConflictException(
+            "Crew and unit can only be changed before patient transport starts.",
+          );
+        }
+
+        const prior = await tx.emergencyCrewAssignment.findFirst({
+          where: { emergencyRequestId: requestId, providerId: responder.id },
+          orderBy: { revision: "desc" },
+        });
+        const revision = (prior?.revision ?? 0) + 1;
+        const created = await tx.emergencyCrewAssignment.create({
+          data: {
+            emergencyRequestId: requestId,
+            transportUnitId,
+            providerId: responder.id,
+            crewProviderIds: normalizedCrew,
+            revision,
+            idempotencyKey,
+            payloadHash,
+            assignedByAccountId: principal.accountId,
+          },
+        });
+
+        await this.audit.writeInTransaction(tx, {
+          actorId: principal.accountId,
+          action: "EMERGENCY_TRANSPORT_RESOURCES_CHANGED",
+          objectType: "EMERGENCY_AMBULANCE_REQUEST",
+          objectId: requestId,
+          purpose: "EMERGENCY_DISPATCH",
+          result: "SUCCESS",
+          metadata: {
+            providerId: responder.id,
+            revision,
+            assignmentId: created.id,
+            previousTransportUnitId: prior?.transportUnitId ?? null,
+            transportUnitId,
+            previousCrewProviderIds: prior?.crewProviderIds ?? [],
+            crewProviderIds: normalizedCrew,
+          },
+        });
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    } catch (error) {
+      if (!this.uniqueConflict(error)) throw error;
+      const raced = await this.prisma.emergencyCrewAssignment.findUnique({
+        where: { idempotencyKey },
+      });
+      if (
+        !raced ||
+        raced.emergencyRequestId !== requestId ||
+        raced.providerId !== responder.id ||
+        raced.payloadHash !== payloadHash
+      ) {
+        throw new ConflictException(
+          "Emergency transport resources changed concurrently. Refresh and retry.",
+        );
+      }
+    }
+
+    return this.emergencyGet(principal, requestId);
+  }
+
+  private async requireResponder(
+    principal: AuthPrincipal,
+    allowedFamilies: readonly TransportFamily[] = [
+      "MEDICAL_TRANSPORT_GROUND",
+      "MEDICAL_TRANSPORT_AIR",
+    ],
+  ): Promise<Responder> {
     const provider = await this.prisma.provider.findUnique({
       where: { userId: principal.accountId },
       include: { otherProviderProfile: { include: { category: true } } },
     });
-    const family = provider?.otherProviderProfile?.category.family;
+    const family = provider?.otherProviderProfile?.category.family as TransportFamily | undefined;
     if (
       !provider ||
       provider.class !== "OTHER_PROVIDER" ||
       provider.status !== "ACTIVE" ||
       !provider.otherProviderProfile?.category.active ||
-      (family !== "MEDICAL_TRANSPORT_GROUND" && family !== "MEDICAL_TRANSPORT_AIR")
+      !family ||
+      !allowedFamilies.includes(family)
     ) {
-      throw new ForbiddenException("This Other Provider account is not authorized for transport resource assignment.");
+      throw new ForbiddenException(
+        "This Other Provider account is not authorized for transport resource assignment.",
+      );
     }
     return {
       id: provider.id,
@@ -262,7 +476,7 @@ class TransportResourcesService {
   }
 
   private async compatibleCrew(
-    family: "MEDICAL_TRANSPORT_GROUND" | "MEDICAL_TRANSPORT_AIR",
+    family: TransportFamily,
     companyCrew?: readonly {
       providerId: string | null;
       role: string;
@@ -328,7 +542,11 @@ class TransportResourcesService {
   }
 
   async companyContext(principal: AuthPrincipal) {
-    const responder = await this.requireResponder(principal);
+    const responder = await this.requireResponder(principal, [
+      "MEDICAL_TRANSPORT_GROUND",
+      "MEDICAL_TRANSPORT_AIR",
+      "EMERGENCY_AMBULANCE",
+    ]);
     const company = await this.activeCompanyForProvider(responder.id);
     if (!company) {
       return {
@@ -439,8 +657,30 @@ class TransportResourcesController {
   }
 }
 
+@RequirePermissions("EMERGENCY_RESPOND")
+@Controller("provider/emergency/ambulance")
+class EmergencyTransportResourcesController {
+  constructor(private readonly resources: TransportResourcesService) {}
+
+  @Get(":id/resources")
+  @Header("Cache-Control", "no-store")
+  get(@CurrentPrincipal() principal: AuthPrincipal, @Param("id") id: string) {
+    return this.resources.emergencyGet(principal, id);
+  }
+
+  @Patch(":id/resources")
+  @Header("Cache-Control", "no-store")
+  patch(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Param("id") id: string,
+    @Body() body: ResourcePatchBody,
+  ) {
+    return this.resources.emergencyPatch(principal, id, body);
+  }
+}
+
 @Module({
-  controllers: [TransportResourcesController],
+  controllers: [TransportResourcesController, EmergencyTransportResourcesController],
   providers: [TransportResourcesService],
 })
 export class TransportResourcesModule {}
