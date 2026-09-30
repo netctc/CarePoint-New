@@ -26,7 +26,7 @@ const FORBIDDEN_ENDPOINT_ENV_VARS = [
   "GOOGLE_CLOUD_STORAGE_ENDPOINT",
 ] as const;
 
-export type GcpObjectStorageDomainLabel = "clinical-documents" | "fhir-bulk-export";
+export type GcpObjectStorageDomainLabel = "clinical-documents" | "fhir-bulk-export" | "transport-management-reports";
 
 export type GcpObjectStorageFetch = (
   input: string | URL,
@@ -65,7 +65,7 @@ type MetadataTokenResponse = {
 };
 
 /**
- * Live Google Cloud Storage runtime for Release 1 clinical/FHIR artifacts.
+ * Live Google Cloud Storage runtime for Release 1 clinical/FHIR/transport-report artifacts.
  *
  * The implementation uses the Cloud Storage XML API directly so GCP support is
  * additive and introduces no new application dependency. Authentication comes
@@ -93,7 +93,7 @@ export async function createProductionGcpObjectStorageRuntime(
   );
   const domains = new Map<GcpObjectStorageDomainLabel, ProductionObjectStorageDomain>();
   for (const domain of contract.domains) domains.set(domain.label, domain);
-  for (const label of ["clinical-documents", "fhir-bulk-export"] as const) {
+  for (const label of ["clinical-documents", "fhir-bulk-export", "transport-management-reports"] as const) {
     const domain = domains.get(label);
     if (!domain) throw new Error(`GCP Cloud Storage contract is missing '${label}'.`);
     assertProjectKeyOwnership(projectId, domain.kmsKeyRef);

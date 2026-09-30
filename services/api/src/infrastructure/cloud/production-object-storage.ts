@@ -8,7 +8,7 @@ import {
 export type ProductionObjectStorageProvider = "aws-s3" | "oci-object-storage" | "gcp-cloud-storage";
 
 export type ProductionObjectStorageDomain = {
-  label: "clinical-documents" | "fhir-bulk-export";
+  label: "clinical-documents" | "fhir-bulk-export" | "transport-management-reports";
   cloudProvider: ProductionCloudProvider;
   provider: ProductionObjectStorageProvider;
   region: string;
@@ -123,6 +123,15 @@ export function productionObjectStorageContract(
         bucketRef: documentBucketRef,
         kmsKeyRef: documentKeyRef,
         prefix: documentPrefix,
+      },
+      {
+        label: "transport-management-reports",
+        cloudProvider: cloud.provider,
+        provider,
+        region,
+        bucketRef: documentBucketRef,
+        kmsKeyRef: documentKeyRef,
+        prefix: "carepoint/transport-management-reports",
       },
       {
         label: "fhir-bulk-export",

@@ -21,6 +21,7 @@ import {
   TransportCommandCenterModule,
   TransportCommandCenterService,
 } from "./transport-command-center.module";
+import { TransportReportArtifactStorageService } from "./transport-report-artifact-storage.service";
 
 type RunStatus = "ALL" | "QUEUED" | "RUNNING" | "SUCCEEDED" | "FAILED";
 
@@ -33,6 +34,7 @@ export class TransportReportExecutionService {
     private readonly prisma: PrismaService,
     private readonly audit: DatabaseAuditService,
     private readonly commandCenter: TransportCommandCenterService,
+    private readonly artifacts: TransportReportArtifactStorageService,
   ) {}
 
   async queueDue(principal: AuthPrincipal) {
@@ -197,8 +199,17 @@ export class TransportReportExecutionService {
           ? { providerId: run.schedule.providerId }
           : {}),
       });
+      const csv = this.artifacts.encodeCsv(report.columns, report.rows);
+      const artifactObjectKey = run.scheduleId + "/" + run.id + ".csv";
+      const artifactSha256 = createHash("sha256")
+        .update(csv, "utf8")
+        .digest("hex");
+      const artifactBytes = Buffer.byteLength(csv, "utf8");
+      const artifactStoredAt = new Date();
+      const artifactStorage = await this.artifacts.putCsv(artifactObjectKey, csv);
+
       const snapshot = {
-        version: 1,
+        version: 2,
         runId,
         scheduleId: run.scheduleId,
         scheduledFor: run.scheduledFor.toISOString(),
@@ -215,7 +226,18 @@ export class TransportReportExecutionService {
         },
         summary: report.summary,
         sensitiveDataPolicy: report.sensitiveDataPolicy,
+        artifact: {
+          objectKey: artifactObjectKey,
+          sha256: artifactSha256,
+          bytes: artifactBytes,
+          contentType: "text/csv; charset=utf-8",
+          storageProvider: artifactStorage.provider,
+          storedAt: artifactStoredAt.toISOString(),
+          publicUrlIssued: false,
+        },
         delivery: {
+          status: "ARTIFACT_READY",
+          externalDeliveryRequired: true,
           automaticDeliveryAvailable: false,
           reportDeliveryPerformed: false,
         },
@@ -239,6 +261,13 @@ export class TransportReportExecutionService {
           truncatedSource: report.truncatedSource,
           snapshotHash,
           snapshotJson,
+          artifactObjectKey,
+          artifactSha256,
+          artifactBytes,
+          artifactContentType: "text/csv; charset=utf-8",
+          artifactStorageProvider: artifactStorage.provider,
+          artifactStoredAt,
+          deliveryStatus: "ARTIFACT_READY",
         },
         include: {
           schedule: {
@@ -277,6 +306,10 @@ export class TransportReportExecutionService {
           rowCount: report.rows.length,
           truncatedSource: report.truncatedSource,
           snapshotHash,
+          artifactSha256,
+          artifactBytes,
+          artifactStorageProvider: artifactStorage.provider,
+          artifactPublicUrlIssued: false,
           patientIdentityIncluded: false,
           patientLocationIncluded: false,
           reportDeliveryPerformed: false,
@@ -403,6 +436,77 @@ export class TransportReportExecutionService {
     };
   }
 
+  async prepareDeliveryHandoff(
+    principal: AuthPrincipal,
+    runIdRaw: string,
+  ) {
+    const runId = this.id(runIdRaw, "runId");
+    const existing = await this.prisma.transportManagementReportRun.findUnique({
+      where: { id: runId },
+    });
+    if (!existing) {
+      throw new BadRequestException("Transport report run was not found.");
+    }
+    if (
+      existing.status !== "SUCCEEDED" ||
+      !existing.artifactObjectKey ||
+      !existing.artifactSha256 ||
+      !existing.artifactStoredAt
+    ) {
+      throw new BadRequestException(
+        "Transport report artifact is not ready for delivery handoff.",
+      );
+    }
+
+    const preparedAt = existing.deliveryHandoffPreparedAt ?? new Date();
+    const row = existing.deliveryHandoffPreparedAt
+      ? existing
+      : await this.prisma.transportManagementReportRun.update({
+          where: { id: runId },
+          data: {
+            deliveryStatus: "READY_FOR_EXTERNAL_DELIVERY",
+            deliveryHandoffPreparedAt: preparedAt,
+            deliveryHandoffPreparedByAccountId: principal.accountId,
+          },
+        });
+
+    await this.audit.write({
+      actorId: principal.accountId,
+      action: "ADMIN_TRANSPORT_REPORT_DELIVERY_HANDOFF_PREPARED",
+      objectType: "TRANSPORT_REPORT_RUN",
+      objectId: runId,
+      purpose: "TRANSPORT_OPERATIONS",
+      result: "SUCCESS",
+      metadata: {
+        artifactSha256: row.artifactSha256,
+        artifactBytes: row.artifactBytes,
+        artifactStorageProvider: row.artifactStorageProvider,
+        publicUrlIssued: false,
+        externalDeliveryRequired: true,
+        reportDeliveryPerformed: false,
+      },
+    });
+
+    return {
+      runId,
+      scheduleId: row.scheduleId,
+      deliveryStatus: row.deliveryStatus,
+      handoffPreparedAt: preparedAt,
+      artifact: {
+        objectKey: row.artifactObjectKey,
+        sha256: row.artifactSha256,
+        bytes: row.artifactBytes,
+        contentType: row.artifactContentType,
+        storageProvider: row.artifactStorageProvider,
+        storedAt: row.artifactStoredAt,
+      },
+      externalDeliveryRequired: true,
+      automaticDeliveryAvailable: false,
+      reportDeliveryPerformed: false,
+      publicUrlIssued: false,
+    };
+  }
+
   async workerCycle(principal: AuthPrincipal, limit = 25) {
     const boundedLimit = Math.max(1, Math.min(limit, 100));
     const recovery = await this.recoverStale(principal);
@@ -482,6 +586,16 @@ export class TransportReportExecutionService {
       truncatedSource: row.truncatedSource,
       snapshotHash: row.snapshotHash,
       snapshot,
+      artifactObjectKey: row.artifactObjectKey,
+      artifactSha256: row.artifactSha256,
+      artifactBytes: row.artifactBytes,
+      artifactContentType: row.artifactContentType,
+      artifactStorageProvider: row.artifactStorageProvider,
+      artifactStoredAt: row.artifactStoredAt,
+      deliveryStatus: row.deliveryStatus,
+      deliveryHandoffPreparedAt: row.deliveryHandoffPreparedAt,
+      deliveryHandoffPreparedByAccountId: row.deliveryHandoffPreparedByAccountId,
+      publicUrlIssued: false,
       automaticDeliveryAvailable: false,
       reportDeliveryPerformed: false,
       createdAt: row.createdAt,
@@ -629,12 +743,23 @@ class TransportReportExecutionController {
   ) {
     return this.service.retry(principal, runId);
   }
+
+  @Post("report-runs/:runId/prepare-delivery-handoff")
+  prepareDeliveryHandoff(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Param("runId") runId: string,
+  ) {
+    return this.service.prepareDeliveryHandoff(principal, runId);
+  }
 }
 
 @Module({
   imports: [TransportCommandCenterModule],
   controllers: [TransportReportExecutionController],
-  providers: [TransportReportExecutionService],
+  providers: [
+    TransportReportExecutionService,
+    TransportReportArtifactStorageService,
+  ],
   exports: [TransportReportExecutionService],
 })
 export class TransportReportExecutionModule {}
