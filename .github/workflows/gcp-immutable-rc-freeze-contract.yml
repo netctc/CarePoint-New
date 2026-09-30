@@ -2,6 +2,11 @@ name: GCP Immutable RC Freeze Contract
 
 on:
   pull_request:
+    branches:
+      - main
+      - v2/development
+      - entorno-v2
+      - "release/**"
     paths:
       - ".ci/release-gcp-immutable-rc-freeze-contract.mjs"
       - ".ci/verify-immutable-container-release.mjs"
@@ -22,6 +27,10 @@ permissions:
 
 env:
   CAREPOINT_GCP_FREEZE_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+concurrency:
+  group: gcp-immutable-rc-freeze-contract-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   contract:
