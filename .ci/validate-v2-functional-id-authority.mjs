@@ -145,7 +145,7 @@ for (const row of reconciliation.slice(1)) {
   if (merged === 'true' && !mergedAt) fail(`merged PR ${prRef} requires merged_at evidence`);
   if (merged === 'false' && mergedAt) fail(`unmerged PR ${prRef} must not carry merged_at evidence`);
   if (!/^\d+$/.test(referenceCount)) fail(`invalid authority reference count for ${prRef}`);
-  if (supersededBy && !/^#\d+$/.test(supersededBy)) fail(`invalid superseded_by_pr for ${prRef}`);
+  if (supersededBy && !/^#\d+(?:;#\d+)*$/.test(supersededBy)) fail(`invalid superseded_by_pr for ${prRef}`);
   prEvidence.set(prRef, { merged: merged === 'true', referenceCount: Number(referenceCount), supersededBy });
 }
 
@@ -177,8 +177,19 @@ for (const [prRef, evidence] of prEvidence.entries()) {
     fail(`PR evidence reference count mismatch for ${prRef}: expected ${evidence.referenceCount}, actual ${actual}`);
   }
 }
-if (prEvidence.get('#281')?.supersededBy !== '#320') {
-  fail('DOC-061 historical PR #281 must remain recorded as superseded by clean integration PR #320');
+const expectedSupersessions = new Map([
+  ['#236', '#233;#235'],
+  ['#271', '#445'],
+  ['#274', '#448'],
+  ['#275', '#449'],
+  ['#279', '#424'],
+  ['#281', '#320'],
+  ['#283', '#425'],
+]);
+for (const [historicalPr, replacement] of expectedSupersessions) {
+  if (prEvidence.get(historicalPr)?.supersededBy !== replacement) {
+    fail(`${historicalPr} must remain recorded as superseded by ${replacement}`);
+  }
 }
 const doc061 = authority.slice(1).find((row) => row[0] === 'DOC-061');
 if (!doc061 || doc061[3] !== '#320' || doc061[5] !== 'MERGED_TO_MAIN') {
