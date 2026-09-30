@@ -71,6 +71,50 @@ void main() {
     expect((body['destination'] as Map).containsKey('longitude'), false);
   });
 
+  test('phase 6 provider ETA recalculation sends only the idempotency key', () async {
+    late Map<String, dynamic> body;
+    final client = MockClient((request) async {
+      expect(request.headers['authorization'], 'Bearer phase6-route');
+      expect(request.method, 'POST');
+      expect(
+        request.url.path,
+        '/api/v1/provider/medical-transport/tr-phase6/recalculate-eta',
+      );
+      body = jsonDecode(request.body) as Map<String, dynamic>;
+      expect(body.length, 1);
+      expect(body['idempotencyKey'], 'provider-eta-tr-phase6-test-0001');
+      return http.Response(
+        jsonEncode({
+          'requestId': 'tr-phase6',
+          'persisted': true,
+          'replayed': false,
+          'etaMinutes': 14,
+          'preview': {
+            'available': true,
+            'mode': 'GROUND',
+            'etaMinutes': 14,
+          },
+        }),
+        200,
+        headers: {'content-type': 'application/json'},
+      );
+    });
+    final api = CarePointApi(
+      baseUrl: 'https://carepoint.test/api/v1',
+      client: client,
+    )
+      ..accessToken = 'phase6-route'
+      ..refreshToken = 'phase6-route-refresh';
+
+    final response = await api.recalculateProviderMedicalTransportEta(
+      'tr-phase6',
+      idempotencyKey: 'provider-eta-tr-phase6-test-0001',
+    );
+
+    expect(response['persisted'], true);
+    expect(response['etaMinutes'], 14);
+  });
+
   test('patient emergency and transport requests never send authoritative patient identity', () async {
     final requests = <http.Request>[];
     final client = MockClient((request) async {
