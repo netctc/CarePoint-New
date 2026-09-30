@@ -149,7 +149,7 @@ assert.match(patient, /detectedNotStatus/);
 assert.match(workspace, /providerMedicalTransportTimeline/);
 assert.match(workspace, /milestoneAdvisory/);
 assert.match(adminPanel, /Latest detected milestone/);
-assert.match(adminPanel, /never change lifecycle status automatically/);
+assert.match(adminPanel, /never change lifecycle status\s+automatically/);
 assert.match(adminPanel, /10_000/);
 
 // Documentation preserves the Phase 8 privacy and booking boundaries.
