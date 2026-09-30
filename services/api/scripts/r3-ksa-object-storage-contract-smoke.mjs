@@ -52,7 +52,7 @@ const valid = validEnv();
 const contract = productionObjectStorageContract(valid);
 assert.equal(contract.provider, "oci-object-storage");
 assert.equal(contract.region, primaryRegion);
-assert.equal(contract.domains.length, 2);
+assert.equal(contract.domains.length, 3);
 assert.equal(contract.domains[0].label, "clinical-documents");
 assert.equal(contract.domains[0].bucketRef, documentBucket);
 assert.equal(contract.domains[1].label, "fhir-bulk-export");
