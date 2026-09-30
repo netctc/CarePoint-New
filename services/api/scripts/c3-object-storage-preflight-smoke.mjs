@@ -266,7 +266,7 @@ await assertProductionObjectStorageReady({
     return validOciBucket(label);
   },
 });
-assert.deepEqual(ociLabels.sort(), ["clinical-documents", "fhir-bulk-export"]);
+assert.deepEqual(ociLabels.sort(), ["clinical-documents", "fhir-bulk-export", "transport-management-reports"]);
 
 await expectOciReject(/must have public access disabled/, (_label, value) => ({ ...value, publicAccessDisabled: false }));
 await expectOciReject(/must use customer-managed encryption/, (_label, value) => ({ ...value, customerManagedEncryption: false }));
