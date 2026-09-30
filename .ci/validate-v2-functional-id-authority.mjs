@@ -65,7 +65,7 @@ for (const [prefix, start, end, domain] of ranges) {
 if (expected.size !== 230) fail(`validator expected-set size is ${expected.size}`);
 
 const seen = new Set();
-const states = new Set(['CLAIMED_BY_ACTIVE_PR', 'UNCLAIMED_OR_NOT_RECONCILED']);
+const states = new Set(['MERGED_TO_MAIN', 'PARTIAL_PR_HISTORY_RECONCILIATION_REQUIRED', 'CLOSED_UNMERGED_NEEDS_RECONCILIATION', 'UNCLAIMED_OR_NOT_RECONCILED']);
 for (const row of authority.slice(1)) {
   if (row.length !== expectedHeader.length) fail(`wrong column count for row ${row[0] ?? '<unknown>'}`);
   const [id, domain, version, prRefs, aliases, state] = row;
@@ -75,6 +75,9 @@ for (const row of authority.slice(1)) {
   if (expected.get(id) !== domain) fail(`wrong domain for ${id}: ${domain}`);
   if (version !== 'v1') fail(`wrong authority version for ${id}: ${version}`);
   if (!states.has(state)) fail(`invalid traceability state for ${id}: ${state}`);
+  if (state === 'MERGED_TO_MAIN' && !prRefs) fail(`merged state requires PR evidence for ${id}`);
+  if (state === 'PARTIAL_PR_HISTORY_RECONCILIATION_REQUIRED' && !prRefs) fail(`partial reconciliation state requires PR evidence for ${id}`);
+  if (state === 'CLOSED_UNMERGED_NEEDS_RECONCILIATION' && !prRefs) fail(`closed-unmerged state requires PR evidence for ${id}`);
   if (prRefs && !/^(#\d+)(;#\d+)*$/.test(prRefs)) fail(`invalid PR references for ${id}: ${prRefs}`);
   if (aliases && !aliases.split(';').every((alias) => /^PRELIM-2026-09-18:(ADM|PAT|DOC|PRV|BE)-\d{3}$/.test(alias))) {
     fail(`invalid legacy alias namespace for ${id}: ${aliases}`);
