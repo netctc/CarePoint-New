@@ -428,9 +428,10 @@ class TransportDispatchService {
     }
 
     const preview = await this.routes.routePreviewForRequest(principal, request.id);
+    const previewEta = "etaMinutes" in preview ? preview.etaMinutes : null;
     const etaMinutes =
-      preview?.available === true && Number.isFinite(Number(preview?.etaMinutes))
-        ? Math.max(1, Math.round(Number(preview.etaMinutes)))
+      preview.available === true && Number.isFinite(Number(previewEta))
+        ? Math.max(1, Math.round(Number(previewEta)))
         : null;
     if (etaMinutes == null) {
       return {
