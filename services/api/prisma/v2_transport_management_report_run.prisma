@@ -24,6 +24,7 @@ model TransportManagementReportRun {
   artifactContentType  String?
   artifactStorageProvider String?
   artifactStoredAt     DateTime?
+  artifactDeletedAt    DateTime?
   deliveryStatus       String   @default("NOT_READY")
   deliveryHandoffPreparedAt DateTime?
   deliveryHandoffPreparedByAccountId String?
