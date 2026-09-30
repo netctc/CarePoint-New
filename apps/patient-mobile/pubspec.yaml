@@ -11,6 +11,8 @@ dependencies:
   carepoint_mobile_core:
     path: ../../packages/mobile_core
   geolocator: ^14.0.2
+  flutter_map: 8.3.2
+  latlong2: 0.10.1
 
 flutter:
   uses-material-design: true
