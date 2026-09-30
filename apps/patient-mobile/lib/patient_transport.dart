@@ -943,7 +943,7 @@ class _TransportDialogState extends State<_TransportDialog> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: Text(cpText(widget.locale, 'common.close')),
+                child: Text(transportText(widget.locale, 'close')),
               ),
             ],
           ),
