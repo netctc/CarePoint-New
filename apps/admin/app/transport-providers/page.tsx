@@ -9,6 +9,7 @@ import { TransportFleetTelemetryPanel } from "@/components/TransportFleetTelemet
 import { TransportSmartDispatchPanel } from "@/components/TransportSmartDispatchPanel";
 import { TransportCompanyPanel } from "@/components/TransportCompanyPanel";
 import { TransportAnalyticsPanel } from "@/components/TransportAnalyticsPanel";
+import { TransportPerformanceAnalyticsPanel } from "@/components/TransportPerformanceAnalyticsPanel";
 import { adminRuntimeFeatures } from "@/lib/runtime-features";
 import { TRANSPORT_PROVIDER_FAMILIES } from "@/lib/transport-provider-scope";
 
@@ -41,6 +42,7 @@ export default function TransportProvidersPage() {
       <TransportDispatchBoard />
       <TransportOperationsPanel />
       <TransportCompanyPanel />
+      <TransportPerformanceAnalyticsPanel />
       <TransportAnalyticsPanel />
 
       <div style={{ marginTop: 24 }}>
