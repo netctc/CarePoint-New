@@ -262,7 +262,15 @@ export class TransportExecutiveKpiService {
     });
     if (!existing) throw new BadRequestException("Transport report schedule was not found.");
     const normalized = this.scheduleInput(body, existing);
-    const nextRunAt = this.nextRun(normalized, new Date());
+    const timingChanged =
+      body.cadence !== undefined ||
+      body.weekday !== undefined ||
+      body.dayOfMonth !== undefined ||
+      body.hourUtc !== undefined ||
+      body.minuteUtc !== undefined;
+    const nextRunAt = timingChanged
+      ? this.nextRun(normalized, new Date())
+      : existing.nextRunAt;
     const row = await this.prisma.transportManagementReportSchedule.update({
       where: { id },
       data: {
