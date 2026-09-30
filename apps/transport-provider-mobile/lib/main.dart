@@ -2,6 +2,8 @@ import 'package:carepoint_mobile_core/carepoint_api.dart';
 import 'package:carepoint_mobile_core/carepoint_auth.dart';
 import 'package:carepoint_mobile_core/carepoint_localization.dart';
 import 'package:carepoint_mobile_core/transport_workspace.dart';
+import 'package:carepoint_mobile_core/transport_location.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:flutter/material.dart';
 
 const _transportFamilies = <String>{
@@ -188,6 +190,7 @@ class _TransportProviderAccessGateState
       organizationDetail: companyName == null
           ? companyMode
           : [companyCode, companyMode].whereType<String>().join(' · '),
+      telemetryPositionProvider: const _TransportProviderTelemetryPositionProvider(),
     );
   }
 
@@ -250,4 +253,43 @@ Map<String, dynamic> _map(dynamic value) {
     return value.map((key, item) => MapEntry(key.toString(), item));
   }
   return <String, dynamic>{};
+}
+
+
+class _TransportProviderTelemetryPositionProvider
+    implements TransportTelemetryPositionProvider {
+  const _TransportProviderTelemetryPositionProvider();
+
+  @override
+  Future<TransportTelemetryPosition> currentTelemetryPosition() async {
+    if (!await Geolocator.isLocationServiceEnabled()) {
+      throw const TransportLocationUnavailableException('SERVICE_DISABLED');
+    }
+    var permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+    if (permission == LocationPermission.denied ||
+        permission == LocationPermission.deniedForever) {
+      throw const TransportLocationUnavailableException('PERMISSION_DENIED');
+    }
+    final position = await Geolocator.getCurrentPosition(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.high,
+        timeLimit: Duration(seconds: 15),
+      ),
+    );
+    return TransportTelemetryPosition(
+      latitude: position.latitude,
+      longitude: position.longitude,
+      capturedAt: position.timestamp,
+      accuracyMeters: position.accuracy.isFinite ? position.accuracy : null,
+      headingDegrees: position.heading.isFinite && position.heading >= 0
+          ? position.heading
+          : null,
+      speedKph: position.speed.isFinite && position.speed >= 0
+          ? position.speed * 3.6
+          : null,
+    );
+  }
 }
