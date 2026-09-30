@@ -7,10 +7,11 @@ import 'transport_incidents.dart';
 import 'transport_localization.dart';
 
 class ProviderTransportWorkspace extends StatefulWidget {
-  const ProviderTransportWorkspace({super.key, required this.session, required this.locale, required this.accent});
+  const ProviderTransportWorkspace({super.key, required this.session, required this.locale, required this.accent, this.onSignOut});
   final CarePointSession session;
   final CarePointLocale locale;
   final Color accent;
+  final VoidCallback? onSignOut;
 
   @override
   State<ProviderTransportWorkspace> createState() => _ProviderTransportWorkspaceState();
@@ -78,7 +79,10 @@ class _ProviderTransportWorkspaceState extends State<ProviderTransportWorkspace>
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(
           title: Text(transportText(widget.locale, 'providerTitle')),
-          actions: [IconButton(onPressed: refresh, icon: const Icon(Icons.refresh_rounded))],
+          actions: [
+            IconButton(onPressed: refresh, icon: const Icon(Icons.refresh_rounded)),
+            if (widget.onSignOut != null) IconButton(onPressed: widget.onSignOut, tooltip: 'Sign out', icon: const Icon(Icons.logout_rounded)),
+          ],
         ),
         body: busy
             ? const Center(child: CircularProgressIndicator())
