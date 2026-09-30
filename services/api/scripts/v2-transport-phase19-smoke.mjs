@@ -109,7 +109,6 @@ for (const text of [
 }
 
 for (const text of [
-  "PHASE 19 · ONE-TIME SECURE ADMIN DOWNLOAD",
   "async function secureDownload(run: Run)",
   '"/download-grant"',
   '"/download"',
