@@ -403,6 +403,56 @@ export class TransportReportExecutionService {
     };
   }
 
+  async workerCycle(principal: AuthPrincipal, limit = 25) {
+    const boundedLimit = Math.max(1, Math.min(limit, 100));
+    const recovery = await this.recoverStale(principal);
+    const queue = await this.queueDue(principal);
+    const queued = await this.prisma.transportManagementReportRun.findMany({
+      where: { status: "QUEUED" },
+      select: { id: true },
+      orderBy: [{ scheduledFor: "asc" }, { createdAt: "asc" }],
+      take: boundedLimit,
+    });
+
+    let succeeded = 0;
+    let failed = 0;
+    for (const row of queued) {
+      try {
+        await this.execute(principal, row.id);
+        succeeded += 1;
+      } catch {
+        failed += 1;
+      }
+    }
+
+    const payload = {
+      generatedAt: new Date().toISOString(),
+      executionMode: "CLOUD_RUN_JOB_APPLICATION_CONTEXT",
+      workerBatchLimit: boundedLimit,
+      recoveredStale: recovery.recovered,
+      exhaustedStale: recovery.exhausted,
+      dueSchedules: queue.dueSchedules,
+      newlyQueued: queue.queued,
+      selectedRuns: queued.length,
+      succeeded,
+      failed,
+      automaticDeliveryAvailable: false,
+      reportDeliveryPerformed: false,
+    };
+
+    await this.audit.write({
+      actorId: principal.accountId,
+      action: "SYSTEM_TRANSPORT_REPORT_WORKER_CYCLE",
+      objectType: "TRANSPORT_REPORT_WORKER",
+      objectId: principal.sessionId,
+      purpose: "TRANSPORT_OPERATIONS",
+      result: failed > 0 ? "FAILED" : "SUCCESS",
+      metadata: payload,
+    });
+
+    return payload;
+  }
+
   private present(row: any) {
     let snapshot: unknown = null;
     if (typeof row.snapshotJson === "string" && row.snapshotJson.length) {
@@ -585,5 +635,6 @@ class TransportReportExecutionController {
   imports: [TransportCommandCenterModule],
   controllers: [TransportReportExecutionController],
   providers: [TransportReportExecutionService],
+  exports: [TransportReportExecutionService],
 })
 export class TransportReportExecutionModule {}
