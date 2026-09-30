@@ -64,13 +64,15 @@ class AdminProviderAdministrationService {
     if (needle.length > 120) throw new BadRequestException("q exceeds 120 characters.");
     const where: Prisma.ProviderWhereInput = {
       ...(normalizedClass ? { class: normalizedClass } : {}),
-      ...((families.length > 0 || excludeFamilies.length > 0) ? {
+      ...(families.length > 0 ? {
         otherProviderProfile: {
-          category: {
-            family: {
-              ...(families.length > 0 ? { in: families } : {}),
-              ...(excludeFamilies.length > 0 ? { notIn: excludeFamilies } : {}),
-            },
+          category: { family: { in: families } },
+        },
+      } : {}),
+      ...(excludeFamilies.length > 0 ? {
+        NOT: {
+          otherProviderProfile: {
+            category: { family: { in: excludeFamilies } },
           },
         },
       } : {}),
