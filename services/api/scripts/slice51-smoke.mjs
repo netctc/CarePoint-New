@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { totpCode } from '@carepoint/identity';
+import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { MfaEnvelopeService } from '../dist/infrastructure/security/mfa-envelope.service.js';
@@ -90,7 +91,8 @@ async function main() {
   });
   const stored = await prisma.clinicalDocument.findUnique({ where: { id: document.id } });
   if (!stored?.objectKey || JSON.stringify(stored).includes(binaryMarker) || JSON.stringify(stored).includes(metadataMarker)) throw new Error('Document PHI leaked to PostgreSQL.');
-  const encryptedObject = await readFile(join(process.env.DOCUMENT_STORAGE_LOCAL_ROOT || '/tmp/carepoint-documents', stored.objectKey), 'utf8');
+  const localStorageId = createHash('sha256').update(stored.objectKey, 'utf8').digest('hex');
+  const encryptedObject = await readFile(join(process.env.DOCUMENT_STORAGE_LOCAL_ROOT || '/tmp/carepoint-documents', `${localStorageId}.cpobj`), 'utf8');
   if (encryptedObject.includes(binaryMarker)) throw new Error('Document PHI leaked to object storage.');
 
   const authorList = await request(`/clinical-documents/patients/${patient.patientProfile.id}`, { token: doctorAToken });

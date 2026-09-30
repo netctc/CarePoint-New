@@ -1,7 +1,8 @@
 import { Injectable, InternalServerErrorException, type OnModuleDestroy } from "@nestjs/common";
 import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { createHash } from "node:crypto";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { dirname, join, resolve, sep } from "node:path";
+import { join, resolve } from "node:path";
 import {
   createProductionGcpObjectStorageRuntime,
   type GcpObjectStorageRuntime,
@@ -28,9 +29,10 @@ export class DocumentStorageService implements OnModuleDestroy {
   async put(objectKey: string, ciphertext: string): Promise<void> {
     const provider = this.provider();
     if (provider === "local") {
+      const root = this.root();
       const path = this.safePath(objectKey);
       try {
-        await mkdir(dirname(path), { recursive: true, mode: 0o700 });
+        await mkdir(root, { recursive: true, mode: 0o700 });
         await writeFile(path, ciphertext, { encoding: "utf8", mode: 0o600 });
       } catch (error) {
         const code = typeof error === "object" && error !== null && "code" in error
@@ -170,10 +172,11 @@ export class DocumentStorageService implements OnModuleDestroy {
   private root(): string { return resolve(process.env.DOCUMENT_STORAGE_LOCAL_ROOT ?? "/tmp/carepoint-documents"); }
   private safePath(objectKey: string): string {
     this.assertSafeObjectKey(objectKey);
-    const root = this.root();
-    const candidate = resolve(join(root, objectKey));
-    if (candidate !== root && !candidate.startsWith(root + sep)) throw new InternalServerErrorException("Document object key escapes storage root.");
-    return candidate;
+    const storageId = createHash("sha256").update(objectKey, "utf8").digest("hex");
+    if (!/^[0-9a-f]{64}$/.test(storageId)) {
+      throw new InternalServerErrorException("Document object key storage identifier is invalid.");
+    }
+    return join(this.root(), `${storageId}.cpobj`);
   }
   private assertSafeObjectKey(objectKey: string): void {
     if (!/^[a-zA-Z0-9/_\-.]+$/.test(objectKey) || objectKey.includes("..")) throw new InternalServerErrorException("Unsafe document object key.");

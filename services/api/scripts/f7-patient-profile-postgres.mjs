@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { randomBytes } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 
 const base = process.env.CAREPOINT_F7_URL || "http://127.0.0.1:4000/api/v1";
@@ -27,7 +28,7 @@ async function json(path, options = {}) {
 }
 
 async function registerAndLogin(suffix, firstName, lastName, phone) {
-  const unique = `${Date.now().toString(36)}-${Math.random().toString(16).slice(2, 8)}`;
+  const unique = `${Date.now().toString(36)}-${randomBytes(4).toString("hex")}`;
   const email = `f7-${suffix}-${unique}@carepoint.test`;
   const username = `f7-${suffix}-${unique}`.slice(0, 40);
   const password = "CarePoint-F7#2026";

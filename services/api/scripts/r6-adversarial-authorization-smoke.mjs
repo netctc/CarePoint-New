@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import { registerTestPatient } from "./support/register-test-patient.mjs";
 
@@ -102,7 +103,7 @@ function assertNoMarker(payload, marker, label) {
 }
 
 async function main() {
-  const suffix = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  const suffix = `${Date.now().toString(36)}-${randomBytes(6).toString("hex")}`;
   const adminPassword = process.env.BOOTSTRAP_ADMIN_PASSWORD;
   if (!adminPassword) throw new Error("R6 CI admin credential is required.");
   const adminToken = await login("admin-ci@carepoint.test", adminPassword);
