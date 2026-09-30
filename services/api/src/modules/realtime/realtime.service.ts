@@ -16,6 +16,7 @@ export const REALTIME_TOPICS = [
   "PROVIDER_JOB_STATUS",
   "TRANSPORT_TRACKING",
   "TRANSPORT_MILESTONES",
+  "TRANSPORT_LIFECYCLE",
 ] as const;
 
 export type RealtimeTopic = (typeof REALTIME_TOPICS)[number];
@@ -38,14 +39,16 @@ export interface RealtimeMessage {
       | "OBSERVATION_RECORDED"
       | "JOB_STATUS_CHANGED"
       | "TELEMETRY_UPDATED"
-      | "TRANSPORT_MILESTONE_DETECTED";
+      | "TRANSPORT_MILESTONE_DETECTED"
+      | "TRANSPORT_LIFECYCLE_CHANGED";
     entityType:
       | "CLINICAL_ALERT"
       | "QUESTIONNAIRE_RESPONSE"
       | "OBSERVATION"
       | "PROVIDER_WORKFLOW_EVENT"
       | "TRANSPORT_TELEMETRY"
-      | "TRANSPORT_TRIP_MILESTONE";
+      | "TRANSPORT_TRIP_MILESTONE"
+      | "MEDICAL_TRANSPORT_EVENT";
     entityId: string;
     occurredAt: string;
   };
@@ -65,7 +68,10 @@ type SubscriptionContext = {
 
 type ClinicalRealtimeTopic = Exclude<
   RealtimeTopic,
-  "PROVIDER_JOB_STATUS" | "TRANSPORT_TRACKING" | "TRANSPORT_MILESTONES"
+  "PROVIDER_JOB_STATUS"
+    | "TRANSPORT_TRACKING"
+    | "TRANSPORT_MILESTONES"
+    | "TRANSPORT_LIFECYCLE"
 >;
 
 const TOPIC_PROVIDER_SCOPE: Record<ClinicalRealtimeTopic, Permission> = {
@@ -201,7 +207,11 @@ export class RealtimeService {
   ) {
     await this.assertLiveSession(principal);
 
-    if (topic === "TRANSPORT_TRACKING" || topic === "TRANSPORT_MILESTONES") {
+    if (
+      topic === "TRANSPORT_TRACKING" ||
+      topic === "TRANSPORT_MILESTONES" ||
+      topic === "TRANSPORT_LIFECYCLE"
+    ) {
       const requestId = this.identifier(transportRequestIdInput, "transportRequestId");
       const request = await this.prisma.medicalTransportRequest.findUnique({
         where: { id: requestId },
@@ -356,6 +366,29 @@ export class RealtimeService {
           row.createdAt,
           "TELEMETRY_UPDATED",
           "TRANSPORT_TELEMETRY",
+        ),
+      );
+    }
+    if (context.topic === "TRANSPORT_LIFECYCLE") {
+      const rows = await this.prisma.medicalTransportEvent.findMany({
+        where: {
+          transportRequestId: context.subjectId,
+          occurredAt: { gte: context.cursor.at },
+        },
+        select: { id: true, occurredAt: true },
+        orderBy: [{ occurredAt: "asc" }, { id: "asc" }],
+        take: 100,
+      });
+      return this.afterCursor(
+        rows.map((row) => ({ id: row.id, createdAt: row.occurredAt })),
+        context.cursor,
+      ).map((row) =>
+        this.message(
+          context.topic,
+          row.id,
+          row.createdAt,
+          "TRANSPORT_LIFECYCLE_CHANGED",
+          "MEDICAL_TRANSPORT_EVENT",
         ),
       );
     }
