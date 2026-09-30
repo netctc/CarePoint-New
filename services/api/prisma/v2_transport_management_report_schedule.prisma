@@ -1,0 +1,25 @@
+model TransportManagementReportSchedule {
+  id                 String   @id @default(uuid())
+  name               String
+  cadence            String
+  weekday            Int?
+  dayOfMonth         Int?
+  hourUtc            Int
+  minuteUtc          Int      @default(0)
+  windowDays         Int      @default(30)
+  mode               String   @default("ALL")
+  sla                String   @default("ALL")
+  providerId         String?
+  enabled            Boolean  @default(true)
+  nextRunAt          DateTime
+  lastRunAt          DateTime?
+  deliveryMode       String   @default("EXTERNAL_SCHEDULER")
+  createdByAccountId String
+  updatedByAccountId String
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([enabled, nextRunAt])
+  @@index([cadence, enabled])
+  @@index([providerId])
+}

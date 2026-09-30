@@ -67,7 +67,13 @@ async function backendPath(context: RouteContext): Promise<string | null> {
 function transportQueryPath(request: NextRequest, path: string): string | null {
   const query = new URLSearchParams();
 
-  if (path === "/admin/transport/performance-analytics") {
+  if (path === "/admin/transport/executive-kpis") {
+    const value = request.nextUrl.searchParams.get("windowDays");
+    if (value != null) {
+      if (!/^\d{1,3}$/.test(value)) return null;
+      query.set("windowDays", value);
+    }
+  } else if (path === "/admin/transport/performance-analytics") {
     for (const key of ["windowDays", "forecastDays"] as const) {
       const value = request.nextUrl.searchParams.get(key);
       if (value == null) continue;
