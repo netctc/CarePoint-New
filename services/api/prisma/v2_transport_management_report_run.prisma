@@ -25,6 +25,11 @@ model TransportManagementReportRun {
   artifactStorageProvider String?
   artifactStoredAt     DateTime?
   artifactDeletedAt    DateTime?
+  artifactLegalHold     Boolean  @default(false)
+  artifactLegalHoldReason String?
+  artifactLegalHoldSetAt DateTime?
+  artifactLegalHoldSetByAccountId String?
+  artifactPurgeClaimedAt DateTime?
   deliveryStatus       String   @default("NOT_READY")
   deliveryHandoffPreparedAt DateTime?
   deliveryHandoffPreparedByAccountId String?
@@ -38,4 +43,5 @@ model TransportManagementReportRun {
   @@index([status, leaseExpiresAt])
   @@index([scheduleId, createdAt])
   @@index([deliveryStatus, artifactStoredAt])
+  @@index([artifactLegalHold, artifactDeletedAt, artifactStoredAt])
 }
