@@ -126,7 +126,16 @@ for (const text of [
 }
 
 assert.ok(ksaSmoke.includes("contract.domains.length, 3"));
-assert.ok(gcpPreflightSmoke.includes('"transport-management-reports"'));
+assert.ok(
+  gcpPreflightSmoke.includes(
+    "const transport = await runtime.inspectBucket(contract.domains[1]);",
+  ),
+);
+assert.ok(
+  gcpPreflightSmoke.includes(
+    "assert.equal(transport.bucketRef, documentBucket);",
+  ),
+);
 assert.ok(
   gcpPreflightSmoke.includes(
     "preflight should inspect each unique bucket once while validating all configured domains",
