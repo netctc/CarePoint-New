@@ -68,12 +68,14 @@ class TransportLocationService {
     const provider = this.provider();
     const configured = provider === "google" && Boolean(this.googleApiKey());
 
+    const map = this.mapConfig();
     return {
       provider,
       reverseGeocodingAvailable: configured,
       placeSearchAvailable: configured,
-      mapPickerAvailable: false,
+      mapPickerAvailable: map != null,
       manualFallback: true,
+      map,
     };
   }
 
@@ -239,6 +241,83 @@ class TransportLocationService {
   private regionCode(): string | null {
     const value = process.env.TRANSPORT_LOCATION_REGION_CODE?.trim().toUpperCase();
     return value && /^[A-Z]{2}$/.test(value) ? value : null;
+  }
+
+  private mapConfig() {
+    const provider = process.env.TRANSPORT_MAP_PROVIDER?.trim().toLowerCase();
+    if (provider !== "raster") return null;
+
+    const tileUrlTemplate = process.env.TRANSPORT_MAP_TILE_URL_TEMPLATE?.trim() ?? "";
+    const attribution = process.env.TRANSPORT_MAP_ATTRIBUTION?.trim() ?? "";
+    if (
+      !tileUrlTemplate.startsWith("https://") ||
+      !tileUrlTemplate.includes("{z}") ||
+      !tileUrlTemplate.includes("{x}") ||
+      !tileUrlTemplate.includes("{y}") ||
+      !attribution
+    ) {
+      return null;
+    }
+
+    const minZoom = this.integerEnv("TRANSPORT_MAP_MIN_ZOOM", 2, 0, 20);
+    const maxZoom = this.integerEnv("TRANSPORT_MAP_MAX_ZOOM", 18, minZoom, 22);
+    const initialZoom = this.integerEnv(
+      "TRANSPORT_MAP_INITIAL_ZOOM",
+      Math.min(14, maxZoom),
+      minZoom,
+      maxZoom,
+    );
+
+    const defaultLatitude = this.optionalEnvCoordinate(
+      "TRANSPORT_MAP_DEFAULT_LATITUDE",
+      -85,
+      85,
+    );
+    const defaultLongitude = this.optionalEnvCoordinate(
+      "TRANSPORT_MAP_DEFAULT_LONGITUDE",
+      -180,
+      180,
+    );
+    const hasDefaultCenter =
+      defaultLatitude != null && defaultLongitude != null;
+
+    return {
+      provider: "raster",
+      tileUrlTemplate,
+      attribution: attribution.slice(0, 200),
+      minZoom,
+      maxZoom,
+      initialZoom,
+      defaultLatitude: hasDefaultCenter ? defaultLatitude : null,
+      defaultLongitude: hasDefaultCenter ? defaultLongitude : null,
+    };
+  }
+
+  private integerEnv(
+    key: string,
+    fallback: number,
+    min: number,
+    max: number,
+  ): number {
+    const raw = process.env[key]?.trim();
+    if (!raw) return fallback;
+    const parsed = Number(raw);
+    return Number.isInteger(parsed) && parsed >= min && parsed <= max
+      ? parsed
+      : fallback;
+  }
+
+  private optionalEnvCoordinate(
+    key: string,
+    min: number,
+    max: number,
+  ): number | null {
+    const raw = process.env[key]?.trim();
+    if (!raw) return null;
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) && parsed >= min && parsed <= max
+      ? parsed
+      : null;
   }
 
   private async googleJson(url: URL, init: RequestInit): Promise<Record<string, any>> {
