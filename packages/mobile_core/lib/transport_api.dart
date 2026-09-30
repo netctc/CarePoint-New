@@ -348,4 +348,70 @@ extension CarePointTransportApi on CarePointApi {
       }));
 
 
+  Future<Map<String, dynamic>> medicalTransportTimeline(String requestId) async =>
+      _asMap(await _send('GET', '/medical-transport/$requestId/timeline'));
+
+  Future<Map<String, dynamic>> providerMedicalTransportTimeline(String requestId) async =>
+      _asMap(await _send('GET', '/provider/medical-transport/$requestId/timeline'));
+
+  Stream<Map<String, dynamic>> transportRealtimeEvents(
+    String requestId, {
+    required String topic,
+    DateTime? after,
+  }) async* {
+    final token = accessToken;
+    if (token == null || token.isEmpty) {
+      throw const CarePointApiException('Authentication is required.');
+    }
+    final normalizedTopic = topic.trim().toUpperCase();
+    if (normalizedTopic != 'TRANSPORT_TRACKING' &&
+        normalizedTopic != 'TRANSPORT_MILESTONES' &&
+        normalizedTopic != 'TRANSPORT_LIFECYCLE') {
+      throw const CarePointApiException('Unsupported transport realtime topic.');
+    }
+    final uri = Uri.parse('$baseUrl/realtime/stream').replace(
+      queryParameters: {
+        'topic': normalizedTopic,
+        'transportRequestId': requestId.trim(),
+        'after': (after ?? DateTime.now()).toUtc().toIso8601String(),
+      },
+    );
+    final request = http.Request('GET', uri)
+      ..headers['accept'] = 'text/event-stream'
+      ..headers['authorization'] = 'Bearer $token';
+    final response = await _client.send(request);
+    if (response.statusCode != 200) {
+      final body = await response.stream.bytesToString();
+      if (response.statusCode == 401) {
+        onSessionInvalidated?.call();
+      }
+      throw CarePointApiException(
+        body.isEmpty ? 'Realtime transport stream is unavailable.' : body,
+        statusCode: response.statusCode,
+      );
+    }
+
+    await for (final line in response.stream
+        .transform(utf8.decoder)
+        .transform(const LineSplitter())) {
+      if (!line.startsWith('data:')) continue;
+      final raw = line.substring(5).trim();
+      if (raw.isEmpty) continue;
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is Map<String, dynamic>) {
+          yield decoded;
+        } else if (decoded is Map) {
+          yield decoded.map(
+            (key, value) => MapEntry(key.toString(), value),
+          );
+        }
+      } catch (_) {
+        // Ignore malformed SSE data frames. The bounded fallback refresh in
+        // the UI remains authoritative for recovery.
+      }
+    }
+  }
+
+
 }

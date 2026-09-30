@@ -341,4 +341,104 @@ void main() {
     expect((value['location'] as Map)['latitude'], 33.89);
   });
 
+
+  test('phase 9 transport timeline remains distinct from lifecycle authority', () async {
+    final seen = <String>[];
+    final client = MockClient((request) async {
+      seen.add(request.url.path);
+      expect(request.headers['authorization'], 'Bearer phase9-timeline');
+      if (request.url.path == '/api/v1/medical-transport/tr-phase9/timeline') {
+        return http.Response(
+          jsonEncode({
+            'requestId': 'tr-phase9',
+            'lifecycleStatus': 'EN_ROUTE',
+            'automaticLifecycleMutation': false,
+            'items': [
+              {
+                'kind': 'LIFECYCLE',
+                'authority': 'AUTHORITATIVE_LIFECYCLE',
+                'code': 'EN_ROUTE',
+                'occurredAt': '2031-01-15T10:00:00Z'
+              },
+              {
+                'kind': 'MILESTONE',
+                'authority': 'AUTOMATED_DETECTION',
+                'code': 'NEAR_PICKUP',
+                'distanceMeters': 320,
+                'occurredAt': '2031-01-15T10:01:00Z'
+              }
+            ]
+          }),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      }
+      if (request.url.path == '/api/v1/provider/medical-transport/tr-phase9/timeline') {
+        return http.Response(
+          jsonEncode({
+            'requestId': 'tr-phase9',
+            'automaticLifecycleMutation': false,
+            'items': []
+          }),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      }
+      return http.Response('{}', 404, headers: {'content-type': 'application/json'});
+    });
+    final api = CarePointApi(
+      baseUrl: 'https://carepoint.test/api/v1',
+      client: client,
+    )
+      ..accessToken = 'phase9-timeline'
+      ..refreshToken = 'phase9-timeline-refresh';
+
+    final patient = await api.medicalTransportTimeline('tr-phase9');
+    expect(patient['automaticLifecycleMutation'], false);
+    expect(((patient['items'] as List)[1] as Map)['authority'], 'AUTOMATED_DETECTION');
+
+    final provider = await api.providerMedicalTransportTimeline('tr-phase9');
+    expect(provider['automaticLifecycleMutation'], false);
+    expect(seen, [
+      '/api/v1/medical-transport/tr-phase9/timeline',
+      '/api/v1/provider/medical-transport/tr-phase9/timeline',
+    ]);
+  });
+
+  test('phase 9 realtime stream is request scoped and carries structural events only', () async {
+    final client = MockClient((request) async {
+      expect(request.method, 'GET');
+      expect(request.url.path, '/api/v1/realtime/stream');
+      expect(request.url.queryParameters['topic'], 'TRANSPORT_TRACKING');
+      expect(request.url.queryParameters['transportRequestId'], 'tr-phase9');
+      expect(request.url.queryParameters['after'], isNotEmpty);
+      expect(request.headers['authorization'], 'Bearer phase9-realtime');
+      expect(request.headers['accept'], 'text/event-stream');
+      return http.Response(
+        'id: telemetry-event-1\n'
+        'event: TELEMETRY_UPDATED\n'
+        'data: {"topic":"TRANSPORT_TRACKING","eventType":"TELEMETRY_UPDATED","entityType":"TRANSPORT_TELEMETRY","entityId":"telemetry-event-1","occurredAt":"2031-01-15T10:02:00Z"}\n\n',
+        200,
+        headers: {'content-type': 'text/event-stream'},
+      );
+    });
+    final api = CarePointApi(
+      baseUrl: 'https://carepoint.test/api/v1',
+      client: client,
+    )
+      ..accessToken = 'phase9-realtime'
+      ..refreshToken = 'phase9-realtime-refresh';
+
+    final event = await api
+        .transportRealtimeEvents(
+          'tr-phase9',
+          topic: 'TRANSPORT_TRACKING',
+          after: DateTime.utc(2031, 1, 15, 10),
+        )
+        .first;
+    expect(event['eventType'], 'TELEMETRY_UPDATED');
+    expect(event.containsKey('latitude'), false);
+    expect(event.containsKey('longitude'), false);
+  });
+
 }

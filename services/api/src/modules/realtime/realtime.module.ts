@@ -2,7 +2,11 @@ import { Controller, Get, Header, Module, Query, Sse } from "@nestjs/common";
 import type { AuthPrincipal } from "@carepoint/identity";
 import { CurrentPrincipal } from "../../security/api-security.module";
 import { RequireFeature } from "../feature-flags/feature-flags.module";
-import { RealtimeService, type RealtimeStreamQuery } from "./realtime.service";
+import {
+  REALTIME_TOPICS,
+  RealtimeService,
+  type RealtimeStreamQuery,
+} from "./realtime.service";
 
 @Controller("realtime")
 @RequireFeature("V2_REALTIME")
@@ -14,14 +18,11 @@ class RealtimeController {
   topics() {
     return {
       transport: "SSE",
-      topics: [
-        "CLINICAL_ALERTS",
-        "QUESTIONNAIRE_COMPLETIONS",
-        "OBSERVATIONS",
-        "PROVIDER_JOB_STATUS",
-      ],
+      topics: REALTIME_TOPICS,
       replayWindowSeconds: 600,
       payloadPolicy: "STRUCTURAL_METADATA_ONLY",
+      transportCoordinatesInStream: false,
+      transportRealtimeRequiresRequestScope: true,
     };
   }
 
