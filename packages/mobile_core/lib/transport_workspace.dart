@@ -364,10 +364,20 @@ class _ProviderTransportWorkspaceState extends State<ProviderTransportWorkspace>
 
   Future<void> _recalculateEta(String requestId) async {
     if (requestId.isEmpty) return;
-    await _run(() => api.recalculateProviderMedicalTransportEta(
-      requestId,
-      idempotencyKey: 'provider-eta-$requestId-${DateTime.now().microsecondsSinceEpoch}',
-    ));
+    try {
+      final result = await api.recalculateProviderMedicalTransportEta(
+        requestId,
+        idempotencyKey: 'provider-eta-$requestId-${DateTime.now().microsecondsSinceEpoch}',
+      );
+      if (!mounted) return;
+      final message = result['persisted'] == true
+          ? transportText(widget.locale, 'etaRefreshed')
+          : transportText(widget.locale, 'etaUnavailable');
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+      await refresh();
+    } catch (value) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value.toString())));
+    }
   }
 
   Future<void> _incidents(String requestId) async {
