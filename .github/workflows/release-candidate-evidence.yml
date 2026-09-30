@@ -103,6 +103,7 @@ jobs:
           (cd apps/patient-mobile && flutter pub get)
           (cd apps/doctor-mobile && flutter pub get)
           (cd apps/provider-mobile && flutter pub get)
+          (cd apps/transport-provider-mobile && flutter pub get)
           sha256sum --check --strict .ci/flutter-pubspec-locks.sha256
       - name: Generate dependency and SBOM evidence
         run: |
@@ -112,6 +113,7 @@ jobs:
           (cd apps/patient-mobile && flutter pub deps --json) > rc-evidence/patient-mobile-deps.json
           (cd apps/doctor-mobile && flutter pub deps --json) > rc-evidence/doctor-mobile-deps.json
           (cd apps/provider-mobile && flutter pub deps --json) > rc-evidence/provider-mobile-deps.json
+          (cd apps/transport-provider-mobile && flutter pub deps --json) > rc-evidence/transport-provider-mobile-deps.json
           flutter --version > rc-evidence/flutter-version.txt
       - name: Create deterministic build snapshots
         run: |
