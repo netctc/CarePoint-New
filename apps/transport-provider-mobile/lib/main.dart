@@ -86,6 +86,9 @@ class _TransportProviderAccessGateState
   bool transportProvider = false;
   bool accessReady = false;
   String? family;
+  String? companyName;
+  String? companyCode;
+  String companyMode = 'LEGACY_PROVIDER_SCOPE';
 
   @override
   void initState() {
@@ -107,13 +110,36 @@ class _TransportProviderAccessGateState
       final onboardingCategory = _map(onboarding['providerCategory']);
       final resolvedFamily =
           (providerCategory['family'] ?? onboardingCategory['family'])?.toString();
+      final resolvedTransportProvider = _transportFamilies.contains(resolvedFamily);
+      final resolvedAccessReady = resolvedTransportProvider &&
+          state['accessReady'] == true &&
+          provider['status'] == 'ACTIVE';
+
+      String? resolvedCompanyName;
+      String? resolvedCompanyCode;
+      var resolvedCompanyMode = 'LEGACY_PROVIDER_SCOPE';
+      if (resolvedTransportProvider && resolvedAccessReady) {
+        try {
+          final context = await widget.session.api.providerTransportCompanyContext();
+          final company = _map(context['company']);
+          resolvedCompanyName = company['displayName']?.toString();
+          resolvedCompanyCode = company['code']?.toString();
+          resolvedCompanyMode =
+              context['migrationMode']?.toString() ?? resolvedCompanyMode;
+        } catch (_) {
+          // Company context is additive. A transport provider remains usable
+          // in legacy scope while the organizational migration is incomplete.
+        }
+      }
+
       if (!mounted) return;
       setState(() {
         family = resolvedFamily;
-        transportProvider = _transportFamilies.contains(resolvedFamily);
-        accessReady = transportProvider &&
-            state['accessReady'] == true &&
-            provider['status'] == 'ACTIVE';
+        transportProvider = resolvedTransportProvider;
+        accessReady = resolvedAccessReady;
+        companyName = resolvedCompanyName;
+        companyCode = resolvedCompanyCode;
+        companyMode = resolvedCompanyMode;
       });
     } catch (value) {
       if (mounted) setState(() => error = value.toString());
@@ -158,6 +184,10 @@ class _TransportProviderAccessGateState
       locale: widget.locale,
       accent: const Color(0xFFF97316),
       onSignOut: widget.onSignOut,
+      organizationLabel: companyName ?? 'Independent Transport Provider',
+      organizationDetail: companyName == null
+          ? companyMode
+          : [companyCode, companyMode].whereType<String>().join(' · '),
     );
   }
 
