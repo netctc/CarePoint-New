@@ -28,6 +28,9 @@ const GOVERNANCE_ACTIONS = [
   "ADMIN_TRANSPORT_REPORT_ARTIFACT_LEGAL_HOLD_CLEARED",
   "SYSTEM_TRANSPORT_REPORT_ARTIFACT_PURGED",
   "SYSTEM_TRANSPORT_REPORT_ARTIFACT_PURGE_FAILED",
+  "SYSTEM_TRANSPORT_REPORT_ARTIFACT_INTEGRITY_VERIFIED",
+  "SYSTEM_TRANSPORT_REPORT_ARTIFACT_INTEGRITY_MISMATCH",
+  "SYSTEM_TRANSPORT_REPORT_ARTIFACT_INTEGRITY_CHECK_FAILED",
 ] as const;
 
 @Injectable()
@@ -57,6 +60,10 @@ export class TransportReportGovernanceService {
         artifactStorageProvider: true,
         artifactStoredAt: true,
         artifactDeletedAt: true,
+        artifactIntegrityStatus: true,
+        artifactIntegrityLastCheckedAt: true,
+        artifactIntegrityFailureAt: true,
+        artifactIntegrityFailureCode: true,
         artifactLegalHold: true,
         artifactLegalHoldReason: true,
         artifactLegalHoldSetAt: true,
@@ -156,6 +163,10 @@ export class TransportReportGovernanceService {
         artifactStorageProvider: run.artifactStorageProvider,
         artifactStoredAt: run.artifactStoredAt,
         artifactDeletedAt: run.artifactDeletedAt,
+        artifactIntegrityStatus: run.artifactIntegrityStatus,
+        artifactIntegrityLastCheckedAt: run.artifactIntegrityLastCheckedAt,
+        artifactIntegrityFailureAt: run.artifactIntegrityFailureAt,
+        artifactIntegrityFailureCode: run.artifactIntegrityFailureCode,
         artifactRetentionDays: run.schedule.artifactRetentionDays,
         legalHold: run.artifactLegalHold,
         legalHoldReason: run.artifactLegalHoldReason,
@@ -220,6 +231,7 @@ export class TransportReportGovernanceService {
   }
 
   private category(action: string) {
+    if (action.includes("INTEGRITY")) return "INTEGRITY";
     if (action.includes("LEGAL_HOLD")) return "LEGAL_HOLD";
     if (action.includes("PURGE")) return "RETENTION";
     if (action.includes("DOWNLOAD")) return "DOWNLOAD";
