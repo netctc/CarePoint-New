@@ -95,12 +95,16 @@ assert.ok(
 );
 
 assert.ok(executionModule.includes("artifactDeletedAt: row.artifactDeletedAt"));
-assert.ok(
-  deliveryModule.includes(
-    "item.run.artifactSha256 && !item.run.artifactDeletedAt",
-  ),
-  "recipient inbox must mark purged artifacts unavailable",
-);
+for (const text of [
+  "item.run.artifactSha256 &&",
+  "!item.run.artifactDeletedAt &&",
+  'item.run.artifactIntegrityStatus !== "MISMATCH"',
+]) {
+  assert.ok(
+    deliveryModule.includes(text),
+    `recipient inbox artifact availability must include: ${text}`,
+  );
+}
 
 for (const text of [
   "TransportReportRetentionService",
