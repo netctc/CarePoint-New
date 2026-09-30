@@ -41,6 +41,22 @@ async function backendPath(context: RouteContext): Promise<string | null> {
   if (!segments.length || segments.length > 6 || !segments.every((segment) => SAFE.test(segment))) {
     return null;
   }
+
+  if (
+    segments.length === 4 &&
+    segments[0] === "dispatch" &&
+    segments[3] === "assign"
+  ) {
+    const requestId = encodeURIComponent(segments[2]);
+    if (segments[1] === "medical") {
+      return "/operations/medical-transport/" + requestId + "/assign";
+    }
+    if (segments[1] === "emergency") {
+      return "/operations/emergency/ambulance/" + requestId + "/assign";
+    }
+    return null;
+  }
+
   return "/admin/transport/" + segments.map(encodeURIComponent).join("/");
 }
 
