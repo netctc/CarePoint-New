@@ -43,6 +43,12 @@ or, for a disabled build:
 flutter run --dart-define=TRANSPORT_MODULE_ENABLED=false
 ```
 
+The repository Flutter web Docker build also accepts the same value as a build argument:
+
+```bash
+--build-arg TRANSPORT_MODULE_ENABLED=false
+```
+
 When disabled:
 - emergency ambulance and scheduled medical transport quick actions are hidden;
 - transport-related notifications are hidden from the Patient notification centre.
