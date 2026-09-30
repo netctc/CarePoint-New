@@ -319,9 +319,10 @@ class TransportAdvancedLifecycleService {
       throw new ConflictException("Destination changes are available only for an active assigned transport job.");
     }
     const idempotencyKey = this.idempotencyKey(input.idempotencyKey);
-    const destinationLatitude = this.coordinate(input.destinationLatitude, -90, 90, "destinationLatitude");
-    const destinationLongitude = this.coordinate(input.destinationLongitude, -180, 180, "destinationLongitude");
+    const destinationLatitude = this.optionalCoordinate(input.destinationLatitude, -90, 90, "destinationLatitude");
+    const destinationLongitude = this.optionalCoordinate(input.destinationLongitude, -180, 180, "destinationLongitude");
     const destinationAddress = this.optionalAddress(input.destinationAddress);
+    this.requireLocation(destinationAddress, destinationLatitude, destinationLongitude);
     const reasonCode = this.vocabulary(input.reasonCode, DESTINATION_REASONS, "reasonCode");
     const requestDigest = this.digest({
       requestId: request.id,
@@ -357,8 +358,8 @@ class TransportAdvancedLifecycleService {
         }
 
         const sameCoordinates =
-          Number(locked.destinationLatitude) === destinationLatitude &&
-          Number(locked.destinationLongitude) === destinationLongitude;
+          (locked.destinationLatitude == null ? null : Number(locked.destinationLatitude)) === destinationLatitude &&
+          (locked.destinationLongitude == null ? null : Number(locked.destinationLongitude)) === destinationLongitude;
         const sameAddress = (locked.destinationAddress ?? null) === destinationAddress;
         if (sameCoordinates && sameAddress) {
           throw new ConflictException("New destination must differ from the current destination.");
@@ -429,8 +430,8 @@ class TransportAdvancedLifecycleService {
     const request = await this.requireAssignedRequest(responder, requestIdRaw);
     return {
       requestId: request.id,
-      destinationLatitude: Number(request.destinationLatitude),
-      destinationLongitude: Number(request.destinationLongitude),
+      destinationLatitude: request.destinationLatitude == null ? null : Number(request.destinationLatitude),
+      destinationLongitude: request.destinationLongitude == null ? null : Number(request.destinationLongitude),
       destinationAddress: request.destinationAddress,
       etaMinutes: request.etaMinutes,
       etaRequiresRefresh: request.etaMinutes === null,
@@ -473,11 +474,21 @@ class TransportAdvancedLifecycleService {
   }
 
 
-  private coordinate(value: unknown, min: number, max: number, field: string): number {
+  private optionalCoordinate(value: unknown, min: number, max: number, field: string): number | null {
+    if (value === undefined || value === null || value === "") return null;
     if (typeof value !== "number" || !Number.isFinite(value) || value < min || value > max) {
       throw new BadRequestException(`${field} must be a finite number between ${min} and ${max}.`);
     }
     return Math.round(value * 1_000_000) / 1_000_000;
+  }
+
+  private requireLocation(address: string | null, latitude: number | null, longitude: number | null): void {
+    if ((latitude === null) !== (longitude === null)) {
+      throw new BadRequestException("destinationLatitude and destinationLongitude must be provided together.");
+    }
+    if (address === null && latitude === null) {
+      throw new BadRequestException("Destination requires an address or a complete latitude/longitude pair.");
+    }
   }
 
   private optionalAddress(value: unknown): string | null {
