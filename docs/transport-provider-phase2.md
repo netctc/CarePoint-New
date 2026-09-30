@@ -17,6 +17,7 @@ Implemented in this phase:
 - Unified Dispatch Board for scheduled medical transport and emergency ambulance work.
 - Admin dispatch assignment reusing the existing scheduled/emergency lifecycle endpoints.
 - Company-aware emergency ambulance fleet and crew assignment with independent revision history.
+- Non-clinical transport analytics and operational audit views.
 - Optional latitude/longitude across transport location contracts.
 - Nullable transport coordinates in PostgreSQL with a non-destructive migration.
 
@@ -182,9 +183,21 @@ Admin now has a single operational board containing:
 
 For unassigned jobs, Admin can select a compatible dispatch-ready provider and an optional ETA. The Admin proxy routes assignment to the existing Medical Transport or Emergency operations endpoint, so concurrency protection, eligibility checks, lifecycle transitions, audit events and notifications remain authoritative in the existing domain services.
 
+## Analytics and operational audit
+
+Admin now exposes a non-clinical Transport Operations Analytics panel with:
+
+- scheduled and emergency request counts by status;
+- 30-day request and completion volumes;
+- company and provider coverage;
+- active ground/air fleet capacity;
+- crew readiness and license-attention counts;
+- recent transport-related audit events.
+
+The audit view intentionally excludes clinical payloads and patient medical content. It surfaces only operational audit identifiers, actions, object types, purposes, results, timestamps and actor IDs.
+
 ## Next Phase 2 slices
 
 Remaining work should be split into small reviewable slices:
 
 1. Reverse geocoding + place search + map picker provider integration.
-2. Transport-specific analytics and operational audit views.
