@@ -7,6 +7,7 @@ model TransportManagementReportSchedule {
   hourUtc            Int
   minuteUtc          Int      @default(0)
   windowDays         Int      @default(30)
+  artifactRetentionDays Int    @default(90)
   mode               String   @default("ALL")
   sla                String   @default("ALL")
   providerId         String?
