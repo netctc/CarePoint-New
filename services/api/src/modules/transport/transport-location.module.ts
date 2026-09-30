@@ -260,10 +260,15 @@ class TransportLocationService {
     }
 
     const minZoom = this.integerEnv("TRANSPORT_MAP_MIN_ZOOM", 2, 0, 20);
-    const maxZoom = this.integerEnv("TRANSPORT_MAP_MAX_ZOOM", 18, minZoom, 22);
+    const maxZoom = this.integerEnv(
+      "TRANSPORT_MAP_MAX_ZOOM",
+      Math.max(minZoom, 18),
+      minZoom,
+      22,
+    );
     const initialZoom = this.integerEnv(
       "TRANSPORT_MAP_INITIAL_ZOOM",
-      Math.min(14, maxZoom),
+      Math.min(maxZoom, Math.max(minZoom, 14)),
       minZoom,
       maxZoom,
     );
