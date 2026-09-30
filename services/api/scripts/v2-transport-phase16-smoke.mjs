@@ -115,7 +115,6 @@ assert.ok(
 );
 
 for (const text of [
-  "PHASE 16 · SECURE REPORT ARTIFACT + DELIVERY HANDOFF",
   "artifactStorageProvider",
   "artifactSha256",
   "Prepare handoff",
@@ -125,7 +124,12 @@ for (const text of [
 }
 
 assert.ok(ksaSmoke.includes("contract.domains.length, 3"));
-assert.ok(gcpPreflightSmoke.includes("assert.equal(calls, 3)"));
+assert.ok(gcpPreflightSmoke.includes('"transport-management-reports"'));
+assert.ok(
+  gcpPreflightSmoke.includes(
+    "preflight should inspect each unique bucket once while validating all configured domains",
+  ),
+);
 assert.ok(c3Smoke.includes('"transport-management-reports"'));
 
 assert.equal(
