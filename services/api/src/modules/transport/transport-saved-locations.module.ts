@@ -54,7 +54,7 @@ const PROVIDER_TIMEOUT_MS = 6_000;
 const LANGUAGE_CODE = /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})?$/;
 
 @Injectable()
-class TransportSavedLocationsService {
+export class TransportSavedLocationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: DatabaseAuditService,
@@ -682,5 +682,6 @@ class TransportRouteOperationsController {
 @Module({
   controllers: [TransportSavedLocationsController, TransportRouteOperationsController],
   providers: [TransportSavedLocationsService],
+  exports: [TransportSavedLocationsService],
 })
 export class TransportSavedLocationsModule {}
