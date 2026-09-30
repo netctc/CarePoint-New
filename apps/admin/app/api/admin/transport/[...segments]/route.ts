@@ -73,6 +73,20 @@ function transportQueryPath(request: NextRequest, path: string): string | null {
       if (!/^\d{1,3}$/.test(value)) return null;
       query.set("windowDays", value);
     }
+  } else if (path === "/admin/transport/report-runs") {
+    const limit = request.nextUrl.searchParams.get("limit");
+    if (limit != null) {
+      if (!/^\d{1,3}$/.test(limit)) return null;
+      query.set("limit", limit);
+    }
+    const status = request.nextUrl.searchParams.get("status");
+    if (status != null) {
+      const normalized = status.toUpperCase();
+      if (!["ALL", "QUEUED", "RUNNING", "SUCCEEDED", "FAILED"].includes(normalized)) {
+        return null;
+      }
+      query.set("status", normalized);
+    }
   } else if (path === "/admin/transport/performance-analytics") {
     for (const key of ["windowDays", "forecastDays"] as const) {
       const value = request.nextUrl.searchParams.get(key);
