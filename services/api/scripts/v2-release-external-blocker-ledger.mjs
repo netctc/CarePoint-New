@@ -50,6 +50,16 @@ assert.ok(uniqueIssues.has(89));
 assert.ok(uniqueIssues.has(92));
 assert.ok(uniqueIssues.has(98));
 assert.ok(uniqueIssues.has(124));
+assert.equal(uniqueIssues.size,22,"Exactly 22 non-master open issues must be mapped to external gates in the 2026-10-01 snapshot.");
+assert.equal(ledger.repositoryOpenIssueSnapshot.observedOpenIssueCount,23);
+assert.equal(ledger.repositoryOpenIssueSnapshot.masterTrackerIssue,70);
+assert.equal(ledger.repositoryOpenIssueSnapshot.gateMappedOpenIssueCount,22);
+assert.equal(ledger.repositoryOpenIssueSnapshot.unmappedOpenIssueCount,0);
+assert.deepEqual(ledger.repositoryOpenIssueSnapshot.gateMappedIssues,[...uniqueIssues].sort((a,b)=>a-b));
+assert.equal(
+  ledger.repositoryOpenIssueSnapshot.classification,
+  "ALL_OPEN_ISSUES_ACCOUNTED_FOR_BY_MASTER_TRACKER_OR_EXTERNAL_GATE_LEDGER"
+);
 
 console.log(
   `External closure blocker ledger OK: ${ledger.gates.length} gates, ${uniqueIssues.size} linked issue references, decision=${ledger.decision}.`
