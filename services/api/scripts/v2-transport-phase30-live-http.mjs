@@ -555,6 +555,19 @@ async function main() {
   assert(downloaded.contentType.includes("text/csv"), "Secure report download is not CSV.");
   const csv = downloaded.payload.toString("utf8");
   assert(csv.includes("requestId"), "Downloaded report is missing management-report headers.");
+  for (const sensitive of [
+    requestBody.pickupAddress,
+    requestBody.destinationAddress,
+    requestBody.callbackPhone,
+    patientA.email,
+    patientA.patient.firstName,
+    patientA.patient.lastName,
+  ]) {
+    assert(
+      !csv.includes(String(sensitive)),
+      "Sensitive patient data leaked into management-report CSV.",
+    );
+  }
 
   const replayDownload = await raw("/admin/transport/report-runs/" + run.id + "/download", {
     method: "POST",
