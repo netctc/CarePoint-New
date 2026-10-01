@@ -32,6 +32,9 @@ assert.equal(index.schema, "carepoint.go-live-evidence-index/v1");
 assert.equal(record.releaseCandidate.consolidatedPr, index.releaseCandidate.consolidatedPr);
 assert.equal(record.releaseCandidate.sourceSha, index.releaseCandidate.sourceSha);
 assert.equal(index.gates.length, 8);
+assert.equal(index.productionAcceptance, false);
+assert.equal(index.mainMergeAllowed, false);
+for (const gate of index.gates) assert.ok(["PENDING", "ACCEPTED"].includes(gate.status));
 
 const acceptedCount = index.gates.filter((g) => g.status === "ACCEPTED").length;
 const allAccepted = acceptedCount === 8;
@@ -67,14 +70,19 @@ assert.ok(record.authorization.decisionRef, "decisionRef is required.");
 assert.ok(record.authorization.authorizedAt, "authorizedAt is required.");
 assert.ok(!Number.isNaN(Date.parse(record.authorization.authorizedAt)), "authorizedAt must be ISO-8601.");
 
-for (const [name, value] of Object.entries(record.acknowledgements ?? {})) {
-  assert.equal(value, true, `Acknowledgement must be true: ${name}`);
+const requiredAcknowledgements = [
+  "externalEvidenceEightOfEightAccepted",
+  "rollbackPlanReviewed",
+  "productionChangeWindowApproved",
+  "postDeployValidationOwnerAssigned",
+];
+for (const name of requiredAcknowledgements) {
+  assert.equal(record.acknowledgements?.[name], true, `Acknowledgement must be true: ${name}`);
 }
-
-assert.equal(record.acknowledgements.externalEvidenceEightOfEightAccepted, true);
 
 process.stdout.write(JSON.stringify({
   schema: "carepoint.human-release-authorization-validation/v1",
+  releaseCandidate: record.releaseCandidate,
   status: "AUTHORIZED",
   acceptedGateCount: acceptedCount,
   humanAuthorizationRecorded: true,
