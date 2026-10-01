@@ -126,7 +126,7 @@ else
 fi
 
 echo "==> Starting complete test stack"
-docker compose -f "$COMPOSE_FILE" up -d api admin patient-web doctor-web provider-web
+docker compose -f "$COMPOSE_FILE" up -d api admin patient-web doctor-web provider-web transport-provider-web
 
 echo "==> Waiting for API health"
 for _ in $(seq 1 60); do
