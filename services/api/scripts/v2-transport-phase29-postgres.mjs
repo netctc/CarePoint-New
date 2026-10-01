@@ -42,12 +42,7 @@ let otherPatient;
 let providerA;
 let providerB;
 let groundCategory;
-
-const admin = {
-  accountId: runKey + ":admin",
-  role: "ADMIN",
-  sessionId: runKey + ":admin-session",
-};
+let admin;
 
 function principal(accountId, role) {
   return { accountId, role, sessionId: runKey + ":" + role.toLowerCase() };
@@ -74,6 +69,22 @@ function requestInput(clientRequestId, overrides = {}) {
 
 function statusOf(error) {
   return typeof error?.getStatus === "function" ? error.getStatus() : null;
+}
+
+async function createAdmin() {
+  const user = await db.user.create({
+    data: {
+      email: `${runKey}-admin@carepoint.test`,
+      passwordHash: "phase29-not-a-login-secret",
+      role: "ADMIN",
+    },
+  });
+  createdUserIds.push(user.id);
+  return {
+    accountId: user.id,
+    role: "ADMIN",
+    sessionId: runKey + ":admin-session",
+  };
 }
 
 async function createPatient(label) {
@@ -193,6 +204,7 @@ before(async () => {
   });
   createdCategoryIds.push(groundCategory.id);
 
+  admin = await createAdmin();
   patient = await createPatient("patient-a");
   otherPatient = await createPatient("patient-b");
   providerA = await createGroundProvider("provider-a");
