@@ -77,11 +77,34 @@ jobs:
 
       - name: Build unsigned/non-production Android compatibility APK
         working-directory: apps/${{ matrix.app }}
-        run: >-
-          flutter build apk --debug
-          --dart-define=CAREPOINT_BUILD_ENV=development
-          --dart-define=CAREPOINT_API_BASE=https://mobile-validation.invalid/api/v1
-          --dart-define=CAREPOINT_RELEASE_SHA=${{ env.CAREPOINT_MOBILE_SOURCE_SHA }}
+        shell: bash
+        run: |
+          set -o pipefail
+          build_log="$RUNNER_TEMP/android-${{ matrix.app }}-build.log"
+          for attempt in 1 2 3; do
+            : > "$build_log"
+            if flutter build apk --debug \
+              --dart-define=CAREPOINT_BUILD_ENV=development \
+              --dart-define=CAREPOINT_API_BASE=https://mobile-validation.invalid/api/v1 \
+              --dart-define=CAREPOINT_RELEASE_SHA=${{ env.CAREPOINT_MOBILE_SOURCE_SHA }} \
+              2>&1 | tee "$build_log"; then
+              exit 0
+            fi
+
+            if ! grep -Eqi '429|Too Many Requests|HTTP[^0-9]*(502|503|504)|status code (502|503|504)|Could not GET|timed out|Connection reset|Remote host terminated|Gradle threw an error while downloading artifacts' "$build_log"; then
+              echo "::error::Android compatibility build failed with a non-transient error; not retrying."
+              exit 1
+            fi
+
+            if [ "$attempt" -eq 3 ]; then
+              echo "::error::Android compatibility build exhausted retries after transient dependency-download failures."
+              exit 1
+            fi
+
+            delay=$((attempt * 30))
+            echo "::warning::Transient dependency-download failure detected; retrying in ${delay}s (attempt $((attempt + 1))/3)."
+            sleep "$delay"
+          done
       - name: Capture sanitized Android compatibility evidence
         working-directory: apps/${{ matrix.app }}
         run: |
