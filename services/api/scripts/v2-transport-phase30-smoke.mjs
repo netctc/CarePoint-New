@@ -137,7 +137,7 @@ for (const path of closure.requiredCanonicalWorkflowFiles) {
   assert.equal(await existsRepo(path), true, `missing canonical workflow: ${path}`);
 }
 
-assert.equal(closure.requiredCanonicalWorkflowFiles.length, 24);
+assert.equal(closure.requiredCanonicalWorkflowFiles.length, 25);
 assert.equal(closure.remainingExternalGoLiveGates.length, 8);
 for (const gate of [
   "PRODUCTION_INFRASTRUCTURE_LIVE_EVIDENCE",
