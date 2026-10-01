@@ -5,7 +5,7 @@
     "consolidatedPr": 511,
     "validatedHead": "9974b72b76b45539e6513730c3b8fdbe0d1506f0",
     "canonicalWorkflowCount": 25,
-    "canonicalMatrixConclusion": "PENDING_CANONICAL_MATRIX",
+    "canonicalMatrixConclusion": "SUCCESS",
     "functionalTraceability": "230/230_MERGED_IMPLEMENTATION_EVIDENCE"
   },
   "productionAcceptance": false,
