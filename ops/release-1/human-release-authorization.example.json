@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "schema": "carepoint.human-release-authorization-record/v1",
+  "releaseCandidate": {
+    "consolidatedPr": 511,
+    "sourceSha": "9974b72b76b45539e6513730c3b8fdbe0d1506f0"
+  },
+  "authorization": {
+    "status": "PENDING",
+    "authorizedByRef": null,
+    "authorizedAt": null,
+    "decisionRef": null
+  },
+  "acknowledgements": {
+    "externalEvidenceEightOfEightAccepted": false,
+    "rollbackPlanReviewed": false,
+    "productionChangeWindowApproved": false,
+    "postDeployValidationOwnerAssigned": false
+  },
+  "productionAcceptance": false,
+  "mainMergeAllowed": false,
+  "deploymentAuthorized": false
+}
