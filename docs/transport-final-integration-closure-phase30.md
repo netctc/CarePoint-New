@@ -13,6 +13,7 @@ It ties together:
 - the Phase 27 integration-closure contract;
 - the Phase 28 end-to-end acceptance matrix;
 - the Phase 29 real PostgreSQL transactional acceptance;
+- the Advanced Transport live HTTP acceptance;
 - the reconciled V2 canonical functional authority;
 - the canonical GitHub Actions release/integration workflows.
 
@@ -38,6 +39,8 @@ Phase 27 still verifies the detailed Phase 8–26 docs, migrations, backend modu
 Phase 28 still verifies the 12-step patient-to-governance end-to-end source contract.
 
 Phase 29 still executes the real PostgreSQL state-machine acceptance after db:deploy.
+
+The Advanced Transport live HTTP acceptance exercises the post-bootstrap API journey, including saved locations, telemetry, smart dispatch, report generation, one-time secure download and compliance manifest. It is deliberately non-numbered so Phase 30 remains the single canonical final closure gate.
 
 ## Merge state
 
