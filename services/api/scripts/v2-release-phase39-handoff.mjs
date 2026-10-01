@@ -38,14 +38,16 @@ const authorizationReady=
   authorization.deploymentAuthorized===true &&
   authorization.productionAcceptance===false &&
   authorization.postDeployValidationRequired===true;
-const ready=authorizationReady && h.prerequisites.changeWindowApproved===true;
-if(h.execution.status==="READY_FOR_OPERATOR_EXECUTION"){
-  assert.equal(ready,true,"READY_FOR_OPERATOR_EXECUTION requires validated Phase 37 authorization plus an approved change window.");
+const prerequisitesReady=authorizationReady && h.prerequisites.changeWindowApproved===true;
+const executionReady=h.execution.status==="READY_FOR_OPERATOR_EXECUTION";
+if(executionReady){
+  assert.equal(prerequisitesReady,true,"READY_FOR_OPERATOR_EXECUTION requires validated Phase 37 authorization plus an approved change window.");
   for(const k of ["operatorRef","changeWindowRef","deploymentRunbookRef","rollbackRunbookRef","postDeployValidationRecord"]){
     assert.ok(h.execution[k], `execution.${k} is required.`);
   }
 }
-if(!ready) assert.equal(h.execution.status,"BLOCKED");
+if(!executionReady) assert.equal(h.execution.status,"BLOCKED");
+const ready=prerequisitesReady && executionReady;
 process.stdout.write(JSON.stringify({
  schema:"carepoint.production-execution-handoff-validation/v1",
  releaseCandidate:h.releaseCandidate,
