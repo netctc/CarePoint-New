@@ -439,7 +439,7 @@ async function main() {
       action: "MEDICAL_TRANSPORT_TELEMETRY_RECEIVED",
       objectId: requestId,
     },
-    orderBy: { createdAt: "desc" },
+    orderBy: { occurredAt: "desc" },
   });
   const telemetryAuditJson = JSON.stringify(telemetryAudit?.metadata ?? {});
   assert(!telemetryAuditJson.includes("latitude"), "Latitude leaked into telemetry audit metadata.");
