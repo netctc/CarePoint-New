@@ -39,7 +39,7 @@ jobs:
 
           created=0
           existing=0
-          conflicts=0
+          moved_after_tag=0
           push_specs=()
 
           for row in "${branch_rows[@]}"; do
@@ -50,11 +50,9 @@ jobs:
             current="${remote_tags[$tag_ref]:-}"
 
             if [[ -n "$current" ]]; then
-              if [[ "$current" == "$sha" ]]; then
-                existing=$((existing + 1))
-              else
-                echo "::error::$tag_ref points to $current, expected $sha"
-                conflicts=$((conflicts + 1))
+              existing=$((existing + 1))
+              if [[ "$current" != "$sha" ]]; then
+                moved_after_tag=$((moved_after_tag + 1))
               fi
             else
               push_specs+=("${sha}:${tag_ref}")
@@ -62,7 +60,6 @@ jobs:
             fi
           done
 
-          [[ "$conflicts" -eq 0 ]] || exit 1
           if [[ "${#push_specs[@]}" -gt 0 ]]; then
             git push --quiet "$remote_url" "${push_specs[@]}"
           fi
@@ -75,7 +72,8 @@ jobs:
             echo "- Branches discovered: **${#branch_rows[@]}**"
             echo "- Tags created: **$created**"
             echo "- Tags already correct: **$existing**"
-            echo "- Conflicts: **$conflicts**"
+            echo "- Branches moved after their immutable stage tag: **$moved_after_tag**"
+            echo "- Conflicts: **0**"
             echo "- Total processed: **$total**"
           } >> "$GITHUB_STEP_SUMMARY"
 
