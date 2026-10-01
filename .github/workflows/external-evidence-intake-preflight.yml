@@ -1,0 +1,52 @@
+name: External Evidence Intake Preflight
+
+on:
+  pull_request:
+    paths:
+      - "ops/release-1/evidence/**"
+      - "ops/release-1/final-go-live-gate-readiness-phase31.json"
+      - "ops/release-1/*.example.json"
+      - "services/api/scripts/v2-release-phase32-evidence.mjs"
+      - "services/api/scripts/v2-release-external-gate-preflight.mjs"
+      - "services/api/scripts/v2-release-external-evidence-intake-scan.mjs"
+      - ".github/workflows/external-evidence-intake-preflight.yml"
+  push:
+    branches: [main]
+    paths:
+      - "ops/release-1/evidence/**"
+      - "ops/release-1/final-go-live-gate-readiness-phase31.json"
+      - "ops/release-1/*.example.json"
+      - "services/api/scripts/v2-release-phase32-evidence.mjs"
+      - "services/api/scripts/v2-release-external-gate-preflight.mjs"
+      - "services/api/scripts/v2-release-external-evidence-intake-scan.mjs"
+      - ".github/workflows/external-evidence-intake-preflight.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: external-evidence-intake-${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  intake-preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out exact candidate SHA
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+
+      - name: Scan governed external evidence intake
+        shell: bash
+        run: |
+          set -o pipefail
+          node services/api/scripts/v2-release-external-evidence-intake-scan.mjs --markdown | tee external-evidence-intake-preflight.md
+          cat external-evidence-intake-preflight.md >> "$GITHUB_STEP_SUMMARY"
