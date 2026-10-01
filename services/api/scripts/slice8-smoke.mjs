@@ -276,3 +276,7 @@ try {
 } finally {
   await prisma.$disconnect();
 }
+
+// Phase 30 extends the already-live Transport HTTP journey without duplicating
+// API/database/bootstrap setup or introducing additional CI credentials.
+await import("./v2-transport-phase30-live-http.mjs");
