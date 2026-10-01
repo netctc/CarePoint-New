@@ -17,7 +17,7 @@ env:
   CAREPOINT_INFRA_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
 
 concurrency:
-  group: production-infrastructure-contract-${{ github.event.pull_request.number || github.ref }}
+  group: production-infrastructure-contract-${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
