@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "schema": "carepoint.final-production-acceptance-record/v1",
+  "releaseCandidate": {
+    "consolidatedPr": 511,
+    "sourceSha": "9974b72b76b45539e6513730c3b8fdbe0d1506f0"
+  },
+  "readinessDecision": "BLOCKED",
+  "finalDecision": {
+    "status": "PENDING",
+    "decidedByRef": null,
+    "decidedAt": null,
+    "decisionRef": null
+  },
+  "acknowledgements": {
+    "postDeployValidationPassed": false,
+    "rollbackAssessmentReviewed": false,
+    "incidentStateReviewed": false,
+    "productionOwnerAccepted": false
+  },
+  "productionAcceptance": false,
+  "releaseClosureAuthorized": false
+}
