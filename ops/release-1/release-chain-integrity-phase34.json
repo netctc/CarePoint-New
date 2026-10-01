@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "schema": "carepoint.release-chain-integrity/v1",
+  "generatedAt": "2026-10-01",
+  "canonicalBaseline": {
+    "pr": 511,
+    "headSha": "9974b72b76b45539e6513730c3b8fdbe0d1506f0",
+    "role": "UNIFIED_TRANSPORT_8_30_VALIDATION_BASELINE",
+    "canonicalWorkflowCount": 25,
+    "canonicalMatrixConclusion": "SUCCESS"
+  },
+  "chain": [
+    {
+      "pr": 512,
+      "headSha": "b261ca60b90686286dc1836ae11f1673cd293855",
+      "basePr": 511,
+      "role": "EXTERNAL_GO_LIVE_READINESS"
+    },
+    {
+      "pr": 513,
+      "headSha": "84b27c46cf1a32e4c9efe1d7598bfbd114a13189",
+      "basePr": 512,
+      "role": "EXTERNAL_EVIDENCE_VALIDATOR"
+    },
+    {
+      "pr": 514,
+      "headSha": "6655099927962d2f3f7c7ff0f22978d0a1f5a266",
+      "basePr": 513,
+      "role": "EVIDENCE_STATUS_REPORTING"
+    }
+  ],
+  "invariants": {
+    "productionAcceptance": false,
+    "mainMergeAllowed": false,
+    "humanReleaseAuthorizationRequired": true,
+    "autoMergeAllowed": false,
+    "externalEvidenceMustNotBeSynthesized": true
+  },
+  "finalDecisionBoundary": {
+    "fewerThanEightAccepted": "BLOCKED",
+    "eightOfEightAccepted": "READY_FOR_HUMAN_RELEASE_AUTHORIZATION"
+  }
+}
