@@ -28,6 +28,7 @@ if(r.validation.status==="PASSED"){
 if(r.validation.status==="FAILED") assert.equal(fail,true,"FAILED requires at least one failed check.");
 process.stdout.write(JSON.stringify({
  schema:"carepoint.post-deploy-validation-result/v1",
+ releaseCandidate:r.releaseCandidate,
  status:r.validation.status,
  passedChecks:r.checks.filter(c=>c.status==="PASS").length,
  failedChecks:r.checks.filter(c=>c.status==="FAIL").length,
