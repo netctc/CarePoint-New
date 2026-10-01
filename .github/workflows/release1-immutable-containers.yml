@@ -34,8 +34,8 @@ permissions:
   attestations: write
 
 concurrency:
-  group: release1-immutable-${{ github.event.pull_request.number || github.sha }}
-  cancel-in-progress: false
+  group: release1-immutable-${{ github.event.pull_request.head.sha || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   CAREPOINT_CONTAINER_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -91,6 +91,8 @@ jobs:
           load: ${{ github.event_name != 'push' }}
           provenance: ${{ github.event_name == 'push' && 'mode=max' || 'false' }}
           sbom: ${{ github.event_name == 'push' && 'true' || 'false' }}
+          cache-from: type=gha,scope=release1-immutable-api
+          cache-to: type=gha,mode=max,scope=release1-immutable-api
           tags: ${{ env.API_IMAGE }}:candidate-${{ env.CAREPOINT_CONTAINER_SOURCE_SHA }}-${{ github.run_id }}-${{ github.run_attempt }}
           build-args: |
             RELEASE_SHA=${{ env.CAREPOINT_CONTAINER_SOURCE_SHA }}
@@ -115,6 +117,8 @@ jobs:
           load: ${{ github.event_name != 'push' }}
           provenance: ${{ github.event_name == 'push' && 'mode=max' || 'false' }}
           sbom: ${{ github.event_name == 'push' && 'true' || 'false' }}
+          cache-from: type=gha,scope=release1-immutable-admin
+          cache-to: type=gha,mode=max,scope=release1-immutable-admin
           tags: ${{ env.ADMIN_IMAGE }}:candidate-${{ env.CAREPOINT_CONTAINER_SOURCE_SHA }}-${{ github.run_id }}-${{ github.run_attempt }}
           build-args: |
             RELEASE_SHA=${{ env.CAREPOINT_CONTAINER_SOURCE_SHA }}
