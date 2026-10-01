@@ -103,6 +103,16 @@ import { TransportLocationModule } from "./modules/transport/transport-location.
 import { TransportSavedLocationsModule } from "./modules/transport/transport-saved-locations.module";
 import { TransportDispatchModule } from "./modules/transport/transport-dispatch.module";
 import { TransportLiveOperationsModule } from "./modules/transport/transport-live-operations.module";
+import { TransportTelemetryModule } from "./modules/transport/transport-telemetry.module";
+import { TransportSmartDispatchModule } from "./modules/transport/transport-smart-dispatch.module";
+import { TransportPerformanceAnalyticsModule } from "./modules/transport/transport-performance-analytics.module";
+import { TransportCommandCenterModule } from "./modules/transport/transport-command-center.module";
+import { TransportExecutiveKpiModule } from "./modules/transport/transport-executive-kpi.module";
+import { TransportReportExecutionModule } from "./modules/transport/transport-report-execution.module";
+import { TransportReportDownloadModule } from "./modules/transport/transport-report-download.module";
+import { TransportReportRetentionModule } from "./modules/transport/transport-report-retention.module";
+import { TransportReportGovernanceModule } from "./modules/transport/transport-report-governance.module";
+import { TransportReportIntegrityModule } from "./modules/transport/transport-report-integrity.module";
 import { isolatedSyntheticPrivatePilotActive } from "./infrastructure/release/private-pilot-infrastructure-profile";
 import { carePointRuntimeFeatures } from "./infrastructure/release/private-pilot-policy";
 
@@ -175,6 +185,16 @@ const isolatedSyntheticPilot = isolatedSyntheticPrivatePilotActive(process.env);
     TransportSavedLocationsModule,
     TransportDispatchModule,
     TransportLiveOperationsModule,
+    TransportTelemetryModule,
+    TransportSmartDispatchModule,
+    TransportPerformanceAnalyticsModule,
+    TransportCommandCenterModule,
+    TransportExecutiveKpiModule,
+    TransportReportExecutionModule,
+    TransportReportDownloadModule,
+    TransportReportRetentionModule,
+    TransportReportGovernanceModule,
+    TransportReportIntegrityModule,
     IamModule,
     LocalizationModule,
     PatientProfileModule,

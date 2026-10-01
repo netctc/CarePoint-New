@@ -2,11 +2,20 @@ name: Resilience Rehearsal Contract
 
 on:
   pull_request:
+    branches:
+      - main
+      - v2/development
+      - entorno-v2
+      - "release/**"
   push:
     branches: [main]
 
 permissions:
   contents: read
+
+concurrency:
+  group: resilience-rehearsal-contract-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   contract:

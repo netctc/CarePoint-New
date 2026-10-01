@@ -2,6 +2,11 @@ name: Integrated Test Version Bundle
 
 on:
   pull_request:
+    branches:
+      - main
+      - v2/development
+      - entorno-v2
+      - "release/**"
     paths:
       - ".github/workflows/integrated-test-version.yml"
       - ".ci/integrated-test-version-contract.mjs"
@@ -33,6 +38,10 @@ permissions:
 
 env:
   CAREPOINT_TEST_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+concurrency:
+  group: integrated-test-version-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   contract:

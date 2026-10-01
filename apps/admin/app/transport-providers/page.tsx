@@ -5,8 +5,16 @@ import { ProviderGovernanceQueue } from "@/components/ProviderGovernanceQueue";
 import { TransportOperationsPanel } from "@/components/TransportOperationsPanel";
 import { TransportDispatchBoard } from "@/components/TransportDispatchBoard";
 import { TransportLiveOperationsPanel } from "@/components/TransportLiveOperationsPanel";
+import { TransportFleetTelemetryPanel } from "@/components/TransportFleetTelemetryPanel";
+import { TransportSmartDispatchPanel } from "@/components/TransportSmartDispatchPanel";
 import { TransportCompanyPanel } from "@/components/TransportCompanyPanel";
 import { TransportAnalyticsPanel } from "@/components/TransportAnalyticsPanel";
+import { TransportPerformanceAnalyticsPanel } from "@/components/TransportPerformanceAnalyticsPanel";
+import { TransportCommandCenterPanel } from "@/components/TransportCommandCenterPanel";
+import { TransportExecutiveKpiPanel } from "@/components/TransportExecutiveKpiPanel";
+import { TransportReportExecutionPanel } from "@/components/TransportReportExecutionPanel";
+import { TransportReportDeliveryPanel } from "@/components/TransportReportDeliveryPanel";
+import { TransportReportGovernancePanel } from "@/components/TransportReportGovernancePanel";
 import { adminRuntimeFeatures } from "@/lib/runtime-features";
 import { TRANSPORT_PROVIDER_FAMILIES } from "@/lib/transport-provider-scope";
 
@@ -33,10 +41,18 @@ export default function TransportProvidersPage() {
         </div>
       </section>
 
+      <TransportSmartDispatchPanel />
+      <TransportFleetTelemetryPanel />
       <TransportLiveOperationsPanel />
       <TransportDispatchBoard />
       <TransportOperationsPanel />
       <TransportCompanyPanel />
+      <TransportExecutiveKpiPanel />
+      <TransportReportExecutionPanel />
+      <TransportReportDeliveryPanel />
+      <TransportReportGovernancePanel />
+      <TransportCommandCenterPanel />
+      <TransportPerformanceAnalyticsPanel />
       <TransportAnalyticsPanel />
 
       <div style={{ marginTop: 24 }}>

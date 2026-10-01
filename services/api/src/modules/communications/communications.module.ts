@@ -208,6 +208,10 @@ class AdminNotificationTemplateController {
     NotificationOutboxWorkerService,
     AppointmentNotificationOrchestratorService,
   ],
-  exports: [NotificationsService, NotificationTemplateService],
+  exports: [
+    NotificationsService,
+    NotificationTemplateService,
+    NotificationGatewayService,
+  ],
 })
 export class CommunicationsModule {}

@@ -76,7 +76,11 @@ function inspectionFor(domain, overrides = {}) {
       return inspectionFor(domain);
     },
   });
-  assert.equal(calls, 2);
+  assert.equal(
+    calls,
+    2,
+    "preflight should inspect each unique bucket once while validating all configured domains",
+  );
 }
 
 async function rejectsPreflight(pattern, mutate) {
@@ -219,19 +223,22 @@ function fakeFetch(options = {}) {
   const contract = productionObjectStorageContract(config);
   assert.ok(contract);
   const document = await runtime.inspectBucket(contract.domains[0]);
-  const bulk = await runtime.inspectBucket(contract.domains[1]);
+  const transport = await runtime.inspectBucket(contract.domains[1]);
+  const bulk = await runtime.inspectBucket(contract.domains[2]);
   assert.equal(document.bucketRef, documentBucket);
   assert.equal(document.region, region);
   assert.equal(document.publicAccessDisabled, true);
   assert.equal(document.uniformBucketLevelAccessEnabled, true);
   assert.equal(document.kmsKeyRef, documentKey);
+  assert.equal(transport.bucketRef, documentBucket);
+  assert.equal(transport.publicAccessDisabled, true);
   assert.equal(bulk.lifecycleRules[0]?.actionType, "Delete");
   assert.equal(bulk.lifecycleRules[0]?.ageDays, 1);
   assert.deepEqual(bulk.lifecycleRules[0]?.matchesPrefix, ["carepoint/bulk-export"]);
   assert.deepEqual(bulk.lifecycleRules[0]?.unsupportedConditions, []);
   assert.equal(fake.emailCalls, 1);
   assert.equal(fake.tokenCalls, 1, "inspection runtime should cache the short-lived metadata token");
-  assert.equal(fake.bucketCalls, 2);
+  assert.equal(fake.bucketCalls, 3);
   await runtime.close();
   await assert.rejects(() => runtime.inspectBucket(contract.domains[0]), /runtime is closed/);
 }

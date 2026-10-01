@@ -2,6 +2,11 @@ name: GCP Admin Cloud Run Deployment Contract
 
 on:
   pull_request:
+    branches:
+      - main
+      - v2/development
+      - entorno-v2
+      - "release/**"
     paths:
       - ".ci/release-gcp-admin-cloud-run-deployment-contract.mjs"
       - ".github/workflows/gcp-admin-cloud-run-deployment.yml"
@@ -30,6 +35,10 @@ permissions:
 
 env:
   CAREPOINT_GCP_ADMIN_DEPLOYMENT_CONTRACT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+concurrency:
+  group: gcp-admin-cloud-run-deployment-contract-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   contract:

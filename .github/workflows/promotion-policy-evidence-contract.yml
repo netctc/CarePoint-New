@@ -2,6 +2,11 @@ name: Release 1 Promotion Policy Evidence Contract
 
 on:
   pull_request:
+    branches:
+      - main
+      - v2/development
+      - entorno-v2
+      - "release/**"
   push:
     branches: [main]
 
@@ -10,6 +15,10 @@ permissions:
 
 env:
   CAREPOINT_R6_PROMOTION_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+concurrency:
+  group: promotion-policy-evidence-contract-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   contract:

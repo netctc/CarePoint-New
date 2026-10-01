@@ -1,6 +1,11 @@
 name: Patient Profile PostgreSQL
 on:
   pull_request:
+    branches:
+      - main
+      - v2/development
+      - entorno-v2
+      - "release/**"
   workflow_dispatch:
 permissions:
   contents: read

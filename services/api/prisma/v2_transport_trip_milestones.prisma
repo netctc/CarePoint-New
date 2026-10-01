@@ -1,0 +1,19 @@
+model TransportTripMilestone {
+  id                  String   @id @default(uuid())
+  transportRequestId  String
+  providerId          String?
+  transportUnitId     String?
+  code                String
+  source              String
+  lifecycleStatus     String
+  distanceMeters      Int?
+  telemetryCapturedAt DateTime?
+  occurredAt          DateTime
+  createdAt           DateTime @default(now())
+
+  @@unique([transportRequestId, code])
+  @@index([transportRequestId, occurredAt])
+  @@index([providerId, occurredAt])
+  @@index([transportUnitId, occurredAt])
+  @@index([code, occurredAt])
+}
