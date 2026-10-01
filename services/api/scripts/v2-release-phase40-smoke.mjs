@@ -9,6 +9,10 @@ const [v,p,d]=await Promise.all([
 const pkg=JSON.parse(p);
 for(const x of [
  "carepoint.final-release-closure-readiness/v1",
+ "carepoint.production-execution-handoff-validation/v1",
+ "carepoint.post-deploy-validation-result/v1",
+ "h.authorizationReady===true",
+ "p.passedChecks===10",
  "READY_FOR_FINAL_PRODUCTION_ACCEPTANCE_DECISION",
  "productionAcceptancePerformed:false",
  "releaseClosurePerformed:false",
