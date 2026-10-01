@@ -1,39 +1,31 @@
 # V2 Functional Traceability Reconciliation — 2026-10-01
 
-This evidence update reconciles the frozen V2 canonical functional-ID authority with current GitHub PR state and verified clean-integration replacements.
+This evidence update reconciles the frozen V2 canonical functional-ID authority with merged GitHub implementation PR evidence.
 
 ## Result
 
-- MERGED_TO_MAIN: 119
+- MERGED_TO_MAIN: 230
 - PARTIAL_PR_HISTORY_RECONCILIATION_REQUIRED: 0
 - CLOSED_UNMERGED_NEEDS_RECONCILIATION: 0
-- UNCLAIMED_OR_NOT_RECONCILED: 111
+- UNCLAIMED_OR_NOT_RECONCILED: 0
 - Total canonical IDs: 230
 
-## Verified historical replacements
+## Reconciliation rule
 
-The following stale/combined PR paths have verified merged replacements:
+An unclaimed canonical ID is promoted to MERGED_TO_MAIN only when at least one merged implementation PR explicitly mentions that exact canonical ID.
 
-- #236 -> #233 + #235 (split Other Provider workspace/forms/workflow evidence)
-- #271 -> #445 (signed medication reconciliation)
-- #274 -> #448 (allergy reconciliation)
-- #275 -> #449 (structured problem list)
-- #279 -> #424 (contextual glucose observations)
-- #281 -> #320 (longitudinal laboratory series)
-- #283 -> #425 (Doctor Mobile contextual glucose trends)
+The scan excludes traceability/freeze PRs, chore/sync PRs, release/promotion PRs and v2/development sync heads. It also rejects occurrences whose local context explicitly says the PR does not claim, does not implement, excludes or places the ID out of scope.
 
-## Historical #228 reconciliation
+## Coverage added in this pass
 
-PR #228 was a closed-unmerged stacked aggregate. Its canonical responsibilities are no longer needed as active evidence because the original merged parent #227 explicitly claims the remaining ten clinical-profile foundation IDs, while the snapshot/specialized clinical responsibilities are separately evidenced by merged PRs such as #230, #445, #448 and #449.
+- Previously unreconciled IDs with positive merged implementation evidence: 111
+- Unique merged implementation PRs added to the authority ledger: 92
+- Remaining unreconciled IDs: 0
 
-PR #463 later imported the missing Clinical Facts A6 capability selectively into the promoted V2 line, but this reconciliation deliberately does **not** use #463 to inflate canonical claims that are already explicitly supported by #227.
+This is a traceability statement, not a production-readiness claim. Go-live still depends on integration, security, infrastructure, mobile, UAT and operational acceptance gates.
 
-Therefore #228 remains in the evidence ledger with zero active canonical references rather than being treated as a merged implementation.
+## Historical supersession evidence
 
-## Interpretation
+Previously verified clean replacements remain preserved in the ledger, including #236 → #233/#235, #271 → #445, #274 → #448, #275 → #449, #279 → #424, #281 → #320 and #283 → #425.
 
-MERGED_TO_MAIN means every PR currently referenced by that canonical ID has merged evidence in the reconciliation ledger.
-
-UNCLAIMED_OR_NOT_RECONCILED remains unchanged for IDs without sufficient PR evidence.
-
-No canonical ID, domain, or legacy alias was invented or removed. PR references are corrected only when merged GitHub evidence explicitly supports the canonical responsibility.
+No canonical ID, domain or legacy alias is invented or removed.
