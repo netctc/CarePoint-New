@@ -1,0 +1,90 @@
+name: Tag All Branches - Technical Completion Stage
+
+on:
+  push:
+    branches:
+      - ops/tag-all-branches-tech-complete-20261001
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tag-all-branches-tech-complete-20261001
+  cancel-in-progress: false
+
+jobs:
+  tag-all-branches:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out workflow branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 1
+
+      - name: Create stage tags for every branch head
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          stage="carepoint-v2-tech-complete-20261001"
+          created=0
+          existing=0
+          conflicts=0
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          remote_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+
+          mapfile -t branch_rows < <(git ls-remote --heads "$remote_url" | sort -k2)
+
+          echo "# Branch stage tagging" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Stage namespace: `stage/${stage}/<branch>`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Branches discovered: **${#branch_rows[@]}**" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          for row in "${branch_rows[@]}"; do
+            sha="${row%%$'\t'*}"
+            ref="${row#*$'\t'}"
+            branch="${ref#refs/heads/}"
+            tag="stage/${stage}/${branch}"
+            tag_ref="refs/tags/${tag}"
+
+            current="$(git ls-remote --tags "$remote_url" "$tag_ref" | awk 'NR==1 {print $1}')"
+
+            if [[ -n "$current" ]]; then
+              if [[ "$current" == "$sha" ]]; then
+                existing=$((existing + 1))
+                continue
+              fi
+
+              echo "::error::Existing tag $tag points to $current but branch $branch points to $sha"
+              conflicts=$((conflicts + 1))
+              continue
+            fi
+
+            git push --quiet "$remote_url" "${sha}:${tag_ref}"
+            created=$((created + 1))
+          done
+
+          total=$((created + existing + conflicts))
+
+          echo "- Tags created: **$created**" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Tags already correct: **$existing**" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Conflicts: **$conflicts**" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Total processed: **$total**" >> "$GITHUB_STEP_SUMMARY"
+
+          if [[ "$conflicts" -ne 0 ]]; then
+            echo "::error::One or more existing stage tags point to a different SHA."
+            exit 1
+          fi
+
+          if [[ "$total" -ne "${#branch_rows[@]}" ]]; then
+            echo "::error::Not every discovered branch was processed."
+            exit 1
+          fi
+
+          echo "Tagged all discovered branch heads for stage $stage."
