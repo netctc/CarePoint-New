@@ -4,7 +4,7 @@ Branch: quality/release-gate-readiness-phase31-20261001
 
 ## Baseline
 
-The consolidated validation candidate PR #511 is executing the 25-workflow canonical matrix at source SHA:
+The consolidated validation candidate PR #511 reached 25/25 successful canonical workflows at source SHA:
 
 9974b72b76b45539e6513730c3b8fdbe0d1506f0
 
