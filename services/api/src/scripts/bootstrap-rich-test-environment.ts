@@ -267,6 +267,28 @@ async function resetApplicationData(){
   return tables.length;
 }
 
+async function initializeRuntimeSingletons(){
+  await prisma.auditIntegrityHead.upsert({
+    where:{id:"default"},
+    create:{id:"default",lastAuditEventId:null,lastEventHash:null},
+    update:{lastAuditEventId:null,lastEventHash:null},
+  });
+  await prisma.auditRetentionPolicy.upsert({
+    where:{id:"default"},
+    create:{
+      id:"default",
+      mode:"INDEFINITE",
+      minimumRetentionDays:null,
+      legalHoldEnabled:false,
+    },
+    update:{
+      mode:"INDEFINITE",
+      minimumRetentionDays:null,
+      legalHoldEnabled:false,
+    },
+  });
+}
+
 async function createUser(username:string,role:UserRole,config:FixtureConfig,createdAt:Date):Promise<ManagedUser>{
   const user=await prisma.user.create({
     data:{
@@ -978,6 +1000,7 @@ async function main(){
   const config=requireSafety();
   console.log("Resetting all CarePoint application tables in the guarded non-production database...");
   const resetTables=await resetApplicationData();
+  await initializeRuntimeSingletons();
 
   const admin=await createUser("admin.test","ADMIN",config,dayjs().subtract(HISTORY_DAYS,"day").toDate());
   SYSTEM_ACTOR=admin.id;
