@@ -97,3 +97,14 @@ No .env file is added.
 ## Validation
 
 npm run v2:release-phase31
+
+
+## Resilience plan versus executed evidence
+
+The resilience workflow keeps `ops/release-1/resilience-exercise-plan.example.json` as a disabled draft catalog used by the automated contract.
+
+The external Go-Live gate LIVE-06 uses the separate executed-evidence template:
+
+`ops/release-1/resilience-exercise-evidence.example.json`
+
+A green resilience contract proves the schema/guardrails only. LIVE-06 remains blocked until real production-equivalent failure-injection evidence, measured RPO/RTO results and approvals satisfy the executed-evidence template.
