@@ -221,7 +221,7 @@ prepare_repo(){
 
   # Refresh the remote branch through the already-installed V2 checkout first.
   log "Fetching $V3_BRANCH using the existing V2 repository credentials/configuration."
-  git -C "$V2_REPO" fetch --prune origin "$V3_BRANCH"
+  git -C "$V2_REPO" fetch --prune origin "+refs/heads/$V3_BRANCH:refs/remotes/origin/$V3_BRANCH"
   git -C "$V2_REPO" show-ref --verify --quiet "refs/remotes/origin/$V3_BRANCH" ||
     die "origin/$V3_BRANCH is not available in the V2 repository."
 
