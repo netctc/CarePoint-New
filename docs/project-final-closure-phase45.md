@@ -2,7 +2,7 @@
 
 Phase 45 is the final governance contract for explicit project closure.
 
-A `CLOSED` project requires Phase 44 to be `READY` with `projectClosureReady=true`.
+A `CLOSED` project requires Phase 44 to be `READY` with `projectClosureReady=true` **and** a Phase 44 validation result proving 230/230 functional traceability, 8/8 accepted external gates, and completed release lifecycle.
 
 The final human closure decision must confirm:
 
@@ -17,11 +17,11 @@ The final human closure decision must confirm:
 
 The closure record requires an explicit human actor, timestamp, decision reference and readiness reference.
 
-Phase 45 never performs automatic project closure.
+Phase 45 never performs automatic project closure and does not trust an unvalidated READY record by itself.
 
 Commands:
 - `npm run v2:release-phase45`
-- `npm run v2:release-phase45-project-final-closure -- <closure-record.json> <phase44-readiness-record.json>`
+- `npm run v2:release-phase45-project-final-closure -- <closure-record.json> <phase44-readiness-record.json> <phase44-validation-result.json>`
 
 No new production environment variables.
 
