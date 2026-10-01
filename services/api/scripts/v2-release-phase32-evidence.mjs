@@ -130,6 +130,119 @@ function assertNoPlaceholders(value, path = "$") {
   }
 }
 
+
+function templateIdentityKeys(rows) {
+  const candidates = [
+    ["app", "platform"],
+    ["id", "platform"],
+    ["id"],
+    ["role"],
+    ["journey"],
+    ["app"],
+  ];
+  for (const keys of candidates) {
+    if (
+      rows.every(
+        (row) =>
+          row &&
+          typeof row === "object" &&
+          !Array.isArray(row) &&
+          keys.every((key) => Object.prototype.hasOwnProperty.call(row, key)),
+      )
+    ) {
+      const identities = rows.map((row) => keys.map((key) => String(row[key])).join("::"));
+      if (new Set(identities).size === rows.length) return keys;
+    }
+  }
+  return null;
+}
+
+function assertTemplateStructure(evidence, template, path = "$") {
+  if (Array.isArray(template)) {
+    assert.ok(Array.isArray(evidence), `${path} must be an array.`);
+    if (template.length === 0) return;
+
+    if (
+      template.every(
+        (row) => row && typeof row === "object" && !Array.isArray(row),
+      )
+    ) {
+      const identityKeys = templateIdentityKeys(template);
+      if (identityKeys) {
+        const actualByIdentity = new Map();
+        for (const row of evidence) {
+          assert.ok(
+            row && typeof row === "object" && !Array.isArray(row),
+            `${path} entries must be objects.`,
+          );
+          const identity = identityKeys.map((key) => String(row[key])).join("::");
+          assert.equal(
+            actualByIdentity.has(identity),
+            false,
+            `${path} contains duplicate identity ${identity}.`,
+          );
+          actualByIdentity.set(identity, row);
+        }
+        for (const templateRow of template) {
+          const identity = identityKeys
+            .map((key) => String(templateRow[key]))
+            .join("::");
+          assert.ok(
+            actualByIdentity.has(identity),
+            `${path} is missing required template entry ${identity}.`,
+          );
+          assertTemplateStructure(
+            actualByIdentity.get(identity),
+            templateRow,
+            `${path}[${identity}]`,
+          );
+        }
+        return;
+      }
+    }
+
+    assert.ok(
+      evidence.length >= template.length,
+      `${path} must contain at least ${template.length} entries.`,
+    );
+    for (let index = 0; index < template.length; index += 1) {
+      assertTemplateStructure(evidence[index], template[index], `${path}[${index}]`);
+    }
+    return;
+  }
+
+  if (template && typeof template === "object") {
+    assert.ok(
+      evidence && typeof evidence === "object" && !Array.isArray(evidence),
+      `${path} must be an object.`,
+    );
+    for (const [key, templateValue] of Object.entries(template)) {
+      assert.ok(
+        Object.prototype.hasOwnProperty.call(evidence, key),
+        `${path} is missing required field ${key}.`,
+      );
+      assertTemplateStructure(evidence[key], templateValue, `${path}.${key}`);
+    }
+    return;
+  }
+
+  if (template !== null) {
+    assert.equal(
+      typeof evidence,
+      typeof template,
+      `${path} must preserve template value type ${typeof template}.`,
+    );
+  } else {
+    assert.notEqual(evidence, undefined, `${path} is required.`);
+  }
+}
+
+function assertFiniteNonNegativeNumber(value, label) {
+  assert.equal(typeof value, "number", `${label} must be numeric.`);
+  assert.equal(Number.isFinite(value), true, `${label} must be finite.`);
+  assert.ok(value >= 0, `${label} must be non-negative.`);
+}
+
 function assertReleaseSha(evidence, expectedSha) {
   const candidates = [
     evidence?.release?.sourceSha,
@@ -202,6 +315,15 @@ function assertCommonApproval(evidence, gateId) {
 
 function assertGateSpecific(gateId, evidence) {
   if (gateId === "LIVE-01-PRODUCTION-INFRASTRUCTURE") {
+    assert.equal(evidence.environment?.classification, "production-equivalent");
+    assert.equal(evidence.environment?.productionFaultOrValidationApproved, true);
+    for (const destination of evidence.dataDestinations ?? []) {
+      const applicability = String(destination.applicability ?? "").toUpperCase();
+      if (applicability === "NOT_APPLICABLE") continue;
+      assert.ok(Array.isArray(destination.regions) && destination.regions.length > 0,
+        `Infrastructure destination ${destination.id} requires at least one approved region.`);
+      assert.ok(destination.evidenceRef, `Infrastructure destination ${destination.id} requires evidence.`);
+    }
     for (const control of evidence.controls ?? []) {
       const applicability = String(control.applicability ?? "").toUpperCase();
       if (applicability === "NOT_APPLICABLE") continue;
@@ -214,9 +336,13 @@ function assertGateSpecific(gateId, evidence) {
       acceptedWords.has(String(evidence.continuity?.status ?? "").toUpperCase()),
       "Infrastructure continuity evidence must be accepted.",
     );
+    assertFiniteNonNegativeNumber(evidence.continuity?.rpoMinutes, "Infrastructure RPO minutes");
+    assertFiniteNonNegativeNumber(evidence.continuity?.rtoMinutes, "Infrastructure RTO minutes");
   }
 
   if (gateId === "LIVE-02-EXTERNAL-PROVIDERS") {
+    assert.equal(evidence.environment?.classification, "production-equivalent");
+    assert.equal(evidence.environment?.productionValidationApproved, true);
     for (const integration of evidence.integrations ?? []) {
       const disposition = String(integration.disposition ?? "").toUpperCase();
       if (["DISABLED", "NOT_APPLICABLE"].includes(disposition)) continue;
@@ -228,15 +354,56 @@ function assertGateSpecific(gateId, evidence) {
   }
 
   if (gateId === "LIVE-03-SIGNED-MOBILE-RELEASES") {
-    for (const artifact of evidence.artifacts ?? []) {
-      const status = String(artifact.status ?? artifact.validationStatus ?? "").toUpperCase();
-      if (status) {
+    const launchProfiles = (evidence.appProfiles ?? []).filter(
+      (profile) => profile.launchEnabled === true,
+    );
+    assert.ok(launchProfiles.length > 0, "At least one mobile application must be launch-enabled.");
+
+    for (const profile of launchProfiles) {
+      assert.equal(profile.apiEnvironment, "production",
+        `Mobile profile ${profile.app} must target the production API environment.`);
+      for (const platform of ["android", "ios"]) {
+        const artifact = (evidence.artifacts ?? []).find(
+          (row) => row.app === profile.app && row.platform === platform,
+        );
+        assert.ok(artifact, `Missing ${platform} release artifact for ${profile.app}.`);
+        assert.equal(artifact.signed, true, `${profile.app}/${platform} must be signed.`);
+        assert.equal(artifact.productionIdentity, true,
+          `${profile.app}/${platform} must use the production identity.`);
+        assert.equal(artifact.debugBuild, false,
+          `${profile.app}/${platform} must not be a debug build.`);
+        assert.equal(artifact.releaseShaEmbedded, true,
+          `${profile.app}/${platform} must embed the release SHA.`);
+        assert.equal(
+          artifact.embeddedSourceSha,
+          evidence.release?.sourceSha,
+          `${profile.app}/${platform} embedded SHA must match the release candidate.`,
+        );
+
+        const device = (evidence.deviceMatrix ?? []).find(
+          (row) => row.app === profile.app && row.platform === platform,
+        );
+        assert.ok(device, `Missing physical-device acceptance for ${profile.app}/${platform}.`);
         assert.ok(
-          acceptedWords.has(status),
-          `Mobile artifact ${artifact.id ?? artifact.app ?? "<unknown>"} is not accepted.`,
+          acceptedWords.has(String(device.status ?? "").toUpperCase()),
+          `Physical-device acceptance is not complete for ${profile.app}/${platform}.`,
         );
       }
     }
+
+    for (const control of evidence.controls ?? []) {
+      const applicability = String(control.applicability ?? "").toUpperCase();
+      if (applicability === "NOT_APPLICABLE") continue;
+      assert.ok(
+        acceptedWords.has(String(control.status ?? "").toUpperCase()),
+        `Mobile control ${control.id} is not accepted.`,
+      );
+    }
+
+    assert.equal(evidence.localization?.englishReleaseSmoke, true);
+    assert.equal(evidence.localization?.arabicRtlReleaseSmoke, true);
+    assert.equal(evidence.localization?.textScalingAccepted, true);
+    assert.equal(evidence.localization?.screenReaderCriticalActionsAccepted, true);
   }
 
   if (gateId === "LIVE-04-INDEPENDENT-SECURITY-ASSESSMENT") {
@@ -244,6 +411,34 @@ function assertGateSpecific(gateId, evidence) {
     assert.equal(evidence.assessment?.manualTestingPerformed, true);
     assert.equal(evidence.assessment?.productionValidationAuthorized, true);
     assert.equal(evidence.findings?.countsKnown, true);
+
+    for (const severity of ["critical", "high", "medium", "low", "informational"]) {
+      const count = evidence.findings?.[severity];
+      assert.equal(Number.isInteger(count), true, `Security finding count ${severity} must be an integer.`);
+      assert.ok(count >= 0, `Security finding count ${severity} must be non-negative.`);
+    }
+
+    const unresolvedState = String(
+      evidence.findings?.unresolvedCriticalOrHigh ?? "",
+    ).toUpperCase();
+    assert.ok(
+      new Set([
+        "NONE",
+        "ZERO",
+        "RESOLVED",
+        "REMEDIATED",
+        "CLOSED",
+        "ACCEPTED_RISK",
+        "FORMALLY_ACCEPTED_RISK",
+      ]).has(unresolvedState),
+      `Security Critical/High disposition is not acceptable: ${unresolvedState}`,
+    );
+    if (["ACCEPTED_RISK", "FORMALLY_ACCEPTED_RISK"].includes(unresolvedState)) {
+      assert.ok(
+        evidence.findings?.acceptedRiskEvidenceRef,
+        "Formal risk-acceptance evidence is required for unresolved Critical/High findings.",
+      );
+    }
   }
 
   if (gateId === "LIVE-05-HUMAN-UAT") {
@@ -265,9 +460,42 @@ function assertGateSpecific(gateId, evidence) {
 
   if (gateId === "LIVE-06-RESILIENCE-RPO-RTO") {
     assert.equal(evidence.approved, true);
+    assert.equal(evidence.environment?.classification, "production-equivalent");
     for (const scenario of evidence.scenarioCatalog ?? []) {
-      assert.equal(scenario.enabled, true, `Resilience scenario ${scenario.id} must be executed/enabled.`);
+      assert.equal(scenario.enabled, true,
+        `Resilience scenario ${scenario.id} must be executed/enabled.`);
+      assert.equal(scenario.accepted, true,
+        `Resilience scenario ${scenario.id} must be explicitly accepted.`);
+      assert.ok(
+        acceptedWords.has(String(scenario.status ?? "").toUpperCase()),
+        `Resilience scenario ${scenario.id} does not have an accepted result.`,
+      );
+      assert.ok(scenario.startedAt && !Number.isNaN(Date.parse(scenario.startedAt)),
+        `Resilience scenario ${scenario.id} startedAt must be ISO-8601.`);
+      assert.ok(scenario.completedAt && !Number.isNaN(Date.parse(scenario.completedAt)),
+        `Resilience scenario ${scenario.id} completedAt must be ISO-8601.`);
+      assert.ok(scenario.evidenceRef,
+        `Resilience scenario ${scenario.id} requires execution evidence.`);
+      assertFiniteNonNegativeNumber(
+        scenario.observedRecoveryMinutes,
+        `Resilience scenario ${scenario.id} observed recovery minutes`,
+      );
     }
+
+    const objectives = evidence.recoveryObjectives;
+    assertFiniteNonNegativeNumber(objectives?.approvedRpoMinutes, "Approved RPO minutes");
+    assertFiniteNonNegativeNumber(objectives?.approvedRtoMinutes, "Approved RTO minutes");
+    assertFiniteNonNegativeNumber(objectives?.measuredRpoMinutes, "Measured RPO minutes");
+    assertFiniteNonNegativeNumber(objectives?.measuredRtoMinutes, "Measured RTO minutes");
+    assert.ok(
+      objectives.measuredRpoMinutes <= objectives.approvedRpoMinutes,
+      "Measured RPO exceeds the approved RPO target.",
+    );
+    assert.ok(
+      objectives.measuredRtoMinutes <= objectives.approvedRtoMinutes,
+      "Measured RTO exceeds the approved RTO target.",
+    );
+    assert.equal(objectives.accepted, true, "RPO/RTO results must be explicitly accepted.");
   }
 
   if (gateId === "LIVE-07-KSA-MARKET-CLINICAL-APPROVALS") {
@@ -288,6 +516,7 @@ function assertGateSpecific(gateId, evidence) {
   }
 
   if (gateId === "LIVE-08-DEPLOYMENT-ROLLBACK-REHEARSAL") {
+    assert.equal(evidence.environment?.classification, "production-equivalent");
     assert.equal(evidence.predeploy?.pitrReady, true);
     assert.equal(evidence.predeploy?.configReady, true);
     assert.equal(evidence.deployment?.safetySignalsPass, true);
@@ -295,6 +524,18 @@ function assertGateSpecific(gateId, evidence) {
     assert.equal(evidence.rollback?.sideEffectsReconciled, true);
     assert.equal(evidence.recovery?.pitrRehearsed, true);
     assert.equal(evidence.approvals?.rehearsalAccepted, true);
+    assert.equal(
+      evidence.deployment?.runtimeObservedSourceSha,
+      evidence.release?.sourceSha,
+      "Deployed runtime SHA must match the final release candidate.",
+    );
+    assert.equal(
+      evidence.rollback?.runtimeObservedSourceSha,
+      evidence.release?.previous?.sourceSha,
+      "Rollback runtime SHA must match the previous approved release.",
+    );
+    assertFiniteNonNegativeNumber(evidence.recovery?.rpoMinutes, "Deployment rehearsal RPO minutes");
+    assertFiniteNonNegativeNumber(evidence.recovery?.rtoMinutes, "Deployment rehearsal RTO minutes");
   }
 }
 
@@ -342,6 +583,7 @@ for (const entry of index.gates) {
     `${entry.id} evidence schema must match its approved template schema.`,
   );
 
+  assertTemplateStructure(evidence, template);
   assertSensitiveDataFlags(evidence);
   assertReleaseSha(evidence, index.releaseCandidate.sourceSha);
   assertNoPlaceholders(evidence);
