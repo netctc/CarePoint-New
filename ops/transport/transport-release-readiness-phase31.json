@@ -1,0 +1,85 @@
+{
+  "schemaVersion": 1,
+  "scope": "transport-phases-5-30",
+  "readinessState": "CODE_ACCEPTANCE_READY_PRODUCTION_EVIDENCE_REQUIRED",
+  "productionAcceptance": false,
+  "directMainMergeAllowed": false,
+  "codeAcceptance": {
+    "integrationClosure": {
+      "phase": 27,
+      "contract": "ops/transport/transport-phases8-26-integration-contract.json",
+      "smoke": "services/api/scripts/v2-transport-phase27-smoke.mjs"
+    },
+    "sourceEndToEnd": {
+      "phase": 28,
+      "contract": "ops/transport/transport-e2e-acceptance-phase28.json",
+      "smoke": "services/api/scripts/v2-transport-phase28-smoke.mjs"
+    },
+    "postgresTransactional": {
+      "phase": 29,
+      "smoke": "services/api/scripts/v2-transport-phase29-smoke.mjs",
+      "runtimeAcceptance": "services/api/scripts/v2-transport-phase29-postgres.mjs",
+      "ciPlacement": "after-db-deploy-before-bootstrap"
+    },
+    "advancedLiveHttp": {
+      "phase": 30,
+      "smoke": "services/api/scripts/v2-transport-phase30-smoke.mjs",
+      "runtimeAcceptance": "services/api/scripts/v2-transport-phase30-live-http.mjs",
+      "liveRunner": "services/api/scripts/slice8-smoke.mjs"
+    }
+  },
+  "canonicalValidation": {
+    "fullApiTestRequired": true,
+    "securityAnalysisRequired": true,
+    "fullMatrixRequiredBeforeMerge": true,
+    "releaseCandidateEvidenceRequired": true,
+    "workflows": [
+      ".github/workflows/ci.yml",
+      ".github/workflows/security-analysis.yml",
+      ".github/workflows/release-candidate-evidence.yml",
+      ".github/workflows/uat-evidence-contract.yml",
+      ".github/workflows/promotion-policy-evidence-contract.yml",
+      ".github/workflows/production-infrastructure-contract.yml",
+      ".github/workflows/gcp-admin-cloud-run-deployment-contract.yml",
+      ".github/workflows/gcp-immutable-rc-freeze-contract.yml"
+    ]
+  },
+  "productionEvidence": {
+    "workerContract": "ops/release-1/gcp-transport-report-worker-contract.json",
+    "schedulerContract": "ops/release-1/gcp-worker-scheduler-deployment-contract.json",
+    "required": [
+      "live-cloud-run-job-deployment",
+      "cloud-scheduler-oidc-invocation",
+      "worker-lease-idempotency",
+      "failure-recovery",
+      "private-regional-object-storage",
+      "immutable-release-candidate-digest",
+      "production-observability-and-siem",
+      "live-uat",
+      "promotion-approval"
+    ],
+    "explicitlyUnproven": [
+      "live-cloud-run-job-deployment",
+      "cloud-scheduler-oidc-invocation",
+      "worker-lease-idempotency",
+      "failure-recovery",
+      "geographic-disaster-recovery",
+      "rpo-rto"
+    ]
+  },
+  "privacyBoundary": {
+    "patientIdentityInManagementReport": false,
+    "patientLocationInManagementReport": false,
+    "patientContactInManagementReport": false,
+    "rawAuditMetadataInComplianceManifest": false,
+    "objectStorageKeyInComplianceManifest": false,
+    "csvContentInComplianceManifest": false,
+    "publicReportUrlIssued": false,
+    "plaintextDownloadGrantPersisted": false
+  },
+  "releaseDecision": {
+    "codeMergeCandidate": true,
+    "productionDeployCandidate": false,
+    "reason": "Production deployment remains blocked until canonical release evidence, live cloud proofs and UAT are attached to the exact release candidate SHA."
+  }
+}
