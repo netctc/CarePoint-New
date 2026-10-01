@@ -380,7 +380,6 @@ rollback_on_error(){
 
 deploy_v3(){
   cd "$V3_REPO"
-  chmod +x ops/test-v3/scripts/*.sh || true
 
   if docker ps --format '{{.Names}}' | grep -q '^carepoint-v3-test-'; then
     had_v3_before=true
