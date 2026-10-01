@@ -35,15 +35,40 @@ const index = JSON.parse(indexText);
 assert.equal(decision.schema, "carepoint.merge-deploy-authorization-record/v1");
 assert.equal(human.schema, "carepoint.human-release-authorization-record/v1");
 assert.equal(index.schema, "carepoint.go-live-evidence-index/v1");
+assert.equal(index.productionAcceptance, false);
+assert.equal(index.mainMergeAllowed, false);
+assert.equal(human.productionAcceptance, false);
+assert.equal(human.mainMergeAllowed, false);
+assert.equal(human.deploymentAuthorized, false);
 
 for (const source of [human, index]) {
   assert.equal(source.releaseCandidate.consolidatedPr, decision.releaseCandidate.consolidatedPr);
   assert.equal(source.releaseCandidate.sourceSha, decision.releaseCandidate.sourceSha);
 }
 
+assert.equal(index.gates.length, 8);
+for (const gate of index.gates) assert.ok(["PENDING", "ACCEPTED"].includes(gate.status));
 const acceptedCount = index.gates.filter((g) => g.status === "ACCEPTED").length;
 const allEvidenceAccepted = acceptedCount === 8;
+
+assert.ok(["PENDING", "AUTHORIZED"].includes(human.authorization?.status));
 const humanAuthorized = human.authorization?.status === "AUTHORIZED";
+if (humanAuthorized) {
+  assert.ok(human.authorization.authorizedByRef, "Phase 36 authorizedByRef is required.");
+  assert.ok(human.authorization.decisionRef, "Phase 36 decisionRef is required.");
+  assert.ok(
+    human.authorization.authorizedAt && !Number.isNaN(Date.parse(human.authorization.authorizedAt)),
+    "Phase 36 authorizedAt must be ISO-8601."
+  );
+  for (const name of [
+    "externalEvidenceEightOfEightAccepted",
+    "rollbackPlanReviewed",
+    "productionChangeWindowApproved",
+    "postDeployValidationOwnerAssigned",
+  ]) {
+    assert.equal(human.acknowledgements?.[name], true, `Phase 36 acknowledgement must be true: ${name}`);
+  }
+}
 
 assert.equal(index.finalDecision, allEvidenceAccepted ? "READY_FOR_HUMAN_RELEASE_AUTHORIZATION" : "BLOCKED");
 assert.ok(["PENDING", "AUTHORIZED"].includes(decision.mergeDecision.status));
@@ -78,6 +103,7 @@ assert.equal(decision.deploymentAuthorized, deployAuthorized);
 
 const result = {
   schema: "carepoint.merge-deploy-authorization-validation/v1",
+  releaseCandidate: decision.releaseCandidate,
   acceptedGateCount: acceptedCount,
   humanReleaseAuthorizationRecorded: humanAuthorized,
   mainMergeAuthorized: mergeAuthorized,
