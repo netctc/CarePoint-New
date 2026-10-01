@@ -10,7 +10,7 @@ permissions:
 
 concurrency:
   group: tag-all-branches-tech-complete-20261001
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   tag-all-branches:
@@ -27,68 +27,59 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-
           stage="carepoint-v2-tech-complete-20261001"
+          remote_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git fetch --no-tags --depth=1 "$remote_url" '+refs/heads/*:refs/remotes/stage-origin/*'
+
+          mapfile -t branch_rows < <(git for-each-ref --format='%(objectname)%09%(refname:strip=3)' refs/remotes/stage-origin/ | sort -k2)
+          declare -A remote_tags=()
+          while IFS=$'\t' read -r sha ref; do
+            [[ -n "${ref:-}" ]] && remote_tags["$ref"]="$sha"
+          done < <(git ls-remote --tags "$remote_url" "refs/tags/stage/${stage}/*")
+
           created=0
           existing=0
           conflicts=0
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          remote_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-
-          git fetch --no-tags --depth=1 "$remote_url" '+refs/heads/*:refs/remotes/stage-origin/*'
-
-          mapfile -t branch_rows < <(
-            git for-each-ref               --format='%(objectname)%09%(refname:strip=3)'               refs/remotes/stage-origin/               | sort -k2
-          )
-
-          echo "# Branch stage tagging" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          printf '%s\n' "- Stage namespace: stage/${stage}/<branch>" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Branches discovered: **${#branch_rows[@]}**" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
+          push_specs=()
 
           for row in "${branch_rows[@]}"; do
             sha="${row%%$'\t'*}"
             ref="${row#*$'\t'}"
             branch="${ref#refs/heads/}"
-            tag="stage/${stage}/${branch}"
-            tag_ref="refs/tags/${tag}"
-
-            current="$(git ls-remote --tags "$remote_url" "$tag_ref" | awk 'NR==1 {print $1}')"
+            tag_ref="refs/tags/stage/${stage}/${branch}"
+            current="${remote_tags[$tag_ref]:-}"
 
             if [[ -n "$current" ]]; then
               if [[ "$current" == "$sha" ]]; then
                 existing=$((existing + 1))
-                continue
+              else
+                echo "::error::$tag_ref points to $current, expected $sha"
+                conflicts=$((conflicts + 1))
               fi
-
-              echo "::error::Existing tag $tag points to $current but branch $branch points to $sha"
-              conflicts=$((conflicts + 1))
-              continue
+            else
+              push_specs+=("${sha}:${tag_ref}")
+              created=$((created + 1))
             fi
-
-            git push --quiet "$remote_url" "${sha}:${tag_ref}"
-            created=$((created + 1))
           done
 
-          total=$((created + existing + conflicts))
-
-          echo "- Tags created: **$created**" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Tags already correct: **$existing**" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Conflicts: **$conflicts**" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Total processed: **$total**" >> "$GITHUB_STEP_SUMMARY"
-
-          if [[ "$conflicts" -ne 0 ]]; then
-            echo "::error::One or more existing stage tags point to a different SHA."
-            exit 1
+          [[ "$conflicts" -eq 0 ]] || exit 1
+          if [[ "${#push_specs[@]}" -gt 0 ]]; then
+            git push --quiet "$remote_url" "${push_specs[@]}"
           fi
 
-          if [[ "$total" -ne "${#branch_rows[@]}" ]]; then
-            echo "::error::Not every discovered branch was processed."
-            exit 1
-          fi
+          total=$((created + existing))
+          {
+            echo "# Branch stage tagging"
+            echo ""
+            echo "- Stage: stage/${stage}/<branch>"
+            echo "- Branches discovered: **${#branch_rows[@]}**"
+            echo "- Tags created: **$created**"
+            echo "- Tags already correct: **$existing**"
+            echo "- Conflicts: **$conflicts**"
+            echo "- Total processed: **$total**"
+          } >> "$GITHUB_STEP_SUMMARY"
 
-          echo "Tagged all discovered branch heads for stage $stage."
+          [[ "$total" -eq "${#branch_rows[@]}" ]] || exit 1
+          echo "TAG_TOTAL=$total"
+          echo "TAG_CREATED=$created"
+          echo "TAG_EXISTING=$existing"
