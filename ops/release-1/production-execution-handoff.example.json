@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "schema": "carepoint.production-execution-handoff/v1",
+  "releaseCandidate": {
+    "consolidatedPr": 511,
+    "sourceSha": "9974b72b76b45539e6513730c3b8fdbe0d1506f0"
+  },
+  "prerequisites": {
+    "externalEvidenceEightOfEight": false,
+    "humanReleaseAuthorization": false,
+    "mergeAuthorization": false,
+    "deploymentAuthorization": false,
+    "changeWindowApproved": false
+  },
+  "execution": {
+    "status": "BLOCKED",
+    "operatorRef": null,
+    "changeWindowRef": null,
+    "deploymentRunbookRef": null,
+    "rollbackRunbookRef": null,
+    "postDeployValidationRecord": null
+  },
+  "productionAcceptance": false,
+  "releaseClosed": false
+}
