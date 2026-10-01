@@ -124,6 +124,20 @@ assert.equal(
   pkg.scripts["v2:transport-phase29-postgres"],
   "node --test scripts/v2-transport-phase29-postgres.mjs",
 );
+assert.equal(
+  pkg.scripts["v2:transport-live-http-contract"],
+  "node scripts/v2-transport-live-http-smoke.mjs",
+);
+assert.equal(
+  pkg.scripts["v2:transport-live-http-acceptance"],
+  "node scripts/v2-transport-live-http.mjs",
+);
+assert.ok(pkg.scripts.test.includes("npm run v2:transport-live-http-contract"));
+assert.ok(
+  pkg.scripts.test.indexOf("npm run v2:transport-live-http-contract") <
+    pkg.scripts.test.indexOf("npm run v2:transport-phase30"),
+  "advanced live HTTP contract must run before the final Phase 30 closure gate",
+);
 
 const deployIndex = ci.indexOf("- run: npm run db:deploy");
 const pgIndex = ci.indexOf("Transport Phase 29 PostgreSQL transactional acceptance");
