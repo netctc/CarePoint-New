@@ -17,7 +17,15 @@ assert.equal(q.schema,"carepoint.final-release-closure-readiness/v1");
 assert.equal(r.releaseCandidate.consolidatedPr,q.releaseCandidate.consolidatedPr);
 assert.equal(r.releaseCandidate.sourceSha,q.releaseCandidate.sourceSha);
 assert.ok(["PENDING","ACCEPTED","REJECTED"].includes(r.finalDecision.status));
-const ready=q.finalDecision==="READY_FOR_FINAL_PRODUCTION_ACCEPTANCE_DECISION" && q.readyForFinalProductionAcceptanceDecision===true;
+const ready=
+  q.finalDecision==="READY_FOR_FINAL_PRODUCTION_ACCEPTANCE_DECISION" &&
+  q.readyForFinalProductionAcceptanceDecision===true &&
+  q.prerequisitesReady===true &&
+  q.productionExecutionHandoffReady===true &&
+  q.postDeployValidationPassed===true &&
+  q.productionAcceptancePerformed===false &&
+  q.releaseClosurePerformed===false &&
+  q.explicitHumanFinalDecisionRequired===true;
 if(r.finalDecision.status==="ACCEPTED"){
   assert.equal(ready,true,"Production acceptance is forbidden until Phase 40 is READY.");
   for(const [k,v] of Object.entries(r.acknowledgements)) assert.equal(v,true,`Acknowledgement must be true: ${k}`);
@@ -33,6 +41,7 @@ if(r.finalDecision.status!=="ACCEPTED"){
 }
 process.stdout.write(JSON.stringify({
   schema:"carepoint.final-production-acceptance-validation/v1",
+  releaseCandidate:r.releaseCandidate,
   finalDecision:r.finalDecision.status,
   productionAcceptance:r.productionAcceptance,
   releaseClosureAuthorized:r.releaseClosureAuthorized,
