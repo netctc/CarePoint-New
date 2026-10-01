@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "scope": "transport-release-closure-phases-8-29",
+  "scope": "transport-release-closure-phases-8-30",
   "canonicalBase": "main",
   "currentCanonicalBaseSha": "7808b03e9138bec9f453316bca9e7fdbb493da83",
   "productionAcceptance": false,
@@ -11,8 +11,8 @@
     "exactHeadGreenRequired": true,
     "phase29PostgresAcceptanceRequired": true,
     "postMergeMainValidationRequired": true,
-    "upstreamValidatedCandidatePr": 508,
-    "finalCandidateBranch": "integration/transport-phases8-30-validation-20261001",
+    "upstreamValidatedCandidatePr": 497,
+    "finalCandidateBranch": "integration/transport-final-unified-validation-20261001",
     "finalCandidateExactHeadMustBeRecorded": true
   },
   "qualityPrerequisites": [
