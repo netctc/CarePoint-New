@@ -44,9 +44,19 @@ Never commit:
 
 Use approved external systems for restricted source evidence and store only stable, non-secret references here.
 
+## Scaffold a gate file
+
+Create the recommended working file without inventing evidence:
+
+```bash
+npm run v2:release-external-evidence-scaffold -- LIVE-01-PRODUCTION-INFRASTRUCTURE
+```
+
+The helper refuses to overwrite an existing file and only binds the governed release SHA where the approved template requires it.
+
 ## Workflow
 
-1. Start from the approved gate template referenced by Phase 31.
+1. Scaffold or copy the approved gate template referenced by Phase 31.
 2. Replace placeholders with real sanitized evidence/reference values.
 3. Keep the file under this directory.
 4. Run the single-gate preflight:
