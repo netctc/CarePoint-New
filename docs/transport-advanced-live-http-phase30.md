@@ -80,10 +80,16 @@ object-storage contract.
 Phase 30 does not claim automatic artifact email delivery. It validates the durable handoff/outbox
 and secure same-origin download path.
 
-## CI placement
+## CI integration
 
-The live acceptance runs after the existing F3.2 live/mobile journeys and before final failure-log
-collection. This keeps the Phase 30 synthetic data from influencing older acceptance suites.
+The live acceptance is chained from the existing Slice 8 medical-transport live runner.
+
+This deliberately reuses the API, PostgreSQL, Redis, bootstrap identities and existing CI
+credentials that Slice 8 already requires. Phase 30 therefore adds no workflow secrets and does
+not duplicate environment bootstrap.
+
+The original Slice 8 journey executes first. Phase 30 runs immediately afterward in the same live
+CI step.
 
 The static Phase 30 contract remains in the normal API npm test chain.
 
