@@ -1,0 +1,116 @@
+{
+  "schema": "carepoint.release-resilience-evidence/v1",
+  "sensitiveDataIncluded": false,
+  "release": {
+    "sourceSha": "REPLACE_WITH_FINAL_40_HEX_RC_SHA",
+    "artifactDigest": "sha256:REPLACE_WITH_64_HEX_ARTIFACT_DIGEST",
+    "releaseVersion": "REPLACE_WITH_RELEASE_VERSION",
+    "buildEvidenceRef": "REPLACE_WITH_IMMUTABLE_BUILD_EVIDENCE_REFERENCE"
+  },
+  "environment": {
+    "id": "REPLACE_WITH_NON_SECRET_ENVIRONMENT_REFERENCE",
+    "classification": "production-equivalent",
+    "topologyEvidenceRef": "REPLACE_WITH_TOPOLOGY_EVIDENCE_REFERENCE",
+    "providerProfileRef": "REPLACE_WITH_PROVIDER_PROFILE_REFERENCE",
+    "scopeApprovalRef": "REPLACE_WITH_SCOPE_APPROVAL_REFERENCE"
+  },
+  "scope": {
+    "notificationsEnabled": false,
+    "paymentsEnabled": false,
+    "telehealthEnabled": false,
+    "emergencyEnabled": false
+  },
+  "topology": {
+    "postgresReadReplicas": false
+  },
+  "execution": {
+    "exerciseId": "REPLACE_WITH_EXERCISE_REFERENCE",
+    "startedAt": "REPLACE_WITH_TIMESTAMP",
+    "completedAt": "REPLACE_WITH_TIMESTAMP",
+    "operatorRef": "REPLACE_WITH_OPERATOR_REFERENCE"
+  },
+  "scenarios": [
+    {
+      "id": "notification-provider-outage",
+      "applicability": "APPLICABLE",
+      "status": "BLOCKED"
+    },
+    {
+      "id": "notification-worker-lease-recovery",
+      "applicability": "APPLICABLE",
+      "status": "BLOCKED"
+    },
+    {
+      "id": "psp-timeout-retry-webhook-replay",
+      "applicability": "APPLICABLE",
+      "status": "BLOCKED"
+    },
+    {
+      "id": "redis-loss-failover",
+      "applicability": "APPLICABLE",
+      "status": "BLOCKED"
+    },
+    {
+      "id": "postgres-primary-failover",
+      "applicability": "APPLICABLE",
+      "status": "BLOCKED"
+    },
+    {
+      "id": "postgres-replica-lag",
+      "applicability": "APPLICABLE",
+      "status": "BLOCKED"
+    },
+    {
+      "id": "postgres-pitr-restore",
+      "applicability": "APPLICABLE",
+      "status": "BLOCKED"
+    },
+    {
+      "id": "telehealth-provider-network-outage",
+      "applicability": "APPLICABLE",
+      "status": "BLOCKED"
+    },
+    {
+      "id": "otlp-collector-outage",
+      "applicability": "APPLICABLE",
+      "status": "BLOCKED"
+    },
+    {
+      "id": "critical-workflow-failure-safety",
+      "applicability": "APPLICABLE",
+      "status": "BLOCKED"
+    }
+  ],
+  "continuity": {
+    "pitrScenarioId": "postgres-pitr-restore",
+    "incidentDeclaredAt": "REPLACE_WITH_TIMESTAMP",
+    "recoveryPointReferenceAt": "REPLACE_WITH_TIMESTAMP",
+    "recoveredDataThroughAt": "REPLACE_WITH_TIMESTAMP",
+    "acceptedHealthyAt": "REPLACE_WITH_TIMESTAMP",
+    "rpoMinutes": null,
+    "rtoMinutes": null,
+    "pitrEvidenceRef": "REPLACE_WITH_PITR_EVIDENCE_REFERENCE",
+    "integrityEvidenceRef": "REPLACE_WITH_INTEGRITY_EVIDENCE_REFERENCE",
+    "runbookRef": "REPLACE_WITH_RUNBOOK_REFERENCE",
+    "handoffRef": "REPLACE_WITH_HANDOFF_REFERENCE",
+    "operatorRef": "REPLACE_WITH_OPERATOR_REFERENCE"
+  },
+  "observability": {
+    "dashboardRef": "REPLACE_WITH_DASHBOARD_REFERENCE",
+    "alertEvidenceRef": "REPLACE_WITH_ALERT_EVIDENCE_REFERENCE",
+    "traceCorrelationRef": "REPLACE_WITH_TRACE_CORRELATION_REFERENCE",
+    "exporterFailureRef": "REPLACE_WITH_EXPORTER_FAILURE_REFERENCE",
+    "sanitized": false
+  },
+  "approvals": {
+    "operations": false,
+    "sre": false,
+    "database": false,
+    "security": false,
+    "product": false,
+    "clinicalRequired": true,
+    "clinical": false,
+    "accepted": false,
+    "approvalRef": "REPLACE_WITH_APPROVAL_REFERENCE"
+  }
+}

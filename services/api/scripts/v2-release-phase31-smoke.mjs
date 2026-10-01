@@ -41,6 +41,10 @@ assert.equal(contract.productionAcceptance, false);
 assert.equal(contract.mainMergeAllowed, false);
 assert.equal(contract.externalEvidenceGateCount, 8);
 assert.equal(contract.gates.length, 8);
+assert.equal(
+  contract.gates.find((gate) => gate.id === "LIVE-06-RESILIENCE-RPO-RTO").evidenceTemplate,
+  "ops/release-1/resilience-exercise-evidence.example.json",
+);
 
 const ids = new Set();
 for (const gate of contract.gates) {
@@ -87,6 +91,7 @@ const existingTemplates = [
   "ops/release-1/mobile-release-evidence.example.json",
   "ops/release-1/uat-evidence.example.json",
   "ops/release-1/resilience-exercise-plan.example.json",
+  "ops/release-1/resilience-exercise-evidence.example.json",
   "ops/release-1/market-readiness-evidence.example.json",
   "ops/release-1/deployment-rehearsal-evidence.example.json",
 ];

@@ -2,7 +2,7 @@
 
 Phase 43 defines the mandatory hypercare period after Phase 42 release closure.
 
-Hypercare may not start before Phase 42 is explicitly CLOSED.
+Hypercare may not start before Phase 42 is explicitly CLOSED and its Phase 42 validation result confirms the closure.
 
 Exit requires **6 exit criteria** to PASS with evidence:
 - no open Sev1/Sev2 incidents;
@@ -18,7 +18,7 @@ Only after EXITED does the contract report operational handoff complete and the 
 
 Commands:
 - `npm run v2:release-phase43`
-- `npm run v2:release-phase43-hypercare -- <hypercare-record.json> <phase42-closure.json>`
+- `npm run v2:release-phase43-hypercare -- <hypercare-record.json> <phase42-closure.json> <phase42-validation-result.json>`
 
 No new production environment variables.
 

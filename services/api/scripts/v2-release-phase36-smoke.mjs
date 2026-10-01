@@ -24,6 +24,10 @@ for (const token of [
   "Human authorization is forbidden until all 8 external gates are ACCEPTED.",
   "SEPARATE_EXPLICIT_MERGE_AND_DEPLOY_AUTHORIZATION_REQUIRED",
   "humanAuthorizationRecorded: true",
+  "rollbackPlanReviewed",
+  "productionChangeWindowApproved",
+  "postDeployValidationOwnerAssigned",
+  "releaseCandidate: record.releaseCandidate",
   "deploymentAuthorized: false",
   "mainMergeAllowed: false",
   "productionAcceptance: false"

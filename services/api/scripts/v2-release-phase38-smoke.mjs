@@ -15,6 +15,7 @@ assert.ok(j.checks.some((check)=>check.id==="ROLLBACK-TRIGGER-ASSESSMENT"));
 for(const x of [
  "PASSED requires every post-deploy check PASS.",
  "rollbackAssessmentRequired",
+ "releaseCandidate:r.releaseCandidate",
  "productionAcceptance:false",
  "releaseClosed:false"
 ]) assert.ok(v.includes(x), "Phase 38 validator must include: "+x);

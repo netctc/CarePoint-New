@@ -13,7 +13,12 @@ assert.equal(j.exitCriteria.length,6);
 assert.equal(j.hypercareExited,false);
 assert.equal(j.operationalHandoffComplete,false);
 assert.ok(v.includes("Hypercare cannot start before Phase 42 release closure."));
-assert.ok(v.includes("releaseLifecycleComplete"));
+for(const token of [
+  "carepoint.release-closure-validation/v1",
+  "v.releaseClosed===true",
+  "releaseCandidate:r.releaseCandidate",
+  "releaseLifecycleComplete"
+]) assert.ok(v.replaceAll(" ","").includes(token.replaceAll(" ","")));
 assert.equal(pkg.scripts["v2:release-phase43"],"node scripts/v2-release-phase43-smoke.mjs");
 assert.equal(pkg.scripts["v2:release-phase43-hypercare"],"node scripts/v2-release-phase43-hypercare.mjs");
 assert.ok(pkg.scripts.test.indexOf("npm run v2:release-phase42")<pkg.scripts.test.indexOf("npm run v2:release-phase43"));

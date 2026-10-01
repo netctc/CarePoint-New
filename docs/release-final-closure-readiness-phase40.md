@@ -4,10 +4,9 @@ Phase 40 consolidates the final release-closure readiness state after production
 
 It requires:
 
-- all Phase 39 prerequisites true;
-- production execution handoff status `READY_FOR_OPERATOR_EXECUTION`;
-- Phase 38 post-deploy validation status `PASSED`;
-- all 10 post-deploy checks in `PASS`.
+- validated Phase 39 authorization/handoff result with `authorizationReady=true` and `READY_FOR_OPERATOR_EXECUTION`;
+- validated Phase 38 post-deploy result with status `PASSED`;
+- exactly 10 passed post-deploy checks, zero failed checks and no rollback assessment required.
 
 When all conditions are satisfied it returns:
 
@@ -23,7 +22,7 @@ Safety invariants:
 
 Commands:
 - `npm run v2:release-phase40`
-- `npm run v2:release-phase40-closure-readiness -- <handoff.json> <postdeploy.json>`
+- `npm run v2:release-phase40-closure-readiness -- <phase39-validation-result.json> <phase38-validation-result.json>`
 
 No new production environment variables.
 

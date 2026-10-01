@@ -4,12 +4,12 @@ import { resolve,isAbsolute,relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root=fileURLToPath(new URL("../../../",import.meta.url));
-const [readinessArg,hypercareArg]=process.argv.slice(2);
-if(!readinessArg||!hypercareArg){
-  process.stderr.write("Usage: node scripts/v2-release-phase44-project-closure-readiness.mjs <readiness-record.json> <phase43-hypercare.json>\n");
+const [readinessArg,phase43ValidationArg,evidenceIndexArg]=process.argv.slice(2);
+if(!readinessArg||!phase43ValidationArg||!evidenceIndexArg){
+  process.stderr.write("Usage: node scripts/v2-release-phase44-project-closure-readiness.mjs <readiness-record.json> <phase43-validation-result.json> <phase32-evidence-index.json>\n");
   process.exit(64);
 }
-for(const p of [readinessArg,hypercareArg]){
+for(const p of [readinessArg,phase43ValidationArg,evidenceIndexArg]){
   if(isAbsolute(p)) throw new Error("Inputs must be repository-relative.");
   const abs=resolve(root,p), rel=relative(root,abs);
   if(rel.startsWith("..")||rel.includes("../")) throw new Error("Input escapes repository root.");
@@ -28,16 +28,30 @@ const parseCsvLine=(line)=>{
   return fields;
 };
 
-const [readinessText,hypercareText,authorityText]=await Promise.all([
+const [readinessText,phase43ValidationText,evidenceIndexText,authorityText]=await Promise.all([
   readFile(resolve(root,readinessArg),"utf8"),
-  readFile(resolve(root,hypercareArg),"utf8"),
+  readFile(resolve(root,phase43ValidationArg),"utf8"),
+  readFile(resolve(root,evidenceIndexArg),"utf8"),
   readFile(resolve(root,"docs/v2/traceability/functional-id-authority-v1.csv"),"utf8")
 ]);
-const r=JSON.parse(readinessText), h=JSON.parse(hypercareText);
+const r=JSON.parse(readinessText), h=JSON.parse(phase43ValidationText), evidence=JSON.parse(evidenceIndexText);
 assert.equal(r.schema,"carepoint.project-closure-readiness-record/v1");
-assert.equal(h.schema,"carepoint.release-hypercare-record/v1");
+assert.equal(h.schema,"carepoint.release-hypercare-validation/v1");
+assert.equal(evidence.schema,"carepoint.go-live-evidence-index/v1");
 assert.equal(r.releaseCandidate.consolidatedPr,h.releaseCandidate.consolidatedPr);
 assert.equal(r.releaseCandidate.sourceSha,h.releaseCandidate.sourceSha);
+assert.equal(r.releaseCandidate.consolidatedPr,evidence.releaseCandidate.consolidatedPr);
+assert.equal(r.releaseCandidate.sourceSha,evidence.releaseCandidate.sourceSha);
+assert.equal(evidence.productionAcceptance,false);
+assert.equal(evidence.mainMergeAllowed,false);
+assert.equal(evidence.gates.length,8);
+for(const gate of evidence.gates) assert.ok(["PENDING","ACCEPTED"].includes(gate.status));
+const acceptedExternalGateCount=evidence.gates.filter(g=>g.status==="ACCEPTED").length;
+const externalGatesAccepted=acceptedExternalGateCount===8;
+assert.equal(
+  evidence.finalDecision,
+  externalGatesAccepted ? "READY_FOR_HUMAN_RELEASE_AUTHORIZATION" : "BLOCKED"
+);
 
 const rows=authorityText.replace(/\r\n/g,"\n").trimEnd().split("\n").map(parseCsvLine);
 assert.equal(rows.length,231,"Functional authority must contain header + 230 canonical IDs.");
@@ -47,12 +61,15 @@ const body=rows.slice(1);
 const mergedCount=body.filter(row=>row[5]==="MERGED_TO_MAIN").length;
 assert.equal(mergedCount,230,"All 230 canonical functional IDs must be MERGED_TO_MAIN.");
 
-const lifecycleComplete=h.hypercare?.status==="EXITED" &&
+const lifecycleComplete=
+  h.hypercareStatus==="EXITED" &&
   h.hypercareExited===true &&
-  h.operationalHandoffComplete===true;
+  h.operationalHandoffComplete===true &&
+  h.releaseLifecycleComplete===true;
 
 assert.ok(["PENDING","READY"].includes(r.readiness.status));
 if(r.readiness.status==="READY"){
+  assert.equal(externalGatesAccepted,true,"Project closure readiness requires all 8/8 external gates ACCEPTED in the Phase 32 evidence index.");
   assert.equal(lifecycleComplete,true,"Project closure readiness requires Phase 43 lifecycle completion.");
   for(const [k,v] of Object.entries(r.checklist)) assert.equal(v,true,`Project closure checklist must be true: ${k}`);
   assert.ok(r.readiness.assessedByRef);
@@ -64,9 +81,12 @@ if(r.readiness.status!=="READY") assert.equal(r.projectClosureReady,false);
 
 process.stdout.write(JSON.stringify({
   schema:"carepoint.project-closure-readiness-validation/v1",
+  releaseCandidate:r.releaseCandidate,
   canonicalFunctionalIds:body.length,
   mergedFunctionalIds:mergedCount,
   functionalTraceabilityComplete:mergedCount===230,
+  acceptedExternalGateCount,
+  externalGatesAccepted,
   releaseLifecycleComplete:lifecycleComplete,
   readinessStatus:r.readiness.status,
   projectClosureReady:r.projectClosureReady,

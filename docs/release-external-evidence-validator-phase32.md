@@ -94,20 +94,34 @@ Evidence also rejects embedded credential fields such as plaintext:
 
 Evidence references to restricted systems are allowed; the restricted material itself must remain outside the repository.
 
+## Template structural conformance
+
+Accepted evidence must preserve the full required structure of its approved template.
+
+Phase 32 now verifies:
+
+- every required top-level and nested field is present;
+- every fixed catalog entry from the template is present;
+- identity-based arrays cannot silently drop required controls/apps/scenarios/approvals;
+- required value types are preserved;
+- additional evidence fields are allowed, but required template content cannot be omitted.
+
+This prevents a minimal payload with only a matching schema string from being accepted.
+
 ## Gate-specific acceptance
 
-The validator preserves the semantics of each Phase 31 evidence schema.
+The validator preserves and strengthens the semantics of each Phase 31 evidence schema.
 
 Examples:
 
 - production infrastructure controls/continuity must be accepted;
 - enabled external integrations must be accepted;
-- signed mobile artifacts and approvals must be accepted;
-- independent security assessment must confirm independence/manual testing and known findings;
-- applicable UAT cases and journey sign-offs must be accepted;
-- resilience scenarios must be executed/enabled;
+- launch-enabled mobile applications require signed production Android/iOS artifacts, embedded final release SHA, non-debug builds, physical-device acceptance, localization/accessibility acceptance, controls and approvals;
+- independent security assessment must confirm independence/manual testing, numeric finding counts and a non-blocking Critical/High disposition (including formal risk evidence where applicable);
+- UAT must use synthetic data only; applicable cases and journey sign-offs must be accepted, and any recorded defect must be resolved/closed/accepted or explicitly non-applicable;
+- resilience evidence must use `carepoint.release-resilience-evidence/v1`, contain executed scenario results with timestamps/evidence/assertions, sanitized observability, and continuity measurements satisfying RPO <= 15 minutes and RTO <= 120 minutes;
 - applicable KSA market/clinical controls and blocking issues must be closed/accepted;
-- deployment rehearsal must include predeploy readiness, deployment safety, rollback execution, reconciliation, PITR rehearsal, and approvals.
+- deployment rehearsal must include predeploy readiness, valid immutable SHA/digest identities, coherent deployment/rollback timestamps, approved deployment strategy, exact runtime source-SHA correlation, rollback to the previous approved SHA, reconciliation, PITR rehearsal, RPO <= 15 minutes, RTO <= 120 minutes, and approvals.
 
 ## Aggregated decision
 
@@ -148,3 +162,16 @@ No .env file is added.
 ## Database
 
 No database migration.
+
+
+### Resilience evidence separation
+
+The automated resilience workflow validates the disabled draft catalog:
+
+`ops/release-1/resilience-exercise-plan.example.json`
+
+External LIVE-06 acceptance must instead use:
+
+`ops/release-1/resilience-exercise-evidence.example.json`
+
+with schema `carepoint.release-resilience-evidence/v1`. A plan file can never satisfy LIVE-06.

@@ -26,6 +26,8 @@ for (const token of [
   "Merge/deploy authorization is forbidden until all 8 external gates are ACCEPTED.",
   "Merge/deploy authorization is forbidden until Phase 36 human release authorization is AUTHORIZED.",
   "Deployment authorization requires merge authorization.",
+  "Phase 36 acknowledgement must be true:",
+  "releaseCandidate: decision.releaseCandidate",
   "EXECUTION_REQUIRES_OPERATOR_ACTION_AND_POST_DEPLOY_VALIDATION",
   "MERGE_AND_DEPLOY_REMAIN_BLOCKED",
   "productionAcceptance: false",

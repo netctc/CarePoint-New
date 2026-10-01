@@ -13,7 +13,13 @@ assert.equal(j.finalDecision.status,"PENDING");
 assert.equal(j.productionAcceptance,false);
 assert.equal(j.releaseClosureAuthorized,false);
 assert.ok(v.includes("Production acceptance is forbidden until Phase 40 is READY."));
-assert.ok(v.includes("automaticClosurePerformed:false"));
+for(const token of [
+  "q.prerequisitesReady===true",
+  "q.productionExecutionHandoffReady===true",
+  "q.postDeployValidationPassed===true",
+  "releaseCandidate:r.releaseCandidate",
+  "automaticClosurePerformed:false"
+]) assert.ok(v.replaceAll(" ","").includes(token.replaceAll(" ","")));
 assert.equal(pkg.scripts["v2:release-phase41"],"node scripts/v2-release-phase41-smoke.mjs");
 assert.equal(pkg.scripts["v2:release-phase41-final-acceptance"],"node scripts/v2-release-phase41-final-acceptance.mjs");
 assert.ok(pkg.scripts.test.indexOf("npm run v2:release-phase40")<pkg.scripts.test.indexOf("npm run v2:release-phase41"));

@@ -13,7 +13,9 @@ assert.equal(j.closure.status,"PENDING");
 assert.equal(j.projectClosed,false);
 assert.equal(j.automaticClosurePerformed,false);
 for(const x of [
-  "Final project closure is forbidden until Phase 44 readiness is READY.",
+  "Final project closure is forbidden until a Phase 44 validation result proves 230/230 traceability, 8/8 external gates and lifecycle completion.",
+  "phase44ValidationResultAccepted",
+  "acceptedExternalGateCount===8",
   "automaticClosurePerformed:false",
   "finalHumanDecisionRequired"
 ]) assert.ok(v.includes(x),"Phase 45 validator must include: "+x);
