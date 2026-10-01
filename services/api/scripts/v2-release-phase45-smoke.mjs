@@ -20,5 +20,5 @@ for(const x of [
 assert.equal(pkg.scripts["v2:release-phase45"],"node scripts/v2-release-phase45-smoke.mjs");
 assert.equal(pkg.scripts["v2:release-phase45-project-final-closure"],"node scripts/v2-release-phase45-project-final-closure.mjs");
 assert.ok(pkg.scripts.test.indexOf("npm run v2:release-phase44")<pkg.scripts.test.indexOf("npm run v2:release-phase45"));
-for(const x of ["Release Phase 45","final project closure","Phase 44","residual backlog","operations ownership","support transition","human closure decision","No new production environment variables","No .env file"]) assert.ok(d.includes(x));
+for(const x of ["Release Phase 45","Final Project Closure Record","Phase 44","residual backlog","operations ownership","support transition","human closure decision","No new production environment variables","No .env file"]) assert.ok(d.includes(x),"Phase 45 docs must include: "+x);
 console.log("Release Phase 45 final project closure contract passed.");
