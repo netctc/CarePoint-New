@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "scope": "carepoint-transport-v2-final-integration-closure",
+  "transportPhaseRange": {
+    "from": 8,
+    "to": 30
+  },
+  "canonicalFunctionalIdTarget": 230,
+  "canonicalMergeTarget": "main",
+  "consolidatedValidationPr": 497,
+  "productionAcceptance": false,
+  "mainMergeAllowed": false,
+  "mergeReadiness": "PENDING_FULL_CONSOLIDATED_MATRIX",
+  "requiredEvidence": {
+    "phase27IntegrationContract": "ops/transport/transport-phases8-26-integration-contract.json",
+    "phase28EndToEndContract": "ops/transport/transport-e2e-acceptance-phase28.json",
+    "phase29PostgresAcceptance": "services/api/scripts/v2-transport-phase29-postgres.mjs",
+    "functionalAuthority": "docs/v2/traceability/functional-id-authority-v1.csv",
+    "functionalPrEvidence": "docs/v2/traceability/pr-reconciliation-evidence-20261001.csv",
+    "authorityValidator": ".ci/validate-v2-functional-id-authority.mjs"
+  },
+  "requiredCanonicalWorkflowFiles": [
+    ".github/workflows/ci.yml",
+    ".github/workflows/security-analysis.yml",
+    ".github/workflows/v2-functional-id-authority.yml",
+    ".github/workflows/uat-evidence-contract.yml",
+    ".github/workflows/promotion-policy-evidence-contract.yml",
+    ".github/workflows/patient-profile-postgres.yml",
+    ".github/workflows/external-integration-contract.yml",
+    ".github/workflows/availability-journeys-postgres.yml",
+    ".github/workflows/market-readiness-evidence-contract.yml",
+    ".github/workflows/slice10-fhir.yml",
+    ".github/workflows/release1-immutable-containers.yml",
+    ".github/workflows/release-candidate-evidence.yml",
+    ".github/workflows/resilience-rehearsal-contract.yml",
+    ".github/workflows/performance-harness-contract.yml",
+    ".github/workflows/mobile-native-compatibility.yml",
+    ".github/workflows/production-infrastructure-contract.yml",
+    ".github/workflows/deployment-rehearsal-contract.yml",
+    ".github/workflows/postgres-recovery.yml",
+    ".github/workflows/mobile-release-evidence-contract.yml",
+    ".github/workflows/integrated-test-version.yml",
+    ".github/workflows/release1-container-compatibility.yml",
+    ".github/workflows/gcp-admin-cloud-run-deployment-contract.yml",
+    ".github/workflows/gcp-immutable-rc-freeze-contract.yml",
+    ".github/workflows/gcp-cloud-storage-recovery-contract.yml"
+  ],
+  "remainingExternalGoLiveGates": [
+    "PRODUCTION_INFRASTRUCTURE_LIVE_EVIDENCE",
+    "REAL_EXTERNAL_PROVIDER_ACCEPTANCE",
+    "SIGNED_ANDROID_IOS_RELEASE_EVIDENCE",
+    "INDEPENDENT_SECURITY_PENTEST",
+    "HUMAN_UAT_SIGNOFF",
+    "LOAD_FAILURE_RPO_RTO_EVIDENCE",
+    "KSA_COMPLIANCE_LICENSING_CLINICAL_APPROVAL",
+    "FINAL_DEPLOYMENT_ROLLBACK_REHEARSAL"
+  ],
+  "closurePrinciples": [
+    "NO_GATE_WAIVED_FOR_SPEED",
+    "STACKED_PR_FAST_LANE_DOES_NOT_REPLACE_CANONICAL_MATRIX",
+    "TRACEABILITY_COMPLETE_DOES_NOT_EQUAL_PRODUCTION_ACCEPTANCE",
+    "MAIN_REMAINS_UNCHANGED_UNTIL_EXPLICIT_FINAL_MERGE_DECISION"
+  ]
+}
