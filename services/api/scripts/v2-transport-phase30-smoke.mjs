@@ -25,7 +25,12 @@ assert.equal(contract.scope, "transport-release-closure-phases-8-29");
 assert.equal(contract.canonicalBase, "main");
 assert.equal(contract.productionAcceptance, false);
 assert.equal(contract.mainMergeAuthorized, false);
-assert.equal(contract.finalValidation.draftPr, 508);
+assert.equal(contract.finalValidation.upstreamValidatedCandidatePr, 508);
+assert.equal(
+  contract.finalValidation.finalCandidateBranch,
+  "integration/transport-phases8-30-validation-20261001",
+);
+assert.equal(contract.finalValidation.finalCandidateExactHeadMustBeRecorded, true);
 assert.equal(contract.finalValidation.fullCanonicalMatrixRequired, true);
 assert.equal(contract.finalValidation.exactHeadGreenRequired, true);
 assert.equal(contract.finalValidation.phase29PostgresAcceptanceRequired, true);
