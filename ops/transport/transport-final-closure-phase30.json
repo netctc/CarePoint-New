@@ -17,7 +17,10 @@
     "phase29PostgresAcceptance": "services/api/scripts/v2-transport-phase29-postgres.mjs",
     "functionalAuthority": "docs/v2/traceability/functional-id-authority-v1.csv",
     "functionalPrEvidence": "docs/v2/traceability/pr-reconciliation-evidence-20261001.csv",
-    "authorityValidator": ".ci/validate-v2-functional-id-authority.mjs"
+    "authorityValidator": ".ci/validate-v2-functional-id-authority.mjs",
+    "advancedTransportLiveHttpContract": "services/api/scripts/v2-transport-live-http-smoke.mjs",
+    "advancedTransportLiveHttpJourney": "services/api/scripts/v2-transport-live-http.mjs",
+    "advancedTransportLiveHttpDocs": "docs/transport-advanced-live-http-acceptance.md"
   },
   "requiredCanonicalWorkflowFiles": [
     ".github/workflows/ci.yml",
