@@ -116,3 +116,56 @@ jobs:
           done
       - name: Validate Compose syntax without secrets
         run: docker compose -f ops/test-v3/compose.yaml config --no-interpolate >/dev/null
+
+  rich-data-runtime:
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: carepoint_test
+          POSTGRES_PASSWORD: carepoint-v3-ci-postgres-password
+          POSTGRES_DB: carepoint_v3_ci_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U carepoint_test -d carepoint_v3_ci_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgresql://carepoint_test:carepoint-v3-ci-postgres-password@127.0.0.1:5432/carepoint_v3_ci_test?schema=public
+      CAREPOINT_RICH_TEST_DATA_CONFIRM: RESET_AND_CREATE_RICH_SYNTHETIC_DATA
+      CAREPOINT_TEST_FIXTURE_PASSWORD: CarePointV3CiFixturePassword2026
+      CAREPOINT_TEST_FIXTURE_EMAIL_DOMAIN: ci.carepoint.test
+      CAREPOINT_TEST_FIXTURE_TIMEZONE: Asia/Riyadh
+      CAREPOINT_RICH_TEST_PATIENT_COUNT: "50"
+      CAREPOINT_RICH_TEST_DOCTORS_PER_SPECIALTY: "1"
+      CAREPOINT_RICH_TEST_PROVIDERS_PER_CATEGORY: "1"
+      CLINICAL_KEY_PROVIDER: local
+      CLINICAL_ENVELOPE_KEY_ID: ci-clinical-kek-v1
+      CLINICAL_ENVELOPE_KEY_BASE64: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+    steps:
+      - name: Check out exact candidate
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ env.CAREPOINT_V3_SOURCE_SHA }}
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Build rich-data runtime dependencies
+        run: |
+          npm run build --workspace @carepoint/contracts
+          npm run build --workspace @carepoint/identity
+          npm run build --workspace @carepoint/security
+          npm run build --workspace @carepoint/api
+      - name: Apply full Prisma migration history
+        run: npm run db:deploy --workspace @carepoint/api
+      - name: Execute guarded rich synthetic reset against PostgreSQL 16
+        run: npm run db:test-rich-reset --workspace @carepoint/api
+
