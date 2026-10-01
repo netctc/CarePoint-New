@@ -40,6 +40,7 @@
     ".github/workflows/postgres-recovery.yml",
     ".github/workflows/mobile-release-evidence-contract.yml",
     ".github/workflows/integrated-test-version.yml",
+    ".github/workflows/test-version-web.yml",
     ".github/workflows/release1-container-compatibility.yml",
     ".github/workflows/gcp-admin-cloud-run-deployment-contract.yml",
     ".github/workflows/gcp-immutable-rc-freeze-contract.yml",
