@@ -41,7 +41,7 @@ const RESPONDER_NEXT: Partial<Record<MedicalTransportStatus, MedicalTransportSta
 };
 
 @Injectable()
-class MedicalTransportService {
+export class MedicalTransportService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: DatabaseAuditService,
@@ -99,7 +99,9 @@ class MedicalTransportService {
         return request.id;
       }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     } catch (error) {
-      if (!this.isUniqueConflict(error)) throw error;
+      if (!this.isUniqueConflict(error) && !this.isSerializationConflict(error)) {
+        throw error;
+      }
       const raced = await this.prisma.medicalTransportRequest.findUnique({
         where: { patientId_clientRequestId: { patientId: patient.id, clientRequestId } },
       });
@@ -195,27 +197,35 @@ class MedicalTransportService {
     const provider = await this.requireTransportResponder(principal.accountId);
     const target = input.status;
     const etaMinutes = this.optionalEta(input.etaMinutes);
-    const updated = await this.prisma.$transaction(async (tx) => {
-      const current = await tx.medicalTransportRequest.findUnique({ where: { id: requestId } });
-      if (!current || current.assignedProviderId !== provider.id || current.mode !== provider.mode) throw new NotFoundException("Assigned medical transport job not found.");
-      if (current.status === target) {
-        if (etaMinutes !== undefined && etaMinutes !== current.etaMinutes) return tx.medicalTransportRequest.update({ where: { id: current.id }, data: { etaMinutes } });
-        return current;
+    let updated;
+    try {
+      updated = await this.prisma.$transaction(async (tx) => {
+        const current = await tx.medicalTransportRequest.findUnique({ where: { id: requestId } });
+        if (!current || current.assignedProviderId !== provider.id || current.mode !== provider.mode) throw new NotFoundException("Assigned medical transport job not found.");
+        if (current.status === target) {
+          if (etaMinutes !== undefined && etaMinutes !== current.etaMinutes) return tx.medicalTransportRequest.update({ where: { id: current.id }, data: { etaMinutes } });
+          return current;
+        }
+        if (RESPONDER_NEXT[current.status] !== target) throw new ConflictException(`Medical transport status must progress from ${current.status} to ${RESPONDER_NEXT[current.status] ?? "a terminal state"}.`);
+        const timestampData = target === "EN_ROUTE" ? { enRouteAt: new Date() }
+          : target === "ARRIVED" ? { arrivedAt: new Date() }
+          : target === "TRANSPORTING" ? { transportingAt: new Date() }
+          : target === "COMPLETED" ? { completedAt: new Date() }
+          : {};
+        const changed = await tx.medicalTransportRequest.updateMany({
+          where: { id: current.id, assignedProviderId: provider.id, status: current.status },
+          data: { status: target, ...timestampData, ...(etaMinutes !== undefined ? { etaMinutes } : {}) },
+        });
+        if (changed.count !== 1) throw new ConflictException("Medical transport job changed concurrently. Refresh and retry.");
+        await tx.medicalTransportEvent.create({ data: { transportRequestId: current.id, actorAccountId: principal.accountId, fromStatus: current.status, toStatus: target, providerId: provider.id, ...(etaMinutes !== undefined ? { etaMinutes } : {}) } });
+        return tx.medicalTransportRequest.findUniqueOrThrow({ where: { id: current.id } });
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    } catch (error) {
+      if (this.isSerializationConflict(error)) {
+        throw new ConflictException("Medical transport job changed concurrently. Refresh and retry.");
       }
-      if (RESPONDER_NEXT[current.status] !== target) throw new ConflictException(`Medical transport status must progress from ${current.status} to ${RESPONDER_NEXT[current.status] ?? "a terminal state"}.`);
-      const timestampData = target === "EN_ROUTE" ? { enRouteAt: new Date() }
-        : target === "ARRIVED" ? { arrivedAt: new Date() }
-        : target === "TRANSPORTING" ? { transportingAt: new Date() }
-        : target === "COMPLETED" ? { completedAt: new Date() }
-        : {};
-      const changed = await tx.medicalTransportRequest.updateMany({
-        where: { id: current.id, assignedProviderId: provider.id, status: current.status },
-        data: { status: target, ...timestampData, ...(etaMinutes !== undefined ? { etaMinutes } : {}) },
-      });
-      if (changed.count !== 1) throw new ConflictException("Medical transport job changed concurrently. Refresh and retry.");
-      await tx.medicalTransportEvent.create({ data: { transportRequestId: current.id, actorAccountId: principal.accountId, fromStatus: current.status, toStatus: target, providerId: provider.id, ...(etaMinutes !== undefined ? { etaMinutes } : {}) } });
-      return tx.medicalTransportRequest.findUniqueOrThrow({ where: { id: current.id } });
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+      throw error;
+    }
 
     await this.audit.write({ actorId: principal.accountId, action: `MEDICAL_TRANSPORT_${target}`, objectType: "MEDICAL_TRANSPORT_REQUEST", objectId: updated.id, purpose: "MEDICAL_TRANSPORT", result: "SUCCESS", metadata: { providerId: provider.id } });
     await this.notifyPatientById(updated.patientId, updated.id, target.toLowerCase());
@@ -229,22 +239,30 @@ class MedicalTransportService {
     etaMinutes: number | undefined,
     source: string,
   ) {
-    const updated = await this.prisma.$transaction(async (tx) => {
-      const current = await tx.medicalTransportRequest.findUnique({ where: { id: requestId } });
-      if (!current || current.mode !== provider.mode) throw new NotFoundException("Medical transport request not found for this provider domain.");
-      if (current.status === "ASSIGNED" && current.assignedProviderId === provider.id) {
-        if (etaMinutes !== undefined && etaMinutes !== current.etaMinutes) return tx.medicalTransportRequest.update({ where: { id: current.id }, data: { etaMinutes } });
-        return current;
+    let updated;
+    try {
+      updated = await this.prisma.$transaction(async (tx) => {
+        const current = await tx.medicalTransportRequest.findUnique({ where: { id: requestId } });
+        if (!current || current.mode !== provider.mode) throw new NotFoundException("Medical transport request not found for this provider domain.");
+        if (current.status === "ASSIGNED" && current.assignedProviderId === provider.id) {
+          if (etaMinutes !== undefined && etaMinutes !== current.etaMinutes) return tx.medicalTransportRequest.update({ where: { id: current.id }, data: { etaMinutes } });
+          return current;
+        }
+        if (current.status !== "REQUESTED" || current.assignedProviderId !== null) throw new ConflictException("Medical transport request has already been assigned or is no longer available.");
+        const changed = await tx.medicalTransportRequest.updateMany({
+          where: { id: current.id, status: "REQUESTED", assignedProviderId: null },
+          data: { status: "ASSIGNED", assignedProviderId: provider.id, assignedAt: new Date(), ...(etaMinutes !== undefined ? { etaMinutes } : {}) },
+        });
+        if (changed.count !== 1) throw new ConflictException("Medical transport was assigned concurrently to another provider.");
+        await tx.medicalTransportEvent.create({ data: { transportRequestId: current.id, actorAccountId: principal.accountId, fromStatus: "REQUESTED", toStatus: "ASSIGNED", providerId: provider.id, ...(etaMinutes !== undefined ? { etaMinutes } : {}) } });
+        return tx.medicalTransportRequest.findUniqueOrThrow({ where: { id: current.id } });
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    } catch (error) {
+      if (this.isSerializationConflict(error)) {
+        throw new ConflictException("Medical transport was assigned concurrently to another provider.");
       }
-      if (current.status !== "REQUESTED" || current.assignedProviderId !== null) throw new ConflictException("Medical transport request has already been assigned or is no longer available.");
-      const changed = await tx.medicalTransportRequest.updateMany({
-        where: { id: current.id, status: "REQUESTED", assignedProviderId: null },
-        data: { status: "ASSIGNED", assignedProviderId: provider.id, assignedAt: new Date(), ...(etaMinutes !== undefined ? { etaMinutes } : {}) },
-      });
-      if (changed.count !== 1) throw new ConflictException("Medical transport was assigned concurrently to another provider.");
-      await tx.medicalTransportEvent.create({ data: { transportRequestId: current.id, actorAccountId: principal.accountId, fromStatus: "REQUESTED", toStatus: "ASSIGNED", providerId: provider.id, ...(etaMinutes !== undefined ? { etaMinutes } : {}) } });
-      return tx.medicalTransportRequest.findUniqueOrThrow({ where: { id: current.id } });
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+      throw error;
+    }
 
     await this.audit.write({ actorId: principal.accountId, action: "MEDICAL_TRANSPORT_ASSIGNED", objectType: "MEDICAL_TRANSPORT_REQUEST", objectId: updated.id, purpose: "MEDICAL_TRANSPORT", result: "SUCCESS", metadata: { providerId: provider.id, source } });
     await Promise.all([
@@ -396,7 +414,17 @@ class MedicalTransportService {
   }
 
   private isUniqueConflict(error: unknown): boolean {
-    return typeof error === "object" && error !== null && "code" in error && (error as { code?: string }).code === "P2002";
+    return this.prismaErrorCode(error) === "P2002";
+  }
+
+  private isSerializationConflict(error: unknown): boolean {
+    return this.prismaErrorCode(error) === "P2034";
+  }
+
+  private prismaErrorCode(error: unknown): string | null {
+    return typeof error === "object" && error !== null && "code" in error
+      ? String((error as { code?: unknown }).code ?? "")
+      : null;
   }
 }
 
