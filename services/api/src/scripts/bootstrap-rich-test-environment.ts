@@ -25,6 +25,8 @@ const DEFAULT_DOCTORS_PER_SPECIALTY = 2;
 const DEFAULT_PROVIDERS_PER_CATEGORY = 2;
 const HISTORY_DAYS = 330;
 const FUTURE_APPOINTMENT_DAYS = 30;
+const TRANSPORT_REQUEST_COUNT = 180;
+const EMERGENCY_TRANSPORT_REQUEST_COUNT = 90;
 const AVAILABILITY_DAYS = 42;
 const SLOT_HOURS = [8, 9, 10, 11, 12, 13, 14, 15];
 const WORK_DAYS = [0, 1, 2, 3, 4];
@@ -799,75 +801,147 @@ async function createAvailabilityRequests(patients:PatientFixture[],providers:Sc
 async function createTransportData(patients:PatientFixture[],transport:{ground:string[];air:string[];emergency:string[]},config:FixtureConfig){
   const now=dayjs().tz(config.timezone);
   let ground=0,air=0,emergency=0;
-  for(let i=0;i<Math.min(40,patients.length);i++){
-    const patient=patients[i]!;
-    const mode=i%3===0?"AIR":"GROUND";
+  const requestCount=Math.min(TRANSPORT_REQUEST_COUNT,Math.max(1,patients.length));
+  const historicalCount=Math.floor(requestCount*0.75);
+
+  for(let i=0;i<requestCount;i++){
+    const patient=patients[(i*7)%patients.length]!;
+    const mode=i%4===0?"AIR":"GROUND";
     const pool=mode==="AIR"?transport.air:transport.ground;
-    const assignedProviderId=pool.length&&i%4!==0?pool[i%pool.length]!:null;
-    const status=i<12?"REQUESTED":i%5===0?"COMPLETED":assignedProviderId?"ASSIGNED":"REQUESTED";
-    const scheduledFor=status==="COMPLETED"?now.subtract(30+(i%120),"day"):now.add(2+(i%21),"day");
+    const assignedProviderId=pool.length?pool[i%pool.length]!:null;
+    const historical=i<historicalCount;
+    const status=historical?"COMPLETED":i%3===0?"REQUESTED":"ASSIGNED";
+
+    const historicalDaysAgo=7+((i*19)%(HISTORY_DAYS-14));
+    const scheduledFor=historical
+      ? now.subtract(historicalDaysAgo,"day").hour(7+(i%11)).minute((i*7)%60)
+      : now.add(1+(i%30),"day").hour(7+(i%11)).minute((i*11)%60);
+
+    const requestedAt=historical
+      ? scheduledFor.subtract(2+(i%5),"hour")
+      : now.subtract(i%5,"day").subtract(i%12,"hour");
+    const assignedAt=assignedProviderId&&status!=="REQUESTED"
+      ? historical?scheduledFor.subtract(1,"hour"):now.subtract(30+(i%120),"minute")
+      : null;
+    const completedAt=status==="COMPLETED"?scheduledFor.add(45+(i%60),"minute"):null;
+
     const request=await prisma.medicalTransportRequest.create({
       data:{
         patientId:patient.id,
         mode,
         status,
-        assistance:i%4===0?"WHEELCHAIR":i%7===0?"STRETCHER":"STANDARD",
+        assistance:i%5===0?"WHEELCHAIR":i%11===0?"STRETCHER":"STANDARD",
         companionCount:i%3,
-        equipment:i%6===0?["OXYGEN","MONITORING"]:[],
+        equipment:i%6===0?["OXYGEN","MONITORING"]:i%13===0?["VENTILATION","MONITORING"]:[],
         scheduledFor:scheduledFor.toDate(),
-        pickupLatitude:24.7136+(i%10)*0.001,
-        pickupLongitude:46.6753+(i%10)*0.001,
+        pickupLatitude:24.7136+(i%20)*0.001,
+        pickupLongitude:46.6753+(i%20)*0.001,
         pickupAddress:`Synthetic Pickup ${i+1}, Riyadh`,
-        destinationLatitude:24.7236+(i%10)*0.001,
-        destinationLongitude:46.6853+(i%10)*0.001,
+        destinationLatitude:24.7236+(i%20)*0.001,
+        destinationLongitude:46.6853+(i%20)*0.001,
         destinationAddress:`Synthetic Destination ${i+1}, Riyadh`,
         callbackPhone:patient.phone,
         assignedProviderId,
-        etaMinutes:assignedProviderId?20+(i%25):null,
+        etaMinutes:assignedProviderId?12+(i%38):null,
         clientRequestId:`rich-transport-${i+1}`,
-        assignedAt:assignedProviderId?now.subtract(1,"hour").toDate():null,
-        completedAt:status==="COMPLETED"?scheduledFor.add(1,"hour").toDate():null,
-        requestedAt:status==="COMPLETED"?scheduledFor.subtract(2,"day").toDate():now.subtract(i%3,"day").toDate(),
+        assignedAt:assignedAt?.toDate()??null,
+        completedAt:completedAt?.toDate()??null,
+        requestedAt:requestedAt.toDate(),
       },
     });
-    await prisma.medicalTransportEvent.create({data:{transportRequestId:request.id,fromStatus:null,toStatus:"REQUESTED",occurredAt:request.requestedAt}});
+
+    await prisma.medicalTransportEvent.create({
+      data:{
+        transportRequestId:request.id,
+        fromStatus:null,
+        toStatus:"REQUESTED",
+        occurredAt:requestedAt.toDate(),
+      },
+    });
+
     if(assignedProviderId&&status!=="REQUESTED"){
-      await prisma.medicalTransportEvent.create({data:{transportRequestId:request.id,actorAccountId:SYSTEM_ACTOR,fromStatus:"REQUESTED",toStatus:"ASSIGNED",providerId:assignedProviderId,etaMinutes:20+(i%25),occurredAt:now.subtract(1,"hour").toDate()}});
+      await prisma.medicalTransportEvent.create({
+        data:{
+          transportRequestId:request.id,
+          actorAccountId:SYSTEM_ACTOR,
+          fromStatus:"REQUESTED",
+          toStatus:"ASSIGNED",
+          providerId:assignedProviderId,
+          etaMinutes:12+(i%38),
+          occurredAt:assignedAt!.toDate(),
+        },
+      });
     }
+
     if(status==="COMPLETED"){
-      await prisma.medicalTransportEvent.create({data:{transportRequestId:request.id,actorAccountId:SYSTEM_ACTOR,fromStatus:"ASSIGNED",toStatus:"COMPLETED",providerId:assignedProviderId,occurredAt:scheduledFor.add(1,"hour").toDate()}});
+      await prisma.medicalTransportEvent.create({
+        data:{
+          transportRequestId:request.id,
+          actorAccountId:SYSTEM_ACTOR,
+          fromStatus:"ASSIGNED",
+          toStatus:"COMPLETED",
+          providerId:assignedProviderId,
+          occurredAt:completedAt!.toDate(),
+        },
+      });
     }
+
     if(mode==="AIR") air++; else ground++;
   }
 
   for(const [idx,providerId] of [...transport.ground,...transport.air].entries()){
     await prisma.transportUnit.create({
-      data:{providerId,code:`UNIT-${pad3(idx+1)}`,registrationCode:`SYN-REG-${pad3(idx+1)}`,mode:transport.air.includes(providerId)?"AIR":"GROUND",capabilities:transport.air.includes(providerId)?["OXYGEN","MONITORING","VENTILATION"]:["OXYGEN","MONITORING"],active:true},
+      data:{
+        providerId,
+        code:`UNIT-${pad3(idx+1)}`,
+        registrationCode:`SYN-REG-${pad3(idx+1)}`,
+        mode:transport.air.includes(providerId)?"AIR":"GROUND",
+        capabilities:transport.air.includes(providerId)
+          ?["OXYGEN","MONITORING","VENTILATION"]
+          :["OXYGEN","MONITORING"],
+        active:true,
+      },
     });
   }
 
-  for(let i=0;i<Math.min(18,patients.length);i++){
-    const patient=patients[(i*7)%patients.length]!;
-    const assignedProviderId=transport.emergency.length&&i%3!==0?transport.emergency[i%transport.emergency.length]!:null;
+  const emergencyCount=Math.min(EMERGENCY_TRANSPORT_REQUEST_COUNT,Math.max(1,patients.length));
+  for(let i=0;i<emergencyCount;i++){
+    const patient=patients[(i*11)%patients.length]!;
+    const assignedProviderId=transport.emergency.length&&i%5!==0
+      ? transport.emergency[i%transport.emergency.length]!
+      : null;
     const statuses=["REQUESTED","DISPATCHING","ASSIGNED","EN_ROUTE","ARRIVED","TRANSPORTING","COMPLETED"] as const;
     const status=statuses[i%statuses.length]!;
+    const historical=i<Math.floor(emergencyCount*0.8);
+    const daysAgo=historical?3+((i*23)%(HISTORY_DAYS-6)):i%3;
+
     await prisma.emergencyAmbulanceRequest.create({
       data:{
         patientId:patient.id,
         status,
-        latitude:24.7136+(i%8)*0.001,
-        longitude:46.6753+(i%8)*0.001,
+        latitude:24.7136+(i%16)*0.001,
+        longitude:46.6753+(i%16)*0.001,
         pickupAddress:`Synthetic Emergency Pickup ${i+1}, Riyadh`,
         callbackPhone:`+96655${String(8000000+i).slice(-7)}`,
-        note:"Synthetic emergency workflow request.",
+        note:historical
+          ?"Synthetic historical emergency workflow request."
+          :"Synthetic active emergency workflow request.",
         assignedProviderId,
-        etaMinutes:assignedProviderId?8+(i%15):null,
-        requestedAt:now.subtract(i%12,"day").toDate(),
+        etaMinutes:assignedProviderId?6+(i%18):null,
+        requestedAt:now.subtract(daysAgo,"day").subtract(i%20,"hour").toDate(),
       },
     });
     emergency++;
   }
-  return {ground,air,emergency};
+
+  return {
+    ground,
+    air,
+    emergency,
+    historyDays:HISTORY_DAYS,
+    transportRequests:requestCount,
+    emergencyRequests:emergencyCount,
+  };
 }
 
 async function main(){

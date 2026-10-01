@@ -143,10 +143,11 @@ fi
 
 echo
 printf 'CarePoint V3 test stack started\n'
-printf '  API (host loopback):      http://127.0.0.1:4200\n'
-printf '  Admin (host loopback):    http://127.0.0.1:3200\n'
-printf '  Patient web (loopback):   http://127.0.0.1:8280\n'
-printf '  Doctor web (loopback):    http://127.0.0.1:8281\n'
-printf '  Provider web (loopback):  http://127.0.0.1:8282\n'\nprintf '  Transport provider web:   http://127.0.0.1:8283\n'
+printf '  API (host loopback):      http://127.0.0.1:4300\n'
+printf '  Admin (host loopback):    http://127.0.0.1:3300\n'
+printf '  Patient web (loopback):   http://127.0.0.1:8380\n'
+printf '  Doctor web (loopback):    http://127.0.0.1:8381\n'
+printf '  Provider web (loopback):  http://127.0.0.1:8382\n'
+printf '  Transport provider web:   http://127.0.0.1:8383\n'
 printf '  Release SHA:               %s\n' "$TEST_RELEASE_SHA"
 printf '\nConfigure host Nginx/Certbot before exposing the public test FQDNs.\n'

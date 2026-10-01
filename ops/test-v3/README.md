@@ -26,12 +26,12 @@ This lane exists so the consolidated system can be exercised online before produ
 
 The V3 stack exposes six HTTPS test endpoints through host Nginx:
 
-- API → loopback `4200`
-- Admin Web → loopback `3200`
-- Patient Flutter Web → loopback `8280`
-- Doctor Flutter Web → loopback `8281`
-- Other Provider Flutter Web → loopback `8282`
-- Transport Provider Flutter Web → loopback `8283`
+- API → loopback `4300`
+- Admin Web → loopback `3300`
+- Patient Flutter Web → loopback `8380`
+- Doctor Flutter Web → loopback `8381`
+- Other Provider Flutter Web → loopback `8382`
+- Transport Provider Flutter Web → loopback `8383`
 
 ## Host preparation
 
@@ -60,6 +60,30 @@ Or export the six `TEST_*_DOMAIN` values manually.
 Use `ops/test-v3/variables.required.txt` as the checklist.
 
 Configure values manually in the shell, Dokploy/VPS secret store or CI secret store. No `.env` file is included.
+
+## One-command VPS installation
+
+For the current VPS, the preferred path is the idempotent installer:
+
+```bash
+cd /opt/carepoint-v3/app/CarePoint-New
+sudo bash ops/test-v3/scripts/install-v3-on-vps.sh
+```
+
+It keeps the existing V2 checkout at `/opt/carepoint/app/CarePoint-New`, verifies that V3 ports are free, prompts securely for PostgreSQL/Redis/Admin/fixture passwords, stores persistent V3 runtime secrets outside Git under `/root/.config/carepoint-v3/`, loads the 330-day rich synthetic dataset, creates `admin@carepoint.test` after the reset, installs Nginx/TLS and verifies that V2 remains online.
+
+Use `--preflight-only` to run only the safety checks.
+
+### Coexistence port map
+
+| Surface | Entorno V2 | Entorno V3 |
+| --- | ---: | ---: |
+| API | 4200 | 4300 |
+| Admin | 3200 | 3300 |
+| Patient Web | 8280 | 8380 |
+| Doctor Web | 8281 | 8381 |
+| Provider Web | 8282 | 8382 |
+| Transport Provider Web | - | 8383 |
 
 ## Deploy
 

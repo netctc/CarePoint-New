@@ -6,13 +6,13 @@ Configure these values manually in the deployment shell, Dokploy/VPS secret stor
 
 Public test routing
 -------------------
-TEST_API_DOMAIN=api-v3-test.example.com
-TEST_ADMIN_DOMAIN=admin-v3-test.example.com
-TEST_PATIENT_DOMAIN=patient-v3-test.example.com
-TEST_DOCTOR_DOMAIN=doctor-v3-test.example.com
-TEST_PROVIDER_DOMAIN=provider-v3-test.example.com
-TEST_TRANSPORT_PROVIDER_DOMAIN=transport-provider-v3-test.example.com
-CAREPOINT_API_PUBLIC_BASE=https://api-v3-test.example.com/api/v1
+TEST_API_DOMAIN=api.167.86.92.207.nip.io
+TEST_ADMIN_DOMAIN=admin.167.86.92.207.nip.io
+TEST_PATIENT_DOMAIN=patient.167.86.92.207.nip.io
+TEST_DOCTOR_DOMAIN=doctor.167.86.92.207.nip.io
+TEST_PROVIDER_DOMAIN=provider.167.86.92.207.nip.io
+TEST_TRANSPORT_PROVIDER_DOMAIN=transportprovider.167.86.92.207.nip.io
+CAREPOINT_API_PUBLIC_BASE=https://api.167.86.92.207.nip.io/api/v1
 
 Release identity
 ----------------

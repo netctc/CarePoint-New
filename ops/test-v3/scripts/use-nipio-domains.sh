@@ -24,12 +24,12 @@ for octet in "$a" "$b" "$c" "$d"; do
 done
 
 export TEST_VPS_IP="$ip"
-export TEST_API_DOMAIN="api-test.${ip}.nip.io"
-export TEST_ADMIN_DOMAIN="admin-test.${ip}.nip.io"
-export TEST_PATIENT_DOMAIN="patient-test.${ip}.nip.io"
-export TEST_DOCTOR_DOMAIN="doctor-test.${ip}.nip.io"
-export TEST_PROVIDER_DOMAIN="provider-test.${ip}.nip.io"
-export TEST_TRANSPORT_PROVIDER_DOMAIN="transport-provider-test.${ip}.nip.io"
+export TEST_API_DOMAIN="api.${ip}.nip.io"
+export TEST_ADMIN_DOMAIN="admin.${ip}.nip.io"
+export TEST_PATIENT_DOMAIN="patient.${ip}.nip.io"
+export TEST_DOCTOR_DOMAIN="doctor.${ip}.nip.io"
+export TEST_PROVIDER_DOMAIN="provider.${ip}.nip.io"
+export TEST_TRANSPORT_PROVIDER_DOMAIN="transportprovider.${ip}.nip.io"
 export CAREPOINT_API_PUBLIC_BASE="https://${TEST_API_DOMAIN}/api/v1"
 
 printf 'CarePoint test domains loaded:\n'
@@ -37,4 +37,5 @@ printf '  API:      %s\n' "$TEST_API_DOMAIN"
 printf '  Admin:    %s\n' "$TEST_ADMIN_DOMAIN"
 printf '  Patient:  %s\n' "$TEST_PATIENT_DOMAIN"
 printf '  Doctor:   %s\n' "$TEST_DOCTOR_DOMAIN"
-printf '  Provider: %s\n' "$TEST_PROVIDER_DOMAIN"\nprintf '  Transport Provider: %s\n' "$TEST_TRANSPORT_PROVIDER_DOMAIN"
+printf '  Provider: %s\n' "$TEST_PROVIDER_DOMAIN"
+printf '  Transport Provider: %s\n' "$TEST_TRANSPORT_PROVIDER_DOMAIN"

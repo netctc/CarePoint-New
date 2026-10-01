@@ -21,12 +21,12 @@ check_flutter() {
 }
 
 failed=0
-check_url "API search" "http://127.0.0.1:4200/api/v1/services/search" || failed=1
-check_url "Admin login" "http://127.0.0.1:3200/login" || failed=1
-check_flutter "Patient web" "http://127.0.0.1:8280" || failed=1
-check_flutter "Doctor web" "http://127.0.0.1:8281" || failed=1
-check_flutter "Provider web" "http://127.0.0.1:8282" || failed=1
-check_flutter "Transport web" "http://127.0.0.1:8283" || failed=1
+check_url "API search" "http://127.0.0.1:4300/api/v1/services/search" || failed=1
+check_url "Admin login" "http://127.0.0.1:3300/login" || failed=1
+check_flutter "Patient web" "http://127.0.0.1:8380" || failed=1
+check_flutter "Doctor web" "http://127.0.0.1:8381" || failed=1
+check_flutter "Provider web" "http://127.0.0.1:8382" || failed=1
+check_flutter "Transport web" "http://127.0.0.1:8383" || failed=1
 
 if [[ "$failed" -ne 0 ]]; then
   echo "One or more local CarePoint V3 test service checks failed." >&2
