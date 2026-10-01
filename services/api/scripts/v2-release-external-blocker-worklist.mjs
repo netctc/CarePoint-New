@@ -19,6 +19,8 @@ for(const gate of ledger.gates){
   lines.push(`## ${gate.id}`);
   lines.push("");
   lines.push(`Status: **${gate.status}**`);
+  lines.push(`Automated contract: ${gate.automatedWorkflow}`);
+  lines.push(`Evidence template: \`${gate.evidenceTemplate}\``);
   lines.push(`Primary issues: ${gate.primaryIssues.map(n=>`#${n}`).join(", ")}`);
   if(gate.relatedIssues.length) lines.push(`Related issues: ${gate.relatedIssues.map(n=>`#${n}`).join(", ")}`);
   lines.push(`Owner roles: ${gate.ownerRoles.join(", ")}`);
