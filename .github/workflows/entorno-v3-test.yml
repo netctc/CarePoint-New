@@ -92,12 +92,12 @@ jobs:
           set -euo pipefail
           test -z "$(find ops/test-v3 -type f -name '.env*' -print)"
           grep -q '^name: carepoint-v3-test$' ops/test-v3/compose.yaml
-          grep -q '127.0.0.1:4200:4200' ops/test-v3/compose.yaml
-          grep -q '127.0.0.1:3200:3200' ops/test-v3/compose.yaml
-          grep -q '127.0.0.1:8280:80' ops/test-v3/compose.yaml
-          grep -q '127.0.0.1:8281:80' ops/test-v3/compose.yaml
-          grep -q '127.0.0.1:8282:80' ops/test-v3/compose.yaml
-          grep -q '127.0.0.1:8283:80' ops/test-v3/compose.yaml
+          grep -q '127.0.0.1:4300:4200' ops/test-v3/compose.yaml
+          grep -q '127.0.0.1:3300:3200' ops/test-v3/compose.yaml
+          grep -q '127.0.0.1:8380:80' ops/test-v3/compose.yaml
+          grep -q '127.0.0.1:8381:80' ops/test-v3/compose.yaml
+          grep -q '127.0.0.1:8382:80' ops/test-v3/compose.yaml
+          grep -q '127.0.0.1:8383:80' ops/test-v3/compose.yaml
           ! grep -Eq '0\.0\.0\.0:(5432|6379)' ops/test-v3/compose.yaml
           grep -q 'PAYMENT_GATEWAY_PROVIDER: mock' ops/test-v3/compose.yaml
           grep -q 'TELEHEALTH_PROVIDER: mock' ops/test-v3/compose.yaml
@@ -111,7 +111,7 @@ jobs:
           for marker in API ADMIN PATIENT DOCTOR PROVIDER TRANSPORT_PROVIDER; do
             grep -q "__${marker}_DOMAIN__" "$template"
           done
-          for port in 4200 3200 8280 8281 8282 8283; do
+          for port in 4300 3300 8380 8381 8382 8383; do
             grep -q "127.0.0.1:${port}" "$template"
           done
       - name: Validate Compose syntax without secrets
