@@ -91,13 +91,14 @@ async function bootstrapAdmin(): Promise<void> {
   const password = process.env.BOOTSTRAP_ADMIN_PASSWORD;
   if (!email && !password) return;
   if (!email || !password) throw new Error("BOOTSTRAP_ADMIN_EMAIL and BOOTSTRAP_ADMIN_PASSWORD must be provided together.");
-  const existingAdmin = await prisma.user.findFirst({ where: { role: "ADMIN" } });
-  if (existingAdmin) {
-    console.log(`Admin bootstrap skipped: an ADMIN account already exists (${existingAdmin.email}).`);
+  const existingEmail = await prisma.user.findUnique({ where: { email } });
+  if (existingEmail) {
+    if (existingEmail.role !== "ADMIN") {
+      throw new Error("Bootstrap admin email is already used by a non-admin account.");
+    }
+    console.log(`Bootstrap ADMIN already exists: ${existingEmail.email}`);
     return;
   }
-  const existingEmail = await prisma.user.findUnique({ where: { email } });
-  if (existingEmail) throw new Error("Bootstrap admin email is already used by another account.");
   const admin = await prisma.user.create({ data: { email, passwordHash: hashPassword(password), role: "ADMIN" } });
   console.log(`Bootstrap ADMIN created: ${admin.email}`);
 }
