@@ -49,7 +49,19 @@ assert.equal(
   false,
   "Phase 30 must exercise route-preview fallback without external routing",
 );
-assert.equal(live.includes(".env"), false);
+for (const forbidden of [
+  'dotenv/config',
+  'readFile(".env',
+  "readFile('.env",
+  'writeFile(".env',
+  "writeFile('.env",
+]) {
+  assert.equal(
+    live.includes(forbidden),
+    false,
+    "Phase 30 live acceptance must not read or write .env files: " + forbidden,
+  );
+}
 
 assert.equal(
   pkg.scripts["v2:transport-phase30"],
@@ -79,7 +91,7 @@ for (const text of [
   "route-preview fallback",
   "telemetry",
   "smart dispatch",
-  "one-time download",
+  "one-time secure report download",
   "compliance manifest",
   "No new production environment variables",
   "No .env file",
