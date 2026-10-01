@@ -35,6 +35,8 @@ for (const text of [
   'replayDownload.status === 400',
   'artifactIntegrityStatus === "VERIFIED"',
   'manifest.exportPolicy?.[field] === false',
+  '"Sensitive patient data leaked into management-report CSV."',
+  "patientA.email",
 ]) {
   assert.ok(live.includes(text), "Phase 30 live acceptance must include: " + text);
 }
