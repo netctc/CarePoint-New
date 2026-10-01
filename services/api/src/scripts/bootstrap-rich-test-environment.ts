@@ -30,7 +30,7 @@ const EMERGENCY_TRANSPORT_REQUEST_COUNT = 90;
 const AVAILABILITY_DAYS = 42;
 const SLOT_HOURS = [8, 9, 10, 11, 12, 13, 14, 15];
 const WORK_DAYS = [0, 1, 2, 3, 4];
-const SYSTEM_ACTOR = "system:rich-test-fixtures";
+let SYSTEM_ACTOR = "system:rich-test-fixtures";
 
 type Labels = { en: string; ar: string; fr: string; es: string };
 type FixtureConfig = {
@@ -980,6 +980,7 @@ async function main(){
   const resetTables=await resetApplicationData();
 
   const admin=await createUser("admin.test","ADMIN",config,dayjs().subtract(HISTORY_DAYS,"day").toDate());
+  SYSTEM_ACTOR=admin.id;
   await createUser("support.test","SUPPORT",config,dayjs().subtract(HISTORY_DAYS-3,"day").toDate());
 
   const reference=await seedReferenceData();
