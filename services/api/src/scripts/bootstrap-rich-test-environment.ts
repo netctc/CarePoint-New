@@ -607,29 +607,59 @@ async function createAppointments(patients:PatientFixture[],providers:Schedulabl
 
   const slots=await prisma.availabilitySlot.findMany({
     where:{startsAt:{gt:now.add(1,"day").toDate(),lte:now.add(FUTURE_APPOINTMENT_DAYS,"day").toDate()},status:"OPEN"},
-    orderBy:[{startsAt:"asc"},{providerId:"asc"}],
-    take:patients.length*3,
+    orderBy:[{startsAt:"asc"},{providerId:"asc"},{id:"asc"}],
+    take:patients.length*12,
   });
   let futureCount=0;
   const chosenSlotIds:string[]=[];
+  const chosenSlotIdSet=new Set<string>();
+  const patientIntervals=new Map<string,Array<{startsAt:Date;endsAt:Date}>>();
+  const providerIntervals=new Map<string,Array<{startsAt:Date;endsAt:Date}>>();
+  const overlaps=(left:{startsAt:Date;endsAt:Date},right:{startsAt:Date;endsAt:Date})=>
+    left.startsAt<right.endsAt&&right.startsAt<left.endsAt;
+
   for(const [patientIndex,patient] of patients.entries()){
     for(let future=0;future<2;future++){
-      const slot=slots[(patientIndex*2+future)%slots.length];
-      if(!slot) break;
+      let selectedSlot:(typeof slots)[number]|undefined;
+      const startOffset=(patientIndex*7+future*slots.length/2)%Math.max(1,slots.length);
+
+      for(let attempt=0;attempt<slots.length;attempt++){
+        const slot=slots[(Math.floor(startOffset)+attempt)%slots.length];
+        if(!slot||chosenSlotIdSet.has(slot.id)||slot.bookedCount>=slot.capacity) continue;
+
+        const interval={startsAt:slot.startsAt,endsAt:slot.endsAt};
+        const patientBusy=patientIntervals.get(patient.id)??[];
+        const providerBusy=providerIntervals.get(slot.providerId)??[];
+        if(patientBusy.some(existing=>overlaps(existing,interval))) continue;
+        if(providerBusy.some(existing=>overlaps(existing,interval))) continue;
+
+        selectedSlot=slot;
+        break;
+      }
+
+      if(!selectedSlot){
+        throw new Error(`Unable to allocate non-overlapping future appointment ${future+1} for synthetic patient ${patient.id}.`);
+      }
+
       await prisma.appointment.create({
         data:{
           patientId:patient.id,
-          providerId:slot.providerId,
-          serviceId:slot.serviceId,
-          slotId:slot.id,
+          providerId:selectedSlot.providerId,
+          serviceId:selectedSlot.serviceId,
+          slotId:selectedSlot.id,
           idempotencyKey:`rich-future-${patientIndex+1}-${future+1}`,
-          modality:slot.modality,
+          modality:selectedSlot.modality,
           status:future===0?"CONFIRMED":"REQUESTED",
-          startsAt:slot.startsAt,
-          endsAt:slot.endsAt,
+          startsAt:selectedSlot.startsAt,
+          endsAt:selectedSlot.endsAt,
         },
       });
-      chosenSlotIds.push(slot.id);
+
+      const interval={startsAt:selectedSlot.startsAt,endsAt:selectedSlot.endsAt};
+      patientIntervals.set(patient.id,[...(patientIntervals.get(patient.id)??[]),interval]);
+      providerIntervals.set(selectedSlot.providerId,[...(providerIntervals.get(selectedSlot.providerId)??[]),interval]);
+      chosenSlotIds.push(selectedSlot.id);
+      chosenSlotIdSet.add(selectedSlot.id);
       futureCount++;
     }
   }
