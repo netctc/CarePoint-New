@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Header,
+  HttpCode,
   Injectable,
   InternalServerErrorException,
   Module,
@@ -319,6 +320,7 @@ class TransportReportDownloadController {
   }
 
   @Post("report-runs/:runId/download")
+  @HttpCode(200)
   @Header("Cache-Control", "private, no-store, max-age=0")
   @Header("Pragma", "no-cache")
   @Header("X-Content-Type-Options", "nosniff")
