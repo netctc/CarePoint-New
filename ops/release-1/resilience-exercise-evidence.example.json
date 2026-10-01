@@ -27,9 +27,7 @@
     "exerciseId": "REPLACE_WITH_EXERCISE_REFERENCE",
     "startedAt": "REPLACE_WITH_TIMESTAMP",
     "completedAt": "REPLACE_WITH_TIMESTAMP",
-    "operatorRef": "REPLACE_WITH_OPERATOR_REFERENCE",
-    "isolatedEnvironment": true,
-    "isolationEvidenceRef": "REPLACE_WITH_ISOLATION_EVIDENCE_REFERENCE"
+    "operatorRef": "REPLACE_WITH_OPERATOR_REFERENCE"
   },
   "scenarios": [
     {
