@@ -47,6 +47,7 @@ jobs:
         with:
           flutter-version: "3.47.2"
           channel: stable
+          cache: true
       - name: Verify exact checkout identity
         run: test "$(git rev-parse HEAD)" = "$CAREPOINT_MOBILE_SOURCE_SHA"
       - name: Resolve tracked dependency graph
@@ -128,6 +129,7 @@ jobs:
         with:
           flutter-version: "3.47.2"
           channel: stable
+          cache: true
       - name: Verify exact checkout identity
         run: test "$(git rev-parse HEAD)" = "$CAREPOINT_MOBILE_SOURCE_SHA"
       - name: Resolve tracked dependency graph
