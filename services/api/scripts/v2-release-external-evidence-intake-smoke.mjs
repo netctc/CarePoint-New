@@ -51,7 +51,7 @@ assert.equal(
 for (const token of [
   "CarePoint External Evidence Intake",
   "single-gate preflight",
-  "preflight PASS is **not** gate acceptance",
+  "A preflight pass is **not** gate acceptance.",
   "No .env file",
 ]) {
   assert.ok(readme.includes(token), `Evidence intake README must include: ${token}`);
