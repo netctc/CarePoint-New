@@ -40,7 +40,9 @@
         "backup/PITR/failover and restore measurements",
         "approved immutable release artifact references",
         "operations/security/privacy approvals"
-      ]
+      ],
+      "automatedWorkflow": "Production Infrastructure Acceptance Contract",
+      "evidenceTemplate": "ops/release-1/production-infrastructure-evidence.example.json"
     },
     {
       "id": "LIVE-02-EXTERNAL-PROVIDERS",
@@ -64,7 +66,9 @@
         "success/failure/idempotency/privacy E2E evidence",
         "observability correlation",
         "mobile-device evidence where provider flow requires it"
-      ]
+      ],
+      "automatedWorkflow": "External Integration Acceptance Contract",
+      "evidenceTemplate": "ops/release-1/external-integration-evidence.example.json"
     },
     {
       "id": "LIVE-03-SIGNED-MOBILE-RELEASES",
@@ -86,7 +90,9 @@
         "signed immutable Android AAB and iOS IPA references/checksums",
         "final release SHA embedded/correlated",
         "physical-device acceptance"
-      ]
+      ],
+      "automatedWorkflow": "Mobile Release Evidence Contract",
+      "evidenceTemplate": "ops/release-1/mobile-release-evidence.example.json"
     },
     {
       "id": "LIVE-04-INDEPENDENT-SECURITY-ASSESSMENT",
@@ -108,7 +114,9 @@
         "Critical/High remediation or formally approved disposition",
         "Security-owner disposition for historical CodeQL blocker",
         "security and release-authority sign-off"
-      ]
+      ],
+      "automatedWorkflow": "Security Analysis",
+      "evidenceTemplate": "ops/release-1/independent-security-assessment-evidence.example.json"
     },
     {
       "id": "LIVE-05-HUMAN-UAT",
@@ -133,7 +141,9 @@
         "clinical/business/operations PASS/FAIL decisions",
         "defect/retest references",
         "final accepted UAT sign-off"
-      ]
+      ],
+      "automatedWorkflow": "Release 1 UAT Evidence Contract",
+      "evidenceTemplate": "ops/release-1/uat-evidence.example.json"
     },
     {
       "id": "LIVE-06-RESILIENCE-RPO-RTO",
@@ -156,7 +166,9 @@
         "approved failure-injection plan and execution",
         "measured recovery, capacity, RPO and RTO evidence",
         "operator acceptance"
-      ]
+      ],
+      "automatedWorkflow": "Resilience Rehearsal Contract",
+      "evidenceTemplate": "ops/release-1/resilience-exercise-plan.example.json"
     },
     {
       "id": "LIVE-07-KSA-MARKET-CLINICAL-APPROVALS",
@@ -183,7 +195,9 @@
         "clinical-safety approval",
         "provider licensing/credential/scope-of-practice approval",
         "operations/product/release-authority approval"
-      ]
+      ],
+      "automatedWorkflow": "Release 1 Market Readiness Evidence Contract",
+      "evidenceTemplate": "ops/release-1/market-readiness-evidence.example.json"
     },
     {
       "id": "LIVE-08-DEPLOYMENT-ROLLBACK-REHEARSAL",
@@ -209,7 +223,9 @@
         "database migration rehearsal",
         "controlled rollback and post-rollback validation",
         "PITR/RPO/RTO evidence and CAB approval"
-      ]
+      ],
+      "automatedWorkflow": "Deployment Rehearsal Contract",
+      "evidenceTemplate": "ops/release-1/deployment-rehearsal-evidence.example.json"
     }
   ],
   "decision": "BLOCKED_ON_EXTERNAL_HUMAN_EVIDENCE"
