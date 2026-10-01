@@ -277,6 +277,6 @@ try {
   await prisma.$disconnect();
 }
 
-// Phase 30 extends the already-live Transport HTTP journey without duplicating
+// Advanced Transport live acceptance extends the already-live Transport HTTP journey without duplicating
 // API/database/bootstrap setup or introducing additional CI credentials.
-await import("./v2-transport-phase30-live-http.mjs");
+await import("./v2-transport-live-http.mjs");
