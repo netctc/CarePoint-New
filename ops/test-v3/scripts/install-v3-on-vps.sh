@@ -378,6 +378,31 @@ rollback_on_error(){
   exit "$code"
 }
 
+verify_rich_data_candidate(){
+  local expected_sha image actual_sha dist_file
+  expected_sha="$(git -C "$V3_REPO" rev-parse HEAD)"
+  image="carepoint-v3-test-rich-test-data"
+  dist_file="/app/services/api/dist/scripts/bootstrap-rich-test-environment.js"
+
+  grep -Fq 'Unable to allocate non-overlapping future appointment' \
+    "$V3_REPO/services/api/src/scripts/bootstrap-rich-test-environment.ts" ||
+    die "V3 source checkout does not contain the overlap-safe rich-data allocator."
+
+  docker image inspect "$image" >/dev/null 2>&1 ||
+    die "Expected rich-data image was not built: $image"
+
+  actual_sha="$(docker image inspect --format='{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$image" 2>/dev/null || true)"
+  [[ "$actual_sha" == "$expected_sha" ]] ||
+    die "Rich-data image revision mismatch: expected $expected_sha, found ${actual_sha:-<missing>}."
+
+  docker run --rm --entrypoint sh "$image" -lc \
+    "grep -Fq 'Unable to allocate non-overlapping future appointment' '$dist_file' &&
+     ! grep -Fq 'slots[(patientIndex * 2 + future) % slots.length]' '$dist_file'" ||
+    die "Rich-data image contains stale or unverified appointment-allocation code."
+
+  log "Rich-data image verified against V3 HEAD $expected_sha and compiled overlap-safe allocator."
+}
+
 deploy_v3(){
   cd "$V3_REPO"
 
@@ -392,6 +417,10 @@ deploy_v3(){
 
   log "Building/migrating/starting the isolated V3 stack."
   bash ops/test-v3/scripts/deploy.sh
+
+  if [[ "$SKIP_RICH_DATA" != "true" ]]; then
+    verify_rich_data_candidate
+  fi
 
   export BOOTSTRAP_ADMIN_EMAIL="admin@carepoint.test"
   export BOOTSTRAP_ADMIN_PASSWORD="$saved_admin_password"
