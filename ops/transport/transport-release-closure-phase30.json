@@ -6,12 +6,14 @@
   "productionAcceptance": false,
   "mainMergeAuthorized": false,
   "finalValidation": {
-    "draftPr": 508,
     "branch": "integration/transport-phases8-29-validation-20261001",
     "fullCanonicalMatrixRequired": true,
     "exactHeadGreenRequired": true,
     "phase29PostgresAcceptanceRequired": true,
-    "postMergeMainValidationRequired": true
+    "postMergeMainValidationRequired": true,
+    "upstreamValidatedCandidatePr": 508,
+    "finalCandidateBranch": "integration/transport-phases8-30-validation-20261001",
+    "finalCandidateExactHeadMustBeRecorded": true
   },
   "qualityPrerequisites": [
     {
