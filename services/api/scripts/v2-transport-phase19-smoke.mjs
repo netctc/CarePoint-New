@@ -76,6 +76,7 @@ for (const text of [
   "bytes.byteLength !== grant.run.artifactBytes",
   '@Post("report-runs/:runId/download-grant")',
   '@Post("report-runs/:runId/download")',
+  "@HttpCode(200)",
   "new StreamableFile",
   "tokenPersistedPlaintext: false",
   "publicUrlIssued: false",
