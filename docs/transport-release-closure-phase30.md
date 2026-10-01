@@ -16,12 +16,11 @@ The contract explicitly keeps:
 
 mainMergeAuthorized: false
 
-The current full validation candidate is draft PR #508:
+Draft PR #508 is the upstream 8–29 validation baseline. The final closure candidate branch is:
 
-integration/transport-phases8-29-validation-20261001
+integration/transport-phases8-30-validation-20261001
 
-A green fast-lane PR is not sufficient for final integration. The exact consolidated candidate head
-must pass the full canonical matrix.
+A green fast-lane PR is not sufficient for final integration. The exact final candidate head SHA must be recorded and pass the full canonical matrix.
 
 ## Quality prerequisites
 
