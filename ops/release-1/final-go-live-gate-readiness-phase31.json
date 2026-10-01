@@ -87,7 +87,7 @@
     {
       "id": "LIVE-06-RESILIENCE-RPO-RTO",
       "automatedWorkflow": "Resilience Rehearsal Contract",
-      "evidenceTemplate": "ops/release-1/resilience-exercise-plan.example.json",
+      "evidenceTemplate": "ops/release-1/resilience-exercise-evidence.example.json",
       "externalEvidenceRequired": true,
       "automatedContractIsSufficient": false,
       "autoClosable": false,
