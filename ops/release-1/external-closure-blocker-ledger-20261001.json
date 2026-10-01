@@ -168,7 +168,7 @@
         "operator acceptance"
       ],
       "automatedWorkflow": "Resilience Rehearsal Contract",
-      "evidenceTemplate": "ops/release-1/resilience-exercise-plan.example.json"
+      "evidenceTemplate": "ops/release-1/resilience-exercise-evidence.example.json"
     },
     {
       "id": "LIVE-07-KSA-MARKET-CLINICAL-APPROVALS",
