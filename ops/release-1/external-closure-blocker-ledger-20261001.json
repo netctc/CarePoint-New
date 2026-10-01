@@ -228,5 +228,37 @@
       "evidenceTemplate": "ops/release-1/deployment-rehearsal-evidence.example.json"
     }
   ],
-  "decision": "BLOCKED_ON_EXTERNAL_HUMAN_EVIDENCE"
+  "decision": "BLOCKED_ON_EXTERNAL_HUMAN_EVIDENCE",
+  "repositoryOpenIssueSnapshot": {
+    "observedDate": "2026-10-01",
+    "observedOpenIssueCount": 23,
+    "masterTrackerIssue": 70,
+    "gateMappedOpenIssueCount": 22,
+    "gateMappedIssues": [
+      75,
+      76,
+      77,
+      78,
+      79,
+      80,
+      81,
+      82,
+      85,
+      87,
+      88,
+      89,
+      90,
+      91,
+      92,
+      93,
+      94,
+      96,
+      97,
+      98,
+      124,
+      185
+    ],
+    "unmappedOpenIssueCount": 0,
+    "classification": "ALL_OPEN_ISSUES_ACCOUNTED_FOR_BY_MASTER_TRACKER_OR_EXTERNAL_GATE_LEDGER"
+  }
 }
