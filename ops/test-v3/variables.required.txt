@@ -1,0 +1,86 @@
+CarePoint Entorno V3 test runtime variables
+=========================================
+
+Do not commit a .env file.
+Configure these values manually in the deployment shell, Dokploy/VPS secret store or CI secret store.
+
+Public test routing
+-------------------
+TEST_API_DOMAIN=api-v3-test.example.com
+TEST_ADMIN_DOMAIN=admin-v3-test.example.com
+TEST_PATIENT_DOMAIN=patient-v3-test.example.com
+TEST_DOCTOR_DOMAIN=doctor-v3-test.example.com
+TEST_PROVIDER_DOMAIN=provider-v3-test.example.com
+TEST_TRANSPORT_PROVIDER_DOMAIN=transport-provider-v3-test.example.com
+CAREPOINT_API_PUBLIC_BASE=https://api-v3-test.example.com/api/v1
+
+Release identity
+----------------
+TEST_RELEASE_VERSION=entorno-v3
+# TEST_RELEASE_SHA defaults to the checked-out git SHA.
+
+TLS options
+-----------
+ISSUE_TLS=false
+CERTBOT_EMAIL=<required only when ISSUE_TLS=true>
+
+Test infrastructure secrets
+---------------------------
+TEST_POSTGRES_PASSWORD=<independent URL-safe random test secret>
+TEST_REDIS_PASSWORD=<independent URL-safe random test secret>
+
+Registration OTP
+----------------
+REGISTRATION_OTP_DELIVERY_MODE=display
+REGISTRATION_OTP_PEPPER=<independent random test secret, minimum 32 characters>
+
+# SMS sandbox mode only:
+# REGISTRATION_OTP_DELIVERY_MODE=sms
+# TWILIO_ACCOUNT_SID=<sandbox SID>
+# TWILIO_AUTH_TOKEN=<sandbox token>
+# TWILIO_FROM_NUMBER=<sandbox sender>
+# or TWILIO_MESSAGING_SERVICE_SID=<sandbox service SID>
+
+Local test-only crypto material
+-------------------------------
+MFA_ENVELOPE_KEY_BASE64=<independent test key>
+CLINICAL_ENVELOPE_KEY_BASE64=<independent test key>
+ORDER_ENVELOPE_KEY_BASE64=<independent test key>
+ORDER_SIGNING_SECRET_BASE64=<independent test key>
+DOCUMENT_ENVELOPE_KEY_BASE64=<independent test key>
+DOCUMENT_SIGNING_SECRET_BASE64=<independent test key>
+MESSAGING_ENVELOPE_KEY_BASE64=<independent test key>
+TELEHEALTH_ENVELOPE_KEY_BASE64=<independent test key>
+TELEHEALTH_MOCK_SIGNING_SECRET=<independent test key>
+
+Synthetic bootstrap
+-------------------
+BOOTSTRAP_ADMIN_EMAIL=<test-only email>
+BOOTSTRAP_ADMIN_PASSWORD=<strong test-only password>
+LOAD_SYNTHETIC_TEST_FIXTURES=false
+LOAD_SYNTHETIC_PILOT_FIXTURES=false
+CAREPOINT_TEST_FIXTURE_PASSWORD=<minimum 16 chars when fixtures are enabled>
+CAREPOINT_TEST_FIXTURE_EMAIL_DOMAIN=carepoint.test
+CAREPOINT_TEST_FIXTURE_TIMEZONE=Asia/Riyadh
+
+Rich synthetic reset
+--------------------
+CAREPOINT_RICH_TEST_DATA_CONFIRM=RESET_AND_CREATE_RICH_SYNTHETIC_DATA
+CAREPOINT_RICH_TEST_PATIENT_COUNT=300
+CAREPOINT_RICH_TEST_DOCTORS_PER_SPECIALTY=2
+CAREPOINT_RICH_TEST_PROVIDERS_PER_CATEGORY=2
+
+Optional routing sandbox
+------------------------
+FIELD_ROUTE_MAPS_PROVIDER=DIRECT_DISTANCE_V1
+# MAPBOX sandbox alternative:
+# FIELD_ROUTE_MAPS_PROVIDER=MAPBOX
+# MAPBOX_ACCESS_TOKEN=<sandbox token>
+
+Rules
+-----
+- Never reuse production secrets.
+- Never use real PHI/PII/card data.
+- Keep provider integrations mock/sandbox unless that integration is explicitly under test.
+- PostgreSQL and Redis must remain private to the Docker network.
+- Rotate/remove all V3 test secrets when the environment is retired.
