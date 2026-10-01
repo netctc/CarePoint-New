@@ -17,8 +17,12 @@ assert.equal(phase31.gates.length,8);
 const expectedIds=phase31.gates.map(g=>g.id);
 assert.deepEqual(ledger.gates.map(g=>g.id),expectedIds);
 
+const phase31ById=new Map(phase31.gates.map(g=>[g.id,g]));
 for(const gate of ledger.gates){
+  const canonical=phase31ById.get(gate.id);
   assert.equal(gate.status,"EXTERNAL_PENDING",`${gate.id} must remain EXTERNAL_PENDING until real evidence is accepted.`);
+  assert.equal(gate.automatedWorkflow,canonical.automatedWorkflow,`${gate.id} workflow must match Phase 31.`);
+  assert.equal(gate.evidenceTemplate,canonical.evidenceTemplate,`${gate.id} evidence template must match Phase 31.`);
   assert.ok(gate.primaryIssues.length>0,`${gate.id} requires at least one primary GitHub issue reference.`);
   assert.ok(gate.ownerRoles.length>0,`${gate.id} requires owner roles.`);
   assert.ok(gate.requiredEvidence.length>0,`${gate.id} requires explicit evidence requirements.`);
