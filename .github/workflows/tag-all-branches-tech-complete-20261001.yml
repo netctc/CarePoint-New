@@ -61,7 +61,27 @@ jobs:
           done
 
           if [[ "${#push_specs[@]}" -gt 0 ]]; then
-            git push --quiet "$remote_url" "${push_specs[@]}"
+            batch_size=10
+            for ((i=0; i<${#push_specs[@]}; i+=batch_size)); do
+              batch=("${push_specs[@]:i:batch_size}")
+              pushed=0
+
+              for attempt in 1 2 3; do
+                if git push --quiet "$remote_url" "${batch[@]}"; then
+                  pushed=1
+                  break
+                fi
+
+                delay=$((attempt * 5))
+                echo "::warning::Tag batch push failed; retrying in ${delay}s (attempt $((attempt + 1))/3)."
+                sleep "$delay"
+              done
+
+              if [[ "$pushed" -ne 1 ]]; then
+                echo "::error::Unable to publish one tag batch after retries."
+                exit 1
+              fi
+            done
           fi
 
           total=$((created + existing))
