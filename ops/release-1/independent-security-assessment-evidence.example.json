@@ -1,0 +1,60 @@
+{
+  "schema": "carepoint.independent-security-assessment-evidence/v1",
+  "approved": false,
+  "overallStatus": "DRAFT",
+  "sensitiveDataIncluded": false,
+  "restrictedReportContentIncluded": false,
+  "release": {
+    "sourceSha": "REPLACE_WITH_FINAL_40_HEX_RC_SHA",
+    "releaseVersion": "REPLACE_WITH_RELEASE_VERSION",
+    "apiArtifactDigest": "REPLACE_WITH_IMMUTABLE_API_SHA256_DIGEST",
+    "adminArtifactDigest": "REPLACE_WITH_IMMUTABLE_ADMIN_SHA256_DIGEST",
+    "mobileEvidenceRef": "REPLACE_WITH_ACCEPTED_MOBILE_EVIDENCE_REFERENCE",
+    "infrastructureEvidenceRef": "REPLACE_WITH_ACCEPTED_INFRASTRUCTURE_EVIDENCE_REFERENCE"
+  },
+  "assessment": {
+    "assessorRef": "REPLACE_WITH_INDEPENDENT_ASSESSOR_OR_TEAM_REFERENCE",
+    "independenceConfirmed": false,
+    "scopeRef": "REPLACE_WITH_APPROVED_ASSESSMENT_SCOPE_REFERENCE",
+    "rulesOfEngagementRef": "REPLACE_WITH_APPROVED_RULES_OF_ENGAGEMENT_REFERENCE",
+    "methodologyRef": "REPLACE_WITH_METHODOLOGY_REFERENCE",
+    "startedAt": "REPLACE_WITH_TIMESTAMP",
+    "completedAt": "REPLACE_WITH_TIMESTAMP",
+    "manualTestingPerformed": false,
+    "productionValidationAuthorized": false,
+    "automatedSecurityAnalysisRef": "REPLACE_WITH_CODEQL_OR_AUTOMATED_SCAN_EVIDENCE_REFERENCE",
+    "restrictedFinalReportRef": "REPLACE_WITH_RESTRICTED_FINAL_REPORT_REFERENCE"
+  },
+  "scope": {
+    "api": "UNDECIDED",
+    "adminWeb": "UNDECIDED",
+    "providerWeb": "UNDECIDED",
+    "patientMobile": "UNDECIDED",
+    "doctorMobile": "UNDECIDED",
+    "providerMobile": "UNDECIDED",
+    "transportProviderMobile": "UNDECIDED",
+    "cloudInfrastructure": "UNDECIDED",
+    "externalIntegrations": "UNDECIDED"
+  },
+  "findings": {
+    "countsKnown": false,
+    "critical": null,
+    "high": null,
+    "medium": null,
+    "low": null,
+    "informational": null,
+    "unresolvedCriticalOrHigh": "UNDECIDED",
+    "remediationEvidenceRef": "REPLACE_WITH_REMEDIATION_EVIDENCE_REFERENCE",
+    "acceptedRiskEvidenceRef": "REPLACE_WITH_FORMAL_RISK_ACCEPTANCE_REFERENCE_IF_APPLICABLE"
+  },
+  "approvals": {
+    "security": false,
+    "privacy": false,
+    "engineering": false,
+    "operations": false,
+    "releaseAuthority": false,
+    "approvalRef": "REPLACE_WITH_APPROVAL_REFERENCE"
+  },
+  "finalDecision": "BLOCKED",
+  "acceptedAt": null
+}
