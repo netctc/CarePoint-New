@@ -77,9 +77,18 @@ for (const migration of contract.migrationPolicy.migrations) {
     .replace(/DROP\s+NOT\s+NULL/gi, "PERMITTED_DROP_NOT_NULL")
     .replace(/--[^\n]*/g, " ");
 
+  const destructivePatterns = new Map([
+    ["DROP TABLE", /\\bDROP\\s+TABLE\\b/i],
+    ["DROP COLUMN", /\\bDROP\\s+COLUMN\\b/i],
+    ["DROP TYPE", /\\bDROP\\s+TYPE\\b/i],
+    ["TRUNCATE", /\\bTRUNCATE(?:\\s+TABLE)?\\b/i],
+    ["DELETE FROM", /\\bDELETE\\s+FROM\\b/i],
+  ]);
   for (const forbidden of contract.migrationPolicy.forbiddenSqlPatterns) {
+    const pattern = destructivePatterns.get(forbidden);
+    assert.ok(pattern, `unknown destructive SQL policy token: ${forbidden}`);
     assert.equal(
-      normalized.toUpperCase().includes(forbidden.toUpperCase()),
+      pattern.test(normalized),
       false,
       `Transport migration ${migration} contains forbidden destructive SQL: ${forbidden}`,
     );
