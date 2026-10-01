@@ -38,11 +38,15 @@ jobs:
 
           remote_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
 
-          mapfile -t branch_rows < <(git ls-remote --heads "$remote_url" | sort -k2)
+          git fetch --no-tags --depth=1 "$remote_url" '+refs/heads/*:refs/remotes/stage-origin/*'
+
+          mapfile -t branch_rows < <(
+            git for-each-ref               --format='%(objectname)%09%(refname:strip=3)'               refs/remotes/stage-origin/               | sort -k2
+          )
 
           echo "# Branch stage tagging" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Stage namespace: `stage/${stage}/<branch>`" >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' "- Stage namespace: stage/${stage}/<branch>" >> "$GITHUB_STEP_SUMMARY"
           echo "- Branches discovered: **${#branch_rows[@]}**" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
 
