@@ -4,12 +4,12 @@ import { resolve,isAbsolute,relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root=fileURLToPath(new URL("../../../",import.meta.url));
-const [readinessArg,hypercareArg,evidenceIndexArg]=process.argv.slice(2);
-if(!readinessArg||!hypercareArg||!evidenceIndexArg){
-  process.stderr.write("Usage: node scripts/v2-release-phase44-project-closure-readiness.mjs <readiness-record.json> <phase43-hypercare.json> <phase32-evidence-index.json>\n");
+const [readinessArg,phase43ValidationArg,evidenceIndexArg]=process.argv.slice(2);
+if(!readinessArg||!phase43ValidationArg||!evidenceIndexArg){
+  process.stderr.write("Usage: node scripts/v2-release-phase44-project-closure-readiness.mjs <readiness-record.json> <phase43-validation-result.json> <phase32-evidence-index.json>\n");
   process.exit(64);
 }
-for(const p of [readinessArg,hypercareArg,evidenceIndexArg]){
+for(const p of [readinessArg,phase43ValidationArg,evidenceIndexArg]){
   if(isAbsolute(p)) throw new Error("Inputs must be repository-relative.");
   const abs=resolve(root,p), rel=relative(root,abs);
   if(rel.startsWith("..")||rel.includes("../")) throw new Error("Input escapes repository root.");
@@ -28,15 +28,15 @@ const parseCsvLine=(line)=>{
   return fields;
 };
 
-const [readinessText,hypercareText,evidenceIndexText,authorityText]=await Promise.all([
+const [readinessText,phase43ValidationText,evidenceIndexText,authorityText]=await Promise.all([
   readFile(resolve(root,readinessArg),"utf8"),
-  readFile(resolve(root,hypercareArg),"utf8"),
+  readFile(resolve(root,phase43ValidationArg),"utf8"),
   readFile(resolve(root,evidenceIndexArg),"utf8"),
   readFile(resolve(root,"docs/v2/traceability/functional-id-authority-v1.csv"),"utf8")
 ]);
-const r=JSON.parse(readinessText), h=JSON.parse(hypercareText), evidence=JSON.parse(evidenceIndexText);
+const r=JSON.parse(readinessText), h=JSON.parse(phase43ValidationText), evidence=JSON.parse(evidenceIndexText);
 assert.equal(r.schema,"carepoint.project-closure-readiness-record/v1");
-assert.equal(h.schema,"carepoint.release-hypercare-record/v1");
+assert.equal(h.schema,"carepoint.release-hypercare-validation/v1");
 assert.equal(evidence.schema,"carepoint.go-live-evidence-index/v1");
 assert.equal(r.releaseCandidate.consolidatedPr,h.releaseCandidate.consolidatedPr);
 assert.equal(r.releaseCandidate.sourceSha,h.releaseCandidate.sourceSha);
@@ -61,9 +61,11 @@ const body=rows.slice(1);
 const mergedCount=body.filter(row=>row[5]==="MERGED_TO_MAIN").length;
 assert.equal(mergedCount,230,"All 230 canonical functional IDs must be MERGED_TO_MAIN.");
 
-const lifecycleComplete=h.hypercare?.status==="EXITED" &&
+const lifecycleComplete=
+  h.hypercareStatus==="EXITED" &&
   h.hypercareExited===true &&
-  h.operationalHandoffComplete===true;
+  h.operationalHandoffComplete===true &&
+  h.releaseLifecycleComplete===true;
 
 assert.ok(["PENDING","READY"].includes(r.readiness.status));
 if(r.readiness.status==="READY"){
