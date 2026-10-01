@@ -459,43 +459,123 @@ function assertGateSpecific(gateId, evidence) {
   }
 
   if (gateId === "LIVE-06-RESILIENCE-RPO-RTO") {
-    assert.equal(evidence.approved, true);
-    assert.equal(evidence.environment?.classification, "production-equivalent");
-    for (const scenario of evidence.scenarioCatalog ?? []) {
-      assert.equal(scenario.enabled, true,
-        `Resilience scenario ${scenario.id} must be executed/enabled.`);
-      assert.equal(scenario.accepted, true,
-        `Resilience scenario ${scenario.id} must be explicitly accepted.`);
+    assert.equal(
+      evidence.schema,
+      "carepoint.release-resilience-evidence/v1",
+      "LIVE-06 must use the executed resilience evidence schema.",
+    );
+    assert.ok(
+      ["production-equivalent", "production"].includes(evidence.environment?.classification),
+      "Resilience evidence must come from a production-equivalent or production environment.",
+    );
+
+    for (const scenario of evidence.scenarios ?? []) {
+      const applicability = String(scenario.applicability ?? "").toUpperCase();
+      const status = String(scenario.status ?? "").toUpperCase();
+
+      if (applicability === "NOT_APPLICABLE") {
+        assert.equal(
+          status,
+          "NOT_APPLICABLE",
+          `Resilience scenario ${scenario.id} marked N/A must have NOT_APPLICABLE status.`,
+        );
+        assert.ok(
+          scenario.notApplicableRationaleRef,
+          `Resilience scenario ${scenario.id} requires an N/A rationale.`,
+        );
+        assert.ok(
+          scenario.notApplicableApprovalRef,
+          `Resilience scenario ${scenario.id} requires N/A approval.`,
+        );
+        continue;
+      }
+
+      assert.equal(
+        applicability,
+        "APPLICABLE",
+        `Resilience scenario ${scenario.id} applicability must be APPLICABLE or NOT_APPLICABLE.`,
+      );
+      assert.equal(status, "PASS", `Resilience scenario ${scenario.id} must PASS.`);
       assert.ok(
-        acceptedWords.has(String(scenario.status ?? "").toUpperCase()),
-        `Resilience scenario ${scenario.id} does not have an accepted result.`,
+        scenario.startedAt && !Number.isNaN(Date.parse(scenario.startedAt)),
+        `Resilience scenario ${scenario.id} startedAt must be ISO-8601.`,
       );
-      assert.ok(scenario.startedAt && !Number.isNaN(Date.parse(scenario.startedAt)),
-        `Resilience scenario ${scenario.id} startedAt must be ISO-8601.`);
-      assert.ok(scenario.completedAt && !Number.isNaN(Date.parse(scenario.completedAt)),
-        `Resilience scenario ${scenario.id} completedAt must be ISO-8601.`);
-      assert.ok(scenario.evidenceRef,
-        `Resilience scenario ${scenario.id} requires execution evidence.`);
+      assert.ok(
+        scenario.completedAt && !Number.isNaN(Date.parse(scenario.completedAt)),
+        `Resilience scenario ${scenario.id} completedAt must be ISO-8601.`,
+      );
+      assert.ok(
+        Date.parse(scenario.completedAt) >= Date.parse(scenario.startedAt),
+        `Resilience scenario ${scenario.id} completedAt cannot precede startedAt.`,
+      );
+      for (const refKey of [
+        "faultExecutionRef",
+        "expectedSafeBehaviorRef",
+        "actualBehaviorRef",
+        "observationsRef",
+        "recoveryRef",
+      ]) {
+        assert.ok(
+          scenario[refKey],
+          `Resilience scenario ${scenario.id} requires ${refKey}.`,
+        );
+      }
       assertFiniteNonNegativeNumber(
-        scenario.observedRecoveryMinutes,
-        `Resilience scenario ${scenario.id} observed recovery minutes`,
+        scenario.measurements?.recoverySeconds,
+        `Resilience scenario ${scenario.id} recoverySeconds`,
       );
+      assert.ok(
+        scenario.measurements?.metricsRef,
+        `Resilience scenario ${scenario.id} requires metrics evidence.`,
+      );
+      const assertions = scenario.assertions ?? {};
+      assert.ok(
+        Object.keys(assertions).length > 0,
+        `Resilience scenario ${scenario.id} requires explicit safety assertions.`,
+      );
+      for (const [name, value] of Object.entries(assertions)) {
+        assert.equal(
+          value,
+          true,
+          `Resilience scenario ${scenario.id} assertion must be true: ${name}`,
+        );
+      }
     }
 
-    const objectives = evidence.recoveryObjectives;
-    assertFiniteNonNegativeNumber(objectives?.approvedRpoMinutes, "Approved RPO minutes");
-    assertFiniteNonNegativeNumber(objectives?.approvedRtoMinutes, "Approved RTO minutes");
-    assertFiniteNonNegativeNumber(objectives?.measuredRpoMinutes, "Measured RPO minutes");
-    assertFiniteNonNegativeNumber(objectives?.measuredRtoMinutes, "Measured RTO minutes");
-    assert.ok(
-      objectives.measuredRpoMinutes <= objectives.approvedRpoMinutes,
-      "Measured RPO exceeds the approved RPO target.",
+    const continuity = evidence.continuity;
+    assert.equal(continuity?.pitrScenarioId, "postgres-pitr-restore");
+    for (const key of [
+      "incidentDeclaredAt",
+      "recoveryPointReferenceAt",
+      "recoveredDataThroughAt",
+      "acceptedHealthyAt",
+    ]) {
+      assert.ok(
+        continuity?.[key] && !Number.isNaN(Date.parse(continuity[key])),
+        `Resilience continuity ${key} must be ISO-8601.`,
+      );
+    }
+    assertFiniteNonNegativeNumber(continuity?.rpoMinutes, "Measured RPO minutes");
+    assertFiniteNonNegativeNumber(continuity?.rtoMinutes, "Measured RTO minutes");
+    assert.ok(continuity.rpoMinutes <= 15, "Measured RPO exceeds 15 minutes.");
+    assert.ok(continuity.rtoMinutes <= 120, "Measured RTO exceeds 120 minutes.");
+
+    assert.equal(
+      evidence.observability?.sanitized,
+      true,
+      "Resilience observability evidence must be sanitized.",
     );
-    assert.ok(
-      objectives.measuredRtoMinutes <= objectives.approvedRtoMinutes,
-      "Measured RTO exceeds the approved RTO target.",
-    );
-    assert.equal(objectives.accepted, true, "RPO/RTO results must be explicitly accepted.");
+    for (const key of [
+      "dashboardRef",
+      "alertEvidenceRef",
+      "traceCorrelationRef",
+      "exporterFailureRef",
+    ]) {
+      assert.ok(
+        evidence.observability?.[key],
+        `Resilience observability requires ${key}.`,
+      );
+    }
   }
 
   if (gateId === "LIVE-07-KSA-MARKET-CLINICAL-APPROVALS") {
