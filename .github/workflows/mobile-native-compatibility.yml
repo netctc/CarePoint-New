@@ -17,7 +17,7 @@ env:
   CAREPOINT_MOBILE_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
 
 concurrency:
-  group: mobile-native-compatibility-${{ github.event.pull_request.number || github.ref }}
+  group: mobile-native-compatibility-${{ github.event.pull_request.head.sha || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
