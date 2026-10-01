@@ -19,6 +19,8 @@ Any `AUTHORIZED` merge/deploy decision requires:
 
 Deployment authorization additionally requires merge authorization and an approved production change-window reference.
 
+Phase 37 independently revalidates the required Phase 36 human-authorization actor, timestamp, decision reference and acknowledgement set; an `AUTHORIZED` string alone is not sufficient.
+
 ## Independent decisions
 
 The record has two explicit decisions:
