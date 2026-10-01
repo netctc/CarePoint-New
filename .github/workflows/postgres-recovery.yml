@@ -16,7 +16,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: postgres-recovery-${{ github.event.pull_request.number || github.ref }}
+  group: postgres-recovery-${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -112,6 +112,8 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
       - name: Use repository npm toolchain
         run: |
           npm install --global npm@10.9.2
