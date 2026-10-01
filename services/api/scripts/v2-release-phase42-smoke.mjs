@@ -13,7 +13,12 @@ assert.equal(j.closure.status,"PENDING");
 assert.equal(j.releaseClosed,false);
 assert.equal(j.hypercareRequired,true);
 assert.ok(v.includes("Release closure is forbidden until Phase 41 production acceptance is ACCEPTED."));
-assert.ok(v.includes("automaticClosurePerformed:false"));
+for(const token of [
+  "carepoint.final-production-acceptance-validation/v1",
+  "v.productionAcceptance===true",
+  "releaseCandidate:r.releaseCandidate",
+  "automaticClosurePerformed:false"
+]) assert.ok(v.replaceAll(" ","").includes(token.replaceAll(" ","")));
 assert.equal(pkg.scripts["v2:release-phase42"],"node scripts/v2-release-phase42-smoke.mjs");
 assert.equal(pkg.scripts["v2:release-phase42-closure"],"node scripts/v2-release-phase42-closure.mjs");
 assert.ok(pkg.scripts.test.indexOf("npm run v2:release-phase41")<pkg.scripts.test.indexOf("npm run v2:release-phase42"));
