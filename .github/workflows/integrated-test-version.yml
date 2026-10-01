@@ -40,7 +40,7 @@ env:
   CAREPOINT_TEST_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
 
 concurrency:
-  group: integrated-test-version-${{ github.event.pull_request.number || github.ref }}
+  group: integrated-test-version-${{ github.event.pull_request.head.sha || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -155,6 +155,7 @@ jobs:
         with:
           flutter-version: "3.47.2"
           channel: stable
+          cache: true
 
       - name: Build all Flutter Web test clients
         shell: bash
