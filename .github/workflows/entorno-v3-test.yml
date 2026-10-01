@@ -1,0 +1,118 @@
+name: Entorno V3 Online Test Lane
+
+on:
+  pull_request:
+    branches: [entorno-v3]
+  push:
+    branches: [entorno-v3]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: entorno-v3-test-${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CAREPOINT_V3_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+  CAREPOINT_V3_API_BASE: https://api-v3-validation.invalid/api/v1
+
+jobs:
+  node-build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out exact candidate
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ env.CAREPOINT_V3_SOURCE_SHA }}
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      - run: npm run build
+
+  flutter-web:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        app:
+          - patient-mobile
+          - doctor-mobile
+          - provider-mobile
+          - transport-provider-mobile
+    steps:
+      - name: Check out exact candidate
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ env.CAREPOINT_V3_SOURCE_SHA }}
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          flutter-version: "3.47.2"
+          channel: stable
+          cache: true
+      - name: Resolve dependencies
+        working-directory: apps/${{ matrix.app }}
+        run: |
+          flutter pub get
+          git diff --exit-code -- pubspec.lock
+      - name: Analyze app
+        working-directory: apps/${{ matrix.app }}
+        run: flutter analyze
+      - name: Build V3 staging web app
+        working-directory: apps/${{ matrix.app }}
+        run: >-
+          flutter build web --release
+          --dart-define=CAREPOINT_BUILD_ENV=staging
+          --dart-define=CAREPOINT_API_BASE=${{ env.CAREPOINT_V3_API_BASE }}
+          --dart-define=CAREPOINT_RELEASE_SHA=${{ env.CAREPOINT_V3_SOURCE_SHA }}
+
+  staging-contract:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out exact candidate
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ env.CAREPOINT_V3_SOURCE_SHA }}
+      - name: Validate shell syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          for script in ops/test-v3/scripts/*.sh; do
+            bash -n "$script"
+          done
+      - name: Enforce non-production boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "$(find ops/test-v3 -type f -name '.env*' -print)"
+          grep -q '^name: carepoint-v3-test$' ops/test-v3/compose.yaml
+          grep -q '127.0.0.1:4200:4200' ops/test-v3/compose.yaml
+          grep -q '127.0.0.1:3200:3200' ops/test-v3/compose.yaml
+          grep -q '127.0.0.1:8280:80' ops/test-v3/compose.yaml
+          grep -q '127.0.0.1:8281:80' ops/test-v3/compose.yaml
+          grep -q '127.0.0.1:8282:80' ops/test-v3/compose.yaml
+          grep -q '127.0.0.1:8283:80' ops/test-v3/compose.yaml
+          ! grep -Eq '0\.0\.0\.0:(5432|6379)' ops/test-v3/compose.yaml
+          grep -q 'PAYMENT_GATEWAY_PROVIDER: mock' ops/test-v3/compose.yaml
+          grep -q 'TELEHEALTH_PROVIDER: mock' ops/test-v3/compose.yaml
+          grep -q 'TEST_TRANSPORT_PROVIDER_DOMAIN' ops/test-v3/compose.yaml
+          grep -q 'APP_PATH: apps/transport-provider-mobile' ops/test-v3/compose.yaml
+      - name: Validate Nginx six-domain contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          template=ops/test-v3/nginx/carepoint-v3-http.conf.template
+          for marker in API ADMIN PATIENT DOCTOR PROVIDER TRANSPORT_PROVIDER; do
+            grep -q "__${marker}_DOMAIN__" "$template"
+          done
+          for port in 4200 3200 8280 8281 8282 8283; do
+            grep -q "127.0.0.1:${port}" "$template"
+          done
+      - name: Validate Compose syntax without secrets
+        run: docker compose -f ops/test-v3/compose.yaml config --no-interpolate >/dev/null
