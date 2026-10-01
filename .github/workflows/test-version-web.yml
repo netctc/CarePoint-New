@@ -24,6 +24,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: test-version-web-${{ github.event.pull_request.head.sha || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   CAREPOINT_TEST_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
   CAREPOINT_TEST_API_BASE: ${{ github.event_name == 'workflow_dispatch' && inputs.api_base || 'https://carepoint-web-validation.invalid/api/v1' }}
@@ -56,6 +60,7 @@ jobs:
         with:
           flutter-version: "3.47.2"
           channel: stable
+          cache: true
 
       - name: Verify exact checkout and test API input
         run: |
