@@ -353,20 +353,29 @@ test("Phase 29 PostgreSQL provider lifecycle rejects skips and preserves exact e
 
   const events = await db.medicalTransportEvent.findMany({
     where: { transportRequestId: created.request.id },
-    orderBy: [{ occurredAt: "asc" }, { id: "asc" }],
-    select: { toStatus: true },
+    select: { fromStatus: true, toStatus: true },
   });
-  assert.deepEqual(
-    events.map((row) => row.toStatus),
-    [
-      "REQUESTED",
-      "ASSIGNED",
-      "EN_ROUTE",
-      "ARRIVED",
-      "TRANSPORTING",
-      "COMPLETED",
-    ],
+  assert.equal(events.length, 6);
+  const transitions = new Map(
+    events.map((row) => [
+      String(row.fromStatus ?? "NULL") + "->" + row.toStatus,
+      (events.filter(
+        (candidate) =>
+          candidate.fromStatus === row.fromStatus &&
+          candidate.toStatus === row.toStatus,
+      ).length),
+    ]),
   );
+  for (const transition of [
+    "NULL->REQUESTED",
+    "REQUESTED->ASSIGNED",
+    "ASSIGNED->EN_ROUTE",
+    "EN_ROUTE->ARRIVED",
+    "ARRIVED->TRANSPORTING",
+    "TRANSPORTING->COMPLETED",
+  ]) {
+    assert.equal(transitions.get(transition), 1, transition);
+  }
 
   const stored = await db.medicalTransportRequest.findUniqueOrThrow({
     where: { id: created.request.id },
