@@ -130,6 +130,8 @@ jobs:
           push: true
           provenance: mode=max
           sbom: true
+          cache-from: type=gha,scope=integrated-test-api
+          cache-to: type=gha,mode=max,scope=integrated-test-api
           tags: ${{ env.API_IMAGE }}:test-${{ env.CAREPOINT_TEST_SOURCE_SHA }}-${{ github.run_id }}-${{ github.run_attempt }}
           build-args: |
             RELEASE_SHA=${{ env.CAREPOINT_TEST_SOURCE_SHA }}
@@ -145,6 +147,8 @@ jobs:
           push: true
           provenance: mode=max
           sbom: true
+          cache-from: type=gha,scope=integrated-test-admin
+          cache-to: type=gha,mode=max,scope=integrated-test-admin
           tags: ${{ env.ADMIN_IMAGE }}:test-${{ env.CAREPOINT_TEST_SOURCE_SHA }}-${{ github.run_id }}-${{ github.run_attempt }}
           build-args: |
             RELEASE_SHA=${{ env.CAREPOINT_TEST_SOURCE_SHA }}
@@ -184,7 +188,7 @@ jobs:
             image="${spec#*:}"
             tag="$image:test-$CAREPOINT_TEST_SOURCE_SHA-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
             metadata="integrated-test/evidence/${label}-web-image.json"
-            docker buildx build               --file ops/test-version/web.Dockerfile               --build-arg "WEB_ROOT=integrated-test/web/${label}"               --build-arg "RELEASE_SHA=$CAREPOINT_TEST_SOURCE_SHA"               --platform linux/amd64               --push               --provenance=mode=max               --sbom=true               --tag "$tag"               --metadata-file "$metadata"               .
+            docker buildx build               --file ops/test-version/web.Dockerfile               --build-arg "WEB_ROOT=integrated-test/web/${label}"               --build-arg "RELEASE_SHA=$CAREPOINT_TEST_SOURCE_SHA"               --platform linux/amd64               --push               --provenance=mode=max               --sbom=true               --cache-from "type=gha,scope=integrated-test-web-${label}"               --cache-to "type=gha,mode=max,scope=integrated-test-web-${label}"               --tag "$tag"               --metadata-file "$metadata"               .
             digest="$(node --input-type=module -e 'import {readFileSync} from "node:fs"; const m=JSON.parse(readFileSync(process.argv[1],"utf8")); process.stdout.write(m["containerimage.digest"]||"");' "$metadata")"
             [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
             case "$label" in
