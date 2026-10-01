@@ -4,9 +4,9 @@ Branch: quality/release-gate-readiness-phase31-20261001
 
 ## Baseline
 
-The consolidated validation candidate PR #497 reached 25/25 successful canonical workflows at source SHA:
+The consolidated validation candidate PR #511 reached 25/25 successful canonical workflows at source SHA:
 
-21e423624cdf0e4b4dcfdb8383e5ef62f2d72643
+9974b72b76b45539e6513730c3b8fdbe0d1506f0
 
 The V2 functional authority is reconciled to 230/230 canonical IDs with merged implementation PR evidence.
 
