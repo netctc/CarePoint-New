@@ -32,7 +32,7 @@ assert.equal(
   "9974b72b76b45539e6513730c3b8fdbe0d1506f0",
 );
 assert.equal(contract.baselineValidation.canonicalWorkflowCount, 25);
-assert.equal(contract.baselineValidation.canonicalMatrixConclusion, "PENDING_CANONICAL_MATRIX");
+assert.equal(contract.baselineValidation.canonicalMatrixConclusion, "SUCCESS");
 assert.equal(
   contract.baselineValidation.functionalTraceability,
   "230/230_MERGED_IMPLEMENTATION_EVIDENCE",
