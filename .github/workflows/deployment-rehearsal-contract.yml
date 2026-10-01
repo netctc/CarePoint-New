@@ -13,7 +13,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: deployment-rehearsal-contract-${{ github.event.pull_request.number || github.ref }}
+  group: deployment-rehearsal-contract-${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
