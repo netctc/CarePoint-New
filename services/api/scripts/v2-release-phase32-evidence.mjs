@@ -442,6 +442,13 @@ function assertGateSpecific(gateId, evidence) {
   }
 
   if (gateId === "LIVE-05-HUMAN-UAT") {
+    assert.equal(evidence.syntheticDataOnly, true, "UAT evidence must use synthetic data only.");
+    assert.equal(
+      evidence.environment?.classification,
+      "production-equivalent",
+      "UAT evidence must come from a production-equivalent environment.",
+    );
+
     for (const item of evidence.cases ?? []) {
       const applicability = String(item.applicability ?? "").toUpperCase();
       if (applicability === "NOT_APPLICABLE") continue;
@@ -454,6 +461,14 @@ function assertGateSpecific(gateId, evidence) {
       assert.ok(
         acceptedWords.has(String(signoff.decision ?? "").toUpperCase()),
         `UAT journey ${signoff.journey} is not accepted.`,
+      );
+    }
+
+    for (const defect of evidence.defects ?? []) {
+      const status = String(defect.status ?? defect.decision ?? "").toUpperCase();
+      assert.ok(
+        permittedNonBlockingWords.has(status),
+        `UAT defect ${defect.id ?? "<unknown>"} remains blocking: ${status}`,
       );
     }
   }
@@ -754,6 +769,34 @@ function assertGateSpecific(gateId, evidence) {
 
   if (gateId === "LIVE-08-DEPLOYMENT-ROLLBACK-REHEARSAL") {
     assert.equal(evidence.environment?.classification, "production-equivalent");
+    assert.match(
+      evidence.release?.sourceSha ?? "",
+      /^[a-f0-9]{40}$/i,
+      "Deployment rehearsal release source SHA must be full 40-hex.",
+    );
+    assert.match(
+      evidence.release?.migrationSetSha256 ?? "",
+      /^[a-f0-9]{64}$/i,
+      "Deployment rehearsal migration set digest must be 64-hex SHA-256.",
+    );
+    for (const [label, digest] of [
+      ["API artifact", evidence.release?.apiArtifactDigest],
+      ["Admin artifact", evidence.release?.adminArtifactDigest],
+      ["Previous API artifact", evidence.release?.previous?.apiArtifactDigest],
+      ["Previous Admin artifact", evidence.release?.previous?.adminArtifactDigest],
+    ]) {
+      assert.match(
+        digest ?? "",
+        /^sha256:[a-f0-9]{64}$/i,
+        `${label} digest must be sha256:<64-hex>.`,
+      );
+    }
+    assert.match(
+      evidence.release?.previous?.sourceSha ?? "",
+      /^[a-f0-9]{40}$/i,
+      "Previous approved release SHA must be full 40-hex.",
+    );
+
     assert.equal(evidence.predeploy?.pitrReady, true);
     assert.equal(evidence.predeploy?.configReady, true);
     assert.equal(evidence.deployment?.safetySignalsPass, true);
@@ -771,8 +814,41 @@ function assertGateSpecific(gateId, evidence) {
       evidence.release?.previous?.sourceSha,
       "Rollback runtime SHA must match the previous approved release.",
     );
+    const deploymentStartedAt = evidence.deployment?.startedAt;
+    const deploymentReadyAt = evidence.deployment?.readyAt;
+    const rollbackStartedAt = evidence.rollback?.startedAt;
+    const rollbackCompletedAt = evidence.rollback?.completedAt;
+    for (const [label, value] of [
+      ["deployment.startedAt", deploymentStartedAt],
+      ["deployment.readyAt", deploymentReadyAt],
+      ["rollback.startedAt", rollbackStartedAt],
+      ["rollback.completedAt", rollbackCompletedAt],
+    ]) {
+      assert.ok(value && !Number.isNaN(Date.parse(value)), `${label} must be ISO-8601.`);
+    }
+    assert.ok(
+      Date.parse(deploymentReadyAt) >= Date.parse(deploymentStartedAt),
+      "Deployment readyAt cannot precede startedAt.",
+    );
+    assert.ok(
+      Date.parse(rollbackStartedAt) >= Date.parse(deploymentStartedAt),
+      "Rollback cannot start before deployment starts.",
+    );
+    assert.ok(
+      Date.parse(rollbackCompletedAt) >= Date.parse(rollbackStartedAt),
+      "Rollback completedAt cannot precede startedAt.",
+    );
+    assert.ok(
+      ["rolling", "canary", "blue-green", "platform-approved-other"].includes(
+        evidence.deployment?.strategy,
+      ),
+      "Deployment strategy is not approved.",
+    );
+
     assertFiniteNonNegativeNumber(evidence.recovery?.rpoMinutes, "Deployment rehearsal RPO minutes");
     assertFiniteNonNegativeNumber(evidence.recovery?.rtoMinutes, "Deployment rehearsal RTO minutes");
+    assert.ok(evidence.recovery.rpoMinutes <= 15, "Deployment rehearsal RPO exceeds 15 minutes.");
+    assert.ok(evidence.recovery.rtoMinutes <= 120, "Deployment rehearsal RTO exceeds 120 minutes.");
   }
 }
 
