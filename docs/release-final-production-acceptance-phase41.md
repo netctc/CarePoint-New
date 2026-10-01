@@ -3,7 +3,7 @@
 Phase 41 records the **final production acceptance** decision after Phase 40 reports readiness.
 
 A final `ACCEPTED` decision requires:
-- Phase 40 = `READY_FOR_FINAL_PRODUCTION_ACCEPTANCE_DECISION`;
+- validated Phase 40 result = `READY_FOR_FINAL_PRODUCTION_ACCEPTANCE_DECISION`, with validated handoff and post-deploy checks complete;
 - post-deploy validation acknowledged as passed;
 - rollback assessment reviewed;
 - incident state reviewed;
