@@ -118,10 +118,10 @@ Examples:
 - enabled external integrations must be accepted;
 - launch-enabled mobile applications require signed production Android/iOS artifacts, embedded final release SHA, non-debug builds, physical-device acceptance, localization/accessibility acceptance, controls and approvals;
 - independent security assessment must confirm independence/manual testing, numeric finding counts and a non-blocking Critical/High disposition (including formal risk evidence where applicable);
-- applicable UAT cases and journey sign-offs must be accepted;
+- UAT must use synthetic data only; applicable cases and journey sign-offs must be accepted, and any recorded defect must be resolved/closed/accepted or explicitly non-applicable;
 - resilience evidence must use `carepoint.release-resilience-evidence/v1`, contain executed scenario results with timestamps/evidence/assertions, sanitized observability, and continuity measurements satisfying RPO <= 15 minutes and RTO <= 120 minutes;
 - applicable KSA market/clinical controls and blocking issues must be closed/accepted;
-- deployment rehearsal must include predeploy readiness, deployment safety, exact runtime source-SHA correlation, rollback to the previous approved SHA, reconciliation, PITR rehearsal, numeric RPO/RTO measurements, and approvals.
+- deployment rehearsal must include predeploy readiness, valid immutable SHA/digest identities, coherent deployment/rollback timestamps, approved deployment strategy, exact runtime source-SHA correlation, rollback to the previous approved SHA, reconciliation, PITR rehearsal, RPO <= 15 minutes, RTO <= 120 minutes, and approvals.
 
 ## Aggregated decision
 
