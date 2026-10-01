@@ -119,7 +119,7 @@ Examples:
 - launch-enabled mobile applications require signed production Android/iOS artifacts, embedded final release SHA, non-debug builds, physical-device acceptance, localization/accessibility acceptance, controls and approvals;
 - independent security assessment must confirm independence/manual testing, numeric finding counts and a non-blocking Critical/High disposition (including formal risk evidence where applicable);
 - applicable UAT cases and journey sign-offs must be accepted;
-- resilience evidence must contain executed and accepted scenarios with timestamps/evidence, measured recovery, approved RPO/RTO targets, measured RPO/RTO within those targets, and approvals;
+- resilience evidence must use `carepoint.release-resilience-evidence/v1`, contain executed scenario results with timestamps/evidence/assertions, sanitized observability, and continuity measurements satisfying RPO <= 15 minutes and RTO <= 120 minutes;
 - applicable KSA market/clinical controls and blocking issues must be closed/accepted;
 - deployment rehearsal must include predeploy readiness, deployment safety, exact runtime source-SHA correlation, rollback to the previous approved SHA, reconciliation, PITR rehearsal, numeric RPO/RTO measurements, and approvals.
 
@@ -162,3 +162,16 @@ No .env file is added.
 ## Database
 
 No database migration.
+
+
+### Resilience evidence separation
+
+The automated resilience workflow validates the disabled draft catalog:
+
+`ops/release-1/resilience-exercise-plan.example.json`
+
+External LIVE-06 acceptance must instead use:
+
+`ops/release-1/resilience-exercise-evidence.example.json`
+
+with schema `carepoint.release-resilience-evidence/v1`. A plan file can never satisfy LIVE-06.
