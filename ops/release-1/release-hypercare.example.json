@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "schema": "carepoint.release-hypercare-record/v1",
+  "releaseCandidate": {
+    "consolidatedPr": 511,
+    "sourceSha": "9974b72b76b45539e6513730c3b8fdbe0d1506f0"
+  },
+  "closureRef": null,
+  "hypercare": {
+    "status": "PENDING",
+    "startedAt": null,
+    "endedAt": null,
+    "ownerRef": null,
+    "incidentReviewRef": null
+  },
+  "exitCriteria": [
+    {
+      "id": "NO-SEV1-SEV2-OPEN",
+      "status": "PENDING",
+      "evidenceRef": null
+    },
+    {
+      "id": "ERROR-RATE-STABLE",
+      "status": "PENDING",
+      "evidenceRef": null
+    },
+    {
+      "id": "LATENCY-WITHIN-BOUND",
+      "status": "PENDING",
+      "evidenceRef": null
+    },
+    {
+      "id": "BACKGROUND-JOBS-STABLE",
+      "status": "PENDING",
+      "evidenceRef": null
+    },
+    {
+      "id": "SUPPORT-HANDOFF-COMPLETE",
+      "status": "PENDING",
+      "evidenceRef": null
+    },
+    {
+      "id": "ROLLBACK-WINDOW-CLOSED",
+      "status": "PENDING",
+      "evidenceRef": null
+    }
+  ],
+  "hypercareExited": false,
+  "operationalHandoffComplete": false
+}
