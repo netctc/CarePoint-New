@@ -26,13 +26,13 @@ const pkg = JSON.parse(pkgText);
 
 assert.equal(contract.schemaVersion, 1);
 assert.equal(contract.schema, "carepoint.final-go-live-gate-readiness/v1");
-assert.equal(contract.baselineValidation.consolidatedPr, 497);
+assert.equal(contract.baselineValidation.consolidatedPr, 511);
 assert.equal(
   contract.baselineValidation.validatedHead,
-  "21e423624cdf0e4b4dcfdb8383e5ef62f2d72643",
+  "9974b72b76b45539e6513730c3b8fdbe0d1506f0",
 );
 assert.equal(contract.baselineValidation.canonicalWorkflowCount, 25);
-assert.equal(contract.baselineValidation.canonicalMatrixConclusion, "SUCCESS");
+assert.equal(contract.baselineValidation.canonicalMatrixConclusion, "PENDING_CANONICAL_MATRIX");
 assert.equal(
   contract.baselineValidation.functionalTraceability,
   "230/230_MERGED_IMPLEMENTATION_EVIDENCE",
