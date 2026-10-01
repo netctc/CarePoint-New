@@ -94,20 +94,34 @@ Evidence also rejects embedded credential fields such as plaintext:
 
 Evidence references to restricted systems are allowed; the restricted material itself must remain outside the repository.
 
+## Template structural conformance
+
+Accepted evidence must preserve the full required structure of its approved template.
+
+Phase 32 now verifies:
+
+- every required top-level and nested field is present;
+- every fixed catalog entry from the template is present;
+- identity-based arrays cannot silently drop required controls/apps/scenarios/approvals;
+- required value types are preserved;
+- additional evidence fields are allowed, but required template content cannot be omitted.
+
+This prevents a minimal payload with only a matching schema string from being accepted.
+
 ## Gate-specific acceptance
 
-The validator preserves the semantics of each Phase 31 evidence schema.
+The validator preserves and strengthens the semantics of each Phase 31 evidence schema.
 
 Examples:
 
 - production infrastructure controls/continuity must be accepted;
 - enabled external integrations must be accepted;
-- signed mobile artifacts and approvals must be accepted;
-- independent security assessment must confirm independence/manual testing and known findings;
+- launch-enabled mobile applications require signed production Android/iOS artifacts, embedded final release SHA, non-debug builds, physical-device acceptance, localization/accessibility acceptance, controls and approvals;
+- independent security assessment must confirm independence/manual testing, numeric finding counts and a non-blocking Critical/High disposition (including formal risk evidence where applicable);
 - applicable UAT cases and journey sign-offs must be accepted;
-- resilience scenarios must be executed/enabled;
+- resilience evidence must contain executed and accepted scenarios with timestamps/evidence, measured recovery, approved RPO/RTO targets, measured RPO/RTO within those targets, and approvals;
 - applicable KSA market/clinical controls and blocking issues must be closed/accepted;
-- deployment rehearsal must include predeploy readiness, deployment safety, rollback execution, reconciliation, PITR rehearsal, and approvals.
+- deployment rehearsal must include predeploy readiness, deployment safety, exact runtime source-SHA correlation, rollback to the previous approved SHA, reconciliation, PITR rehearsal, numeric RPO/RTO measurements, and approvals.
 
 ## Aggregated decision
 
