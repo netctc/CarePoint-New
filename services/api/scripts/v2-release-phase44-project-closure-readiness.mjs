@@ -79,6 +79,7 @@ if(r.readiness.status!=="READY") assert.equal(r.projectClosureReady,false);
 
 process.stdout.write(JSON.stringify({
   schema:"carepoint.project-closure-readiness-validation/v1",
+  releaseCandidate:r.releaseCandidate,
   canonicalFunctionalIds:body.length,
   mergedFunctionalIds:mergedCount,
   functionalTraceabilityComplete:mergedCount===230,
