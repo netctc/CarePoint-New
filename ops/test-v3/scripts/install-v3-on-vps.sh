@@ -90,7 +90,7 @@ is_v3_container_port(){
 
 port_in_use(){
   local port="$1"
-  ss -ltnH 2>/dev/null | awk '{print $4}' | grep -Eq "[:.]\${port}$"
+  ss -ltnH 2>/dev/null | awk '{print $4}' | grep -Eq "[:.]${port}$"
 }
 
 check_v3_ports(){
