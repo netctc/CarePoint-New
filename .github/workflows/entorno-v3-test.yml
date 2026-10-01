@@ -173,15 +173,25 @@ jobs:
           BOOTSTRAP_ADMIN_EMAIL: admin@carepoint.test
           BOOTSTRAP_ADMIN_PASSWORD: CarePointV3CiAdminPassword2026
         run: npm run db:bootstrap --workspace @carepoint/api
-      - name: Verify requested admin exists
+      - name: Verify requested admin and audit runtime singletons
         run: |
           node - <<'NODE'
           const { PrismaClient } = require("@prisma/client");
           const prisma = new PrismaClient();
           (async () => {
-            const user = await prisma.user.findUnique({ where: { email: "admin@carepoint.test" } });
+            const [user, head, policy] = await Promise.all([
+              prisma.user.findUnique({ where: { email: "admin@carepoint.test" } }),
+              prisma.auditIntegrityHead.findUnique({ where: { id: "default" } }),
+              prisma.auditRetentionPolicy.findUnique({ where: { id: "default" } }),
+            ]);
             if (!user || user.role !== "ADMIN" || user.status !== "ACTIVE") {
               throw new Error("Requested V3 admin was not created as an active ADMIN.");
+            }
+            if (!head || head.lastAuditEventId !== null || head.lastEventHash !== null) {
+              throw new Error("AuditIntegrityHead/default was not restored cleanly after rich reset.");
+            }
+            if (!policy || policy.mode !== "INDEFINITE" || policy.legalHoldEnabled !== false) {
+              throw new Error("AuditRetentionPolicy/default was not restored after rich reset.");
             }
           })().finally(() => prisma.$disconnect());
           NODE
