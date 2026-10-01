@@ -1,0 +1,81 @@
+name: Audit Entorno V3 Branch Containment
+
+on:
+  push:
+    branches:
+      - ops/audit-entorno-v3-containment-20261001
+
+permissions:
+  contents: read
+
+concurrency:
+  group: audit-entorno-v3-containment-20261001
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out audit branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 1
+
+      - name: Audit every remote branch against entorno-v3
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git fetch --unshallow --no-tags origin '+refs/heads/*:refs/remotes/audit-origin/*'
+
+          target_ref="refs/remotes/audit-origin/entorno-v3"
+          target_sha="$(git rev-parse "$target_ref")"
+
+          contained=0
+          divergent=0
+          total=0
+          divergent_file="$RUNNER_TEMP/divergent-branches.txt"
+          : > "$divergent_file"
+
+          mapfile -t rows < <(
+            git for-each-ref \
+              --format='%(objectname)%09%(refname:strip=3)' \
+              refs/remotes/audit-origin/ \
+              | sort -k2
+          )
+
+          for row in "${rows[@]}"; do
+            sha="${row%%$'\t'*}"
+            branch="${row#*$'\t'}"
+            total=$((total + 1))
+
+            if git merge-base --is-ancestor "$sha" "$target_sha"; then
+              contained=$((contained + 1))
+            else
+              divergent=$((divergent + 1))
+              printf '%s\t%s\n' "$branch" "$sha" >> "$divergent_file"
+            fi
+          done
+
+          {
+            echo "# Entorno V3 branch containment audit"
+            echo ""
+            echo "- entorno-v3 SHA: $target_sha"
+            echo "- Branches audited: **$total**"
+            echo "- Heads already contained: **$contained**"
+            echo "- Divergent heads: **$divergent**"
+            echo ""
+            echo "## Divergent branches"
+            echo ""
+            if [[ "$divergent" -eq 0 ]]; then
+              echo "None."
+            else
+              echo '```text'
+              cat "$divergent_file"
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          echo "AUDIT_TOTAL=$total"
+          echo "AUDIT_CONTAINED=$contained"
+          echo "AUDIT_DIVERGENT=$divergent"
