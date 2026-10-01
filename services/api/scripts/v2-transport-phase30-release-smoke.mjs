@@ -21,14 +21,14 @@ const phase27 = JSON.parse(phase27Text);
 const phase28 = JSON.parse(phase28Text);
 
 assert.equal(contract.schemaVersion, 1);
-assert.equal(contract.scope, "transport-release-closure-phases-8-29");
+assert.equal(contract.scope, "transport-release-closure-phases-8-30");
 assert.equal(contract.canonicalBase, "main");
 assert.equal(contract.productionAcceptance, false);
 assert.equal(contract.mainMergeAuthorized, false);
-assert.equal(contract.finalValidation.upstreamValidatedCandidatePr, 508);
+assert.equal(contract.finalValidation.upstreamValidatedCandidatePr, 497);
 assert.equal(
   contract.finalValidation.finalCandidateBranch,
-  "integration/transport-phases8-30-validation-20261001",
+  "integration/transport-final-unified-validation-20261001",
 );
 assert.equal(contract.finalValidation.finalCandidateExactHeadMustBeRecorded, true);
 assert.equal(contract.finalValidation.fullCanonicalMatrixRequired, true);
