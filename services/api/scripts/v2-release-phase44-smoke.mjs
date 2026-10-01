@@ -16,6 +16,8 @@ assert.equal(j.projectClosureReady,false);
 assert.equal(a.trimEnd().split(/\r?\n/).length,231);
 for(const x of [
   "All 230 canonical functional IDs must be MERGED_TO_MAIN.",
+  "carepoint.release-hypercare-validation/v1",
+  "h.releaseLifecycleComplete===true",
   "Project closure readiness requires all 8/8 external gates ACCEPTED in the Phase 32 evidence index.",
   "acceptedExternalGateCount",
   "externalGatesAccepted",
