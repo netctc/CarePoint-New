@@ -11,7 +11,7 @@ const j=JSON.parse(t),pkg=JSON.parse(p);
 assert.equal(j.execution.status,"BLOCKED");
 assert.equal(j.productionAcceptance,false);
 assert.equal(j.releaseClosed,false);
-for(const x of ["READY_FOR_OPERATOR_EXECUTION requires every prerequisite true.","operatorActionRequired:true","automaticDeploymentPerformed:false","productionAcceptance:false","releaseClosed:false"]) assert.ok(v.replaceAll(" ","").includes(x.replaceAll(" ","")));
+for(const x of ["READY_FOR_OPERATOR_EXECUTION requires validated Phase 37 authorization plus an approved change window.","carepoint.merge-deploy-authorization-validation/v1","authorizationReady","releaseCandidate:h.releaseCandidate","operatorActionRequired:true","automaticDeploymentPerformed:false","productionAcceptance:false","releaseClosed:false"]) assert.ok(v.replaceAll(" ","").includes(x.replaceAll(" ","")));
 assert.equal(pkg.scripts["v2:release-phase39"],"node scripts/v2-release-phase39-smoke.mjs");
 assert.equal(pkg.scripts["v2:release-phase39-handoff"],"node scripts/v2-release-phase39-handoff.mjs");
 assert.ok(pkg.scripts.test.indexOf("npm run v2:release-phase38")<pkg.scripts.test.indexOf("npm run v2:release-phase39"));
