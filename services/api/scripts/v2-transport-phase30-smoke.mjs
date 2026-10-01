@@ -5,10 +5,10 @@ const root = new URL("../", import.meta.url);
 const readApi = (path) => readFile(new URL(path, root), "utf8");
 const readRepo = (path) => readFile(new URL("../../" + path, root), "utf8");
 
-const [live, pkgText, ci, docs] = await Promise.all([
+const [live, pkgText, slice8, docs] = await Promise.all([
   readApi("scripts/v2-transport-phase30-live-http.mjs"),
   readApi("package.json"),
-  readRepo(".github/workflows/ci.yml"),
+  readApi("scripts/slice8-smoke.mjs"),
   readRepo("docs/transport-advanced-live-http-phase30.md"),
 ]);
 const pkg = JSON.parse(pkgText);
@@ -62,13 +62,16 @@ assert.equal(
 assert.ok(pkg.scripts.test.includes("npm run v2:transport-phase29"));
 assert.ok(pkg.scripts.test.includes("npm run v2:transport-phase30"));
 
-const f32Index = ci.indexOf("F3.2 headless Flutter journeys and independent PostgreSQL verification");
-const p30Index = ci.indexOf("Transport Phase 30 advanced live HTTP acceptance");
-const logsIndex = ci.indexOf("Print API and Admin logs on failure");
-assert.ok(f32Index >= 0);
-assert.ok(p30Index > f32Index, "Phase 30 live acceptance must run after existing live journeys");
-assert.ok(logsIndex > p30Index, "Phase 30 live acceptance must run before final failure log collection");
-assert.ok(ci.includes("npm --workspace @carepoint/api run v2:transport-phase30-live-http"));
+assert.ok(
+  slice8.includes('await import("./v2-transport-phase30-live-http.mjs");'),
+  "Slice 8 live acceptance must chain Phase 30 advanced HTTP acceptance",
+);
+const slice8MainIndex = slice8.indexOf("await main();");
+const phase30ImportIndex = slice8.indexOf('await import("./v2-transport-phase30-live-http.mjs");');
+assert.ok(
+  phase30ImportIndex > slice8MainIndex,
+  "Phase 30 must run after the original Slice 8 live journey",
+);
 
 for (const text of [
   "Advanced Transport Live HTTP Acceptance",
