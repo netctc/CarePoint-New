@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "scope": "transport-release-closure-phases-8-30",
+  "canonicalBase": "main",
+  "currentCanonicalBaseSha": "7808b03e9138bec9f453316bca9e7fdbb493da83",
+  "productionAcceptance": false,
+  "mainMergeAuthorized": false,
+  "finalValidation": {
+    "branch": "integration/transport-phases8-29-validation-20261001",
+    "fullCanonicalMatrixRequired": true,
+    "exactHeadGreenRequired": true,
+    "phase29PostgresAcceptanceRequired": true,
+    "postMergeMainValidationRequired": true,
+    "upstreamValidatedCandidatePr": 497,
+    "finalCandidateBranch": "integration/transport-final-unified-validation-20261001",
+    "finalCandidateExactHeadMustBeRecorded": true
+  },
+  "qualityPrerequisites": [
+    {
+      "phase": 27,
+      "contract": "ops/transport/transport-phases8-26-integration-contract.json"
+    },
+    {
+      "phase": 28,
+      "contract": "ops/transport/transport-e2e-acceptance-phase28.json"
+    },
+    {
+      "phase": 29,
+      "postgresAcceptance": "services/api/scripts/v2-transport-phase29-postgres.mjs"
+    }
+  ],
+  "migrationPolicy": {
+    "rollbackMode": "APPLICATION_REVERT_PLUS_FORWARD_DB_REMEDIATION",
+    "automaticDestructiveDownMigrationAllowed": false,
+    "permittedRelaxations": [
+      "DROP NOT NULL"
+    ],
+    "forbiddenSqlPatterns": [
+      "DROP TABLE",
+      "DROP COLUMN",
+      "DROP TYPE",
+      "TRUNCATE",
+      "DELETE FROM"
+    ],
+    "migrations": [
+      "20260907054000_medical_transport_emergency_dispatch",
+      "20260918024500_transport_companions_equipment",
+      "20260922003000_v2_transport_resources",
+      "20260922011500_v2_transport_handoff",
+      "20260922014500_v2_transport_incidents",
+      "20260922190000_v2_transport_advanced_lifecycle",
+      "20260924043000_v2_transport_destination_change",
+      "20260930054500_transport_optional_coordinates",
+      "20260930061500_transport_company_crew",
+      "20260930064500_emergency_transport_resources",
+      "20260930135000_transport_saved_locations",
+      "20260930173000_v2_transport_telemetry",
+      "20260930195000_v2_transport_trip_milestones",
+      "20260930204500_v2_transport_smart_dispatch",
+      "20260930230000_v2_transport_management_report_schedule",
+      "20260930233000_v2_transport_report_execution_ledger",
+      "20260930234500_v2_transport_report_artifact_handoff",
+      "20261001000500_v2_transport_report_delivery_outbox",
+      "20261001002000_v2_transport_report_download_grants",
+      "20261001003500_v2_transport_report_recipient_inbox",
+      "20261001005000_v2_transport_report_artifact_retention",
+      "20261001010500_v2_transport_report_legal_hold",
+      "20261001012000_v2_transport_report_artifact_integrity"
+    ]
+  },
+  "finalMergeProtocol": [
+    "Freeze the exact consolidated candidate head after the full canonical matrix is green.",
+    "Require explicit human authorization before any merge to main.",
+    "Merge the single consolidated Transport candidate rather than replaying stacked PRs individually.",
+    "Run canonical post-merge validation on the resulting main SHA.",
+    "Run database deployment only through the approved migration command and environment.",
+    "If application rollback is required, revert the consolidated application merge while preserving additive database structures.",
+    "Use a forward corrective migration for any database remediation; do not execute destructive ad-hoc down SQL.",
+    "Close stacked Transport PRs as superseded only after the consolidated main merge is verified."
+  ],
+  "rollbackEvidenceRequired": [
+    "pre-deploy database backup/recovery evidence",
+    "exact release/main SHA",
+    "migration deployment log",
+    "post-deploy health/readiness evidence",
+    "post-merge canonical CI evidence",
+    "rollback/revert command record if rollback is exercised"
+  ]
+}

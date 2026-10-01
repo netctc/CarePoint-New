@@ -2,6 +2,11 @@ name: Production Infrastructure Acceptance Contract
 
 on:
   pull_request:
+    branches:
+      - main
+      - v2/development
+      - entorno-v2
+      - "release/**"
   push:
     branches: [main]
 
@@ -10,6 +15,10 @@ permissions:
 
 env:
   CAREPOINT_INFRA_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+concurrency:
+  group: production-infrastructure-contract-${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   contract:

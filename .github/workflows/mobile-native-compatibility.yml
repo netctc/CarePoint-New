@@ -2,6 +2,11 @@ name: Mobile Native Compatibility
 
 on:
   pull_request:
+    branches:
+      - main
+      - v2/development
+      - entorno-v2
+      - "release/**"
   push:
     branches: [main]
 
@@ -10,6 +15,10 @@ permissions:
 
 env:
   CAREPOINT_MOBILE_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+concurrency:
+  group: mobile-native-compatibility-${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   android:
@@ -27,8 +36,6 @@ jobs:
             project: carepoint_provider
           - app: transport-provider-mobile
             project: carepoint_transport_provider
-          - app: transport-provider-mobile
-            project: carepoint_transport_provider
     steps:
       - name: Check out exact candidate SHA
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -40,6 +47,7 @@ jobs:
         with:
           flutter-version: "3.47.2"
           channel: stable
+          cache: true
       - name: Verify exact checkout identity
         run: test "$(git rev-parse HEAD)" = "$CAREPOINT_MOBILE_SOURCE_SHA"
       - name: Resolve tracked dependency graph
@@ -59,13 +67,44 @@ jobs:
           flutter create --platforms=android --org io.carepoint.validation --project-name "${{ matrix.project }}" .
           test -f android/app/src/main/AndroidManifest.xml
           grep -R "io.carepoint.validation" android/app/build.gradle* android/app/src/main 2>/dev/null
+      - name: Configure Transport Provider foreground location permission
+        if: matrix.app == 'transport-provider-mobile'
+        working-directory: apps/${{ matrix.app }}
+        run: |
+          sed -i '/<manifest/a\    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />' android/app/src/main/AndroidManifest.xml
+          grep -F 'android.permission.ACCESS_FINE_LOCATION' android/app/src/main/AndroidManifest.xml
+          ! grep -F 'android.permission.ACCESS_BACKGROUND_LOCATION' android/app/src/main/AndroidManifest.xml
+
       - name: Build unsigned/non-production Android compatibility APK
         working-directory: apps/${{ matrix.app }}
-        run: >-
-          flutter build apk --debug
-          --dart-define=CAREPOINT_BUILD_ENV=development
-          --dart-define=CAREPOINT_API_BASE=https://mobile-validation.invalid/api/v1
-          --dart-define=CAREPOINT_RELEASE_SHA=${{ env.CAREPOINT_MOBILE_SOURCE_SHA }}
+        shell: bash
+        run: |
+          set -o pipefail
+          build_log="$RUNNER_TEMP/android-${{ matrix.app }}-build.log"
+          for attempt in 1 2 3; do
+            : > "$build_log"
+            if flutter build apk --debug \
+              --dart-define=CAREPOINT_BUILD_ENV=development \
+              --dart-define=CAREPOINT_API_BASE=https://mobile-validation.invalid/api/v1 \
+              --dart-define=CAREPOINT_RELEASE_SHA=${{ env.CAREPOINT_MOBILE_SOURCE_SHA }} \
+              2>&1 | tee "$build_log"; then
+              exit 0
+            fi
+
+            if ! grep -Eqi '429|Too Many Requests|HTTP[^0-9]*(502|503|504)|status code (502|503|504)|Could not GET|timed out|Connection reset|Remote host terminated|Gradle threw an error while downloading artifacts' "$build_log"; then
+              echo "::error::Android compatibility build failed with a non-transient error; not retrying."
+              exit 1
+            fi
+
+            if [ "$attempt" -eq 3 ]; then
+              echo "::error::Android compatibility build exhausted retries after transient dependency-download failures."
+              exit 1
+            fi
+
+            delay=$((attempt * 30))
+            echo "::warning::Transient dependency-download failure detected; retrying in ${delay}s (attempt $((attempt + 1))/3)."
+            sleep "$delay"
+          done
       - name: Capture sanitized Android compatibility evidence
         working-directory: apps/${{ matrix.app }}
         run: |
@@ -93,6 +132,8 @@ jobs:
             project: carepoint_doctor
           - app: provider-mobile
             project: carepoint_provider
+          - app: transport-provider-mobile
+            project: carepoint_transport_provider
     steps:
       - name: Check out exact candidate SHA
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -111,6 +152,7 @@ jobs:
         with:
           flutter-version: "3.47.2"
           channel: stable
+          cache: true
       - name: Verify exact checkout identity
         run: test "$(git rev-parse HEAD)" = "$CAREPOINT_MOBILE_SOURCE_SHA"
       - name: Resolve tracked dependency graph
@@ -124,6 +166,14 @@ jobs:
           flutter create --platforms=ios --org io.carepoint.validation --project-name "${{ matrix.project }}" .
           test -f ios/Runner/Info.plist
           grep -R "io.carepoint.validation" ios/Runner.xcodeproj/project.pbxproj
+      - name: Configure Transport Provider when-in-use location permission
+        if: matrix.app == 'transport-provider-mobile'
+        working-directory: apps/${{ matrix.app }}
+        run: |
+          /usr/libexec/PlistBuddy -c "Add :NSLocationWhenInUseUsageDescription string CarePoint uses vehicle location only while Transport Provider is actively sharing during an assigned transport." ios/Runner/Info.plist
+          /usr/libexec/PlistBuddy -c "Print :NSLocationWhenInUseUsageDescription" ios/Runner/Info.plist
+          ! grep -q 'NSLocationAlways' ios/Runner/Info.plist
+
       - name: Build non-production iOS simulator compatibility app
         working-directory: apps/${{ matrix.app }}
         run: >-

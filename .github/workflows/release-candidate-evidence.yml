@@ -2,6 +2,11 @@ name: Release Candidate Evidence
 
 on:
   pull_request:
+    branches:
+      - main
+      - v2/development
+      - entorno-v2
+      - "release/**"
     paths:
       - ".ci/generate-rc-evidence.mjs"
       - ".ci/generate-release-change-inventory.mjs"
@@ -37,6 +42,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: release-candidate-evidence-${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   evidence:
     runs-on: ubuntu-24.04
@@ -67,6 +76,8 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
       - name: Use repository npm toolchain
         run: |
           npm install --global npm@10.9.2
@@ -97,6 +108,7 @@ jobs:
         with:
           flutter-version: "3.47.2"
           channel: stable
+          cache: true
       - name: Resolve and verify mobile dependency locks
         run: |
           (cd packages/mobile_core && flutter pub get)

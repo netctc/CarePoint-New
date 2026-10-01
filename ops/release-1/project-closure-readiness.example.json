@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "schema": "carepoint.project-closure-readiness-record/v1",
+  "releaseCandidate": {
+    "consolidatedPr": 511,
+    "sourceSha": "9974b72b76b45539e6513730c3b8fdbe0d1506f0"
+  },
+  "projectScope": {
+    "canonicalFunctionalIdCount": 230,
+    "expectedTraceabilityState": "MERGED_TO_MAIN"
+  },
+  "readiness": {
+    "status": "PENDING",
+    "assessedByRef": null,
+    "assessedAt": null,
+    "assessmentRef": null
+  },
+  "checklist": {
+    "releaseLifecycleComplete": false,
+    "hypercareExited": false,
+    "operationalHandoffComplete": false,
+    "functionalTraceabilityComplete": false,
+    "criticalBlockersZero": false,
+    "documentationArchiveRecorded": false,
+    "backlogDispositionRecorded": false,
+    "operationsOwnerRecorded": false
+  },
+  "projectClosureReady": false
+}

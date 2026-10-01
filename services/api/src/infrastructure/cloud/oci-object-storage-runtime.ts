@@ -10,7 +10,7 @@ const FORBIDDEN_ENDPOINT_ENV_VARS = [
   "OCI_OBJECT_STORAGE_ENDPOINT",
 ] as const;
 
-export type OciObjectStorageDomainLabel = "clinical-documents" | "fhir-bulk-export";
+export type OciObjectStorageDomainLabel = "clinical-documents" | "fhir-bulk-export" | "transport-management-reports";
 
 type OciAuthenticationProvider = unknown;
 
@@ -147,7 +147,7 @@ export async function createProductionOciObjectStorageRuntime(
 
   const domains = new Map<OciObjectStorageDomainLabel, ProductionObjectStorageDomain>();
   for (const domain of contract.domains) domains.set(domain.label, domain);
-  for (const label of ["clinical-documents", "fhir-bulk-export"] as const) {
+  for (const label of ["clinical-documents", "fhir-bulk-export", "transport-management-reports"] as const) {
     if (!domains.has(label)) throw new Error(`OCI Object Storage contract is missing '${label}'.`);
   }
 

@@ -3,6 +3,11 @@ name: Release 1 Container Compatibility
 on:
   workflow_dispatch:
   pull_request:
+    branches:
+      - main
+      - v2/development
+      - entorno-v2
+      - "release/**"
     paths:
       - "Dockerfile"
       - ".dockerignore"
@@ -20,7 +25,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: release1-container-${{ github.event.pull_request.number || github.ref }}
+  group: release1-container-${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.run_id }}
   cancel-in-progress: true
 
 env:
@@ -62,6 +67,8 @@ jobs:
           push: false
           load: true
           provenance: false
+          cache-from: type=gha,scope=release1-compat-${{ matrix.target }}
+          cache-to: type=gha,mode=max,scope=release1-compat-${{ matrix.target }}
           tags: carepoint-${{ matrix.target }}:release1-validation
           build-args: |
             RELEASE_SHA=${{ env.CAREPOINT_CONTAINER_SOURCE_SHA }}

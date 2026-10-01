@@ -276,3 +276,7 @@ try {
 } finally {
   await prisma.$disconnect();
 }
+
+// Advanced Transport live acceptance extends the already-live Transport HTTP journey without duplicating
+// API/database/bootstrap setup or introducing additional CI credentials.
+await import("./v2-transport-live-http.mjs");

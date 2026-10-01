@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "schema": "carepoint.post-deploy-validation-record/v1",
+  "releaseCandidate": {
+    "consolidatedPr": 511,
+    "sourceSha": "9974b72b76b45539e6513730c3b8fdbe0d1506f0"
+  },
+  "deploymentRef": null,
+  "validation": {
+    "status": "PENDING",
+    "startedAt": null,
+    "completedAt": null,
+    "ownerRef": null
+  },
+  "checks": [
+    {
+      "id": "LIVE-HEALTH",
+      "status": "PENDING",
+      "evidenceRef": null
+    },
+    {
+      "id": "LIVE-READINESS",
+      "status": "PENDING",
+      "evidenceRef": null
+    },
+    {
+      "id": "DB-MIGRATIONS",
+      "status": "PENDING",
+      "evidenceRef": null
+    },
+    {
+      "id": "AUTH-LOGIN",
+      "status": "PENDING",
+      "evidenceRef": null
+    },
+    {
+      "id": "PATIENT-CRITICAL-JOURNEY",
+      "status": "PENDING",
+      "evidenceRef": null
+    },
+    {
+      "id": "PROVIDER-CRITICAL-JOURNEY",
+      "status": "PENDING",
+      "evidenceRef": null
+    },
+    {
+      "id": "ADMIN-CRITICAL-JOURNEY",
+      "status": "PENDING",
+      "evidenceRef": null
+    },
+    {
+      "id": "BACKGROUND-WORKERS",
+      "status": "PENDING",
+      "evidenceRef": null
+    },
+    {
+      "id": "OBSERVABILITY",
+      "status": "PENDING",
+      "evidenceRef": null
+    },
+    {
+      "id": "ROLLBACK-TRIGGER-ASSESSMENT",
+      "status": "PENDING",
+      "evidenceRef": null
+    }
+  ],
+  "productionAcceptance": false,
+  "releaseClosed": false
+}

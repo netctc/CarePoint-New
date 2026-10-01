@@ -224,4 +224,221 @@ void main() {
     expect(find.text('Requested equipment: Oxygen, Monitoring'), findsOneWidget);
     expect(find.text('Accept job'), findsOneWidget);
   });
+
+  test('phase 8 telemetry client keeps vehicle position and ETA separate', () async {
+    final seen = <String>[];
+    final client = MockClient((request) async {
+      expect(request.headers['authorization'], 'Bearer phase8-telemetry');
+      seen.add(request.url.path);
+      if (request.url.path.endsWith('/tracking/start')) {
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(body, {'shareWithPatient': true});
+        expect(body.containsKey('providerId'), false);
+        return http.Response(
+          jsonEncode({'sharingStatus': 'ACTIVE', 'shareWithPatient': true}),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      }
+      if (request.url.path.endsWith('/tracking/heartbeat')) {
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(body['clientEventId'], 'phase8-heartbeat-0001');
+        expect(body['latitude'], 33.89);
+        expect(body['longitude'], 35.50);
+        expect(body['accuracyMeters'], 8.5);
+        expect(body.containsKey('etaMinutes'), false);
+        expect(body.containsKey('patientId'), false);
+        return http.Response(
+          jsonEncode({
+            'replayed': false,
+            'telemetry': {
+              'latitude': 33.89,
+              'longitude': 35.50,
+              'capturedAt': '2031-01-15T10:00:00Z'
+            },
+            'tracking': {
+              'routeEtaMinutes': 12,
+              'trackingPositionIsRouteEta': false
+            }
+          }),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      }
+      if (request.url.path.endsWith('/tracking/stop')) {
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(body['reason'], 'PRIVACY_STOP');
+        return http.Response(
+          jsonEncode({'sharingStatus': 'STOPPED', 'shareWithPatient': false}),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      }
+      return http.Response('{}', 404, headers: {'content-type': 'application/json'});
+    });
+    final api = CarePointApi(
+      baseUrl: 'https://carepoint.test/api/v1',
+      client: client,
+    )
+      ..accessToken = 'phase8-telemetry'
+      ..refreshToken = 'phase8-telemetry-refresh';
+
+    expect(
+      (await api.startProviderMedicalTransportTracking(
+        'tr-phase8',
+        shareWithPatient: true,
+      ))['sharingStatus'],
+      'ACTIVE',
+    );
+
+    final heartbeat = await api.sendProviderMedicalTransportHeartbeat(
+      'tr-phase8',
+      clientEventId: 'phase8-heartbeat-0001',
+      latitude: 33.89,
+      longitude: 35.50,
+      accuracyMeters: 8.5,
+      capturedAt: DateTime.utc(2031, 1, 15, 10),
+    );
+    expect((heartbeat['tracking'] as Map)['trackingPositionIsRouteEta'], false);
+
+    expect(
+      (await api.stopProviderMedicalTransportTracking(
+        'tr-phase8',
+        reason: 'PRIVACY_STOP',
+      ))['sharingStatus'],
+      'STOPPED',
+    );
+    expect(seen.length, 3);
+  });
+
+  test('phase 8 patient tracking is read-only and request scoped', () async {
+    final client = MockClient((request) async {
+      expect(request.method, 'GET');
+      expect(request.url.path, '/api/v1/medical-transport/tr-phase8/tracking');
+      return http.Response(
+        jsonEncode({
+          'requestId': 'tr-phase8',
+          'visible': true,
+          'freshness': 'FRESH',
+          'routeEtaMinutes': 12,
+          'trackingPositionIsRouteEta': false,
+          'location': {'latitude': 33.89, 'longitude': 35.50}
+        }),
+        200,
+        headers: {'content-type': 'application/json'},
+      );
+    });
+    final api = CarePointApi(
+      baseUrl: 'https://carepoint.test/api/v1',
+      client: client,
+    )
+      ..accessToken = 'phase8-patient'
+      ..refreshToken = 'phase8-patient-refresh';
+
+    final value = await api.medicalTransportTracking('tr-phase8');
+    expect(value['visible'], true);
+    expect(value['trackingPositionIsRouteEta'], false);
+    expect((value['location'] as Map)['latitude'], 33.89);
+  });
+
+
+  test('phase 9 transport timeline remains distinct from lifecycle authority', () async {
+    final seen = <String>[];
+    final client = MockClient((request) async {
+      seen.add(request.url.path);
+      expect(request.headers['authorization'], 'Bearer phase9-timeline');
+      if (request.url.path == '/api/v1/medical-transport/tr-phase9/timeline') {
+        return http.Response(
+          jsonEncode({
+            'requestId': 'tr-phase9',
+            'lifecycleStatus': 'EN_ROUTE',
+            'automaticLifecycleMutation': false,
+            'items': [
+              {
+                'kind': 'LIFECYCLE',
+                'authority': 'AUTHORITATIVE_LIFECYCLE',
+                'code': 'EN_ROUTE',
+                'occurredAt': '2031-01-15T10:00:00Z'
+              },
+              {
+                'kind': 'MILESTONE',
+                'authority': 'AUTOMATED_DETECTION',
+                'code': 'NEAR_PICKUP',
+                'distanceMeters': 320,
+                'occurredAt': '2031-01-15T10:01:00Z'
+              }
+            ]
+          }),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      }
+      if (request.url.path == '/api/v1/provider/medical-transport/tr-phase9/timeline') {
+        return http.Response(
+          jsonEncode({
+            'requestId': 'tr-phase9',
+            'automaticLifecycleMutation': false,
+            'items': []
+          }),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      }
+      return http.Response('{}', 404, headers: {'content-type': 'application/json'});
+    });
+    final api = CarePointApi(
+      baseUrl: 'https://carepoint.test/api/v1',
+      client: client,
+    )
+      ..accessToken = 'phase9-timeline'
+      ..refreshToken = 'phase9-timeline-refresh';
+
+    final patient = await api.medicalTransportTimeline('tr-phase9');
+    expect(patient['automaticLifecycleMutation'], false);
+    expect(((patient['items'] as List)[1] as Map)['authority'], 'AUTOMATED_DETECTION');
+
+    final provider = await api.providerMedicalTransportTimeline('tr-phase9');
+    expect(provider['automaticLifecycleMutation'], false);
+    expect(seen, [
+      '/api/v1/medical-transport/tr-phase9/timeline',
+      '/api/v1/provider/medical-transport/tr-phase9/timeline',
+    ]);
+  });
+
+  test('phase 9 realtime stream is request scoped and carries structural events only', () async {
+    final client = MockClient((request) async {
+      expect(request.method, 'GET');
+      expect(request.url.path, '/api/v1/realtime/stream');
+      expect(request.url.queryParameters['topic'], 'TRANSPORT_TRACKING');
+      expect(request.url.queryParameters['transportRequestId'], 'tr-phase9');
+      expect(request.url.queryParameters['after'], isNotEmpty);
+      expect(request.headers['authorization'], 'Bearer phase9-realtime');
+      expect(request.headers['accept'], 'text/event-stream');
+      return http.Response(
+        'id: telemetry-event-1\n'
+        'event: TELEMETRY_UPDATED\n'
+        'data: {"topic":"TRANSPORT_TRACKING","eventType":"TELEMETRY_UPDATED","entityType":"TRANSPORT_TELEMETRY","entityId":"telemetry-event-1","occurredAt":"2031-01-15T10:02:00Z"}\n\n',
+        200,
+        headers: {'content-type': 'text/event-stream'},
+      );
+    });
+    final api = CarePointApi(
+      baseUrl: 'https://carepoint.test/api/v1',
+      client: client,
+    )
+      ..accessToken = 'phase9-realtime'
+      ..refreshToken = 'phase9-realtime-refresh';
+
+    final event = await api
+        .transportRealtimeEvents(
+          'tr-phase9',
+          topic: 'TRANSPORT_TRACKING',
+          after: DateTime.utc(2031, 1, 15, 10),
+        )
+        .first;
+    expect(event['eventType'], 'TELEMETRY_UPDATED');
+    expect(event.containsKey('latitude'), false);
+    expect(event.containsKey('longitude'), false);
+  });
+
 }

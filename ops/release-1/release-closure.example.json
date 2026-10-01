@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "schema": "carepoint.release-closure-record/v1",
+  "releaseCandidate": {
+    "consolidatedPr": 511,
+    "sourceSha": "9974b72b76b45539e6513730c3b8fdbe0d1506f0"
+  },
+  "productionAcceptanceRef": null,
+  "closure": {
+    "status": "PENDING",
+    "closedByRef": null,
+    "closedAt": null,
+    "closureRef": null
+  },
+  "confirmations": {
+    "productionAcceptanceRecorded": false,
+    "postDeployValidationPassed": false,
+    "openCriticalIncidentsZero": false,
+    "rollbackWindowDispositionRecorded": false,
+    "operationsOwnershipTransferred": false,
+    "evidenceArchiveReferenceRecorded": false
+  },
+  "releaseClosed": false,
+  "hypercareRequired": true
+}

@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "schema": "carepoint.project-final-closure-record/v1",
+  "releaseCandidate": {
+    "consolidatedPr": 511,
+    "sourceSha": "9974b72b76b45539e6513730c3b8fdbe0d1506f0"
+  },
+  "readinessRef": null,
+  "closure": {
+    "status": "PENDING",
+    "closedByRef": null,
+    "closedAt": null,
+    "closureDecisionRef": null
+  },
+  "confirmations": {
+    "projectClosureReadinessApproved": false,
+    "functionalScopeComplete": false,
+    "releaseLifecycleComplete": false,
+    "criticalBlockersZero": false,
+    "residualBacklogAccepted": false,
+    "documentationArchiveComplete": false,
+    "operationsOwnershipAccepted": false,
+    "supportTransitionAccepted": false
+  },
+  "projectClosed": false,
+  "automaticClosurePerformed": false
+}
