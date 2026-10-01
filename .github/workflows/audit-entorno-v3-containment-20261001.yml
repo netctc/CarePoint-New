@@ -79,3 +79,6 @@ jobs:
           echo "AUDIT_TOTAL=$total"
           echo "AUDIT_CONTAINED=$contained"
           echo "AUDIT_DIVERGENT=$divergent"
+          echo "DIVERGENT_BRANCH_LIST_BEGIN"
+          cat "$divergent_file"
+          echo "DIVERGENT_BRANCH_LIST_END"
