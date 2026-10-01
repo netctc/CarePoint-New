@@ -1,0 +1,216 @@
+{
+  "schemaVersion": 1,
+  "schema": "carepoint.external-closure-blocker-ledger/v1",
+  "observedDate": "2026-10-01",
+  "releaseCandidate": {
+    "consolidatedPr": 511,
+    "sourceSha": "9974b72b76b45539e6513730c3b8fdbe0d1506f0",
+    "finalValidationPr": 528,
+    "validatedHead": "448b71fbe7a3f8303d0792d63a00223af0b7d229"
+  },
+  "invariants": {
+    "productionAcceptance": false,
+    "mainMergeAllowed": false,
+    "projectClosureReady": false,
+    "projectClosed": false,
+    "externalEvidenceMayBeSynthesized": false,
+    "autoCloseAllowed": false
+  },
+  "gates": [
+    {
+      "id": "LIVE-01-PRODUCTION-INFRASTRUCTURE",
+      "status": "EXTERNAL_PENDING",
+      "primaryIssues": [
+        79,
+        77
+      ],
+      "relatedIssues": [
+        185
+      ],
+      "ownerRoles": [
+        "Operations",
+        "SRE",
+        "Database",
+        "Security",
+        "Privacy"
+      ],
+      "requiredEvidence": [
+        "production-equivalent topology and region evidence",
+        "live managed PostgreSQL/Redis/object-storage/KMS controls",
+        "backup/PITR/failover and restore measurements",
+        "approved immutable release artifact references",
+        "operations/security/privacy approvals"
+      ]
+    },
+    {
+      "id": "LIVE-02-EXTERNAL-PROVIDERS",
+      "status": "EXTERNAL_PENDING",
+      "primaryIssues": [
+        80
+      ],
+      "relatedIssues": [
+        75,
+        78
+      ],
+      "ownerRoles": [
+        "Integration Owner",
+        "Operations",
+        "Product",
+        "Security"
+      ],
+      "requiredEvidence": [
+        "approved launch provider scope or explicit NOT_APPLICABLE decision",
+        "real provider account/endpoints and secret delivery",
+        "success/failure/idempotency/privacy E2E evidence",
+        "observability correlation",
+        "mobile-device evidence where provider flow requires it"
+      ]
+    },
+    {
+      "id": "LIVE-03-SIGNED-MOBILE-RELEASES",
+      "status": "EXTERNAL_PENDING",
+      "primaryIssues": [
+        81
+      ],
+      "relatedIssues": [
+        97
+      ],
+      "ownerRoles": [
+        "Mobile Release Owner",
+        "Security",
+        "Product"
+      ],
+      "requiredEvidence": [
+        "production application identities and runners",
+        "secure signing/provisioning ownership",
+        "signed immutable Android AAB and iOS IPA references/checksums",
+        "final release SHA embedded/correlated",
+        "physical-device acceptance"
+      ]
+    },
+    {
+      "id": "LIVE-04-INDEPENDENT-SECURITY-ASSESSMENT",
+      "status": "EXTERNAL_PENDING",
+      "primaryIssues": [
+        82,
+        85,
+        124
+      ],
+      "relatedIssues": [],
+      "ownerRoles": [
+        "Security Owner",
+        "Independent Assessor",
+        "Release Authority"
+      ],
+      "requiredEvidence": [
+        "independent production-equivalent penetration/adversarial assessment",
+        "approved scope and rules of engagement",
+        "Critical/High remediation or formally approved disposition",
+        "Security-owner disposition for historical CodeQL blocker",
+        "security and release-authority sign-off"
+      ]
+    },
+    {
+      "id": "LIVE-05-HUMAN-UAT",
+      "status": "EXTERNAL_PENDING",
+      "primaryIssues": [
+        87
+      ],
+      "relatedIssues": [
+        75,
+        76,
+        78
+      ],
+      "ownerRoles": [
+        "Clinical Owner",
+        "Operations",
+        "Product",
+        "Business UAT Owner"
+      ],
+      "requiredEvidence": [
+        "production-equivalent UAT environment reference",
+        "human execution evidence for applicable cases",
+        "clinical/business/operations PASS/FAIL decisions",
+        "defect/retest references",
+        "final accepted UAT sign-off"
+      ]
+    },
+    {
+      "id": "LIVE-06-RESILIENCE-RPO-RTO",
+      "status": "EXTERNAL_PENDING",
+      "primaryIssues": [
+        88,
+        89,
+        90
+      ],
+      "relatedIssues": [],
+      "ownerRoles": [
+        "SRE",
+        "Infrastructure",
+        "Database",
+        "Operations"
+      ],
+      "requiredEvidence": [
+        "approved traffic model",
+        "production-equivalent performance execution",
+        "approved failure-injection plan and execution",
+        "measured recovery, capacity, RPO and RTO evidence",
+        "operator acceptance"
+      ]
+    },
+    {
+      "id": "LIVE-07-KSA-MARKET-CLINICAL-APPROVALS",
+      "status": "EXTERNAL_PENDING",
+      "primaryIssues": [
+        91,
+        92,
+        93,
+        94
+      ],
+      "relatedIssues": [
+        77
+      ],
+      "ownerRoles": [
+        "Legal",
+        "Privacy",
+        "Clinical Safety",
+        "Provider Governance",
+        "Release Authority"
+      ],
+      "requiredEvidence": [
+        "launch entity and market decision",
+        "privacy/compliance approval",
+        "clinical-safety approval",
+        "provider licensing/credential/scope-of-practice approval",
+        "operations/product/release-authority approval"
+      ]
+    },
+    {
+      "id": "LIVE-08-DEPLOYMENT-ROLLBACK-REHEARSAL",
+      "status": "EXTERNAL_PENDING",
+      "primaryIssues": [
+        96,
+        97,
+        98
+      ],
+      "relatedIssues": [
+        79
+      ],
+      "ownerRoles": [
+        "Release Manager",
+        "SRE",
+        "Database",
+        "Operations",
+        "CAB"
+      ],
+      "requiredEvidence": [
+        "production-equivalent deployment rehearsal",
+        "exact immutable artifact/source-SHA runtime correlation",
+        "database migration rehearsal",
+        "controlled rollback and post-rollback validation",
+        "PITR/RPO/RTO evidence and CAB approval"
+      ]
+    }
+  ],
+  "decision": "BLOCKED_ON_EXTERNAL_HUMAN_EVIDENCE"
+}
