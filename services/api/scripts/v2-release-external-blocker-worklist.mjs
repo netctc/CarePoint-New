@@ -12,6 +12,8 @@ const lines=[
   `Decision: **${ledger.decision}**`,
   "",
   "Automated validation is green, but the following gates still require real external/human evidence.",
+  "",
+  `Open-issue snapshot: ${ledger.repositoryOpenIssueSnapshot.observedOpenIssueCount} total; ${ledger.repositoryOpenIssueSnapshot.gateMappedOpenIssueCount} gate-mapped + master tracker #${ledger.repositoryOpenIssueSnapshot.masterTrackerIssue}; unmapped=${ledger.repositoryOpenIssueSnapshot.unmappedOpenIssueCount}.`,
   ""
 ];
 
