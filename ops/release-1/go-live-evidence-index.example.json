@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "schema": "carepoint.go-live-evidence-index/v1",
+  "releaseCandidate": {
+    "consolidatedPr": 511,
+    "sourceSha": "9974b72b76b45539e6513730c3b8fdbe0d1506f0",
+    "canonicalWorkflowCount": 25,
+    "canonicalMatrixConclusion": "SUCCESS"
+  },
+  "productionAcceptance": false,
+  "mainMergeAllowed": false,
+  "humanReleaseAuthorizationRequired": true,
+  "finalDecision": "BLOCKED",
+  "gates": [
+    {
+      "id": "LIVE-01-PRODUCTION-INFRASTRUCTURE",
+      "status": "PENDING",
+      "evidenceFile": null,
+      "evidenceSha256": null,
+      "acceptedByRef": null,
+      "acceptedAt": null
+    },
+    {
+      "id": "LIVE-02-EXTERNAL-PROVIDERS",
+      "status": "PENDING",
+      "evidenceFile": null,
+      "evidenceSha256": null,
+      "acceptedByRef": null,
+      "acceptedAt": null
+    },
+    {
+      "id": "LIVE-03-SIGNED-MOBILE-RELEASES",
+      "status": "PENDING",
+      "evidenceFile": null,
+      "evidenceSha256": null,
+      "acceptedByRef": null,
+      "acceptedAt": null
+    },
+    {
+      "id": "LIVE-04-INDEPENDENT-SECURITY-ASSESSMENT",
+      "status": "PENDING",
+      "evidenceFile": null,
+      "evidenceSha256": null,
+      "acceptedByRef": null,
+      "acceptedAt": null
+    },
+    {
+      "id": "LIVE-05-HUMAN-UAT",
+      "status": "PENDING",
+      "evidenceFile": null,
+      "evidenceSha256": null,
+      "acceptedByRef": null,
+      "acceptedAt": null
+    },
+    {
+      "id": "LIVE-06-RESILIENCE-RPO-RTO",
+      "status": "PENDING",
+      "evidenceFile": null,
+      "evidenceSha256": null,
+      "acceptedByRef": null,
+      "acceptedAt": null
+    },
+    {
+      "id": "LIVE-07-KSA-MARKET-CLINICAL-APPROVALS",
+      "status": "PENDING",
+      "evidenceFile": null,
+      "evidenceSha256": null,
+      "acceptedByRef": null,
+      "acceptedAt": null
+    },
+    {
+      "id": "LIVE-08-DEPLOYMENT-ROLLBACK-REHEARSAL",
+      "status": "PENDING",
+      "evidenceFile": null,
+      "evidenceSha256": null,
+      "acceptedByRef": null,
+      "acceptedAt": null
+    }
+  ]
+}
