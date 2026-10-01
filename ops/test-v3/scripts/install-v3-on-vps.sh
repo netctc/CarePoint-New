@@ -403,6 +403,69 @@ verify_rich_data_candidate(){
   log "Rich-data image verified against V3 HEAD $expected_sha and compiled overlap-safe allocator."
 }
 
+verify_auth_runtime(){
+  local patient_payload patient_body patient_code admin_payload admin_body admin_code
+  patient_payload="$(mktemp)"
+  patient_body="$(mktemp)"
+  admin_payload="$(mktemp)"
+  admin_body="$(mktemp)"
+  chmod 600 "$patient_payload" "$patient_body" "$admin_payload" "$admin_body"
+
+  CAREPOINT_AUTH_SMOKE_PASSWORD="$CAREPOINT_TEST_FIXTURE_PASSWORD" python3 - <<'PY' >"$patient_payload"
+import json, os
+print(json.dumps({"email":"pac001@carepoint.test","password":os.environ["CAREPOINT_AUTH_SMOKE_PASSWORD"]}))
+PY
+
+  patient_code="$(curl --silent --show-error --max-time 15 \
+    -o "$patient_body" -w '%{http_code}' \
+    -X POST http://127.0.0.1:4300/api/v1/iam/login \
+    -H 'Content-Type: application/json' \
+    --data-binary @"$patient_payload")"
+  if [[ "$patient_code" != "200" && "$patient_code" != "201" ]]; then
+    echo "Patient auth smoke failed with HTTP $patient_code." >&2
+    cat "$patient_body" >&2
+    rm -f "$patient_payload" "$patient_body" "$admin_payload" "$admin_body"
+    return 1
+  fi
+  python3 - "$patient_body" <<'PY'
+import json, sys
+data=json.load(open(sys.argv[1],encoding="utf-8"))
+required=("sessionId","accessToken","refreshToken")
+missing=[name for name in required if not isinstance(data.get(name),str) or not data[name]]
+if missing:
+    raise SystemExit("Patient auth smoke returned no usable session: "+",".join(missing))
+PY
+
+  CAREPOINT_AUTH_SMOKE_PASSWORD="$BOOTSTRAP_ADMIN_PASSWORD" python3 - <<'PY' >"$admin_payload"
+import json, os
+print(json.dumps({"email":"admin@carepoint.test","password":os.environ["CAREPOINT_AUTH_SMOKE_PASSWORD"]}))
+PY
+
+  admin_code="$(curl --silent --show-error --max-time 15 \
+    -o "$admin_body" -w '%{http_code}' \
+    -X POST http://127.0.0.1:4300/api/v1/iam/login \
+    -H 'Content-Type: application/json' \
+    --data-binary @"$admin_payload")"
+  if [[ "$admin_code" != "200" && "$admin_code" != "201" ]]; then
+    echo "Requested-admin auth smoke failed with HTTP $admin_code." >&2
+    cat "$admin_body" >&2
+    rm -f "$patient_payload" "$patient_body" "$admin_payload" "$admin_body"
+    return 1
+  fi
+  python3 - "$admin_body" <<'PY'
+import json, sys
+data=json.load(open(sys.argv[1],encoding="utf-8"))
+if data.get("requiresMfa") is True:
+    if not isinstance(data.get("challengeId"),str) or not data["challengeId"]:
+        raise SystemExit("Admin auth smoke returned an invalid MFA challenge.")
+elif not isinstance(data.get("sessionId"),str) or not data["sessionId"]:
+    raise SystemExit("Admin auth smoke returned neither an MFA challenge nor a session.")
+PY
+
+  rm -f "$patient_payload" "$patient_body" "$admin_payload" "$admin_body"
+  log "Authentication smoke passed for synthetic patient and requested V3 admin."
+}
+
 deploy_v3(){
   cd "$V3_REPO"
 
@@ -455,6 +518,8 @@ deploy_v3(){
 
   log "Running local V3 smoke tests."
   bash ops/test-v3/scripts/smoke.sh
+  log "Running local V3 authentication smoke."
+  verify_auth_runtime
 }
 
 configure_nginx_tls(){
@@ -523,6 +588,7 @@ main(){
   require_cmd awk
   require_cmd grep
   require_cmd getent
+  require_cmd python3
 
   ensure_packages
   check_resources
