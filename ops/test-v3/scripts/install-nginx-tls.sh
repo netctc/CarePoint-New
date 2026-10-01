@@ -23,7 +23,7 @@ for name in "${required[@]}"; do
 done
 
 if [[ "${EUID}" -ne 0 ]]; then
-  echo "Run with sudo while preserving the five TEST_*_DOMAIN variables: sudo -E bash $0" >&2
+  echo "Run with sudo while preserving the six TEST_*_DOMAIN variables: sudo -E bash $0" >&2
   exit 2
 fi
 
