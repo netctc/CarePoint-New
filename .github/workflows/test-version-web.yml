@@ -25,7 +25,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: test-version-web-${{ github.event.pull_request.head.sha || github.sha }}
+  group: test-version-web-${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
