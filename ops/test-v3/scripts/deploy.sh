@@ -65,8 +65,8 @@ fi
 echo "==> Validating Compose configuration"
 docker compose -f "$COMPOSE_FILE" config >/dev/null
 
-echo "==> Building API, Admin and four Flutter Web applications"
-docker compose -f "$COMPOSE_FILE" build --pull api admin patient-web doctor-web provider-web transport-provider-web
+echo "==> Building API, migration, rich-data, Admin and four Flutter Web applications"
+docker compose -f "$COMPOSE_FILE" --profile rich-test-data build --pull api migrate rich-test-data admin patient-web doctor-web provider-web transport-provider-web
 
 echo "==> Starting PostgreSQL and Redis"
 docker compose -f "$COMPOSE_FILE" up -d postgres redis
