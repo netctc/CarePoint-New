@@ -26,12 +26,12 @@ This lane exists so the consolidated system can be exercised online before produ
 
 The V3 stack exposes six HTTPS test endpoints through host Nginx:
 
-- API → loopback `4200`
-- Admin Web → loopback `3200`
-- Patient Flutter Web → loopback `8280`
-- Doctor Flutter Web → loopback `8281`
-- Other Provider Flutter Web → loopback `8282`
-- Transport Provider Flutter Web → loopback `8283`
+- API → loopback `4300`
+- Admin Web → loopback `3300`
+- Patient Flutter Web → loopback `8380`
+- Doctor Flutter Web → loopback `8381`
+- Other Provider Flutter Web → loopback `8382`
+- Transport Provider Flutter Web → loopback `8383`
 
 ## Host preparation
 
