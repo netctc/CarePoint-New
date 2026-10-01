@@ -1,80 +1,161 @@
 {
   "schema": "carepoint.release-resilience-plan/v1",
   "approved": false,
+  "overallStatus": "DRAFT",
   "sensitiveDataIncluded": false,
-  "note": "Draft catalog only. No fault is enabled and no production or production-equivalent execution is authorized by this file.",
+  "release": {
+    "sourceSha": "REPLACE_WITH_FINAL_40_HEX_RC_SHA",
+    "releaseVersion": "REPLACE_WITH_RELEASE_VERSION",
+    "rcEvidenceRef": "REPLACE_WITH_IMMUTABLE_RC_EVIDENCE_REFERENCE"
+  },
+  "environment": {
+    "id": "REPLACE_WITH_NON_SECRET_ENVIRONMENT_REFERENCE",
+    "classification": "production-equivalent",
+    "topologyEvidenceRef": "REPLACE_WITH_PRODUCTION_EQUIVALENT_TOPOLOGY_REFERENCE",
+    "executionApprovalRef": "REPLACE_WITH_APPROVED_FAILURE_INJECTION_REFERENCE"
+  },
+  "note": "Evidence template. Accepted evidence requires every scenario executed with PASS/ACCEPTED status, measured recovery, approved RPO/RTO results and explicit approvals.",
   "scenarioCatalog": [
     {
       "id": "notification-provider-outage",
       "enabled": false,
+      "status": "BLOCKED",
+      "accepted": false,
       "ownerRole": "PENDING_OPERATIONS_OWNER",
       "executionRunbookRef": "PENDING_RESTRICTED_RUNBOOK",
-      "evidenceOwnerRef": "PENDING_EVIDENCE_OWNER"
+      "evidenceOwnerRef": "PENDING_EVIDENCE_OWNER",
+      "startedAt": "REPLACE_WITH_TIMESTAMP",
+      "completedAt": "REPLACE_WITH_TIMESTAMP",
+      "evidenceRef": "REPLACE_WITH_EXECUTION_EVIDENCE_REFERENCE",
+      "observedRecoveryMinutes": null
     },
     {
       "id": "notification-worker-lease-recovery",
       "enabled": false,
+      "status": "BLOCKED",
+      "accepted": false,
       "ownerRole": "PENDING_OPERATIONS_OWNER",
       "executionRunbookRef": "PENDING_RESTRICTED_RUNBOOK",
-      "evidenceOwnerRef": "PENDING_EVIDENCE_OWNER"
+      "evidenceOwnerRef": "PENDING_EVIDENCE_OWNER",
+      "startedAt": "REPLACE_WITH_TIMESTAMP",
+      "completedAt": "REPLACE_WITH_TIMESTAMP",
+      "evidenceRef": "REPLACE_WITH_EXECUTION_EVIDENCE_REFERENCE",
+      "observedRecoveryMinutes": null
     },
     {
       "id": "psp-timeout-retry-webhook-replay",
       "enabled": false,
+      "status": "BLOCKED",
+      "accepted": false,
       "ownerRole": "PENDING_FINANCE_PLATFORM_OWNER",
       "executionRunbookRef": "PENDING_RESTRICTED_RUNBOOK",
-      "evidenceOwnerRef": "PENDING_EVIDENCE_OWNER"
+      "evidenceOwnerRef": "PENDING_EVIDENCE_OWNER",
+      "startedAt": "REPLACE_WITH_TIMESTAMP",
+      "completedAt": "REPLACE_WITH_TIMESTAMP",
+      "evidenceRef": "REPLACE_WITH_EXECUTION_EVIDENCE_REFERENCE",
+      "observedRecoveryMinutes": null
     },
     {
       "id": "redis-loss-failover",
       "enabled": false,
+      "status": "BLOCKED",
+      "accepted": false,
       "ownerRole": "PENDING_SRE_OWNER",
       "executionRunbookRef": "PENDING_RESTRICTED_RUNBOOK",
-      "evidenceOwnerRef": "PENDING_EVIDENCE_OWNER"
+      "evidenceOwnerRef": "PENDING_EVIDENCE_OWNER",
+      "startedAt": "REPLACE_WITH_TIMESTAMP",
+      "completedAt": "REPLACE_WITH_TIMESTAMP",
+      "evidenceRef": "REPLACE_WITH_EXECUTION_EVIDENCE_REFERENCE",
+      "observedRecoveryMinutes": null
     },
     {
       "id": "postgres-primary-failover",
       "enabled": false,
+      "status": "BLOCKED",
+      "accepted": false,
       "ownerRole": "PENDING_DATABASE_OWNER",
       "executionRunbookRef": "PENDING_RESTRICTED_RUNBOOK",
-      "evidenceOwnerRef": "PENDING_EVIDENCE_OWNER"
+      "evidenceOwnerRef": "PENDING_EVIDENCE_OWNER",
+      "startedAt": "REPLACE_WITH_TIMESTAMP",
+      "completedAt": "REPLACE_WITH_TIMESTAMP",
+      "evidenceRef": "REPLACE_WITH_EXECUTION_EVIDENCE_REFERENCE",
+      "observedRecoveryMinutes": null
     },
     {
       "id": "postgres-replica-lag",
       "enabled": false,
+      "status": "BLOCKED",
+      "accepted": false,
       "ownerRole": "PENDING_DATABASE_OWNER",
       "executionRunbookRef": "PENDING_RESTRICTED_RUNBOOK",
-      "evidenceOwnerRef": "PENDING_EVIDENCE_OWNER"
+      "evidenceOwnerRef": "PENDING_EVIDENCE_OWNER",
+      "startedAt": "REPLACE_WITH_TIMESTAMP",
+      "completedAt": "REPLACE_WITH_TIMESTAMP",
+      "evidenceRef": "REPLACE_WITH_EXECUTION_EVIDENCE_REFERENCE",
+      "observedRecoveryMinutes": null
     },
     {
       "id": "postgres-pitr-restore",
       "enabled": false,
+      "status": "BLOCKED",
+      "accepted": false,
       "ownerRole": "PENDING_DATABASE_OWNER",
       "executionRunbookRef": "PENDING_RESTRICTED_RUNBOOK",
-      "evidenceOwnerRef": "PENDING_EVIDENCE_OWNER"
+      "evidenceOwnerRef": "PENDING_EVIDENCE_OWNER",
+      "startedAt": "REPLACE_WITH_TIMESTAMP",
+      "completedAt": "REPLACE_WITH_TIMESTAMP",
+      "evidenceRef": "REPLACE_WITH_EXECUTION_EVIDENCE_REFERENCE",
+      "observedRecoveryMinutes": null
     },
     {
       "id": "telehealth-provider-network-outage",
       "enabled": false,
+      "status": "BLOCKED",
+      "accepted": false,
       "ownerRole": "PENDING_TELEHEALTH_OWNER",
       "executionRunbookRef": "PENDING_RESTRICTED_RUNBOOK",
-      "evidenceOwnerRef": "PENDING_EVIDENCE_OWNER"
+      "evidenceOwnerRef": "PENDING_EVIDENCE_OWNER",
+      "startedAt": "REPLACE_WITH_TIMESTAMP",
+      "completedAt": "REPLACE_WITH_TIMESTAMP",
+      "evidenceRef": "REPLACE_WITH_EXECUTION_EVIDENCE_REFERENCE",
+      "observedRecoveryMinutes": null
     },
     {
       "id": "otlp-collector-outage",
       "enabled": false,
+      "status": "BLOCKED",
+      "accepted": false,
       "ownerRole": "PENDING_OBSERVABILITY_OWNER",
       "executionRunbookRef": "PENDING_RESTRICTED_RUNBOOK",
-      "evidenceOwnerRef": "PENDING_EVIDENCE_OWNER"
+      "evidenceOwnerRef": "PENDING_EVIDENCE_OWNER",
+      "startedAt": "REPLACE_WITH_TIMESTAMP",
+      "completedAt": "REPLACE_WITH_TIMESTAMP",
+      "evidenceRef": "REPLACE_WITH_EXECUTION_EVIDENCE_REFERENCE",
+      "observedRecoveryMinutes": null
     },
     {
       "id": "critical-workflow-failure-safety",
       "enabled": false,
+      "status": "BLOCKED",
+      "accepted": false,
       "ownerRole": "PENDING_RELEASE_OWNER",
       "executionRunbookRef": "PENDING_RESTRICTED_RUNBOOK",
-      "evidenceOwnerRef": "PENDING_EVIDENCE_OWNER"
+      "evidenceOwnerRef": "PENDING_EVIDENCE_OWNER",
+      "startedAt": "REPLACE_WITH_TIMESTAMP",
+      "completedAt": "REPLACE_WITH_TIMESTAMP",
+      "evidenceRef": "REPLACE_WITH_EXECUTION_EVIDENCE_REFERENCE",
+      "observedRecoveryMinutes": null
     }
   ],
+  "recoveryObjectives": {
+    "approvedRpoMinutes": null,
+    "approvedRtoMinutes": null,
+    "measuredRpoMinutes": null,
+    "measuredRtoMinutes": null,
+    "targetApprovalRef": "REPLACE_WITH_APPROVED_RPO_RTO_TARGET_REFERENCE",
+    "measurementEvidenceRef": "REPLACE_WITH_MEASURED_RECOVERY_EVIDENCE_REFERENCE",
+    "accepted": false
+  },
   "dependencies": {
     "productionEquivalentTopology": "#79",
     "realProviderConfiguration": "#80",
@@ -82,5 +163,44 @@
     "performanceTargetLoad": "#89",
     "releaseCandidateArtifact": "#97",
     "deploymentRollbackRehearsal": "#98"
-  }
+  },
+  "approvals": [
+    {
+      "role": "SRE",
+      "decision": "PENDING",
+      "approverRef": "REPLACE_WITH_APPROVER_REFERENCE",
+      "evidenceRef": "REPLACE_WITH_APPROVAL_REFERENCE",
+      "approvedAt": "REPLACE_WITH_TIMESTAMP"
+    },
+    {
+      "role": "Database",
+      "decision": "PENDING",
+      "approverRef": "REPLACE_WITH_APPROVER_REFERENCE",
+      "evidenceRef": "REPLACE_WITH_APPROVAL_REFERENCE",
+      "approvedAt": "REPLACE_WITH_TIMESTAMP"
+    },
+    {
+      "role": "Operations",
+      "decision": "PENDING",
+      "approverRef": "REPLACE_WITH_APPROVER_REFERENCE",
+      "evidenceRef": "REPLACE_WITH_APPROVAL_REFERENCE",
+      "approvedAt": "REPLACE_WITH_TIMESTAMP"
+    },
+    {
+      "role": "Security",
+      "decision": "PENDING",
+      "approverRef": "REPLACE_WITH_APPROVER_REFERENCE",
+      "evidenceRef": "REPLACE_WITH_APPROVAL_REFERENCE",
+      "approvedAt": "REPLACE_WITH_TIMESTAMP"
+    },
+    {
+      "role": "Release Authority",
+      "decision": "PENDING",
+      "approverRef": "REPLACE_WITH_APPROVER_REFERENCE",
+      "evidenceRef": "REPLACE_WITH_APPROVAL_REFERENCE",
+      "approvedAt": "REPLACE_WITH_TIMESTAMP"
+    }
+  ],
+  "finalEvidenceRef": "REPLACE_WITH_FINAL_RESILIENCE_ACCEPTANCE_REFERENCE",
+  "acceptedAt": "REPLACE_WITH_TIMESTAMP"
 }
