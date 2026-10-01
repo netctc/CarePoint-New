@@ -468,6 +468,126 @@ function assertGateSpecific(gateId, evidence) {
       ["production-equivalent", "production"].includes(evidence.environment?.classification),
       "Resilience evidence must come from a production-equivalent or production environment.",
     );
+    assert.match(
+      evidence.release?.artifactDigest ?? "",
+      /^sha256:[a-f0-9]{64}$/i,
+      "Resilience artifact digest must be sha256:<64-hex>.",
+    );
+
+    const executionStartedAt = evidence.execution?.startedAt;
+    const executionCompletedAt = evidence.execution?.completedAt;
+    assert.ok(
+      executionStartedAt && !Number.isNaN(Date.parse(executionStartedAt)),
+      "Resilience execution.startedAt must be ISO-8601.",
+    );
+    assert.ok(
+      executionCompletedAt && !Number.isNaN(Date.parse(executionCompletedAt)),
+      "Resilience execution.completedAt must be ISO-8601.",
+    );
+    assert.ok(
+      Date.parse(executionCompletedAt) >= Date.parse(executionStartedAt),
+      "Resilience execution.completedAt cannot precede startedAt.",
+    );
+    assert.ok(evidence.execution?.exerciseId, "Resilience execution.exerciseId is required.");
+    assert.ok(evidence.execution?.operatorRef, "Resilience execution.operatorRef is required.");
+
+    if (evidence.environment.classification === "production") {
+      assert.equal(
+        evidence.execution?.productionFaultInjectionApproved,
+        true,
+        "Production failure injection requires explicit approval.",
+      );
+      assert.ok(
+        evidence.execution?.changeApprovalRef,
+        "Production failure injection requires a change approval reference.",
+      );
+    } else {
+      assert.equal(
+        evidence.execution?.isolatedEnvironment,
+        true,
+        "Production-equivalent resilience execution must be isolated.",
+      );
+      assert.ok(
+        evidence.execution?.isolationEvidenceRef,
+        "Production-equivalent resilience execution requires isolation evidence.",
+      );
+    }
+
+    const resilienceDefinitions = new Map([
+      ["notification-provider-outage", {
+        required: () => evidence.scope?.notificationsEnabled === true,
+        assertions: [
+          "unaffectedReadsAvailable",
+          "durableWorkRetained",
+          "boundedRetryObserved",
+          "deliveredOnceAfterRecovery",
+          "terminalFailureAuditedWithoutSensitiveData",
+        ],
+      }],
+      ["notification-worker-lease-recovery", {
+        required: () => evidence.scope?.notificationsEnabled === true,
+        assertions: ["leasedWorkRecovered", "noLostDurableJobs", "noDuplicateDurableJobs"],
+      }],
+      ["psp-timeout-retry-webhook-replay", {
+        required: () => evidence.scope?.paymentsEnabled === true,
+        assertions: [
+          "sameIdempotencyKeySafe",
+          "replayedWebhookSafe",
+          "noDuplicateCharge",
+          "noDuplicateFinancialTransition",
+          "noFalseSuccess",
+          "reconciliationPossible",
+        ],
+      }],
+      ["redis-loss-failover", {
+        required: () => true,
+        assertions: [
+          "safeDegradationObserved",
+          "recoveryWindowMeasured",
+          "noDuplicateCriticalSideEffect",
+          "noRetryStorm",
+        ],
+      }],
+      ["postgres-primary-failover", {
+        required: () => true,
+        assertions: ["writeIntegrityPreserved", "noDoubleBooking", "failoverRecoveryMeasured"],
+      }],
+      ["postgres-replica-lag", {
+        required: () => evidence.topology?.postgresReadReplicas === true,
+        assertions: ["lagEffectMeasured", "criticalWriteIntegrityPreserved", "staleReadBehaviorDocumented"],
+      }],
+      ["postgres-pitr-restore", {
+        required: () => true,
+        assertions: [
+          "recoveryPointMeasured",
+          "schemaIntegrityVerified",
+          "criticalReadWriteVerified",
+          "operationsRunbookUsable",
+        ],
+      }],
+      ["telehealth-provider-network-outage", {
+        required: () => evidence.scope?.telehealthEnabled === true,
+        assertions: [
+          "realProviderPathExercised",
+          "failedJoinNotShownActive",
+          "noCrossAppointmentLeakage",
+          "recoveryWindowMeasured",
+        ],
+      }],
+      ["otlp-collector-outage", {
+        required: () => true,
+        assertions: [
+          "applicationSafetyIndependent",
+          "exporterFailureObservable",
+          "restoredTelemetryObserved",
+          "sanitizedEvidence",
+        ],
+      }],
+      ["critical-workflow-failure-safety", {
+        required: () => true,
+        assertions: ["bookingCapacitySafe", "clinicalWritesUnambiguous", "unaffectedReadsAvailable"],
+      }],
+    ]);
 
     for (const scenario of evidence.scenarios ?? []) {
       const applicability = String(scenario.applicability ?? "").toUpperCase();
@@ -486,6 +606,13 @@ function assertGateSpecific(gateId, evidence) {
         assert.ok(
           scenario.notApplicableApprovalRef,
           `Resilience scenario ${scenario.id} requires N/A approval.`,
+        );
+        const definition = resilienceDefinitions.get(scenario.id);
+        assert.ok(definition, `Unexpected resilience scenario ${scenario.id}.`);
+        assert.equal(
+          definition.required(),
+          false,
+          `Mandatory resilience scenario ${scenario.id} cannot be marked NOT_APPLICABLE.`,
         );
         continue;
       }
@@ -528,14 +655,28 @@ function assertGateSpecific(gateId, evidence) {
         scenario.measurements?.metricsRef,
         `Resilience scenario ${scenario.id} requires metrics evidence.`,
       );
-      const assertions = scenario.assertions ?? {};
-      assert.ok(
-        Object.keys(assertions).length > 0,
-        `Resilience scenario ${scenario.id} requires explicit safety assertions.`,
+      const definition = resilienceDefinitions.get(scenario.id);
+      assert.ok(definition, `Unexpected resilience scenario ${scenario.id}.`);
+      const required = definition.required();
+      assert.equal(
+        required,
+        true,
+        `Resilience scenario ${scenario.id} must be NOT_APPLICABLE for the approved scope/topology.`,
       );
-      for (const [name, value] of Object.entries(assertions)) {
+
+      const assertions = scenario.assertions ?? {};
+      const requiredAssertions = [...definition.assertions];
+      if (scenario.id === "critical-workflow-failure-safety") {
+        if (evidence.scope?.paymentsEnabled === true) {
+          requiredAssertions.push("paymentStateRequiresProviderEvidence");
+        }
+        if (evidence.scope?.emergencyEnabled === true) {
+          requiredAssertions.push("emergencyDispatchNotFalselySuccessful");
+        }
+      }
+      for (const name of requiredAssertions) {
         assert.equal(
-          value,
+          assertions[name],
           true,
           `Resilience scenario ${scenario.id} assertion must be true: ${name}`,
         );
@@ -557,6 +698,22 @@ function assertGateSpecific(gateId, evidence) {
     }
     assertFiniteNonNegativeNumber(continuity?.rpoMinutes, "Measured RPO minutes");
     assertFiniteNonNegativeNumber(continuity?.rtoMinutes, "Measured RTO minutes");
+    const computedRpoMinutes = Math.max(
+      0,
+      (Date.parse(continuity.recoveryPointReferenceAt) -
+        Date.parse(continuity.recoveredDataThroughAt)) / 60000,
+    );
+    const computedRtoMinutes =
+      (Date.parse(continuity.acceptedHealthyAt) -
+        Date.parse(continuity.incidentDeclaredAt)) / 60000;
+    assert.ok(
+      Math.abs(continuity.rpoMinutes - computedRpoMinutes) <= 0.1,
+      "Measured RPO does not match recovery timestamps.",
+    );
+    assert.ok(
+      Math.abs(continuity.rtoMinutes - computedRtoMinutes) <= 0.1,
+      "Measured RTO does not match recovery timestamps.",
+    );
     assert.ok(continuity.rpoMinutes <= 15, "Measured RPO exceeds 15 minutes.");
     assert.ok(continuity.rtoMinutes <= 120, "Measured RTO exceeds 120 minutes.");
 
