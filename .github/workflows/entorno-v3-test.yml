@@ -168,4 +168,21 @@ jobs:
         run: npm run db:deploy --workspace @carepoint/api
       - name: Execute guarded rich synthetic reset against PostgreSQL 16
         run: npm run db:test-rich-reset --workspace @carepoint/api
+      - name: Bootstrap requested admin after rich reset
+        env:
+          BOOTSTRAP_ADMIN_EMAIL: admin@carepoint.test
+          BOOTSTRAP_ADMIN_PASSWORD: CarePointV3CiAdminPassword2026
+        run: npm run db:bootstrap --workspace @carepoint/api
+      - name: Verify requested admin exists
+        run: |
+          node - <<'NODE'
+          const { PrismaClient } = require("@prisma/client");
+          const prisma = new PrismaClient();
+          (async () => {
+            const user = await prisma.user.findUnique({ where: { email: "admin@carepoint.test" } });
+            if (!user || user.role !== "ADMIN" || user.status !== "ACTIVE") {
+              throw new Error("Requested V3 admin was not created as an active ADMIN.");
+            }
+          })().finally(() => prisma.$disconnect());
+          NODE
 
