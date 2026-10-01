@@ -1,0 +1,139 @@
+{
+  "schemaVersion": 1,
+  "schema": "carepoint.final-go-live-gate-readiness/v1",
+  "baselineValidation": {
+    "consolidatedPr": 497,
+    "validatedHead": "21e423624cdf0e4b4dcfdb8383e5ef62f2d72643",
+    "canonicalWorkflowCount": 25,
+    "canonicalMatrixConclusion": "SUCCESS",
+    "functionalTraceability": "230/230_MERGED_IMPLEMENTATION_EVIDENCE"
+  },
+  "productionAcceptance": false,
+  "mainMergeAllowed": false,
+  "externalEvidenceGateCount": 8,
+  "gates": [
+    {
+      "id": "LIVE-01-PRODUCTION-INFRASTRUCTURE",
+      "automatedWorkflow": "Production Infrastructure Acceptance Contract",
+      "evidenceTemplate": "ops/release-1/production-infrastructure-evidence.example.json",
+      "externalEvidenceRequired": true,
+      "automatedContractIsSufficient": false,
+      "autoClosable": false,
+      "blockingUntil": [
+        "production-equivalent topology evidence",
+        "approved KSA residency/region evidence",
+        "live managed PostgreSQL/Redis/object-storage/KMS controls",
+        "approved immutable release artifact references"
+      ]
+    },
+    {
+      "id": "LIVE-02-EXTERNAL-PROVIDERS",
+      "automatedWorkflow": "External Integration Acceptance Contract",
+      "evidenceTemplate": "ops/release-1/external-integration-evidence.example.json",
+      "externalEvidenceRequired": true,
+      "automatedContractIsSufficient": false,
+      "autoClosable": false,
+      "blockingUntil": [
+        "approved launch-scope decisions",
+        "real provider accounts/endpoints",
+        "secret-delivery evidence",
+        "real success/failure/observability evidence"
+      ]
+    },
+    {
+      "id": "LIVE-03-SIGNED-MOBILE-RELEASES",
+      "automatedWorkflow": "Mobile Release Evidence Contract",
+      "evidenceTemplate": "ops/release-1/mobile-release-evidence.example.json",
+      "externalEvidenceRequired": true,
+      "automatedContractIsSufficient": false,
+      "autoClosable": false,
+      "blockingUntil": [
+        "production application identities",
+        "store/signing ownership evidence",
+        "signed Android AAB evidence",
+        "signed iOS IPA evidence",
+        "embedded final release SHA verification"
+      ]
+    },
+    {
+      "id": "LIVE-04-INDEPENDENT-SECURITY-ASSESSMENT",
+      "automatedWorkflow": "Security Analysis",
+      "evidenceTemplate": "ops/release-1/independent-security-assessment-evidence.example.json",
+      "externalEvidenceRequired": true,
+      "automatedContractIsSufficient": false,
+      "autoClosable": false,
+      "blockingUntil": [
+        "independent assessor/team evidence",
+        "approved scope and rules of engagement",
+        "manual penetration/security testing evidence",
+        "finding remediation or formally accepted risk",
+        "security and release-authority sign-off"
+      ]
+    },
+    {
+      "id": "LIVE-05-HUMAN-UAT",
+      "automatedWorkflow": "Release 1 UAT Evidence Contract",
+      "evidenceTemplate": "ops/release-1/uat-evidence.example.json",
+      "externalEvidenceRequired": true,
+      "automatedContractIsSufficient": false,
+      "autoClosable": false,
+      "blockingUntil": [
+        "production-equivalent environment reference",
+        "human execution evidence for applicable UAT cases",
+        "business/clinical/operations approvals",
+        "final accepted UAT decision"
+      ]
+    },
+    {
+      "id": "LIVE-06-RESILIENCE-RPO-RTO",
+      "automatedWorkflow": "Resilience Rehearsal Contract",
+      "evidenceTemplate": "ops/release-1/resilience-exercise-plan.example.json",
+      "externalEvidenceRequired": true,
+      "automatedContractIsSufficient": false,
+      "autoClosable": false,
+      "blockingUntil": [
+        "approved failure-injection plan",
+        "executed provider/database/cache/observability scenarios",
+        "measured recovery evidence",
+        "accepted RPO/RTO results"
+      ]
+    },
+    {
+      "id": "LIVE-07-KSA-MARKET-CLINICAL-APPROVALS",
+      "automatedWorkflow": "Release 1 Market Readiness Evidence Contract",
+      "evidenceTemplate": "ops/release-1/market-readiness-evidence.example.json",
+      "externalEvidenceRequired": true,
+      "automatedContractIsSufficient": false,
+      "autoClosable": false,
+      "blockingUntil": [
+        "KSA launch entity and regulatory decisions",
+        "privacy/compliance approval",
+        "clinical-safety approval",
+        "provider-governance approval",
+        "operations/product/release-authority approval"
+      ]
+    },
+    {
+      "id": "LIVE-08-DEPLOYMENT-ROLLBACK-REHEARSAL",
+      "automatedWorkflow": "Deployment Rehearsal Contract",
+      "evidenceTemplate": "ops/release-1/deployment-rehearsal-evidence.example.json",
+      "externalEvidenceRequired": true,
+      "automatedContractIsSufficient": false,
+      "autoClosable": false,
+      "blockingUntil": [
+        "production-equivalent deployment rehearsal",
+        "runtime observed final source SHA",
+        "controlled rollback execution",
+        "post-rollback health and smoke evidence",
+        "PITR/RPO/RTO evidence and CAB approvals"
+      ]
+    }
+  ],
+  "invariants": [
+    "AUTOMATED_GREEN_DOES_NOT_EQUAL_LIVE_ACCEPTANCE",
+    "NO_EXTERNAL_EVIDENCE_MAY_BE_SYNTHESIZED",
+    "NO_GATE_MAY_BE_AUTO_CLOSED",
+    "NO_SECRETS_OR_RESTRICTED_REPORT_CONTENT_IN_REPOSITORY",
+    "MAIN_REMAINS_UNCHANGED_UNTIL_EXPLICIT_FINAL_MERGE_DECISION"
+  ]
+}
