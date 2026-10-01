@@ -235,7 +235,7 @@ prepare_repo(){
   [[ -z "$(git -C "$V3_REPO" status --porcelain)" ]] ||
     die "V3 checkout contains uncommitted changes. Resolve them before continuing."
 
-  git -C "$V3_REPO" fetch --prune origin "$V3_BRANCH"
+  git -C "$V3_REPO" fetch --prune origin "+refs/heads/$V3_BRANCH:refs/remotes/origin/$V3_BRANCH"
   git -C "$V3_REPO" checkout "$V3_BRANCH"
   git -C "$V3_REPO" merge --ff-only "origin/$V3_BRANCH"
 
