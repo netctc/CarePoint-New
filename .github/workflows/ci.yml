@@ -103,6 +103,10 @@ jobs:
         run: npm --workspace @carepoint/api run c1:kms-preflight
       - run: npm run test
       - run: npm run db:deploy
+      - name: Transport Phase 29 PostgreSQL transactional acceptance
+        env:
+          CAREPOINT_TRANSPORT_POSTGRES_ACCEPTANCE: "true"
+        run: npm --workspace @carepoint/api run v2:transport-phase29-postgres
       - run: npm run db:bootstrap
       - name: Start API
         run: |
