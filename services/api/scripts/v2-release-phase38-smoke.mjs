@@ -8,8 +8,16 @@ const [t,v,p,d]=await Promise.all([
  readFile(new URL("docs/release-postdeploy-validation-phase38.md",repo),"utf8")
 ]);
 const j=JSON.parse(t), pkg=JSON.parse(p);
-assert.equal(j.checks.length,10); assert.equal(j.productionAcceptance,false); assert.equal(j.releaseClosed,false);
-for(const x of ["PASSED requires every post-deploy check PASS.","ROLLBACK-TRIGGER-ASSESSMENT","rollbackAssessmentRequired","productionAcceptance:false","releaseClosed:false"]) assert.ok(v.includes(x));
+assert.equal(j.checks.length,10);
+assert.equal(j.productionAcceptance,false);
+assert.equal(j.releaseClosed,false);
+assert.ok(j.checks.some((check)=>check.id==="ROLLBACK-TRIGGER-ASSESSMENT"));
+for(const x of [
+ "PASSED requires every post-deploy check PASS.",
+ "rollbackAssessmentRequired",
+ "productionAcceptance:false",
+ "releaseClosed:false"
+]) assert.ok(v.includes(x), "Phase 38 validator must include: "+x);
 assert.equal(pkg.scripts["v2:release-phase38"],"node scripts/v2-release-phase38-smoke.mjs");
 assert.equal(pkg.scripts["v2:release-phase38-postdeploy"],"node scripts/v2-release-phase38-postdeploy.mjs");
 assert.ok(pkg.scripts.test.indexOf("npm run v2:release-phase37")<pkg.scripts.test.indexOf("npm run v2:release-phase38"));
