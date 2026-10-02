@@ -91,12 +91,16 @@ class PublicPatientClinicalShareController {
   constructor(private readonly shares: PatientClinicalShareService) {}
 
   @Get(":token")
+  @Header("Content-Type", "text/html; charset=utf-8")
   @Header("Cache-Control", "no-store, max-age=0")
   @Header("Pragma", "no-cache")
   @Header("Referrer-Policy", "no-referrer")
   @Header("X-Content-Type-Options", "nosniff")
-  get(@Param("token") token: string) {
-    return this.shares.readPublic(token);
+  @Header("X-Frame-Options", "DENY")
+  @Header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; frame-ancestors 'none'; form-action 'none'")
+  async get(@Param("token") token: string) {
+    const share = await this.shares.readPublic(token);
+    return this.shares.renderPublicHtml(share);
   }
 }
 
