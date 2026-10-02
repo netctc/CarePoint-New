@@ -791,6 +791,21 @@ class CarePointApi {
 
   Future<Map<String, dynamic>> patientObservationCatalog() async =>
       _asMap(await _send('GET', '/patient/observations/catalog'));
+  Future<Map<String, dynamic>> recordPatientObservation({
+    required String code,
+    required num value,
+    required String unitCode,
+    required DateTime observedAt,
+    String? glucoseContext,
+  }) async => _asMap(await _send('POST', '/patient/observations', body: {
+    'code': code.trim().toUpperCase(),
+    'value': value,
+    'unitCode': unitCode.trim().toUpperCase(),
+    'observedAt': observedAt.toUtc().toIso8601String(),
+    'sourceType': 'MANUAL',
+    if (glucoseContext?.trim().isNotEmpty == true)
+      'glucoseContext': glucoseContext!.trim().toUpperCase(),
+  }));
   Future<Map<String, dynamic>> providerObservationCatalog() async =>
       _asMap(await _send('GET', '/provider/observations/catalog'));
   // PRV-059 / PRV-060 — capability- and consent-bounded Other Provider snapshot projections.
