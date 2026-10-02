@@ -405,21 +405,49 @@ class _PatientShellState extends State<PatientShell> {
                 key: const ValueKey('patient-edit-profile-entry'),
                 onPressed: openProfile,
                 icon: const Icon(Icons.edit_outlined),
-                label: Text(patientProfile  @override
+                label: Text(patientProfileText(widget.locale, 'edit')),
+              )),
+              entry(OutlinedButton.icon(
+                key: const ValueKey('patient-emergency-contacts-entry'),
+                onPressed: openEmergencyContacts,
+                icon: const Icon(Icons.contact_emergency_outlined),
+                label: Text(emergencyContactText(widget.locale, 'open')),
+              )),
+              entry(OutlinedButton.icon(
+                key: const ValueKey('patient-consent-lifecycle-entry'),
+                onPressed: openConsents,
+                icon: const Icon(Icons.privacy_tip_outlined),
+                label: Text(patientConsentText(widget.locale, 'manage')),
+              )),
+            ],
+          );
+        },
+      ),
+    ),
+    Expanded(
+      child: PatientAccountPage(
+        session: widget.session,
+        locale: widget.locale,
+        onSignOut: widget.onSignOut,
+      ),
+    ),
+  ]);
+
+  @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
       title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         const Text('CarePoint'),
         if (activePatientContext.isNotEmpty)
           Text(
-            '\${activePatientContext['patientName'] ?? patientDependentsText(widget.locale, 'self')} · \${patientDependentsText(widget.locale, activePatientContext['mode']?.toString() ?? 'SELF')}',
+            '${activePatientContext['patientName'] ?? patientDependentsText(widget.locale, 'self')} · ${patientDependentsText(widget.locale, activePatientContext['mode']?.toString() ?? 'SELF')}',
             style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
           ),
       ]),
     ),
     body: IndexedStack(index: tab, children: [
       _withPatientContext(PatientHomeDashboard(
-        key: ValueKey('patient-home-\$visitsVersion'),
+        key: ValueKey('patient-home-$visitsVersion'),
         session: widget.session,
         locale: widget.locale,
         onOpenVisits: () => _selectMainTab(2),
