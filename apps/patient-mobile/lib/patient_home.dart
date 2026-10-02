@@ -243,7 +243,7 @@ class _PatientHomeDashboardState extends State<PatientHomeDashboard> {
               Text(t('noMedicationReminders'))
             else ...[
               Text(
-                '\${enabled.length} \${t('activeReminders')}',
+                '${enabled.length} ${t('activeReminders')}',
                 style: const TextStyle(fontWeight: FontWeight.w800),
               ),
               const SizedBox(height: 6),
@@ -357,8 +357,8 @@ class _PatientHomeDashboardState extends State<PatientHomeDashboard> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  '\${t('latest')}: \${values.last.toStringAsFixed(_precision(metric))} '
-                  '\${metric?['canonicalUnitCode'] ?? ''}',
+                  '${t('latest')}: ${values.last.toStringAsFixed(_precision(metric))} '
+                  '${metric?['canonicalUnitCode'] ?? ''}',
                   style: const TextStyle(fontWeight: FontWeight.w800),
                 ),
               ],
@@ -626,8 +626,8 @@ class _PatientHomeDashboardState extends State<PatientHomeDashboard> {
   String _dateTime(DateTime value) {
     final local = value.toLocal();
     String two(int item) => item.toString().padLeft(2, '0');
-    return '\${local.year}-\${two(local.month)}-\${two(local.day)} '
-        '\${two(local.hour)}:\${two(local.minute)}';
+    return '${local.year}-${two(local.month)}-${two(local.day)} '
+        '${two(local.hour)}:${two(local.minute)}';
   }
 }
 
