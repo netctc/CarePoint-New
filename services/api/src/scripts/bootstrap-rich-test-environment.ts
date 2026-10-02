@@ -451,6 +451,40 @@ async function createService(providerId:string,name:string,modalities:Appointmen
   return service;
 }
 
+async function createSyntheticClinicLocation(
+  providerId:string,
+  serviceId:string,
+  sequence:number,
+){
+  const latitude=24.7136+((sequence%9)-4)*0.006;
+  const longitude=46.6753+((sequence%11)-5)*0.006;
+  const location=await prisma.providerLocation.create({
+    data:{
+      providerId,
+      label:`CarePoint Synthetic Clinic ${String(sequence).padStart(3,"0")}`,
+      addressLine1:`${100+(sequence%80)} Health District Road`,
+      city:"Riyadh",
+      region:"Riyadh",
+      postalCode:`12${String(100+sequence%899).padStart(3,"0")}`,
+      countryCode:"SA",
+      latitude,
+      longitude,
+      arrivalInstructions:"Synthetic test location. Report to the main reception desk.",
+      addressValidatedAt:dayjs().subtract(30+(sequence%120),"day").toDate(),
+      active:true,
+    },
+  });
+  await prisma.serviceDeliveryContext.create({
+    data:{
+      serviceId,
+      modality:"CLINIC",
+      clinicLocationId:location.id,
+      clinicArrivalInstructions:"Report to the main reception desk.",
+    },
+  });
+  return location;
+}
+
 async function createDoctors(config:FixtureConfig,specialtyIds:Map<string,string>):Promise<SchedulableProvider[]>{
   const output:SchedulableProvider[]=[];
   let globalSequence=0;
@@ -467,7 +501,10 @@ async function createDoctors(config:FixtureConfig,specialtyIds:Map<string,string
       await createProviderCredential(provider.id,"medical-license",licenseNumber,globalSequence);
       const modalities:AppointmentModality[]=globalSequence%5===0?["CLINIC","TELEMEDICINE","HOME_VISIT"]:["CLINIC","TELEMEDICINE"];
       const service=await createService(provider.id,`${specialty.name} Consultation`,modalities,globalSequence%4===0?45:30);
-      if(service) output.push({providerId:provider.id,userId:user.id,username,providerClass:"DOCTOR",catalogSuffix:specialty.suffix,serviceId:service.id,modalities,durationMinutes:globalSequence%4===0?45:30});
+      if(service){
+        if(modalities.includes("CLINIC")) await createSyntheticClinicLocation(provider.id,service.id,globalSequence);
+        output.push({providerId:provider.id,userId:user.id,username,providerClass:"DOCTOR",catalogSuffix:specialty.suffix,serviceId:service.id,modalities,durationMinutes:globalSequence%4===0?45:30});
+      }
     }
   }
   return output;
@@ -489,7 +526,10 @@ async function createOtherProviders(config:FixtureConfig,categoryIds:Map<string,
         await createProviderCredential(provider.id,type,`SYN-PR-${category.suffix}-${pad3(index)}-${credentialIndex+1}`,globalSequence+credentialIndex);
       }
       const service=await createService(provider.id,`${category.name} Service`,category.modalities,category.modalities.includes("HOME_VISIT")?45:30);
-      if(service) output.push({providerId:provider.id,userId:user.id,username,providerClass:"OTHER_PROVIDER",catalogSuffix:category.suffix,serviceId:service.id,modalities:category.modalities,durationMinutes:category.modalities.includes("HOME_VISIT")?45:30,family:category.family});
+      if(service){
+        if(category.modalities.includes("CLINIC")) await createSyntheticClinicLocation(provider.id,service.id,1000+globalSequence);
+        output.push({providerId:provider.id,userId:user.id,username,providerClass:"OTHER_PROVIDER",catalogSuffix:category.suffix,serviceId:service.id,modalities:category.modalities,durationMinutes:category.modalities.includes("HOME_VISIT")?45:30,family:category.family});
+      }
       if(category.family==="MEDICAL_TRANSPORT_GROUND") transportProviders.ground.push(provider.id);
       if(category.family==="MEDICAL_TRANSPORT_AIR") transportProviders.air.push(provider.id);
       if(category.family==="EMERGENCY_AMBULANCE") transportProviders.emergency.push(provider.id);
