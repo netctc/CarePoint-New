@@ -16,6 +16,7 @@
     "db:pilot-fixtures": "node dist/scripts/bootstrap-private-pilot.js",
     "db:test-fixtures": "node dist/scripts/bootstrap-test-environment.js",
     "db:test-rich-reset": "node dist/scripts/bootstrap-rich-test-environment.js",
+    "db:v3-backfill-healthcare-centers": "node dist/scripts/backfill-v3-test-healthcare-centers.js",
     "auth:cleanup": "node dist/scripts/cleanup-auth-artifacts.js",
     "privacy:backfill-emergency-contacts": "node dist/scripts/backfill-emergency-contact-encryption.js",
     "f12:diagnostic-report-notification": "node scripts/f12-diagnostic-report-notification-smoke.mjs",
