@@ -421,6 +421,15 @@ class _TransportDialogState extends State<_TransportDialog> {
           width: 520,
           child: SingleChildScrollView(
             child: Column(mainAxisSize: MainAxisSize.min, children: [
+              ListTile(
+                key: const ValueKey('medical-transport-scheduled-for'),
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.schedule_outlined),
+                title: Text(transportText(widget.locale, 'scheduledFor')),
+                subtitle: Text(patientMedicalTransportDateTime(scheduledFor.toIso8601String())),
+                onTap: _pickDateTime,
+              ),
+              const SizedBox(height: 10),
               DropdownButtonFormField<String>(
                 initialValue: mode,
                 decoration: InputDecoration(labelText: transportText(widget.locale, 'mode')),
@@ -563,14 +572,6 @@ class _TransportDialogState extends State<_TransportDialog> {
                   label: Text(transportText(widget.locale, 'routePreview')),
                 ),
               ],
-              const SizedBox(height: 12),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.schedule_outlined),
-                title: Text(transportText(widget.locale, 'scheduledFor')),
-                subtitle: Text(patientMedicalTransportDateTime(scheduledFor.toIso8601String())),
-                onTap: _pickDateTime,
-              ),
             ]),
           ),
         ),
@@ -819,7 +820,7 @@ class _TransportDialogState extends State<_TransportDialog> {
       if (!mounted) return;
       if (items.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(transportText(widget.locale, 'noLocationMatches'))),
+          SnackBar(content: Text(transportText(widget.locale, 'noHealthcareCenters'))),
         );
         return;
       }
@@ -1194,6 +1195,7 @@ class _TransportLocationSearchDialogState
                 autofocus: true,
                 textInputAction: TextInputAction.search,
                 onSubmitted: (_) => search(),
+                onChanged: (_) => setState(() {}),
                 decoration: InputDecoration(
                   labelText: transportText(widget.locale, 'searchLocation'),
                   hintText: transportText(widget.locale, 'locationSearchHint'),
@@ -1246,6 +1248,21 @@ class _TransportLocationSearchDialogState
           ),
         ),
         actions: [
+          if (query.text.trim().length >= 2 && items.isEmpty)
+            FilledButton.tonalIcon(
+              key: const ValueKey('transport-use-entered-address'),
+              onPressed: busy
+                  ? null
+                  : () => Navigator.pop(
+                        context,
+                        TransportLocation(
+                          address: query.text.trim(),
+                          source: TransportLocationSource.manual,
+                        ),
+                      ),
+              icon: const Icon(Icons.edit_location_alt_outlined),
+              label: Text(transportText(widget.locale, 'useEnteredAddress')),
+            ),
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: Text(cpText(widget.locale, 'common.cancel')),
