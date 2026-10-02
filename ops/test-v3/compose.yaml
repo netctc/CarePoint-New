@@ -198,6 +198,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: "3200"
+      TRANSPORT_MODULE_ENABLED: "true"
       CAREPOINT_API_URL: ${CAREPOINT_API_PUBLIC_BASE:?CAREPOINT_API_PUBLIC_BASE is required}
       CAREPOINT_ADMIN_PUBLIC_ORIGIN: https://${TEST_ADMIN_DOMAIN:?}
       CAREPOINT_API_TIMEOUT_MS: "10000"
@@ -218,6 +219,7 @@ services:
         CAREPOINT_RELEASE_SHA: ${TEST_RELEASE_SHA:?TEST_RELEASE_SHA is required}
         APP_TITLE: CarePoint Patient Test
         CAREPOINT_API_BASE: ${CAREPOINT_API_PUBLIC_BASE:?}
+        TRANSPORT_MODULE_ENABLED: "true"
     restart: unless-stopped
     ports:
       - "127.0.0.1:8380:80"
